@@ -1,0 +1,205 @@
+<bracket> := [
+</bracket> := ]
+
+<scope> := {
+</scope> := }
+
+<angled> := <
+</angled> := >
+
+<parentheses> := (
+</parentheses> := )
+
+<number> := <number literal>
+
+<string> := <string literal>
+
+<literal> := <number> | <string> | true | false | null
+
+<primitive> := void | bool | byte | ubyte | int | int16 | int64 | uint | uint16 | uint64 | float | string
+
+<expression> := <binaryExpression> | <unaryExpression>
+
+<binaryExpression> := <expression> <binaryOperator> <expression>
+
+<unaryExpression> := <unaryOperator> <expression> | <primaryExpression>
+
+<primaryExpression> := <operand> |
+						<dereference> |
+						<primaryExpression> <selector> |
+						<primaryExpression> <as> |
+						<primaryExpression> <index> |
+						<primaryExpression> <functionParams> |
+
+<operand> := <literal> | <identifier> | <groupedExpression> | <compileTime> | <anonymousType>
+
+<groupedExpression> := "(" <expression> ")"
+
+<operator> :=   <binaryOperator> | <unaryOperator> | <variationOperator> | <bitwiseOperator> | 
+				<relativeOperator> | <assignmentOperator> | <definitionOperator> | <accessOperator> 
+
+<binaryOperator> := "+" | "-" | "*" | "/" | "%" | "&&" | "||" | "<<" | ">>" | "|" | "^" | "&" | "&^" | 
+					<relativeOperator>
+
+<unaryOperator> := "!" | "-" | "^"
+
+<bitwiseOperator> := "|" | "^" | "<<" | ">>" | "&" | "&^"
+
+<relativeOperator> := "==" | "!=" | "<=" | ">=" | "<" | ">"
+
+<assignmentOperator> := "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | "&^="
+
+<definitionOperator> := "=" | ":="
+
+<accessOperator> := "..." | "in" | ".." | "[]" | "=>" | "<-"
+
+<using> := using <identifier>
+
+<package> := package <identifier>
+
+<statement> := <definition> | <if> | <for> | <while> | <switch> | <assignment> | 
+				<delete> | <return> | <compileTime> | <block>
+
+<statements> := <statement...> | <statement>
+
+<inset> := <bracket> <insetKeyword> </bracket>
+
+<generics> := <angled> <identifier...>, </angled> 
+
+<type> := <identifier> | 
+			<primitive> | 
+			<explicitType> | 
+			<pointerType> | 
+			<rawPointerType> |
+			<arrayType> |
+			<functionType> |
+			// PackageName.Type
+			<identifier> . <identifier>
+
+<pointerType> := * <type>
+
+<rawPointerType> := ~* <type>
+
+<arrayType> := <bracket></bracket> <type>
+
+<functionType> := <type> <parenthesis> ?(<type...>,) </parenthesis>
+
+<declaration> := <identifier> : <type>
+
+<explicitType> := <scope> <declaration...>, </scope>
+
+<implicitType> := <scope> <identifier...>, </scope>
+
+<anonymousType> := <scope> <definition...>, </scope>
+
+<assignmentValue> := <expression> | <new> | <anonymousType> | <functionValue> | <fixedArray>
+
+<definition> := <declaration> = <assignmentValue> | 
+				(<identifier> | <implicitType>) := <assignmentValue>
+
+<assignment> := <expression> <assignmentOperator> <assignmentValue>
+
+<block> := <scope> <statements> </scope>
+
+<functionSignature> := ?(<generic) <parentheses> 
+							?((<declaration> | <expression>...) ?(<definition>...)), 
+						</parentheses>
+
+<functionDeclaration> := <functionSignature> ?(<where>) <block> | <functionSignature> ?(<where>) => <expression>
+
+<function> := <type> <identifier> ?(<generics>) <functionDeclaration>
+
+<functionParams> := <parentheses> ?(<expression...>,) </parentheses>
+
+<functionCall> := <identifier> <functionParams>
+
+<state> := state <identifier> 
+	?(<generics> ?(<where>))
+	<scope>
+		<declaration...> & <definition...> & <inset...>
+	</scope>
+
+<where> := Where <functionDeclaration>
+
+<constructor> := <identifier> :: <functionDeclaration>
+
+<destructor> := <identifier> :: delete <scope> <statements> </scope>
+
+<operatorOverload> := <type> <identifier> :: Operator :: <operator> <functionDeclaration>
+
+<method> := (<type> <identifier> :: <identifier> <functionDeclaration>) | 
+			<constructor> | 
+			<destructor> | 
+			<operatorOverload>
+
+<compileTime> := #OnCompile <expression>
+	| #OnCompile <type> <scope> <statements> </scope>
+
+<compileTimeDebug> := #OnCompileDebug <scope> <statements> </scope>
+
+<functionValue> := <type> <functionDeclaration>
+
+<condition> := <expression> ?((== | < | > | != | <= | >=) <expression>)
+
+<conditions> := <condition> ?((|| | &&) <condition>...)
+
+<conditional> := <parentheses> <conditions...> </parentheses> <block>
+
+<for> := for 
+	<parentheses> 
+		(<identifier> | <declaration>) (in | ..) (<identifier> | <expression>)
+	</parentheses>
+	<block>
+
+<while> := while <conditional>
+
+<if> := if <conditional> ?(<elif...>) ?(<else>)
+
+<elif> := else <if>
+
+<else> := else <block>
+
+<case> := case <parentheses> <expression> </parentheses> <block>
+
+<switch> := switch <parentheses> <expression> </parentheses>
+	<scope>
+		<case...>
+		?(default : <block>)
+	</scope>
+
+<defer> := defer (<statement> | <block>) | defer if <conditional> (<statement> | <block>)
+
+<ternary> := <expression> ? <expression> : <expression>
+
+<new> := new <type> <functionParams> ?(<at>)
+	| new <anonymousType> ?(<at>)
+
+<delete> := delete <identifier> |
+			delete <identifier> []
+
+<return> := return <expression>
+
+<fixedArray> :=  fixed <type> <index>
+
+<selector> := . <identifier>
+
+<selection> := <identifier> <selector>
+
+<as> := as <type>
+
+<at> := at <primaryExpression>
+
+<index> := <bracket> <expression> </bracket>
+
+<dereference> := <primaryExpression> *
+
+<extern> := extern <scope> (<type> <identifier> <parentheses> ?(<declaration>...), </parentheses>...) </scope>
+
+<program> := <package> & 
+				<using...> & 
+				<state...> & 
+				<function...> & 
+				<method...> & 
+				<definition...> &
+				<compileTime...> &
+				<statement>
