@@ -432,6 +432,7 @@ struct Node
 		{
 			Type returnType;
 			TokenIndex name;
+			Node* generics;
 			eastl::vector<Node*>* parameters;
 			bool exprFunction;
 			union
@@ -443,7 +444,7 @@ struct Node
 
 		struct
 		{
-			eastl::vector<Type>* names;
+			eastl::vector<Type>* types;
 		} generics;
 
 		struct
@@ -511,6 +512,12 @@ struct Node
 		case State_:
 			state = copy.state;
 			break;
+		case Generics:
+			generics = copy.generics;
+			break;
+		case Block:
+			block = copy.block;
+			break;
 		default:
 			break;
 		}
@@ -554,9 +561,26 @@ struct Node
 			params += ")";
 			return function.returnType.ToString(tokens) + " " +
 				tokens.At(function.name)->ToString() +
+				(function.generics != nullptr ? function.generics->ToString(tokens) : "") +
 				params;
 		}
 		case State_:
+			return "";
+		case Generics:
+		{
+			eastl::string types = "";
+
+			for (Type type : *generics.types)
+			{
+				types += type.ToString(tokens) + ", ";
+			}
+
+			return tokens.At(start)->ToString() +
+				types +
+				tokens.At(end)->ToString();
+		}
+		return "";
+		case Block:
 			return "";
 		default:
 			return "";
@@ -820,7 +844,6 @@ struct Syntax
 			Token* start = curr;
 			Type type = ParseDeclarationType();
 			if (type.typeID == TypeID::InvalidType) break;
-			Advance();
 			Node func = ParseFunction(type, start);
 			if (func.nodeID != NodeID::Unknown) AddNode(func);
 			return;
@@ -866,30 +889,44 @@ struct Syntax
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
 		{
+			Node function = CreateNode(start, NodeID::Function);
 			Token* name = curr;
 			Advance();
+
+			if (Expect(UniqueType::Less))
+			{
+				Node* generics = ParseGenerics();
+				function.function.generics = generics;
+			}
+			else
+			{
+				function.function.generics = nullptr;
+			}
+
 			if (Expect(UniqueType::DoubleColon))
 			{
 				//Parse method
 			}
 			else if (Expect(UniqueType::Lparen, errors.expectedFunction))
 			{
-				Node function = CreateNode(start, NodeID::Function);
 				function.function.returnType = returnType;
 				function.function.name = name->index;
 				Advance();
 				eastl::vector<Node*>* parameters = ParseParametersList();
+				function.function.parameters = parameters;
 				if (Expect(UniqueType::Rparen, errors.expectedFunctionClosure)) Advance();
 
 				if (Expect(UniqueType::Lbrace))
 				{
 					function.function.exprFunction = false;
 					//Node* block = ParseBlock(function);
+					return function;
 				}
 				else if (Expect(UniqueType::FatArrow))
 				{
 					function.function.exprFunction = true;
 					function.function.body.expr = ParseExpr();
+					return function;
 				}
 				else
 				{
@@ -902,15 +939,46 @@ struct Syntax
 		return Node();
 	}
 
+	Node* ParseGenerics()
+	{
+		Node* generics = arena->Emplace<Node>(CreateNode(curr, NodeID::Generics));
+		eastl::vector<Type>* genericTypes = arena->Emplace<eastl::vector<Type>>();
+		generics->generics.types = genericTypes;
+
+		Advance();
+
+		if (Expect(UniqueType::Greater))
+		{
+			Advance();
+			AddError(curr, errors.emptyGenerics);
+			return generics;
+		}
+
+		while (!Expect(UniqueType::Greater) && !IsEOF())
+		{
+			Type type = ParseDeclarationType();
+			if (type.typeID != TypeID::InvalidType) genericTypes->push_back(type);
+			if (Expect(UniqueType::Comma)) Advance();
+		}
+
+		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
+		{
+			generics->end = curr->index;
+			Advance();
+		}
+
+		return generics;
+	}
+
 	Node* ParseBlock(Node& of)
 	{
 		Node* block = arena->Emplace<Node>(CreateNode(curr, NodeID::Block));
 		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart)) return nullptr;
 		Advance();
-		
+
 		StartScope();
 
-		while(!Expect(UniqueType::Rbrace) && !IsEOF())
+		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
 			Node* node = ParseBlockStatment();
 			//block->block.inner->push_back(ParseBlockStatment());
@@ -929,7 +997,11 @@ struct Syntax
 
 	Node* ParseBlockStatment()
 	{
-
+		switch (curr->uniqueType)
+		{
+		default:
+			break;
+		}
 		return nullptr;
 	}
 
@@ -951,6 +1023,7 @@ struct Syntax
 		{
 			ParseAssignment(parameters->back());
 		}
+
 		else if (Expect(TokenType::Identifier))
 		{
 			Node assign = ParseAssignmentStatement();
@@ -1078,7 +1151,6 @@ struct Syntax
 			node.definition.type = type;
 			node.definition.assignment = nullptr;
 
-			Advance();
 			return node;
 		}
 
@@ -1093,6 +1165,7 @@ struct Syntax
 		{
 		case Primitive:
 			type = CreatePrimitive();
+			Advance();
 			break;
 
 		case Identifier:
@@ -1106,12 +1179,14 @@ struct Syntax
 					type.typeID = TypeID::ImportedType;
 					type.importedType.packageName = name;
 					type.importedType.typeName = curr->index;
+					Advance();
 				}
 			}
 			else
 			{
 				type.typeID = TypeID::NamedType;
 				type.namedType.typeName = name;
+				Advance();
 			}
 		}
 		break;

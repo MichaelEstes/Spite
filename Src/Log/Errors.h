@@ -39,4 +39,7 @@ struct Errors {
 	const eastl::string expectedBlockStart = "Expected function block opening ('{') or ('=>')";
 	const eastl::string expectedBlockEnd = "Expected function block closure ('}')";
 
+	const eastl::string emptyGenerics = "Expected generic types not '<>'";
+	const eastl::string expectedGenericsClosure = "Expected generic declaration closure ('>')";
+
 };
