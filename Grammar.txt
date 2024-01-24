@@ -64,23 +64,28 @@
 
 <inset> := <bracket> <insetKeyword> </bracket>
 
-<generics> := <angled> <identifier...>, </angled> 
+<generics> := <angled> <type...>, </angled> 
 
-<type> := <identifier> | 
+<type> := <namedType> | 
 			<primitive> | 
 			<explicitType> | 
 			<pointerType> | 
 			<rawPointerType> |
 			<arrayType> |
+			<genericType> |
 			<functionType> |
-			// PackageName.Type
-			<identifier> . <identifier>
+
+<namedType> := <identifier> | 
+				// PackageName.Type
+				(<identifier> . <identifier>)
 
 <pointerType> := * <type>
 
 <rawPointerType> := ~* <type>
 
 <arrayType> := <bracket></bracket> <type>
+
+<genericType> := <namedType> <generics> 
 
 <functionType> := <type> <parenthesis> ?(<type...>,) </parenthesis>
 
@@ -101,7 +106,7 @@
 
 <block> := <scope> <statements> </scope>
 
-<functionSignature> := ?(<generic) <parentheses> 
+<functionSignature> := ?(<generics>) <parentheses> 
 							?((<declaration> | <expression>...) ?(<definition>...)), 
 						</parentheses>
 

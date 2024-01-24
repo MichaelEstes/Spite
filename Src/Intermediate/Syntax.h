@@ -177,6 +177,7 @@ enum ExprID
 	BinaryExpr,
 	UnaryExpr,
 	GroupedExpr,
+	GenericsExpr,
 };
 
 struct Expr
@@ -251,6 +252,14 @@ struct Expr
 			TokenIndex lParen;
 			TokenIndex rParen;
 		} groupedExpr;
+
+		struct
+		{
+			Expr* expr;
+			eastl::vector<Type>* types;
+			TokenIndex open;
+			TokenIndex close;
+		} genericsExpr;
 	};
 
 	Expr(ExprID typeID, TokenIndex start)
@@ -316,6 +325,9 @@ struct Expr
 		case GroupedExpr:
 			groupedExpr = copy.groupedExpr;
 			break;
+		case GenericsExpr:
+			genericsExpr = copy.genericsExpr;
+			break;
 		default:
 			break;
 		}
@@ -373,6 +385,22 @@ struct Expr
 			return tokens.At(groupedExpr.lParen)->ToString() +
 				groupedExpr.expr->ToString(tokens) +
 				tokens.At(groupedExpr.rParen)->ToString();
+
+		case GenericsExpr:
+		{
+			eastl::string types = "";
+
+			for (Type type : *genericsExpr.types)
+			{
+				types += type.ToString(tokens) + ", ";
+			}
+
+			return (genericsExpr.expr != nullptr ? genericsExpr.expr->ToString(tokens) : "") +
+				tokens.At(genericsExpr.open)->ToString() +
+				types +
+				tokens.At(genericsExpr.close)->ToString();
+		}
+		return "";
 		default:
 			return "";
 		}
@@ -390,7 +418,6 @@ enum NodeID
 	Definition,
 	Function,
 	State_,
-	Generics,
 	Block,
 	Comment_,
 };
@@ -432,7 +459,7 @@ struct Node
 		{
 			Type returnType;
 			TokenIndex name;
-			Node* generics;
+			Expr* generics;
 			eastl::vector<Node*>* parameters;
 			bool exprFunction;
 			union
@@ -441,11 +468,6 @@ struct Node
 				Expr* expr;
 			} body;
 		} function;
-
-		struct
-		{
-			eastl::vector<Type>* types;
-		} generics;
 
 		struct
 		{
@@ -512,9 +534,6 @@ struct Node
 		case State_:
 			state = copy.state;
 			break;
-		case Generics:
-			generics = copy.generics;
-			break;
 		case Block:
 			block = copy.block;
 			break;
@@ -566,20 +585,6 @@ struct Node
 		}
 		case State_:
 			return "";
-		case Generics:
-		{
-			eastl::string types = "";
-
-			for (Type type : *generics.types)
-			{
-				types += type.ToString(tokens) + ", ";
-			}
-
-			return tokens.At(start)->ToString() +
-				types +
-				tokens.At(end)->ToString();
-		}
-		return "";
 		case Block:
 			return "";
 		default:
@@ -893,15 +898,7 @@ struct Syntax
 			Token* name = curr;
 			Advance();
 
-			if (Expect(UniqueType::Less))
-			{
-				Node* generics = ParseGenerics();
-				function.function.generics = generics;
-			}
-			else
-			{
-				function.function.generics = nullptr;
-			}
+			function.function.generics = ParseGenerics();
 
 			if (Expect(UniqueType::DoubleColon))
 			{
@@ -939,35 +936,16 @@ struct Syntax
 		return Node();
 	}
 
-	Node* ParseGenerics()
+	Expr* ParseGenerics() 
 	{
-		Node* generics = arena->Emplace<Node>(CreateNode(curr, NodeID::Generics));
-		eastl::vector<Type>* genericTypes = arena->Emplace<eastl::vector<Type>>();
-		generics->generics.types = genericTypes;
-
-		Advance();
-
-		if (Expect(UniqueType::Greater))
+		if (Expect(UniqueType::Less))
 		{
-			Advance();
-			AddError(curr, errors.emptyGenerics);
-			return generics;
+			return ParseGenericsExpr();
 		}
-
-		while (!Expect(UniqueType::Greater) && !IsEOF())
+		else
 		{
-			Type type = ParseDeclarationType();
-			if (type.typeID != TypeID::InvalidType) genericTypes->push_back(type);
-			if (Expect(UniqueType::Comma)) Advance();
+			return nullptr;
 		}
-
-		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
-		{
-			generics->end = curr->index;
-			Advance();
-		}
-
-		return generics;
 	}
 
 	Node* ParseBlock(Node& of)
@@ -1102,9 +1080,9 @@ struct Syntax
 			node.definition.name = start->index;
 			node.definition.type = type;
 			node.definition.assignment = expr;
+			node.end = curr->index;
 			if (ExpectSemicolon())
 			{
-				node.end = curr->index;
 				Advance();
 			}
 			return node;
@@ -1349,6 +1327,17 @@ struct Syntax
 			case UniqueType::Lparen:
 				expr = ParseFunctionCall(expr);
 				break;
+			
+			case UniqueType::Less:
+				if (TestGenericsExpr())
+				{
+					expr = ParseGenericsExpr(expr);
+				}
+				else
+				{
+					return expr;
+				}
+				break;
 
 			case UniqueType::As:
 
@@ -1478,6 +1467,66 @@ struct Syntax
 		}
 
 		return funcCall;
+	}
+
+	bool TestGenericsExpr()
+	{
+		Token* start = curr;
+
+		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Semicolon) && !IsEOF())
+		{
+			Advance();
+		}
+
+		if (Expect(UniqueType::Greater) && Peek()->uniqueType == UniqueType::Lparen)
+		{
+			curr = start;
+			return true;
+		}
+
+		curr = start;
+		return false;
+	}
+
+	Expr* ParseGenericsExpr(Expr* expr = nullptr)
+	{
+		Expr* generics = CreateExpr(curr->index, ExprID::GenericsExpr);
+		eastl::vector<Type>* genericTypes = arena->Emplace<eastl::vector<Type>>();
+		generics->genericsExpr.expr = (expr != nullptr ? CopyExpr(expr) : expr);
+		generics->genericsExpr.open = curr->index;
+		generics->genericsExpr.types = genericTypes;
+
+		Advance();
+
+		if (Expect(UniqueType::Greater))
+		{
+			Advance();
+			AddError(curr, errors.emptyGenerics);
+			return generics;
+		}
+
+		while (!Expect(UniqueType::Greater) && !IsEOF())
+		{
+			Type type = ParseDeclarationType();
+			if (type.typeID != TypeID::InvalidType)
+			{
+				genericTypes->push_back(type);
+				if (Expect(UniqueType::Comma)) Advance();
+			}
+			else
+			{
+				generics->typeID = ExprID::InvalidExpr;
+				return generics;
+			}
+		}
+
+		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
+		{
+			generics->genericsExpr.close = curr->index;
+			Advance();
+		}
+
+		return generics;
 	}
 
 	eastl::vector<Expr*>* ParseExprList()
