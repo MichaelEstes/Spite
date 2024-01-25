@@ -48,10 +48,12 @@ struct Type
 
 		struct
 		{
+			eastl::vector<Node*>* declarations;
 		} explicitType;
 
 		struct
 		{
+			eastl::vector<TokenIndex>* identifiers;
 		} implicitType;
 
 		struct
@@ -146,7 +148,16 @@ struct Type
 		case ExplicitType:
 			return "";
 		case ImplicitType:
-			return "";
+		{
+			eastl::string types = "";
+
+			for (TokenIndex index : *implicitType.identifiers)
+			{
+				types += tokens.At(index)->ToString() + ", ";
+			}
+
+			return "{ "  + types + "}";
+		}
 		case PointerType:
 			return tokens.At(pointerType.ptr)->ToString() + pointerType.type->ToString(tokens);
 		case ArrayType:
@@ -916,7 +927,7 @@ struct Syntax
 				if (Expect(UniqueType::Lbrace))
 				{
 					function.function.exprFunction = false;
-					//Node* block = ParseBlock(function);
+					//function.function.body.block = ParseBlock(function);
 					return function;
 				}
 				else if (Expect(UniqueType::FatArrow))
@@ -1173,6 +1184,7 @@ struct Syntax
 			switch (curr->uniqueType)
 			{
 			case UniqueType::Lbrace:
+				type = ParseInlineType();
 				break;
 
 			case UniqueType::Multiply:
@@ -1181,6 +1193,7 @@ struct Syntax
 				break;
 
 			case UniqueType::Array:
+				type = ParseArrayType();
 				break;
 
 			case UniqueType::Period:
@@ -1204,6 +1217,64 @@ struct Syntax
 		Advance();
 		ptrType.pointerType.type = arena->Emplace<Type>(ParseDeclarationType());
 		return ptrType;
+	}
+
+	Type ParseArrayType()
+	{
+		Type arrType = Type(TypeID::ArrayType);
+		arrType.arrayType.arr = curr->index;
+		Advance();
+		arrType.arrayType.type = arena->Emplace<Type>(ParseDeclarationType());
+		return arrType;
+	}
+
+	Type ParseInlineType()
+	{
+		Token* start = curr;
+		Advance();
+		Token* next = Peek();
+		bool implicit = Expect(TokenType::Identifier) && next->uniqueType == UniqueType::Comma;
+		if (Expect(UniqueType::Rbrace))
+		{
+			AddError(curr, errors.emptyInlineType);
+			return Type();
+		}
+
+		return implicit ? ParseImplicitType() : ParseExplicitType();
+	}
+
+	Type ParseImplicitType()
+	{
+		Type type = Type(TypeID::ImplicitType);
+		eastl::vector<TokenIndex>* idents = arena->Emplace<eastl::vector<NodeIndex>>();
+		type.implicitType.identifiers = idents;
+		while (!Expect(UniqueType::Rbrace) && !IsEOF())
+		{
+			if (Expect(TokenType::Identifier, errors.implictTypeNotIdent))
+			{
+				idents->push_back(curr->index);
+				Advance();
+				if (Expect(UniqueType::Comma)) Advance();
+			}
+			else
+			{
+				return Type();
+			}
+		}
+
+		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure))
+		{
+			Advance();
+			return type;
+		}
+
+		return Type();
+	}
+
+	Type ParseExplicitType()
+	{
+
+		return Type();
 	}
 
 	Expr* ParseAssignmentType()

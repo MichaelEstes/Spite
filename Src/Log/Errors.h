@@ -17,7 +17,7 @@ struct Errors {
 	const eastl::string invalidTokenAfterIdentifier = "Unexpected token after identifier";
 	const eastl::string expectedDefinition = "Expected a variable definition";
 
-	const eastl::string expectedColon = "Expected a colon (':') after identifier in non-implicit assignment";
+	const eastl::string expectedColon = "Expected a colon (':') after identifier in explicit definition";
 	const eastl::string expectedAssignment = "Variable declerations must have assignments";
 	const eastl::string expectedType = "Expected type decleration";
 
@@ -41,5 +41,11 @@ struct Errors {
 
 	const eastl::string emptyGenerics = "Expected generic types not '<>'";
 	const eastl::string expectedGenericsClosure = "Expected generic declaration closure ('>')";
+
+	const eastl::string emptyInlineType = "Empty inline type not allowed ('{}')";
+	const eastl::string onlyOneInlineType = "Inline types with only one parameter are not allowed";
+	const eastl::string inlineTypeNoClosure = "Missing closure for inline type '}'";
+
+	const eastl::string implictTypeNotIdent = "Only identifiers are allowed in implicit types";
 
 };
