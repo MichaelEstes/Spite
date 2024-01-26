@@ -8,603 +8,188 @@
 #include "../Utils/Utils.h"
 #include "../Containers/Arena.h"
 
+#include "Node.h"
+#include "Type.h"
+#include "Expr.h"
+
 typedef size_t NodeIndex;
 typedef size_t TokenIndex;
 typedef size_t ScopeIndex;
 
-struct Node;
+eastl::string ToString(Expr* expr, Tokens& tokens);
+eastl::string ToString(Type* type, Tokens& tokens);
 
-enum TypeID
+eastl::string ToString(Node& node, Tokens& tokens)
 {
-	InvalidType,
-	UnknownType,
-	PrimitiveType,
-	NamedType,
-	ExplicitType,
-	ImplicitType,
-	PointerType,
-	ArrayType,
-	FunctionType,
-	ImportedType,
-};
-
-struct Type
-{
-	TypeID typeID;
-
-	union
+	switch (node.nodeID)
 	{
-		struct
-		{
-			size_t size;
-			TokenIndex name;
-			bool isSigned;
-		} primitiveType;
-
-		struct
-		{
-			TokenIndex typeName;
-		} namedType;
-
-		struct
-		{
-			eastl::vector<Node*>* declarations;
-		} explicitType;
-
-		struct
-		{
-			eastl::vector<TokenIndex>* identifiers;
-		} implicitType;
-
-		struct
-		{
-			bool raw;
-			TokenIndex ptr;
-			Type* type;
-		} pointerType;
-
-		struct
-		{
-			TokenIndex arr;
-			Type* type;
-		} arrayType;
-
-		struct
-		{
-			Type* returnType;
-			// Param types
-			// Block?
-		} functionType;
-
-		struct
-		{
-			TokenIndex packageName;
-			TokenIndex typeName;
-		} importedType;
-
-	};
-
-	Type()
+	case Unknown:
+		return "unknown";
+	case Comment_:
+		return tokens.At(node.start)->ToString();
+	case ExpressionStmnt:
+		return ToString(node.expressionStmnt.expression, tokens);
+	case Using_:
+		return tokens.At(node.start)->ToString() + " " +
+			tokens.At(node.using_.packageName)->ToString() +
+			(node.using_.alias != -1 ? " as " + tokens.At(node.using_.alias)->ToString() : "") +
+			tokens.At(node.end)->ToString();
+	case Package_:
+		return tokens.At(node.start)->ToString() + " " +
+			tokens.At(node.package.name)->ToString() +
+			tokens.At(node.end)->ToString();
+	case Definition:
+		return tokens.At(node.definition.name)->ToString() + " : " +
+			ToString(&node.definition.type, tokens) +
+			(node.definition.assignment != nullptr
+				? +" = " + ToString(node.definition.assignment, tokens) + tokens.At(node.end)->ToString() : "");
+	case Function:
 	{
-		typeID = TypeID::InvalidType;
-	}
-
-	Type(TypeID typeID)
-	{
-		this->typeID = typeID;
-	}
-
-	Type(const Type& copy)
-	{
-		*this = copy;
-	}
-
-	Type& operator=(const Type& copy)
-	{
-		typeID = copy.typeID;
-
-		switch (typeID)
+		eastl::string params = "(";
+		if (node.function.parameters != nullptr)
 		{
-		case PrimitiveType:
-			primitiveType = copy.primitiveType;
-			break;
-		case NamedType:
-			namedType = copy.namedType;
-			break;
-		case ExplicitType:
-			explicitType = copy.explicitType;
-			break;
-		case ImplicitType:
-			implicitType = copy.implicitType;
-			break;
-		case PointerType:
-			pointerType = copy.pointerType;
-			break;
-		case ArrayType:
-			arrayType = copy.arrayType;
-			break;
-		case FunctionType:
-			functionType = copy.functionType;
-			break;
-		case ImportedType:
-			importedType = copy.importedType;
-			break;
-		default:
-			break;
-		}
-		return *this;
-	}
-
-	eastl::string ToString(Tokens& tokens)
-	{
-		switch (typeID)
-		{
-		case UnknownType:
-			return "implicit";
-		case PrimitiveType:
-			return tokens.At(primitiveType.name)->ToString();
-		case NamedType:
-			return tokens.At(namedType.typeName)->ToString();
-		case ExplicitType:
-			return "";
-		case ImplicitType:
-		{
-			eastl::string types = "";
-
-			for (TokenIndex index : *implicitType.identifiers)
+			for (Node* param : *node.function.parameters)
 			{
-				types += tokens.At(index)->ToString() + ", ";
+				params += ToString(*param, tokens) + ", ";
 			}
-
-			return "{ "  + types + "}";
 		}
-		case PointerType:
-			return tokens.At(pointerType.ptr)->ToString() + pointerType.type->ToString(tokens);
-		case ArrayType:
-			return tokens.At(arrayType.arr)->ToString() + arrayType.type->ToString(tokens);
-		case FunctionType:
-			return functionType.returnType->ToString(tokens);
-		case ImportedType:
-			return tokens.At(importedType.packageName)->ToString() +
-				"." +
-				tokens.At(importedType.typeName)->ToString();
-		default:
-			return "";
-		}
+		params += ")";
+		return ToString(&node.function.returnType, tokens) + " " +
+			tokens.At(node.function.name)->ToString() +
+			(node.function.generics != nullptr ? ToString(node.function.generics, tokens) : "") +
+			params;
 	}
-};
-
-
-enum ExprID
-{
-	InvalidExpr,
-	LiteralExpr,
-	IdentifierExpr,
-	SelectorExpr,
-	IndexExpr,
-	FunctionCallExpr,
-	NewExpr,
-	AnonTypeExpr,
-	BinaryExpr,
-	UnaryExpr,
-	GroupedExpr,
-	GenericsExpr,
-};
-
-struct Expr
-{
-	ExprID typeID;
-	TokenIndex start;
-
-	union {
-		struct
-		{
-			TokenIndex val;
-			UniqueType type;
-		} literalExpr;
-
-		struct
-		{
-			TokenIndex identifier;
-		} identfierExpr;
-
-		struct
-		{
-			Expr* on;
-			Expr* select;
-		} selectorExpr;
-
-		struct
-		{
-			Expr* of;
-			Expr* index;
-			TokenIndex lBrack;
-			TokenIndex rBrack;
-		} indexExpr;
-
-		struct
-		{
-			Expr* function;
-			eastl::vector<Expr*>* params;
-			TokenIndex lParen;
-			TokenIndex rParen;
-		} functionCallExpr;
-
-		struct
-		{
-			TokenIndex newIndex;
-			Expr* primaryExpr;
-			Expr* atExpr;
-		} newExpr;
-
-		struct
-		{
-			eastl::vector<Node*> definitions;
-		} anonTypeExpr;
-
-		struct
-		{
-			Expr* left;
-			Expr* right;
-			TokenIndex op;
-			UniqueType opType;
-		} binaryExpr;
-
-		struct
-		{
-			Expr* expr;
-			TokenIndex op;
-			UniqueType opType;
-		} unaryExpr;
-
-		struct
-		{
-			Expr* expr;
-			TokenIndex lParen;
-			TokenIndex rParen;
-		} groupedExpr;
-
-		struct
-		{
-			Expr* expr;
-			eastl::vector<Type>* types;
-			TokenIndex open;
-			TokenIndex close;
-		} genericsExpr;
-	};
-
-	Expr(ExprID typeID, TokenIndex start)
-	{
-		this->typeID = typeID;
-		this->start = start;
-	}
-
-	Expr()
-	{
-		typeID = ExprID::InvalidExpr;
-	}
-
-	Expr(const Expr& copy)
-	{
-		*this = copy;
-	}
-
-	Expr(TokenIndex start, Token* op, Expr* left, Expr* right)
-	{
-		typeID = ExprID::BinaryExpr;
-		this->start = start;
-		this->binaryExpr.op = op->index;
-		this->binaryExpr.opType = op->uniqueType;
-		this->binaryExpr.left = left;
-		this->binaryExpr.right = right;
-	}
-
-	Expr& operator=(const Expr& copy)
-	{
-		typeID = copy.typeID;
-		start = copy.start;
-
-		switch (typeID)
-		{
-		case LiteralExpr:
-			literalExpr = copy.literalExpr;
-			break;
-		case IdentifierExpr:
-			identfierExpr = copy.identfierExpr;
-			break;
-		case SelectorExpr:
-			selectorExpr = copy.selectorExpr;
-			break;
-		case IndexExpr:
-			indexExpr = copy.indexExpr;
-			break;
-		case FunctionCallExpr:
-			functionCallExpr = copy.functionCallExpr;
-			break;
-		case NewExpr:
-			newExpr = copy.newExpr;
-			break;
-		case AnonTypeExpr:
-			anonTypeExpr = copy.anonTypeExpr;
-			break;
-		case BinaryExpr:
-			binaryExpr = copy.binaryExpr;
-			break;
-		case UnaryExpr:
-			unaryExpr = copy.unaryExpr;
-			break;
-		case GroupedExpr:
-			groupedExpr = copy.groupedExpr;
-			break;
-		case GenericsExpr:
-			genericsExpr = copy.genericsExpr;
-			break;
-		default:
-			break;
-		}
-		return *this;
-	}
-
-	eastl::string ToString(Tokens& tokens)
-	{
-		switch (typeID)
-		{
-		case LiteralExpr:
-			return tokens.At(literalExpr.val)->ToString();
-		case IdentifierExpr:
-			return tokens.At(identfierExpr.identifier)->ToString();
-		case SelectorExpr:
-			return selectorExpr.on->ToString(tokens) + "." + selectorExpr.select->ToString(tokens);
-		case IndexExpr:
-			return indexExpr.of->ToString(tokens) +
-				tokens.At(indexExpr.lBrack)->ToString() +
-				indexExpr.index->ToString(tokens) +
-				tokens.At(indexExpr.rBrack)->ToString();
-			break;
-		case FunctionCallExpr:
-		{
-			eastl::string params = "";
-			if (functionCallExpr.params != nullptr)
-			{
-				for (Expr* expr : *functionCallExpr.params)
-				{
-					params += expr->ToString(tokens) + ",";
-				}
-			}
-
-			return functionCallExpr.function->ToString(tokens) +
-				tokens.At(functionCallExpr.lParen)->ToString() +
-				params +
-				tokens.At(functionCallExpr.rParen)->ToString();
-		}
-		break;
-		case NewExpr:
-			return tokens.At(newExpr.newIndex)->ToString() + " " +
-				newExpr.primaryExpr->ToString(tokens) +
-				(newExpr.atExpr != nullptr ? " at " + newExpr.atExpr->ToString(tokens) : "");
-			break;
-		case AnonTypeExpr:
-			return "";
-		case BinaryExpr:
-			return binaryExpr.left->ToString(tokens) +
-				tokens.At(binaryExpr.op)->ToString() +
-				binaryExpr.right->ToString(tokens);
-		case UnaryExpr:
-			return tokens.At(unaryExpr.op)->ToString() +
-				unaryExpr.expr->ToString(tokens);
-		case GroupedExpr:
-			return tokens.At(groupedExpr.lParen)->ToString() +
-				groupedExpr.expr->ToString(tokens) +
-				tokens.At(groupedExpr.rParen)->ToString();
-
-		case GenericsExpr:
-		{
-			eastl::string types = "";
-
-			for (Type type : *genericsExpr.types)
-			{
-				types += type.ToString(tokens) + ", ";
-			}
-
-			return (genericsExpr.expr != nullptr ? genericsExpr.expr->ToString(tokens) : "") +
-				tokens.At(genericsExpr.open)->ToString() +
-				types +
-				tokens.At(genericsExpr.close)->ToString();
-		}
+	case State_:
 		return "";
-		default:
-			return "";
-		}
+	case Block:
+		return "";
+	default:
+		return "";
 	}
+}
 
-	~Expr() {};
-};
-
-enum NodeID
+eastl::string ToString(Expr* expr, Tokens& tokens)
 {
-	Unknown = 0,
-	ExpressionStmnt,
-	Using_,
-	Package_,
-	Definition,
-	Function,
-	State_,
-	Block,
-	Comment_,
-};
-
-struct Node
-{
-	TokenIndex start;
-	TokenIndex end;
-	ScopeIndex scope;
-	NodeID nodeID;
-	NodeIndex index;
-
-	union
+	switch (expr->typeID)
 	{
-		struct
+	case LiteralExpr:
+		return tokens.At(expr->literalExpr.val)->ToString();
+	case IdentifierExpr:
+		return tokens.At(expr->identfierExpr.identifier)->ToString();
+	case SelectorExpr:
+		return ToString(expr->selectorExpr.on, tokens) + "." + ToString(expr->selectorExpr.select, tokens);
+	case IndexExpr:
+		return ToString(expr->indexExpr.of, tokens) +
+			tokens.At(expr->indexExpr.lBrack)->ToString() +
+			ToString(expr->indexExpr.index, tokens) +
+			tokens.At(expr->indexExpr.rBrack)->ToString();
+		break;
+	case FunctionCallExpr:
+	{
+		eastl::string params = "";
+		if (expr->functionCallExpr.params != nullptr)
 		{
-			Expr* expression;
-		} expressionStmnt;
-
-		struct
-		{
-			TokenIndex packageName;
-			TokenIndex alias;
-		} using_;
-
-		struct
-		{
-			TokenIndex name;
-		} package;
-
-		struct
-		{
-			Type type;
-			TokenIndex name;
-			Expr* assignment;
-		} definition;
-
-		struct
-		{
-			Type returnType;
-			TokenIndex name;
-			Expr* generics;
-			eastl::vector<Node*>* parameters;
-			bool exprFunction;
-			union
+			for (Expr* expr : *expr->functionCallExpr.params)
 			{
-				Node* block;
-				Expr* expr;
-			} body;
-		} function;
-
-		struct
-		{
-			eastl::vector<Node*>* inner;
-		} block;
-
-		struct
-		{
-			NodeIndex name;
-			NodeIndex type;
-			eastl::vector<NodeIndex> memberFunctions;
-		} state;
-	};
-
-	Node()
-	{
-		start = 0;
-		end = 0;
-		scope = 0;
-		nodeID = NodeID::Unknown;
-		index = 0;
-	}
-
-	Node(NodeID nodeID, TokenIndex start, ScopeIndex scope)
-	{
-		this->nodeID = nodeID;
-		this->start = start;
-		this->scope = scope;
-	}
-
-	Node(const Node& copy)
-	{
-		*this = copy;
-	}
-
-	Node& operator=(const Node& copy)
-	{
-		start = copy.start;
-		end = copy.end;
-		scope = copy.scope;
-		nodeID = copy.nodeID;
-		index = copy.index;
-
-		switch (nodeID)
-		{
-		case Unknown:
-		case Comment_:
-			break;
-		case ExpressionStmnt:
-			expressionStmnt = copy.expressionStmnt;
-			break;
-		case Using_:
-			using_ = copy.using_;
-			break;
-		case Package_:
-			package = copy.package;
-			break;
-		case Definition:
-			definition = copy.definition;
-			break;
-		case Function:
-			function = copy.function;
-			break;
-		case State_:
-			state = copy.state;
-			break;
-		case Block:
-			block = copy.block;
-			break;
-		default:
-			break;
-		}
-		return *this;
-	}
-
-	eastl::string ToString(Tokens& tokens)
-	{
-		switch (nodeID)
-		{
-		case Unknown:
-			return "unknown";
-		case Comment_:
-			return tokens.At(start)->ToString();
-		case ExpressionStmnt:
-			return expressionStmnt.expression->ToString(tokens);
-		case Using_:
-			return tokens.At(start)->ToString() + " " +
-				tokens.At(using_.packageName)->ToString() +
-				(using_.alias != -1 ? " as " + tokens.At(using_.alias)->ToString() : "") +
-				tokens.At(end)->ToString();
-		case Package_:
-			return tokens.At(start)->ToString() + " " +
-				tokens.At(package.name)->ToString() +
-				tokens.At(end)->ToString();
-		case Definition:
-			return tokens.At(definition.name)->ToString() + " : " +
-				definition.type.ToString(tokens) + " : " +
-				(definition.assignment != nullptr ? definition.assignment->ToString(tokens) : "") +
-				tokens.At(end)->ToString();
-		case Function:
-		{
-			eastl::string params = "(";
-			if (function.parameters != nullptr)
-			{
-				for (Node* param : *function.parameters)
-				{
-					params += param->ToString(tokens) + ", ";
-				}
+				params += ToString(expr, tokens) + ",";
 			}
-			params += ")";
-			return function.returnType.ToString(tokens) + " " +
-				tokens.At(function.name)->ToString() +
-				(function.generics != nullptr ? function.generics->ToString(tokens) : "") +
-				params;
 		}
-		case State_:
-			return "";
-		case Block:
-			return "";
-		default:
-			return "";
-		}
-	}
 
-	~Node() {};
-};
+		return ToString(expr->functionCallExpr.function, tokens) +
+			tokens.At(expr->functionCallExpr.lParen)->ToString() +
+			params +
+			tokens.At(expr->functionCallExpr.rParen)->ToString();
+	}
+	break;
+	case NewExpr:
+		return tokens.At(expr->newExpr.newIndex)->ToString() + " " +
+			ToString(expr->newExpr.primaryExpr, tokens) +
+			(expr->newExpr.atExpr != nullptr ? " at " + ToString(expr->newExpr.atExpr, tokens) : "");
+	case FixedExpr:
+		return tokens.At(expr->fixedExpr.fixed)->ToString() + " " +
+			ToString(expr->fixedExpr.atExpr, tokens);
+	case AnonTypeExpr:
+		return "";
+	case BinaryExpr:
+		return ToString(expr->binaryExpr.left, tokens) +
+			tokens.At(expr->binaryExpr.op)->ToString() +
+			ToString(expr->binaryExpr.right, tokens);
+	case UnaryExpr:
+		return tokens.At(expr->unaryExpr.op)->ToString() +
+			ToString(expr->unaryExpr.expr, tokens);
+	case GroupedExpr:
+		return tokens.At(expr->groupedExpr.lParen)->ToString() +
+			ToString(expr->groupedExpr.expr, tokens) +
+			tokens.At(expr->groupedExpr.rParen)->ToString();
+
+	case GenericsExpr:
+	{
+		eastl::string types = "";
+
+		for (Type type : *expr->genericsExpr.types)
+		{
+			types += ToString(&type, tokens) + ", ";
+		}
+
+		return (expr->genericsExpr.expr != nullptr ? ToString(expr->genericsExpr.expr, tokens) : "") +
+			tokens.At(expr->genericsExpr.open)->ToString() +
+			types +
+			tokens.At(expr->genericsExpr.close)->ToString();
+	}
+	return "";
+	default:
+		return "";
+	}
+}
+
+eastl::string ToString(Type* type, Tokens& tokens)
+{
+	switch (type->typeID)
+	{
+	case UnknownType:
+		return "implicit";
+	case PrimitiveType:
+		return tokens.At(type->primitiveType.name)->ToString();
+	case NamedType:
+		return tokens.At(type->namedType.typeName)->ToString();
+	case ExplicitType:
+	{
+		eastl::string types = "";
+
+		for (Node* node : *type->explicitType.declarations)
+		{
+			types += ToString(*node, tokens) + ", ";
+		}
+
+		return "{ " + types + "}";
+	}
+	case ImplicitType:
+	{
+		eastl::string types = "";
+
+		for (TokenIndex index : *type->implicitType.identifiers)
+		{
+			types += tokens.At(index)->ToString() + ", ";
+		}
+
+		return "{ " + types + "}";
+	}
+	case PointerType:
+		return tokens.At(type->pointerType.ptr)->ToString() + ToString(type->pointerType.type, tokens);
+	case ArrayType:
+		return tokens.At(type->arrayType.arr)->ToString() + ToString(type->arrayType.type, tokens);
+	case GenericsType:
+		return ToString(type->genericsType.type, tokens) + ToString(type->genericsType.generics, tokens);
+	case FunctionType:
+		return ToString(type->functionType.returnType, tokens);
+	case ImportedType:
+		return tokens.At(type->importedType.packageName)->ToString() +
+			"." +
+			tokens.At(type->importedType.typeName)->ToString();
+	default:
+		return "";
+	}
+}
 
 struct Scope
 {
@@ -667,17 +252,17 @@ struct Syntax
 	{
 		if (package.nodeID == NodeID::Package_)
 		{
-			Logger::Info(package.ToString(tokens));
+			Logger::Info(ToString(package, tokens));
 		}
 
 		for (Node node : imports)
 		{
-			Logger::Info(node.ToString(tokens));
+			Logger::Info(ToString(node, tokens));
 		}
 
 		for (Node node : nodes)
 		{
-			Logger::Info(node.ToString(tokens));
+			Logger::Info(ToString(node, tokens));
 		}
 	}
 
@@ -858,7 +443,7 @@ struct Syntax
 		default:
 		{
 			Token* start = curr;
-			Type type = ParseDeclarationType();
+			Type type = ParseDeclarationType(false);
 			if (type.typeID == TypeID::InvalidType) break;
 			Node func = ParseFunction(type, start);
 			if (func.nodeID != NodeID::Unknown) AddNode(func);
@@ -947,7 +532,7 @@ struct Syntax
 		return Node();
 	}
 
-	Expr* ParseGenerics() 
+	Expr* ParseGenerics()
 	{
 		if (Expect(UniqueType::Less))
 		{
@@ -1146,7 +731,7 @@ struct Syntax
 		return Node();
 	}
 
-	Type ParseDeclarationType()
+	Type ParseDeclarationType(bool allowImplicitType = true)
 	{
 		Type type = Type();
 
@@ -1184,7 +769,7 @@ struct Syntax
 			switch (curr->uniqueType)
 			{
 			case UniqueType::Lbrace:
-				type = ParseInlineType();
+				type = ParseInlineType(allowImplicitType);
 				break;
 
 			case UniqueType::Multiply:
@@ -1196,14 +781,16 @@ struct Syntax
 				type = ParseArrayType();
 				break;
 
-			case UniqueType::Period:
-				break;
-
 			default:
 				AddError(curr, errors.expectedType);
 				break;
 			}
 			break;
+		}
+
+		if (type.typeID != TypeID::InvalidType && Expect(UniqueType::Less))
+		{
+			type = ParseGenericsType(type);
 		}
 
 		return type;
@@ -1228,19 +815,24 @@ struct Syntax
 		return arrType;
 	}
 
-	Type ParseInlineType()
+	Type ParseInlineType(bool allowImplicitType)
 	{
 		Token* start = curr;
 		Advance();
-		Token* next = Peek();
-		bool implicit = Expect(TokenType::Identifier) && next->uniqueType == UniqueType::Comma;
-		if (Expect(UniqueType::Rbrace))
+		if (allowImplicitType) 
 		{
-			AddError(curr, errors.emptyInlineType);
-			return Type();
+			Token* next = Peek();
+			bool implicit = Expect(TokenType::Identifier) && next->uniqueType == UniqueType::Comma;
+			if (Expect(UniqueType::Rbrace))
+			{
+				AddError(curr, errors.emptyInlineType);
+				return Type();
+			}
+
+			return implicit ? ParseImplicitType() : ParseExplicitType();
 		}
 
-		return implicit ? ParseImplicitType() : ParseExplicitType();
+		return ParseExplicitType();
 	}
 
 	Type ParseImplicitType()
@@ -1262,8 +854,14 @@ struct Syntax
 			}
 		}
 
+
 		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure))
 		{
+			if (idents->size() == 1)
+			{
+				AddError(curr, errors.onlyOneInlineType);
+				return Type();
+			}
 			Advance();
 			return type;
 		}
@@ -1273,8 +871,44 @@ struct Syntax
 
 	Type ParseExplicitType()
 	{
+		Type type = Type(TypeID::ExplicitType);
+		eastl::vector<Node*>* decls = arena->Emplace<eastl::vector<Node*>>();
+		type.explicitType.declarations = decls;
+		while (!Expect(UniqueType::Rbrace) && !IsEOF())
+		{
+			Node* node = arena->Emplace<Node>(ParseDeclaration());
+			if (node->nodeID != NodeID::Unknown)
+			{
+				decls->push_back(node);
+				if (Expect(UniqueType::Comma)) Advance();
+			}
+			else
+			{
+				return Type();
+			}
+		}
+
+		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure))
+		{
+			if (decls->size() == 1)
+			{
+				AddError(curr, errors.onlyOneInlineType);
+				return Type();
+			}
+			Advance();
+			return type;
+		}
 
 		return Type();
+	}
+
+	Type ParseGenericsType(Type& type)
+	{
+		Type genericsType = Type(TypeID::GenericsType);
+		genericsType.genericsType.generics = ParseGenericsExpr();
+		genericsType.genericsType.type = arena->Emplace<Type>(type);
+
+		return genericsType;
 	}
 
 	Expr* ParseAssignmentType()
@@ -1398,7 +1032,7 @@ struct Syntax
 			case UniqueType::Lparen:
 				expr = ParseFunctionCall(expr);
 				break;
-			
+
 			case UniqueType::Less:
 				if (TestGenericsExpr())
 				{
@@ -1427,21 +1061,31 @@ struct Syntax
 	{
 		switch (curr->uniqueType)
 		{
-		case Name:
+		case UniqueType::Name:
 			return ParseIdentifierExpr();
 
-		case IntLiteral:
-		case FloatLiteral:
-		case HexLiteral:
-		case StringLiteral:
+		case UniqueType::IntLiteral:
+		case UniqueType::FloatLiteral:
+		case UniqueType::HexLiteral:
+		case UniqueType::StringLiteral:
 			return ParseLiteralExpr();
 
-		case Lparen:
+		case UniqueType::Lparen:
 			return ParseGroupedExpr();
 
+		case UniqueType::Fixed:
+			return ParseFixedExpr();
+
 		default:
-			AddError(curr, errors.missingOperand);
-			return CreateExpr(curr->index, ExprID::InvalidExpr);
+			switch (curr->type)
+			{
+			case TokenType::Primitive:
+				return ParseIdentifierExpr();
+
+			default:
+				AddError(curr, errors.missingOperand);
+				return CreateExpr(curr->index, ExprID::InvalidExpr);
+			}
 		}
 	}
 
@@ -1476,6 +1120,15 @@ struct Syntax
 			Advance();
 		}
 		return groupExpr;
+	}
+
+	Expr* ParseFixedExpr()
+	{
+		Expr* fixed = CreateExpr(curr->index, ExprID::FixedExpr);
+		fixed->fixedExpr.fixed = curr->index;
+		Advance();
+		fixed->fixedExpr.atExpr = ParseOperand();
+		return fixed;
 	}
 
 	Expr* ParseSelector(Expr* on)
@@ -1595,6 +1248,10 @@ struct Syntax
 		{
 			generics->genericsExpr.close = curr->index;
 			Advance();
+		}
+		else
+		{
+			generics->typeID = ExprID::InvalidExpr;
 		}
 
 		return generics;

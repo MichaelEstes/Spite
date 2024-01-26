@@ -95,7 +95,8 @@
 
 <implicitType> := <scope> <identifier...>, </scope>
 
-<anonymousType> := <scope> <definition...>, </scope>
+<anonymousType> := <scope> <definition...>, </scope> |
+					<scope> <expression...>, </scope>
 
 <assignmentValue> := <expression> | <new> | <anonymousType> | <functionValue> | <fixedArray>
 
