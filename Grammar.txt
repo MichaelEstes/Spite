@@ -57,8 +57,8 @@
 
 <package> := package <identifier>
 
-<statement> := <definition> | <if> | <for> | <while> | <switch> | <assignment> | 
-				<delete> | <return> | <compileTime> | <block>
+<statement> := <definition> | <if> | <for> | <while> | <switch> | <assignment> | <ternary> |
+				<delete> | <defer> | <return> | <compileTime> | <block> | <expression>
 
 <statements> := <statement...> | <statement>
 
@@ -180,8 +180,8 @@
 <new> := new <type> <functionParams> ?(<at>)
 	| new <anonymousType> ?(<at>)
 
-<delete> := delete <identifier> |
-			delete <identifier> []
+<delete> := delete <primaryExpression> |
+			delete <primaryExpression> []
 
 <return> := return <expression>
 
@@ -197,7 +197,7 @@
 
 <index> := <bracket> <expression> </bracket>
 
-<dereference> := <primaryExpression> *
+<dereference> := <primaryExpression> ~
 
 <extern> := extern <scope> (<type> <identifier> <parentheses> ?(<declaration>...), </parentheses>...) </scope>
 

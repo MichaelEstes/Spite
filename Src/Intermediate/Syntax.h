@@ -18,6 +18,7 @@ typedef size_t ScopeIndex;
 
 eastl::string ToString(Expr* expr, Tokens& tokens);
 eastl::string ToString(Type* type, Tokens& tokens);
+eastl::string ToString(Body& body, Tokens& tokens);
 
 eastl::string ToString(Node& node, Tokens& tokens)
 {
@@ -25,16 +26,16 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	{
 	case Unknown:
 		return "unknown";
-	case Comment_:
+	case CommentStmnt:
 		return tokens.At(node.start)->ToString();
 	case ExpressionStmnt:
 		return ToString(node.expressionStmnt.expression, tokens);
-	case Using_:
+	case UsingStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			tokens.At(node.using_.packageName)->ToString() +
 			(node.using_.alias != -1 ? " as " + tokens.At(node.using_.alias)->ToString() : "") +
 			tokens.At(node.end)->ToString();
-	case Package_:
+	case PackageStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			tokens.At(node.package.name)->ToString() +
 			tokens.At(node.end)->ToString();
@@ -57,16 +58,70 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return ToString(&node.function.returnType, tokens) + " " +
 			tokens.At(node.function.name)->ToString() +
 			(node.function.generics != nullptr ? ToString(node.function.generics, tokens) : "") +
-			params;
+			params +
+			ToString(node.function.body, tokens);
 	}
-	case State_:
+	case Conditional:
+		return "(" + ToString(node.conditional.condition, tokens) + ")" +
+			ToString(node.conditional.body, tokens);
+	case IfStmnt:
+	{
+		eastl::string elseifs = "";
+		for (Node* elseif : *node.ifStmnt.elifs)
+		{
+			elseifs += "else if " + ToString(*elseif, tokens) + "\n";
+		}
+
+		return tokens.At(node.start)->ToString() + " " +
+			ToString(*node.ifStmnt.condition, tokens) + 
+			elseifs;
+	}
+	case ForStmnt:
+		return "";
+	case WhileStmnt:
+		return "";
+	case SwitchStmnt:
+		return "";
+	case TernaryStmnt:
+		return "";
+	case DeleteStmnt:
+		return "";
+	case DeferStmnt:
+		return "";
+	case ReturnStmnt:
+		return "";
+	case OnCompileStmnt:
+		return "";
+	case WhereStmnt:
+		return "";
+	case StateStmnt:
 		return "";
 	case Block:
-		return "";
+	{
+		eastl::string stmnts = "";
+		for (Node* stmnt : *node.block.inner)
+		{
+			stmnts += ToString(*stmnt, tokens) + "\n";
+		}
+		return "\n{\n" + stmnts + "}\n";
+	}
 	default:
 		return "";
 	}
 }
+
+eastl::string ToString(Body& body, Tokens& tokens)
+{
+	if (body.exprFunction)
+	{
+		return ToString(body.expr, tokens);
+	}
+	else
+	{
+		return ToString(*body.block, tokens);
+	}
+}
+
 
 eastl::string ToString(Expr* expr, Tokens& tokens)
 {
@@ -76,6 +131,8 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 		return tokens.At(expr->literalExpr.val)->ToString();
 	case IdentifierExpr:
 		return tokens.At(expr->identfierExpr.identifier)->ToString();
+	case PrimitiveExpr:
+		return tokens.At(expr->primitiveExpr.primitive)->ToString();
 	case SelectorExpr:
 		return ToString(expr->selectorExpr.on, tokens) + "." + ToString(expr->selectorExpr.select, tokens);
 	case IndexExpr:
@@ -250,7 +307,7 @@ struct Syntax
 
 	void Print()
 	{
-		if (package.nodeID == NodeID::Package_)
+		if (package.nodeID == NodeID::PackageStmnt)
 		{
 			Logger::Info(ToString(package, tokens));
 		}
@@ -385,7 +442,7 @@ struct Syntax
 	{
 		while (Expect(TokenType::Comment))
 		{
-			Node node = CreateNode(curr, NodeID::Comment_);
+			Node node = CreateNode(curr, NodeID::CommentStmnt);
 			AddNode(node);
 			curr = tokens.Next(curr);
 		}
@@ -402,7 +459,7 @@ struct Syntax
 		if (Expect(UniqueType::Package, errors.missingPackage) &&
 			ThenExpect(TokenType::Identifier, errors.missingPackageName))
 		{
-			Node node = CreateNode(start, NodeID::Package_);
+			Node node = CreateNode(start, NodeID::PackageStmnt);
 			node.package.name = curr->index;
 			if (ThenExpectSemicolon())
 			{
@@ -463,7 +520,7 @@ struct Syntax
 		if (Expect(UniqueType::Using) &&
 			ThenExpect(TokenType::Identifier, errors.missingUsingName))
 		{
-			Node node = CreateNode(start, NodeID::Using_);
+			Node node = CreateNode(start, NodeID::UsingStmnt);
 			node.using_.packageName = curr->index;
 			Advance();
 
@@ -511,13 +568,13 @@ struct Syntax
 
 				if (Expect(UniqueType::Lbrace))
 				{
-					function.function.exprFunction = false;
-					//function.function.body.block = ParseBlock(function);
+					function.function.body.exprFunction = false;
+					function.function.body.block = ParseBlock();
 					return function;
 				}
 				else if (Expect(UniqueType::FatArrow))
 				{
-					function.function.exprFunction = true;
+					function.function.body.exprFunction = true;
 					function.function.body.expr = ParseExpr();
 					return function;
 				}
@@ -544,18 +601,41 @@ struct Syntax
 		}
 	}
 
-	Node* ParseBlock(Node& of)
+	Body ParseBody()
+	{
+		Body body = Body();
+
+		if (Expect(UniqueType::Lbrace))
+		{
+			body.exprFunction = false;
+			body.block = ParseBlock();
+		}
+		else
+		{
+			body.exprFunction = true;
+			body.expr = ParseExpr();
+		}
+
+		return body;
+	}
+
+	Node* ParseBlock()
 	{
 		Node* block = arena->Emplace<Node>(CreateNode(curr, NodeID::Block));
-		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart)) return nullptr;
+		block->block.inner = arena->Emplace<eastl::vector<Node*>>();
+		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart))
+		{
+			block->nodeID = NodeID::Unknown;
+			return block;
+		}
 		Advance();
 
 		StartScope();
 
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			Node* node = ParseBlockStatment();
-			//block->block.inner->push_back(ParseBlockStatment());
+			Node* stmnt = ParseBlockStatment();
+			if (stmnt != nullptr) block->block.inner->push_back(stmnt);
 		}
 
 		if (Expect(UniqueType::Rbrace, errors.expectedBlockEnd))
@@ -571,12 +651,89 @@ struct Syntax
 
 	Node* ParseBlockStatment()
 	{
+
 		switch (curr->uniqueType)
 		{
+		case UniqueType::Name:
+			return ParseIdentifierStmnt();
+		case UniqueType::If:
+			return ParseIf();
 		default:
+			Advance();
 			break;
 		}
+
 		return nullptr;
+	}
+
+	Node* ParseIdentifierStmnt()
+	{
+		Token* next = Peek();
+		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
+		{
+			return arena->Emplace<Node>(ParseAssignmentStatement());
+		}
+
+		return ParseExprStmnt();
+	}
+
+	Node* ParseExprStmnt()
+	{
+		Node* exprStmt = arena->Emplace<Node>(CreateNode(curr, NodeID::ExpressionStmnt));
+		exprStmt->expressionStmnt.expression = ParseExpr();
+		exprStmt->end = curr->index;
+		return exprStmt;
+	}
+
+	Node* ParseIf()
+	{
+		Node* node = arena->Emplace<Node>(CreateNode(curr, NodeID::IfStmnt));
+		Advance();
+		node->ifStmnt.condition = ParseConditional();
+		node->ifStmnt.elifs = arena->Emplace<eastl::vector<Node*>>();
+		while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
+		{
+			Advance();
+			Advance();
+			node->ifStmnt.elifs->push_back(ParseConditional());
+		}
+
+		node->end = curr->index;
+		return node;
+	}
+
+	Node* ParseConditional()
+	{
+		Node* node = arena->Emplace<Node>(CreateNode(curr, NodeID::Conditional));
+		if (Expect(UniqueType::Lparen, errors.expectedConditionOpen))
+		{
+			Advance();
+			Expr* condition = ParseExpr();
+			if (condition->typeID != ExprID::InvalidExpr &&
+				Expect(UniqueType::Rparen, errors.expectedConditionClose))
+			{
+				Advance();
+				node->conditional.condition = condition;
+				node->conditional.body = ParseBody();
+				node->end = curr->index;
+				return node;
+			}
+		}
+
+		node->nodeID = NodeID::Unknown;
+		return node;
+	}
+
+	void ParseFor()
+	{
+	}
+
+	void ParseSwitch()
+	{
+	}
+
+	void ParseWhile()
+	{
 	}
 
 	eastl::vector<Node*>* ParseParametersList()
@@ -611,22 +768,6 @@ struct Syntax
 		}
 
 		return parameters;
-	}
-
-	void ParseIf()
-	{
-	}
-
-	void ParseFor()
-	{
-	}
-
-	void ParseSwitch()
-	{
-	}
-
-	void ParseWhile()
-	{
 	}
 
 	Node ParseAssignmentStatement()
@@ -819,7 +960,7 @@ struct Syntax
 	{
 		Token* start = curr;
 		Advance();
-		if (allowImplicitType) 
+		if (allowImplicitType)
 		{
 			Token* next = Peek();
 			bool implicit = Expect(TokenType::Identifier) && next->uniqueType == UniqueType::Comma;
@@ -1080,7 +1221,7 @@ struct Syntax
 			switch (curr->type)
 			{
 			case TokenType::Primitive:
-				return ParseIdentifierExpr();
+				return ParsePrimitiveExpr();
 
 			default:
 				AddError(curr, errors.missingOperand);
@@ -1095,6 +1236,14 @@ struct Syntax
 		ident->identfierExpr.identifier = curr->index;
 		Advance();
 		return ident;
+	}
+
+	Expr* ParsePrimitiveExpr()
+	{
+		Expr* prim = CreateExpr(curr->index, ExprID::PrimitiveExpr);
+		prim->primitiveExpr.primitive = curr->index;
+		Advance();
+		return prim;
 	}
 
 	Expr* ParseLiteralExpr()

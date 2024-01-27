@@ -48,4 +48,6 @@ struct Errors {
 
 	const eastl::string implictTypeNotIdent = "Only identifiers are allowed in implicit types";
 
+	const eastl::string expectedConditionOpen = "Expected conditional opening ('(')";
+	const eastl::string expectedConditionClose = "Expected conditional closure (')')";
 };

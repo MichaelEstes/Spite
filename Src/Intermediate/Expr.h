@@ -16,6 +16,7 @@ enum ExprID
 	InvalidExpr,
 	LiteralExpr,
 	IdentifierExpr,
+	PrimitiveExpr,
 	SelectorExpr,
 	IndexExpr,
 	FunctionCallExpr,
@@ -44,6 +45,11 @@ struct Expr
 		{
 			TokenIndex identifier;
 		} identfierExpr;
+
+		struct
+		{
+			TokenIndex primitive;
+		} primitiveExpr;
 
 		struct
 		{
@@ -154,6 +160,9 @@ struct Expr
 			break;
 		case IdentifierExpr:
 			identfierExpr = copy.identfierExpr;
+			break;
+		case PrimitiveExpr:
+			primitiveExpr = copy.primitiveExpr;
 			break;
 		case SelectorExpr:
 			selectorExpr = copy.selectorExpr;
