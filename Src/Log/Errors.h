@@ -50,4 +50,15 @@ struct Errors {
 
 	const eastl::string expectedConditionOpen = "Expected conditional opening ('(')";
 	const eastl::string expectedConditionClose = "Expected conditional closure (')')";
+
+	const eastl::string expectedForOpen = "Expected 'for' statement opening ('(')";
+	const eastl::string expectedForClose = "Expected 'for' statement closure (')')";
+	const eastl::string expectedForIdent = "Expected identifier after '(' in 'for' statement";
+	const eastl::string expectedForIterator = "Expected for iterator '..' or 'in'";
+
+	const eastl::string expectedSwitchOpen = "Expected 'switch' statement opening ('(')";
+	const eastl::string expectedSwitchClose = "Expected 'switch' statement closure (')')";
+	const eastl::string expectedSwitchBlockOpen = "Expected 'switch' statement block opening ('{')";
+	const eastl::string expectedSwitchBlockClose = "Expected 'switch' statement block closure ('}')";
+	const eastl::string expectedSwitchDefault = "'switch' statement must have a 'default' case";
 };

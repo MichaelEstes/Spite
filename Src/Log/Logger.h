@@ -22,10 +22,11 @@ public:
 	{
 		Position pos;
 		size_t tokenIndex;
-		const eastl::string& msg;
+		eastl::string msg;
 
-		LogMessage(Position pos, size_t tokenIndex, const eastl::string& msg): msg(msg)
+		LogMessage(Position pos, size_t tokenIndex, const eastl::string& msg)
 		{
+			this->msg = msg;
 			this->pos = pos;
 			this->tokenIndex = tokenIndex;
 		}

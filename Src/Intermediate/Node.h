@@ -12,7 +12,7 @@ typedef size_t ScopeIndex;
 
 enum NodeID
 {
-	Unknown = 0,
+	InvalidNode = 0,
 	ExpressionStmnt,
 	UsingStmnt,
 	PackageStmnt,
@@ -42,6 +42,17 @@ struct Body
 		Node* block;
 		Expr* expr;
 	};
+
+	Body()
+	{
+		exprFunction = false;
+		block = nullptr;
+	}
+
+	operator void* () const
+	{
+		return exprFunction ? (void*)expr : (void*)block;
+	}
 };
 
 struct Node
@@ -92,46 +103,64 @@ struct Node
 			Body body;
 		} conditional;
 
-		struct 
+		struct
 		{
 			Node* condition;
 			eastl::vector<Node*>* elifs;
-			Node* elseCondition;
+			Body elseCondition;
 		} ifStmnt;
 
-		struct 
+		struct
 		{
+			bool rangeFor;
+			bool isDeclaration;
+			union
+			{
+				Node* declaration;
+				TokenIndex identifier;
+			}iterated;
+			TokenIndex iterator;
+			Expr* toIterate;
+			Body body;
 		} forStmnt;
 
-		struct 
+		struct
 		{
+			Node* conditional;
 		} whileStmnt;
 
-		struct 
+		struct
 		{
+			Expr* switchOn;
+			eastl::vector<Node*>* cases;
+			Body defaultCase;
 		} switchStmnt;
 
-		struct 
+		struct
 		{
 		} ternaryStmnt;
 
-		struct 
+		struct
 		{
+			Expr* primaryExpr;
+			bool arrDelete;
 		} deleteStmnt;
 
-		struct 
+		struct
 		{
 		} deferStmnt;
 
-		struct 
+		struct
 		{
+			bool voidReturn;
+			Expr* expr;
 		} returnStmnt;
 
-		struct 
+		struct
 		{
 		} onCompileStmnt;
 
-		struct 
+		struct
 		{
 		} whereStmnt;
 
@@ -153,7 +182,7 @@ struct Node
 		start = 0;
 		end = 0;
 		scope = 0;
-		nodeID = NodeID::Unknown;
+		nodeID = NodeID::InvalidNode;
 		index = 0;
 	}
 
@@ -179,7 +208,7 @@ struct Node
 
 		switch (nodeID)
 		{
-		case Unknown:
+		case InvalidNode:
 		case CommentStmnt:
 			break;
 		case ExpressionStmnt:

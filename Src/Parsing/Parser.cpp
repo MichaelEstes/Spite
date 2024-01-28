@@ -11,7 +11,6 @@ bool Parser::Parse()
 {
 	Tokens tokens = Tokens();
 	Scanner scanner = Scanner();
-	Syntax syntax = Syntax(tokens);
 
 	Profiler profiler = Profiler();
 	size_t fileSize = scanner.Init();
@@ -35,6 +34,7 @@ bool Parser::Parse()
 	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to process " + config.fileLoc);
 	profiler = Profiler();
 
+	Syntax syntax = Syntax(tokens);
 	syntax.BuildSyntax();
 	if (Logger::HasErrors())
 	{

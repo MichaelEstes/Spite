@@ -147,6 +147,7 @@ enum UniqueType
 	Array,
 	FatArrow,
 	Tilde,
+	AtOp,
 
 	// SEPERATORS 
 	Lparen,
@@ -387,8 +388,8 @@ public:
 			else if (currIsInvalid && !(val.count == 1 && currVal == '#'))
 			{
 				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-				const eastl::string errMsg = "Invalid character in identifer: " + currVal;
-				Logger::AddError(pos, token->index, errMsg);
+				eastl::string errMsg = "Invalid character in identifer: ";
+				Logger::AddError(pos, token->index, errMsg + currVal);
 				Reset(tokens);
 			}
 		}
@@ -580,7 +581,7 @@ public:
 	{
 		return WithinRange(val, 37, 38) ||
 			WithinRange(val, 40, 47) ||
-			WithinRange(val, 58, 63) ||
+			WithinRange(val, 58, 64) ||
 			val == '!' ||
 			val == '[' ||
 			val == ']' ||
@@ -597,7 +598,7 @@ public:
 
 	bool IsInvalidIdentifierChar(char val)
 	{
-		return val == '@' || val == '#' || val == '$' || val == '\'' ||
+		return val == '#' || val == '$' || val == '\'' ||
 			val == '"' || val == '\\' || val == '`' || val == '|';
 	}
 
@@ -702,6 +703,7 @@ public:
 		{ "[]", TokenType::Operator, UniqueType::Array },
 		{ "=>", TokenType::Operator, UniqueType::FatArrow },
 		{ "~", TokenType::Operator, UniqueType::Tilde },
+		{ "@", TokenType::Operator, UniqueType::AtOp },
 
 		{ "(", TokenType::Seperator, UniqueType::Lparen },
 		{ "[", TokenType::Seperator, UniqueType::Lbrack },

@@ -24,7 +24,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 {
 	switch (node.nodeID)
 	{
-	case Unknown:
+	case InvalidNode:
 		return "unknown";
 	case CommentStmnt:
 		return tokens.At(node.start)->ToString();
@@ -69,27 +69,50 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		eastl::string elseifs = "";
 		for (Node* elseif : *node.ifStmnt.elifs)
 		{
-			elseifs += "else if " + ToString(*elseif, tokens) + "\n";
+			elseifs += "else if " + ToString(*elseif, tokens);
 		}
 
 		return tokens.At(node.start)->ToString() + " " +
-			ToString(*node.ifStmnt.condition, tokens) + 
-			elseifs;
+			ToString(*node.ifStmnt.condition, tokens) +
+			elseifs +
+			(node.ifStmnt.elseCondition ? "else " + ToString(node.ifStmnt.elseCondition, tokens) : "");
 	}
 	case ForStmnt:
-		return "";
+		return tokens.At(node.start)->ToString() + " (" +
+			(node.forStmnt.isDeclaration
+				? ToString(*node.forStmnt.iterated.declaration, tokens)
+				: tokens.At(node.forStmnt.iterated.identifier)->ToString()) +
+			" " + tokens.At(node.forStmnt.iterator)->ToString() + " " +
+			ToString(node.forStmnt.toIterate, tokens) + ")" +
+			ToString(node.forStmnt.body, tokens);
 	case WhileStmnt:
-		return "";
+		return tokens.At(node.start)->ToString() + " "
+			+ ToString(*node.whileStmnt.conditional, tokens);
 	case SwitchStmnt:
-		return "";
+	{
+		eastl::string cases = "";
+		for (Node* node : *node.switchStmnt.cases)
+		{
+			cases += "case " + ToString(*node, tokens);
+		}
+
+		return tokens.At(node.start)->ToString() + " (" +
+			ToString(node.switchStmnt.switchOn, tokens) + " )\n" +
+			cases +
+			"default" + ToString(node.switchStmnt.defaultCase, tokens);
+	}
+	return "";
 	case TernaryStmnt:
 		return "";
 	case DeleteStmnt:
-		return "";
+		return tokens.At(node.start)->ToString() +
+			(node.deleteStmnt.arrDelete ? "[]" : "") + " " +
+			ToString(node.deleteStmnt.primaryExpr, tokens);
 	case DeferStmnt:
 		return "";
 	case ReturnStmnt:
-		return "";
+		return tokens.At(node.start)->ToString() + " " +
+			(!node.returnStmnt.voidReturn ? ToString(node.returnStmnt.expr, tokens) : "");
 	case OnCompileStmnt:
 		return "";
 	case WhereStmnt:
@@ -112,9 +135,10 @@ eastl::string ToString(Node& node, Tokens& tokens)
 
 eastl::string ToString(Body& body, Tokens& tokens)
 {
+	if (!body) return "";
 	if (body.exprFunction)
 	{
-		return ToString(body.expr, tokens);
+		return " " + ToString(body.expr, tokens) + "\n";
 	}
 	else
 	{
@@ -330,25 +354,40 @@ struct Syntax
 		nodes.emplace_back(node);
 	}
 
-	Node CreateNode(Token* start, NodeID nodeID)
+	inline Node CreateNode(Token* start, NodeID nodeID)
 	{
-		Node node = Node(nodeID, start->index, currScope.index);
-		return node;
+		return Node(nodeID, start->index, currScope.index);
 	}
 
-	Expr* CreateExpr(TokenIndex start, ExprID exprID)
+	inline Node* CreateNodePtr(Token* start, NodeID nodeID)
+	{
+		return arena->Emplace<Node>(nodeID, start->index, currScope.index);
+	}
+
+	inline Node* CreateNodePtr(Node node)
+	{
+		return arena->Emplace<Node>(node);
+	}
+
+	template<typename T>
+	inline eastl::vector<T>* CreateVectorPtr()
+	{
+		return arena->Emplace<eastl::vector<T>>();
+	}
+
+	inline Expr* CreateExpr(TokenIndex start, ExprID exprID)
 	{
 		return arena->Emplace<Expr>(exprID, start);
 	}
 
-	Expr* CopyExpr(Expr* expr)
+	inline Expr* CopyExpr(Expr* expr)
 	{
 		Expr* copy = CreateExpr(expr->start, expr->typeID);
 		*copy = *expr;
 		return copy;
 	}
 
-	void StartScope()
+	inline void StartScope()
 	{
 		Scope scope = Scope();
 		scope.index = scopes.size();
@@ -357,7 +396,7 @@ struct Syntax
 		currScope = scope;
 	}
 
-	void EndScope()
+	inline void EndScope()
 	{
 		currScope = scopes.at(currScope.parent);
 	}
@@ -491,7 +530,7 @@ struct Syntax
 		case UniqueType::Name:
 		{
 			Node assignment = ParseAssignmentStatement();
-			if (assignment.nodeID != NodeID::Unknown)
+			if (assignment.nodeID != NodeID::InvalidNode)
 			{
 				AddNode(assignment);
 				return;
@@ -503,7 +542,7 @@ struct Syntax
 			Type type = ParseDeclarationType(false);
 			if (type.typeID == TypeID::InvalidType) break;
 			Node func = ParseFunction(type, start);
-			if (func.nodeID != NodeID::Unknown) AddNode(func);
+			if (func.nodeID != NodeID::InvalidNode) AddNode(func);
 			return;
 		}
 		}
@@ -613,19 +652,29 @@ struct Syntax
 		else
 		{
 			body.exprFunction = true;
-			body.expr = ParseExpr();
+			body.expr = ParseBodyExpr();
 		}
 
 		return body;
 	}
 
+	Expr* ParseBodyExpr()
+	{
+		StartScope();
+		Expr* expr = ParseExpr();
+		if (Expect(UniqueType::Semicolon)) Advance();
+		EndScope();
+
+		return expr;
+	}
+
 	Node* ParseBlock()
 	{
-		Node* block = arena->Emplace<Node>(CreateNode(curr, NodeID::Block));
-		block->block.inner = arena->Emplace<eastl::vector<Node*>>();
+		Node* block = CreateNodePtr(curr, NodeID::Block);
+		block->block.inner = CreateVectorPtr<Node*>();
 		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart))
 		{
-			block->nodeID = NodeID::Unknown;
+			block->nodeID = NodeID::InvalidNode;
 			return block;
 		}
 		Advance();
@@ -658,6 +707,16 @@ struct Syntax
 			return ParseIdentifierStmnt();
 		case UniqueType::If:
 			return ParseIf();
+		case UniqueType::For:
+			return ParseFor();
+		case UniqueType::Switch:
+			return ParseSwitch();
+		case UniqueType::While:
+			return ParseWhile();
+		case UniqueType::Delete:
+			return ParseDelete();
+		case UniqueType::Return:
+			return ParseReturn();
 		default:
 			Advance();
 			break;
@@ -671,7 +730,7 @@ struct Syntax
 		Token* next = Peek();
 		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
 		{
-			return arena->Emplace<Node>(ParseAssignmentStatement());
+			return CreateNodePtr(ParseAssignmentStatement());
 		}
 
 		return ParseExprStmnt();
@@ -679,23 +738,30 @@ struct Syntax
 
 	Node* ParseExprStmnt()
 	{
-		Node* exprStmt = arena->Emplace<Node>(CreateNode(curr, NodeID::ExpressionStmnt));
-		exprStmt->expressionStmnt.expression = ParseExpr();
-		exprStmt->end = curr->index;
-		return exprStmt;
+		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ExpressionStmnt));
+		node->expressionStmnt.expression = ParseExpr();
+		node->end = curr->index;
+		return node;
 	}
 
 	Node* ParseIf()
 	{
-		Node* node = arena->Emplace<Node>(CreateNode(curr, NodeID::IfStmnt));
+		Node* node = CreateNodePtr(CreateNode(curr, NodeID::IfStmnt));
 		Advance();
 		node->ifStmnt.condition = ParseConditional();
-		node->ifStmnt.elifs = arena->Emplace<eastl::vector<Node*>>();
+		node->ifStmnt.elifs = CreateVectorPtr<Node*>();
+		node->ifStmnt.elseCondition = Body();
 		while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
 		{
 			Advance();
 			Advance();
 			node->ifStmnt.elifs->push_back(ParseConditional());
+		}
+
+		if (Expect(UniqueType::Else))
+		{
+			Advance();
+			node->ifStmnt.elseCondition = ParseBody();
 		}
 
 		node->end = curr->index;
@@ -704,7 +770,7 @@ struct Syntax
 
 	Node* ParseConditional()
 	{
-		Node* node = arena->Emplace<Node>(CreateNode(curr, NodeID::Conditional));
+		Node* node = CreateNodePtr(CreateNode(curr, NodeID::Conditional));
 		if (Expect(UniqueType::Lparen, errors.expectedConditionOpen))
 		{
 			Advance();
@@ -720,34 +786,189 @@ struct Syntax
 			}
 		}
 
-		node->nodeID = NodeID::Unknown;
+		node->nodeID = NodeID::InvalidNode;
 		return node;
 	}
 
-	void ParseFor()
+	Node* ParseFor()
 	{
+		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ForStmnt));
+		Advance();
+		if (Expect(UniqueType::Lparen, errors.expectedForOpen))
+		{
+			Advance();
+			if (Expect(TokenType::Identifier, errors.expectedForIdent))
+			{
+				if (Peek()->uniqueType == UniqueType::Colon)
+				{
+					node->forStmnt.isDeclaration = true;
+					node->forStmnt.iterated.declaration = CreateNodePtr(ParseDeclaration());
+				}
+				else
+				{
+					node->forStmnt.isDeclaration = false;
+					node->forStmnt.iterated.identifier = curr->index;
+					Advance();
+				}
+
+				if (Expect(UniqueType::In)) node->forStmnt.rangeFor = false;
+				else if (Expect(UniqueType::To)) node->forStmnt.rangeFor = true;
+				else
+				{
+					AddError(curr, errors.expectedForIterator);
+					node->nodeID = NodeID::InvalidNode;
+					return node;
+				}
+
+				node->forStmnt.iterator = curr->index;
+				Advance();
+
+				Expr* expr = ParseExpr();
+				if (expr->typeID != ExprID::InvalidExpr)
+				{
+					node->forStmnt.toIterate = expr;
+					if (Expect(UniqueType::Rparen, errors.expectedForClose))
+					{
+						Advance();
+						node->forStmnt.body = ParseBody();
+						node->end = curr->index;
+						return node;
+					}
+				}
+			}
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
 	}
 
-	void ParseSwitch()
+	Node* ParseSwitch()
 	{
+		Node* node = CreateNodePtr(curr, NodeID::SwitchStmnt);
+		Advance();
+
+		if (Expect(UniqueType::Lparen, errors.expectedSwitchOpen))
+		{
+			Advance();
+			Expr* switchOn = ParseExpr();
+			if (switchOn->typeID != ExprID::InvalidExpr)
+			{
+				node->switchStmnt.switchOn = switchOn;
+
+				if (Expect(UniqueType::Rparen, errors.expectedSwitchClose))
+				{
+					Advance();
+
+					if (Expect(UniqueType::Lbrace, errors.expectedSwitchBlockOpen))
+					{
+						Advance();
+
+						node->switchStmnt.cases = CreateVectorPtr<Node*>();
+						while (Expect(UniqueType::Case))
+						{
+							Advance();
+							node->switchStmnt.cases->push_back(ParseConditional());
+						}
+
+						if (Expect(UniqueType::Default, errors.expectedSwitchDefault))
+						{
+							Advance();
+							node->switchStmnt.defaultCase = ParseBody();
+
+							if (Expect(UniqueType::Rbrace, errors.expectedSwitchBlockClose))
+							{
+								node->end = curr->index;
+								Advance();
+								return node;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
 	}
 
-	void ParseWhile()
+	Node* ParseWhile()
 	{
+		Node* node = CreateNodePtr(curr, NodeID::WhileStmnt);
+		Advance();
+		Node* conditional = ParseConditional();
+		if (conditional->nodeID != NodeID::InvalidNode)
+		{
+			node->whileStmnt.conditional = conditional;
+			node->end = curr->index;
+			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
+	Node* ParseDelete()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::DeleteStmnt);
+		Advance();
+		if (Expect(UniqueType::Array))
+		{
+			node->deleteStmnt.arrDelete = true;
+			Advance();
+		}
+		else node->deleteStmnt.arrDelete = false;
+
+		Expr* primaryExpr = ParsePrimaryExpr();
+		if (primaryExpr->typeID != ExprID::InvalidExpr)
+		{
+			node->deleteStmnt.primaryExpr = primaryExpr;
+			if (ExpectSemicolon())
+			{
+				node->end = curr->index;
+				return node;
+			}
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
+	Node* ParseReturn()
+	{
+		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ReturnStmnt));
+		Advance();
+		if (Expect(UniqueType::Semicolon))
+		{
+			node->returnStmnt.voidReturn = true;
+			node->returnStmnt.expr = nullptr;
+		}
+		else
+		{
+			node->returnStmnt.voidReturn = false;
+			node->returnStmnt.expr = ParseExpr();
+		}
+
+		if (ExpectSemicolon())
+		{
+			node->end = curr->index;
+			Advance();
+		}
+
+		return node;
 	}
 
 	eastl::vector<Node*>* ParseParametersList()
 	{
-		eastl::vector<Node*>* parameters = arena->Emplace<eastl::vector<Node*>>();
+		eastl::vector<Node*>* parameters = CreateVectorPtr<Node*>();
 
 		if (Expect(UniqueType::Rparen)) return parameters;
 
 		Node first = ParseDeclaration();
-		if (first.nodeID != NodeID::Unknown) parameters->push_back(arena->Emplace<Node>(first));
+		if (first.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(first));
 		while (Expect(UniqueType::Comma) && !IsEOF())
 		{
 			Node decl = ParseDeclaration();
-			if (decl.nodeID != NodeID::Unknown) parameters->push_back(arena->Emplace<Node>(decl));
+			if (decl.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(decl));
 		}
 
 		if (Expect(UniqueType::Assign))
@@ -758,13 +979,13 @@ struct Syntax
 		else if (Expect(TokenType::Identifier))
 		{
 			Node assign = ParseAssignmentStatement();
-			if (assign.nodeID != NodeID::Unknown) parameters->push_back(arena->Emplace<Node>(assign));
+			if (assign.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(assign));
 		}
 
 		while (Expect(UniqueType::Comma) && !IsEOF())
 		{
 			Node def = ParseAssignmentStatement();
-			if (def.nodeID != NodeID::Unknown) parameters->push_back(arena->Emplace<Node>(def));
+			if (def.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(def));
 		}
 
 		return parameters;
@@ -782,8 +1003,6 @@ struct Syntax
 			return def;
 		}
 		default:
-			//Advance();
-			//AddError(curr, errors.invalidTokenAfterIdentifier);
 			return Node();
 		}
 	}
@@ -979,7 +1198,7 @@ struct Syntax
 	Type ParseImplicitType()
 	{
 		Type type = Type(TypeID::ImplicitType);
-		eastl::vector<TokenIndex>* idents = arena->Emplace<eastl::vector<NodeIndex>>();
+		eastl::vector<TokenIndex>* idents = CreateVectorPtr<NodeIndex>();
 		type.implicitType.identifiers = idents;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
@@ -1013,12 +1232,12 @@ struct Syntax
 	Type ParseExplicitType()
 	{
 		Type type = Type(TypeID::ExplicitType);
-		eastl::vector<Node*>* decls = arena->Emplace<eastl::vector<Node*>>();
+		eastl::vector<Node*>* decls = CreateVectorPtr<Node*>();
 		type.explicitType.declarations = decls;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			Node* node = arena->Emplace<Node>(ParseDeclaration());
-			if (node->nodeID != NodeID::Unknown)
+			Node* node = CreateNodePtr(ParseDeclaration());
+			if (node->nodeID != NodeID::InvalidNode)
 			{
 				decls->push_back(node);
 				if (Expect(UniqueType::Comma)) Advance();
@@ -1092,7 +1311,7 @@ struct Syntax
 		eastl::vector<Node*> params = eastl::vector<Node*>();
 		while (curr->uniqueType != UniqueType::Lbrace && !IsEOF())
 		{
-			Node* def = arena->Emplace<Node>(ParseDefinition());
+			Node* def = CreateNodePtr(ParseDefinition());
 			if (def->nodeID == NodeID::Definition) params.push_back(def);
 			if (Expect(UniqueType::Comma)) Advance();
 		}
@@ -1364,7 +1583,7 @@ struct Syntax
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
 		Expr* generics = CreateExpr(curr->index, ExprID::GenericsExpr);
-		eastl::vector<Type>* genericTypes = arena->Emplace<eastl::vector<Type>>();
+		eastl::vector<Type>* genericTypes = CreateVectorPtr<Type>();
 		generics->genericsExpr.expr = (expr != nullptr ? CopyExpr(expr) : expr);
 		generics->genericsExpr.open = curr->index;
 		generics->genericsExpr.types = genericTypes;
@@ -1408,7 +1627,7 @@ struct Syntax
 
 	eastl::vector<Expr*>* ParseExprList()
 	{
-		eastl::vector<Expr*>* exprs = arena->Emplace<eastl::vector<Expr*>>();
+		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr*>();
 
 		exprs->push_back(ParseExpr());
 		while (Expect(UniqueType::Comma) && !IsEOF())

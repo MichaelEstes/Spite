@@ -181,7 +181,7 @@
 	| new <anonymousType> ?(<at>)
 
 <delete> := delete <primaryExpression> |
-			delete <primaryExpression> []
+			delete[] <primaryExpression>
 
 <return> := return <expression>
 
@@ -198,6 +198,8 @@
 <index> := <bracket> <expression> </bracket>
 
 <dereference> := <primaryExpression> ~
+
+<reference> := <primaryExpression> @
 
 <extern> := extern <scope> (<type> <identifier> <parentheses> ?(<declaration>...), </parentheses>...) </scope>
 
