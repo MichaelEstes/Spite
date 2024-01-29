@@ -23,6 +23,9 @@ enum ExprID
 	NewExpr,
 	FixedExpr,
 	AnonTypeExpr,
+	AsExpr,
+	DereferenceExpr,
+	ReferenceExpr,
 	BinaryExpr,
 	UnaryExpr,
 	GroupedExpr,
@@ -88,8 +91,26 @@ struct Expr
 
 		struct
 		{
-			eastl::vector<Node*> definitions;
+			eastl::vector<Expr*>* values;
 		} anonTypeExpr;
+
+		struct
+		{
+			Expr* of;
+			Type* to;
+		} asExpr;
+
+		struct
+		{
+			Expr* of;
+			TokenIndex op;
+		} dereferenceExpr;
+
+		struct
+		{
+			Expr* of;
+			TokenIndex op;
+		} referenceExpr;
 
 		struct
 		{
@@ -181,6 +202,15 @@ struct Expr
 			break;
 		case AnonTypeExpr:
 			anonTypeExpr = copy.anonTypeExpr;
+			break;
+		case AsExpr:
+			asExpr = copy.asExpr;
+			break;
+		case DereferenceExpr:
+			dereferenceExpr = copy.dereferenceExpr;
+			break;
+		case ReferenceExpr:
+			referenceExpr = copy.referenceExpr;
 			break;
 		case BinaryExpr:
 			binaryExpr = copy.binaryExpr;

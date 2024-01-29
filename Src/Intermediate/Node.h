@@ -19,6 +19,7 @@ enum NodeID
 	Definition,
 	Function,
 	Conditional,
+	AssignmentStmnt,
 	IfStmnt,
 	ForStmnt,
 	WhileStmnt,
@@ -36,22 +37,18 @@ enum NodeID
 
 struct Body
 {
-	bool exprFunction;
-	union
-	{
-		Node* block;
-		Expr* expr;
-	};
+	bool statement;
+	Node* body;
 
 	Body()
 	{
-		exprFunction = false;
-		block = nullptr;
+		statement = false;
+		body = nullptr;
 	}
 
 	operator void* () const
 	{
-		return exprFunction ? (void*)expr : (void*)block;
+		return (void*)body;
 	}
 };
 
@@ -105,6 +102,13 @@ struct Node
 
 		struct
 		{
+			Expr* assignTo;
+			TokenIndex op;
+			Expr* assignment;
+		} assignmentStmnt;
+
+		struct
+		{
 			Node* condition;
 			eastl::vector<Node*>* elifs;
 			Body elseCondition;
@@ -148,6 +152,12 @@ struct Node
 
 		struct
 		{
+			bool deferIf;
+			union
+			{
+				Node* conditional;
+				Body body;
+			};
 		} deferStmnt;
 
 		struct
@@ -228,6 +238,9 @@ struct Node
 			break;
 		case Conditional:
 			conditional = copy.conditional;
+			break;
+		case AssignmentStmnt:
+			assignmentStmnt = copy.assignmentStmnt;
 			break;
 		case IfStmnt:
 			ifStmnt = copy.ifStmnt;

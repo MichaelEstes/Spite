@@ -1,0 +1,23 @@
+-file
+description File path of the file to compile
+required
+type string
+
+-entry
+description Name of the function in the file to run first, defaults to Main
+default Main
+
+-output
+description Sets the compiler output format, defaults to llvm
+default llvm
+options llvm, c, ir
+
+-arch
+description Sets the target architecture to build the binary for
+default x64
+options x64, x86, arm
+
+-os
+description sets the target os to build the binary for, defaults to windows
+default windows
+options windows, linux, mac, android, ios

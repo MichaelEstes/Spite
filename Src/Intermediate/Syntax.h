@@ -64,6 +64,8 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	case Conditional:
 		return "(" + ToString(node.conditional.condition, tokens) + ")" +
 			ToString(node.conditional.body, tokens);
+	case AssignmentStmnt:
+		return "";
 	case IfStmnt:
 	{
 		eastl::string elseifs = "";
@@ -109,7 +111,10 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			(node.deleteStmnt.arrDelete ? "[]" : "") + " " +
 			ToString(node.deleteStmnt.primaryExpr, tokens);
 	case DeferStmnt:
-		return "";
+		return tokens.At(node.start)->ToString() + " " +
+			(node.deferStmnt.deferIf
+				? ToString(*node.deferStmnt.conditional, tokens)
+				: ToString(node.deferStmnt.body, tokens));
 	case ReturnStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			(!node.returnStmnt.voidReturn ? ToString(node.returnStmnt.expr, tokens) : "");
@@ -136,13 +141,13 @@ eastl::string ToString(Node& node, Tokens& tokens)
 eastl::string ToString(Body& body, Tokens& tokens)
 {
 	if (!body) return "";
-	if (body.exprFunction)
+	if (body.statement)
 	{
-		return " " + ToString(body.expr, tokens) + "\n";
+		return " " + ToString(*body.body, tokens) + "\n";
 	}
 	else
 	{
-		return ToString(*body.block, tokens);
+		return ToString(*body.body, tokens);
 	}
 }
 
@@ -190,7 +195,24 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 		return tokens.At(expr->fixedExpr.fixed)->ToString() + " " +
 			ToString(expr->fixedExpr.atExpr, tokens);
 	case AnonTypeExpr:
-		return "";
+	{
+		eastl::string values = "";
+		for (Expr* expr : *expr->anonTypeExpr.values)
+		{
+			values += ToString(expr, tokens) + ",";
+		}
+
+		return "{" + values + "}";
+	}
+	case AsExpr:
+		return ToString(expr->asExpr.of, tokens) + " as " +
+			ToString(expr->asExpr.to, tokens);
+	case DereferenceExpr:
+		return ToString(expr->dereferenceExpr.of, tokens) +
+			tokens.At(expr->dereferenceExpr.op)->ToString();
+	case ReferenceExpr:
+		return ToString(expr->referenceExpr.of, tokens) +
+			tokens.At(expr->referenceExpr.op)->ToString();
 	case BinaryExpr:
 		return ToString(expr->binaryExpr.left, tokens) +
 			tokens.At(expr->binaryExpr.op)->ToString() +
@@ -607,14 +629,14 @@ struct Syntax
 
 				if (Expect(UniqueType::Lbrace))
 				{
-					function.function.body.exprFunction = false;
-					function.function.body.block = ParseBlock();
+					function.function.body.statement = false;
+					function.function.body.body = ParseBlock();
 					return function;
 				}
 				else if (Expect(UniqueType::FatArrow))
 				{
-					function.function.body.exprFunction = true;
-					function.function.body.expr = ParseExpr();
+					function.function.body.statement = true;
+					function.function.body.body = ParseBlockStatment();
 					return function;
 				}
 				else
@@ -646,26 +668,25 @@ struct Syntax
 
 		if (Expect(UniqueType::Lbrace))
 		{
-			body.exprFunction = false;
-			body.block = ParseBlock();
+			body.statement = false;
+			body.body = ParseBlock();
 		}
 		else
 		{
-			body.exprFunction = true;
-			body.expr = ParseBodyExpr();
+			body.statement = true;
+			body.body = ParseBodyStmnt();
 		}
 
 		return body;
 	}
 
-	Expr* ParseBodyExpr()
+	Node* ParseBodyStmnt()
 	{
 		StartScope();
-		Expr* expr = ParseExpr();
-		if (Expect(UniqueType::Semicolon)) Advance();
+		Node* stmnt = ParseBlockStatment();
 		EndScope();
 
-		return expr;
+		return stmnt;
 	}
 
 	Node* ParseBlock()
@@ -713,6 +734,8 @@ struct Syntax
 			return ParseSwitch();
 		case UniqueType::While:
 			return ParseWhile();
+		case UniqueType::Defer:
+			return ParseDefer();
 		case UniqueType::Delete:
 			return ParseDelete();
 		case UniqueType::Return:
@@ -739,8 +762,20 @@ struct Syntax
 	Node* ParseExprStmnt()
 	{
 		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ExpressionStmnt));
-		node->expressionStmnt.expression = ParseExpr();
-		node->end = curr->index;
+		Expr* expr = ParseExpr();
+		if (expr->typeID != ExprID::InvalidExpr)
+		{
+			node->expressionStmnt.expression = expr;
+
+			if (ExpectSemicolon())
+			{
+				node->end = curr->index;
+				Advance();
+				return node;
+			}
+		}
+
+		node->nodeID = NodeID::InvalidNode;
 		return node;
 	}
 
@@ -748,23 +783,39 @@ struct Syntax
 	{
 		Node* node = CreateNodePtr(CreateNode(curr, NodeID::IfStmnt));
 		Advance();
-		node->ifStmnt.condition = ParseConditional();
-		node->ifStmnt.elifs = CreateVectorPtr<Node*>();
-		node->ifStmnt.elseCondition = Body();
-		while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
+
+		Node* conditional = ParseConditional();
+		if (conditional->nodeID != NodeID::InvalidNode)
 		{
-			Advance();
-			Advance();
-			node->ifStmnt.elifs->push_back(ParseConditional());
+			node->ifStmnt.condition = conditional;
+			node->ifStmnt.elifs = CreateVectorPtr<Node*>();
+			node->ifStmnt.elseCondition = Body();
+
+			while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
+			{
+				Advance();
+				Advance();
+				Node* elif = ParseConditional();
+				if (elif->nodeID != NodeID::InvalidNode) node->ifStmnt.elifs->push_back(ParseConditional());
+				else
+				{
+					node->nodeID = NodeID::InvalidNode;
+					return node;
+				}
+			}
+
+			if (Expect(UniqueType::Else))
+			{
+				Advance();
+				node->ifStmnt.elseCondition = ParseBody();
+			}
+
+			node->end = curr->index;
+			return node;
 		}
 
-		if (Expect(UniqueType::Else))
-		{
-			Advance();
-			node->ifStmnt.elseCondition = ParseBody();
-		}
 
-		node->end = curr->index;
+		node->nodeID = NodeID::InvalidNode;
 		return node;
 	}
 
@@ -781,7 +832,7 @@ struct Syntax
 				Advance();
 				node->conditional.condition = condition;
 				node->conditional.body = ParseBody();
-				node->end = curr->index;
+				node->end = node->conditional.body.body->end;
 				return node;
 			}
 		}
@@ -831,7 +882,7 @@ struct Syntax
 					{
 						Advance();
 						node->forStmnt.body = ParseBody();
-						node->end = curr->index;
+						node->end = node->forStmnt.body.body->end;
 						return node;
 					}
 				}
@@ -899,7 +950,36 @@ struct Syntax
 		if (conditional->nodeID != NodeID::InvalidNode)
 		{
 			node->whileStmnt.conditional = conditional;
-			node->end = curr->index;
+			node->end = conditional->end;
+			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
+	Node* ParseDefer()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::DeferStmnt);
+		Advance();
+
+		if (Expect(UniqueType::If))
+		{
+			node->deferStmnt.deferIf = true;
+			Advance();
+			Node* conditional = ParseConditional();
+			if (conditional->nodeID != NodeID::InvalidNode)
+			{
+				node->deferStmnt.conditional = conditional;
+				node->end = conditional->end;
+				return node;
+			}
+		}
+		else
+		{
+			node->deferStmnt.deferIf = false;
+			node->deferStmnt.body = ParseBody();
+			node->end = node->deferStmnt.body.body->end;
 			return node;
 		}
 
@@ -925,6 +1005,7 @@ struct Syntax
 			if (ExpectSemicolon())
 			{
 				node->end = curr->index;
+				Advance();
 				return node;
 			}
 		}
@@ -941,19 +1022,24 @@ struct Syntax
 		{
 			node->returnStmnt.voidReturn = true;
 			node->returnStmnt.expr = nullptr;
+			node->end = curr->index;
+			Advance();
+			return node;
 		}
 		else
 		{
 			node->returnStmnt.voidReturn = false;
 			node->returnStmnt.expr = ParseExpr();
+			if (ExpectSemicolon())
+			{
+				node->end = curr->index;
+				Advance();
+				return node;
+			}
 		}
 
-		if (ExpectSemicolon())
-		{
-			node->end = curr->index;
-			Advance();
-		}
 
+		node->nodeID = NodeID::InvalidNode;
 		return node;
 	}
 
@@ -1405,7 +1491,14 @@ struct Syntax
 				break;
 
 			case UniqueType::As:
+				expr = ParseAs(expr);
+				break;
 
+			case UniqueType::Tilde:
+				expr = ParseDereference(expr);
+				break;
+			case UniqueType::AtOp:
+				expr = ParseReference(expr);
 				break;
 
 			default:
@@ -1435,6 +1528,9 @@ struct Syntax
 
 		case UniqueType::Fixed:
 			return ParseFixedExpr();
+
+		case UniqueType::Lbrace:
+			return ParseAnonTypeExpr();
 
 		default:
 			switch (curr->type)
@@ -1497,6 +1593,32 @@ struct Syntax
 		Advance();
 		fixed->fixedExpr.atExpr = ParseOperand();
 		return fixed;
+	}
+
+	Expr* ParseAnonTypeExpr()
+	{
+		Expr* anon = CreateExpr(curr->index, ExprID::AnonTypeExpr);
+		anon->anonTypeExpr.values = CreateVectorPtr<Expr*>();
+		Advance();
+
+		if (Expect(UniqueType::Rbrace))
+		{
+			AddError(curr, errors.emptyInlineType);
+			Advance();
+			return anon;
+		}
+
+		anon->anonTypeExpr.values->push_back(ParseExpr());
+
+		while (Expect(UniqueType::Comma))
+		{
+			Advance();
+			anon->anonTypeExpr.values->push_back(ParseExpr());
+		}
+
+		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure)) Advance();
+
+		return anon;
 	}
 
 	Expr* ParseSelector(Expr* on)
@@ -1625,6 +1747,36 @@ struct Syntax
 		return generics;
 	}
 
+	Expr* ParseAs(Expr* of)
+	{
+		Expr* asExpr = CreateExpr(of->start, ExprID::AsExpr);
+		asExpr->asExpr.of = CopyExpr(of);
+		Advance();
+		asExpr->asExpr.to = arena->Emplace<Type>(ParseDeclarationType());
+		
+		return asExpr;
+	}
+
+	Expr* ParseDereference(Expr* of)
+	{
+		Expr* expr = CreateExpr(of->start, ExprID::DereferenceExpr);
+		expr->dereferenceExpr.of = CopyExpr(of);
+		expr->dereferenceExpr.op = curr->index;
+		Advance();
+
+		return expr;
+	}
+
+	Expr* ParseReference(Expr* of)
+	{
+		Expr* expr = CreateExpr(of->start, ExprID::ReferenceExpr);
+		expr->dereferenceExpr.of = CopyExpr(of);
+		expr->dereferenceExpr.op = curr->index;
+		Advance();
+
+		return expr;
+	}
+
 	eastl::vector<Expr*>* ParseExprList()
 	{
 		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr*>();
@@ -1654,6 +1806,32 @@ struct Syntax
 	size_t GetTargetArchBitWidth()
 	{
 		return 64;
+	}
+
+	bool IsAssignableExpr(Expr* expr)
+	{
+		ExprID type = expr->typeID;
+		return type == ExprID::IdentifierExpr ||
+			type == ExprID::SelectorExpr ||
+			type == ExprID::IndexExpr;
+	}
+
+	bool IsAssignmentOperator()
+	{
+		UniqueType uniqueType = curr->uniqueType;
+		return curr->type == TokenType::Operator &&
+			(uniqueType == UniqueType::Assign ||
+				uniqueType == UniqueType::AddAssign ||
+				uniqueType == UniqueType::SubtractAssign ||
+				uniqueType == UniqueType::MultiplyAssign ||
+				uniqueType == UniqueType::DivideAssign ||
+				uniqueType == UniqueType::ModuloAssign ||
+				uniqueType == UniqueType::AndAssign ||
+				uniqueType == UniqueType::OrAssign ||
+				uniqueType == UniqueType::XorAssign ||
+				uniqueType == UniqueType::ShiftlAssign ||
+				uniqueType == UniqueType::ShiftrAssign ||
+				uniqueType == UniqueType::AndNotAssign);
 	}
 
 	bool IsUnaryOperator()
