@@ -15,9 +15,11 @@ options llvm, c, ir
 -arch
 description Sets the target architecture to build the binary for
 default x64
-options x64, x86, arm
+options x64, x86, arm32, arm64
+type enum
 
 -os
 description sets the target os to build the binary for, defaults to windows
 default windows
 options windows, linux, mac, android, ios
+type enum

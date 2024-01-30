@@ -27,7 +27,7 @@ public:
 		std::ifstream file = std::ifstream(config.fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
 		{
-			Logger::Error("Unable to open src file: " + config.fileLoc);
+			Logger::FatalError("Unable to open src file: " + config.fileLoc);
 		}
 
 		Profiler profiler = Profiler();
