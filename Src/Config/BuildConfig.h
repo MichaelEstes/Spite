@@ -1,8 +1,11 @@
 #pragma once
+#include <initializer_list>
+#include <utility>
 #include <fstream>
 
 #include "EASTL/string.h"
 #include "EASTL/vector.h"
+#include "EASTL/tuple.h"
 #include "../Log/Logger.h"
 #include "../Containers/InplaceString.h"
 
@@ -12,7 +15,7 @@ enum ArgType
 	EnumArg,
 };
 
-struct Arg
+struct ParsedArg
 {
 	eastl::string name;
 	eastl::string description;
@@ -21,7 +24,7 @@ struct Arg
 	eastl::vector<eastl::string> options;
 	ArgType type;
 
-	Arg()
+	ParsedArg()
 	{
 		name = "";
 		description = "";
@@ -31,7 +34,7 @@ struct Arg
 		type = StringArg;
 	}
 
-	Arg(const Arg& copy)
+	ParsedArg(const ParsedArg& copy)
 	{
 		name = copy.name;
 		description = copy.description;
@@ -105,9 +108,9 @@ Context ContextFromLabel(eastl::string& label)
 	return Context::ParseInvalid;
 }
 
-Arg ParseArg(eastl::string& contents, size_t& index)
+ParsedArg ParseArg(eastl::string& contents, size_t& index)
 {
-	Arg arg = Arg();
+	ParsedArg arg = ParsedArg();
 	eastl::string curr;
 	size_t start = index;
 
@@ -149,7 +152,7 @@ Arg ParseArg(eastl::string& contents, size_t& index)
 				}
 				arg.options.push_back(eastl::string(&contents[start], curr - start));
 				if (contents[curr] == ',') curr += 1;
-				start = curr;
+				start = EatWhitespace(contents, curr);
 			}
 			context = Context::ParseLabel;
 			break;
@@ -174,6 +177,58 @@ Arg ParseArg(eastl::string& contents, size_t& index)
 	return arg;
 }
 
+inline void TrimPrec(eastl::string& str)
+{
+	size_t index = 0;
+	while (index < str.size() && !std::isalpha(str[index])) index += 1;
+	if (!(index < str.size())) return;
+	str = eastl::string(&str[index], str.size() - index);
+}
+
+inline void MakeFirstUpper(eastl::string& str)
+{
+	str[0] = std::toupper(str[0]);
+}
+
+eastl::string TrimAndUpper(eastl::string str)
+{
+	TrimPrec(str);
+	MakeFirstUpper(str);
+	return str;
+}
+
+eastl::string BuildEnum(ParsedArg& arg)
+{
+	eastl::string enumStr = "enum ";
+	eastl::string name = TrimAndUpper(arg.name);
+	
+	enumStr += name + "\n{\n";
+
+	for (eastl::string option : arg.options)
+	{
+		eastl::string enumName = TrimAndUpper(option);
+		enumStr += "\t" + enumName + ",\n";
+	}
+	enumStr += "}\n\n" + name + " StringTo" + name + "(east::string str)\n{\n";
+
+	for (eastl::string option : arg.options)
+	{
+		enumStr += "\tif (str == \"" + option + "\") return " + name + "::" + TrimAndUpper(option) + ";\n";
+	}
+	enumStr += "}\n\n";
+
+	return enumStr;
+}
+
+template<typename T>
+struct Arg
+{
+	eastl::string name;
+	eastl::string description;
+	T defaultVal;
+	eastl::vector<eastl::string> options;
+};
+
 int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 {
 	std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
@@ -193,15 +248,63 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 
 	size_t index = EatWhitespace(contents, 0);
 
-	eastl::vector<Arg> args = eastl::vector<Arg>();
+	eastl::vector<ParsedArg> args = eastl::vector<ParsedArg>();
 
 	while (contents[index] == '-')
 	{
-		Arg arg = ParseArg(contents, index);
+		ParsedArg arg = ParseArg(contents, index);
 		if (arg.IsValid()) args.push_back(arg);
 		else return 1;
 	}
 
+	eastl::string filePath = outDir + "\\NewConfig.h";
+	std::ofstream outfile(filePath.c_str());
+
+	outfile << "//Auto generated\n";
+	outfile << "#pragma once\n#include <initializer_list>\n#include <utility>\n#include \"EASTL/string.h\"\n#include \"EASTL/vector.h\"\n\n";
+
+	for (ParsedArg arg : args)
+	{
+		if (arg.type == EnumArg)
+		{
+			outfile << BuildEnum(arg);
+		}
+	}
+
+	outfile << "template<typename T>\nstruct ArgInfo\n{\n\teastl::string name;\n\teastl::string description;\n\tT defaultVal;\n\teastl::vector<eastl::string> options;\n};\n\n";
+
+	outfile << "struct Config\n{\n";
+
+	for (ParsedArg arg : args)
+	{
+		eastl::string name = arg.name;
+		TrimPrec(name);
+		eastl::string configVar = "\t";
+		if (arg.type == EnumArg) configVar += TrimAndUpper(arg.name) + " ";
+		else configVar += "eastl::string ";
+		configVar += name;
+		if (arg.defaultVal != "")
+		{
+			configVar += " = ";
+			if (arg.type == EnumArg) configVar += TrimAndUpper(arg.name) + "::" + TrimAndUpper(arg.defaultVal);
+			else configVar += "\"" + arg.defaultVal + "\"";
+		}
+		configVar += ";\n";
+		outfile << configVar;
+	}
+
+	outfile << "};\n";
+
+	outfile << std::endl;
+	outfile.close();
+	
+	Arg<eastl::string> arg = { "file", "desc", "str", {"one", "two", "three"} };
+
 	return 0;
 }
+
+//struct Config
+//{
+//	Arg<eastl::string> file = { "name" };
+//};
 

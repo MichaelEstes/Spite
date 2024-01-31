@@ -11,6 +11,7 @@ default Main
 description Sets the compiler output format, defaults to llvm
 default llvm
 options llvm, c, ir
+type enum
 
 -arch
 description Sets the target architecture to build the binary for
