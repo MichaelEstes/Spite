@@ -20,7 +20,12 @@ options x64, x86, arm32, arm64
 type enum
 
 -os
-description sets the target os to build the binary for, defaults to windows
+description Sets the target os to build the binary for, defaults to windows
 default windows
 options windows, linux, mac, android, ios
 type enum
+
+-comments
+description If present comments will be retained
+default false
+type bool

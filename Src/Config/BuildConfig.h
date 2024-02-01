@@ -13,6 +13,7 @@ enum ArgType
 {
 	StringArg,
 	EnumArg,
+	BoolArg,
 };
 
 struct ParsedArg
@@ -161,6 +162,7 @@ ParsedArg ParseArg(eastl::string& contents, size_t& index)
 		{
 			eastl::string type = ParseToChar(contents, start, '\n');
 			if (type == "enum") arg.type = ArgType::EnumArg;
+			else if (type == "bool") arg.type = ArgType::BoolArg;
 			else arg.type = ArgType::StringArg;
 
 			context = Context::ParseLabel;
@@ -201,7 +203,7 @@ eastl::string BuildEnum(ParsedArg& arg)
 {
 	eastl::string enumStr = "enum ";
 	eastl::string name = TrimAndUpper(arg.name);
-	
+
 	enumStr += name + "\n{\n";
 
 	for (eastl::string option : arg.options)
@@ -209,13 +211,20 @@ eastl::string BuildEnum(ParsedArg& arg)
 		eastl::string enumName = TrimAndUpper(option);
 		enumStr += "\t" + enumName + ",\n";
 	}
-	enumStr += "}\n\n" + name + " StringTo" + name + "(east::string str)\n{\n";
+	enumStr += "\t" + name + "Invalid\n};\n\n" + name + " StringTo" + name + "(const eastl::string& str)\n{\n";
 
+	bool elif = false;
 	for (eastl::string option : arg.options)
 	{
-		enumStr += "\tif (str == \"" + option + "\") return " + name + "::" + TrimAndUpper(option) + ";\n";
+		if (elif) enumStr += "\telse if";
+		else
+		{
+			enumStr += "\tif";
+			elif = true;
+		}
+		enumStr += " (str == \"" + option + "\") return " + name + "::" + TrimAndUpper(option) + ";\n";
 	}
-	enumStr += "}\n\n";
+	enumStr += "\treturn " + name + "::" + name + "Invalid;\n}\n\n";
 
 	return enumStr;
 }
@@ -271,7 +280,7 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 		}
 	}
 
-	outfile << "template<typename T>\nstruct ArgInfo\n{\n\teastl::string name;\n\teastl::string description;\n\tT defaultVal;\n\teastl::vector<eastl::string> options;\n};\n\n";
+	outfile << "struct ArgInfo\n{\n\teastl::string name;\n\teastl::string description;\n\tbool required;\n\teastl::vector<eastl::string> options;\n};\n\n";
 
 	outfile << "struct Config\n{\n";
 
@@ -281,30 +290,76 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 		TrimPrec(name);
 		eastl::string configVar = "\t";
 		if (arg.type == EnumArg) configVar += TrimAndUpper(arg.name) + " ";
+		else if (arg.type == BoolArg) configVar += "bool ";
 		else configVar += "eastl::string ";
 		configVar += name;
 		if (arg.defaultVal != "")
 		{
 			configVar += " = ";
 			if (arg.type == EnumArg) configVar += TrimAndUpper(arg.name) + "::" + TrimAndUpper(arg.defaultVal);
+			else if (arg.type == BoolArg) configVar += arg.defaultVal;
 			else configVar += "\"" + arg.defaultVal + "\"";
 		}
 		configVar += ";\n";
 		outfile << configVar;
 	}
 
-	outfile << "};\n";
+	outfile << "};\n\nConfig ParseConfig(int argc, char** argv)\n{\n\tConfig config = Config();\n\teastl::vector<ArgInfo> argInfo = {";
+
+	for (int i = 0; i < args.size(); i++)
+	{
+		ParsedArg arg = args[i];
+		eastl::string argInfo = "{";
+		argInfo += "\"" + arg.name + "\", \"" + arg.description + "\", "
+			+ (arg.required ? "true" : "false") + ", {";
+		for (int j = 0; j < arg.options.size(); j++)
+		{
+			eastl::string str = arg.options[j];
+			argInfo += "\"" + str + "\"";
+			if (j < arg.options.size() - 1) argInfo += ", ";
+		}
+		argInfo += "}}";
+		if (i < args.size() - 1) argInfo += ", ";
+
+		outfile << argInfo;
+	}
+	outfile << "};\n\tint i = 0;\n\twhile (i < argc)\n\t{\n\t\teastl::string arg(argv[i]);\n\t\tfor (ArgInfo argInfo : argInfos)\n\t\t{\n";
+
+	bool elif = false;
+	for (ParsedArg arg : args)
+	{
+		eastl::string argCheck = "";
+		if (elif) argCheck += "\t\t\telse if ";
+		else
+		{
+			argCheck += "\t\t\tif ";
+			elif = true;
+		}
+
+		argCheck += "(arg == \"" + arg.name + "\")\n\t\t\t{\n";
+
+		switch (arg.type)
+		{
+		case StringArg:
+			break;
+		case EnumArg:
+			break;
+		case BoolArg:
+			break;
+		default:
+			break;
+
+		}
+
+		argCheck += "\t\t\t}\n";
+		outfile << argCheck;
+	}
 
 	outfile << std::endl;
 	outfile.close();
-	
+
 	Arg<eastl::string> arg = { "file", "desc", "str", {"one", "two", "three"} };
 
 	return 0;
 }
-
-//struct Config
-//{
-//	Arg<eastl::string> file = { "name" };
-//};
 
