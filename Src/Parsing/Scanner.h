@@ -3,13 +3,12 @@
 
 #include "EASTL/string.h"
 
-#include "../Config/Config.h"
 #include "../Log/Logger.h"
 #include "Position.h"
 #include "../Tokens/Tokens.h"
 #include "../Utils/Profiler.h"
 
-extern Config config; 
+extern Config config;
 
 class Scanner
 {
@@ -17,21 +16,21 @@ public:
 
 	Scanner()
 	{
-		fileLoc = config.fileLoc;
+		fileLoc = config.file;
 		pos = Position(&fileLoc);
 		index = 0;
 	}
 
 	size_t Init()
 	{
-		std::ifstream file = std::ifstream(config.fileLoc.c_str(), std::fstream::in);
+		std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
 		{
-			Logger::FatalError("Unable to open src file: " + config.fileLoc);
+			Logger::FatalError("Unable to open src file: " + fileLoc);
 		}
 
 		Profiler profiler = Profiler();
-		defer(Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to read file " + config.fileLoc));
+		defer(Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc));
 
 		file.seekg(0, std::ios::end);
 		size_t fileSize = file.tellg();

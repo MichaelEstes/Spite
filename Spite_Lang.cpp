@@ -6,6 +6,7 @@
 #include "./Src/Log/Logger.h"
 #include "./Src/Utils/Profiler.h"
 #include "./Src/Utils/Utils.h"
+#include "Src/Config/BuildConfig.h"
 
 typedef eastl::string string;
 
@@ -38,103 +39,16 @@ namespace EA::StdC
 	}
 }
 
-int AssignConfig(string arg, string toMatch, string& toAssign, int& index, char** argv, int argc)
-{
-	if (arg == toMatch)
-	{
-		if (index + 1 < argc)
-		{
-			index = index + 1;
-			toAssign = argv[index];
-
-			return 1;
-		}
-		else
-		{
-			return -1;
-		}
-	}
-
-	return 0;
-}
-
-Target GetTargetFromString(string& val)
-{
-	if (val == "win64")
-	{
-		return Target::WIN64;
-	}
-
-	return Target::NOT_FOUND;
-}
-
-OutputAs GetOutputAsFromString(string& val)
-{
-	if (val == "C" || val == "c")
-	{
-		return OutputAs::C;
-	}
-
-	return OutputAs::LLVM;
-}
-
-Config config = Config();
-
-void ParseBuildFlags(int argc, char** argv)
-{
-	config.entryPoint = "Main";
-	config.keepComments = false;
-	config.outputAs = OutputAs::LLVM;
-
-	string temp;
-	int i = 0;
-	while (i < argc)
-	{
-		string arg(argv[i]);
-
-		if (AssignConfig(arg, "--file", config.fileLoc, i, argv, argc) == -1)
-			Logger::Error("--file argument must be followed by the relative or absolute path to a .sp file");
-		if (AssignConfig(arg, "--entry", config.entryPoint, i, argv, argc) == -1)
-			Logger::Warning("--entry argument passed without value, will default entry point to Main function if exists");
-
-		int targetVal = AssignConfig(arg, "--target", temp, i, argv, argc);
-		if (targetVal == -1)
-		{
-			Logger::Error("--target argument must be followed by a supported target");
-		}
-		else if (targetVal == 1)
-		{
-			Target target = GetTargetFromString(temp);
-			if (target == Target::NOT_FOUND)
-				Logger::Error("Target argument supplied is not a supported target");
-			config.target = target;
-		}
-
-		int outPutAsVal = AssignConfig(arg, "--outputAs", temp, i, argv, argc);
-		if (outPutAsVal == -1)
-		{
-			Logger::Warning("--target argument passed without value, will use default output of LLVM");
-		}
-		else if (targetVal == 1)
-		{
-			config.outputAs = GetOutputAsFromString(temp);
-		}
-
-		if (arg == "--keepComments") config.keepComments = true;
-
-		i++;
-	}
-
-	if (config.fileLoc.empty())
-	{
-		Logger::Error("--file argument must be present with a path to the entry file of your program");
-	}
-}
+Config config;
 
 int main(int argc, char** argv)
 {
 	Profiler profiler = Profiler();
-	ParseBuildFlags(argc, argv);
+
+	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
+		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
+
+	config = ParseConfig(argc, argv);
 
 	Parser parser = Parser();
 	if (!parser.Parse())
@@ -143,7 +57,7 @@ int main(int argc, char** argv)
 	}
 
 	float elapsedCompileTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedCompileTime) + "/s to compile " + config.fileLoc);
+	Logger::Info("Took " + eastl::to_string(elapsedCompileTime) + "/s to compile " + config.file);
 
 	return 0;
 }

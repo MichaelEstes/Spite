@@ -8,9 +8,9 @@
 #include "../Log/Logger.h"
 #include "TokenTree.h"
 #include "../Utils/Utils.h"
-#include "../Config/Config.h"
 #include "../Containers/InplaceString.h"
 #include "../Utils/Profiler.h"
+#include "../Config/Config.h"
 
 extern Config config;
 
@@ -562,7 +562,7 @@ public:
 
 			if (*next == '\n')
 			{
-				if (config.keepComments)
+				if (config.comments)
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Comment, UniqueType::Any);
 				}

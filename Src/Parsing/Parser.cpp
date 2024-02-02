@@ -31,7 +31,7 @@ bool Parser::Parse()
 	}
 
 	float elapsedScanTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to process " + config.fileLoc);
+	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to process " + config.file);
 	profiler = Profiler();
 
 	Syntax syntax = Syntax(tokens);
@@ -43,7 +43,7 @@ bool Parser::Parse()
 	}
 
 	elapsedScanTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + config.fileLoc);
+	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + config.file);
 
 	return true;
 }

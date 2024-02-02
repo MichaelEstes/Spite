@@ -211,7 +211,7 @@ eastl::string BuildEnum(ParsedArg& arg)
 		eastl::string enumName = TrimAndUpper(option);
 		enumStr += "\t" + enumName + ",\n";
 	}
-	enumStr += "\t" + name + "Invalid\n};\n\n" + name + " StringTo" + name + "(const eastl::string& str)\n{\n";
+	enumStr += "\t" + name + "Invalid\n};\n\ninline " + name + " StringTo" + name + "(const eastl::string& str)\n{\n";
 
 	bool elif = false;
 	for (eastl::string option : arg.options)
@@ -238,12 +238,12 @@ struct Arg
 	eastl::vector<eastl::string> options;
 };
 
-int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
+int BuildConfig(const eastl::string& inFile, const eastl::string& outFile)
 {
-	std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
+	std::ifstream file = std::ifstream(inFile.c_str(), std::fstream::in);
 	if (file.fail())
 	{
-		Logger::FatalError("Unable to open src file: " + fileLoc);
+		Logger::FatalError("Unable to open src file: " + inFile);
 	}
 
 	eastl::string contents;
@@ -254,11 +254,9 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 	file.read(&contents[0], contentCount);
 	file.close();
 
-
 	size_t index = EatWhitespace(contents, 0);
 
 	eastl::vector<ParsedArg> args = eastl::vector<ParsedArg>();
-
 	while (contents[index] == '-')
 	{
 		ParsedArg arg = ParseArg(contents, index);
@@ -266,8 +264,7 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 		else return 1;
 	}
 
-	eastl::string filePath = outDir + "\\NewConfig.h";
-	std::ofstream outfile(filePath.c_str());
+	std::ofstream outfile(outFile.c_str());
 
 	outfile << "//Auto generated\n";
 	outfile << "#pragma once\n#include <initializer_list>\n#include <utility>\n#include \"EASTL/string.h\"\n#include \"EASTL/vector.h\"\n\n";
@@ -304,7 +301,7 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 		outfile << configVar;
 	}
 
-	outfile << "};\n\nConfig ParseConfig(int argc, char** argv)\n{\n\tConfig config = Config();\n\teastl::vector<ArgInfo> argInfo = {";
+	outfile << "};\n\ninline eastl::string GetNextArg(int& index, int argc, char** argv)\n{\n\tif (index + 1 < argc)\n\t{\n\t\tindex = index + 1;\n\t\treturn eastl::string(argv[index]);\n\t}\n\telse return \"\";\n}\n\ninline Config ParseConfig(int argc, char** argv)\n{\n\tConfig config = Config();\n\teastl::vector<ArgInfo> argInfos = {";
 
 	for (int i = 0; i < args.size(); i++)
 	{
@@ -323,42 +320,47 @@ int BuildConfig(const eastl::string& fileLoc, const eastl::string& outDir)
 
 		outfile << argInfo;
 	}
-	outfile << "};\n\tint i = 0;\n\twhile (i < argc)\n\t{\n\t\teastl::string arg(argv[i]);\n\t\tfor (ArgInfo argInfo : argInfos)\n\t\t{\n";
+	outfile << "};\n\tint i = 0;\n\twhile (i < argc)\n\t{\n\t\teastl::string arg(argv[i]);\n";
 
 	bool elif = false;
 	for (ParsedArg arg : args)
 	{
+		eastl::string name = arg.name;
+		TrimPrec(name);
 		eastl::string argCheck = "";
-		if (elif) argCheck += "\t\t\telse if ";
+		if (elif) argCheck += "\t\telse if ";
 		else
 		{
-			argCheck += "\t\t\tif ";
+			argCheck += "\t\tif ";
 			elif = true;
 		}
 
-		argCheck += "(arg == \"" + arg.name + "\")\n\t\t\t{\n";
+		argCheck += "(arg == \"" + arg.name + "\")\n\t\t{\n";
 
 		switch (arg.type)
 		{
 		case StringArg:
+			argCheck += "\t\t\tconfig." + name + " = GetNextArg(i, argc, argv);\n";
 			break;
 		case EnumArg:
+			argCheck += "\t\t\tconfig." + name + " = StringTo" + TrimAndUpper(arg.name) + "(GetNextArg(i, argc, argv));\n";
 			break;
 		case BoolArg:
+			argCheck += "\t\t\tconfig." + name + " = true;\n";
 			break;
 		default:
 			break;
 
 		}
 
-		argCheck += "\t\t\t}\n";
+		argCheck += "\t\t}\n";
 		outfile << argCheck;
 	}
 
+	outfile << "\n\t\ti += 1;\n\t}\n\n\treturn config;\n}\n";
+
 	outfile << std::endl;
 	outfile.close();
-
-	Arg<eastl::string> arg = { "file", "desc", "str", {"one", "two", "three"} };
 
 	return 0;
 }
