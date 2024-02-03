@@ -43,7 +43,11 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return tokens.At(node.definition.name)->ToString() + " : " +
 			ToString(&node.definition.type, tokens) +
 			(node.definition.assignment != nullptr
-				? +" = " + ToString(node.definition.assignment, tokens) + tokens.At(node.end)->ToString() : "");
+				? " " + tokens.At(node.definition.op)->ToString() + " " + ToString(node.definition.assignment, tokens) + tokens.At(node.end)->ToString() : "");
+	case InlineDefinition:
+		return ToString(&node.inlineDefinition.type, tokens) +
+			" " + tokens.At(node.inlineDefinition.op)->ToString() + " " +
+			ToString(node.inlineDefinition.assignment, tokens);
 	case Function:
 	{
 		eastl::string params = "(";
@@ -57,7 +61,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		params += ")";
 		return ToString(&node.function.returnType, tokens) + " " +
 			tokens.At(node.function.name)->ToString() +
-			(node.function.generics != nullptr ? ToString(node.function.generics, tokens) : "") +
+			(node.function.generics != nullptr ? ToString(*node.function.generics, tokens) : "") +
 			params +
 			ToString(node.function.body, tokens);
 	}
@@ -65,7 +69,10 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return "(" + ToString(node.conditional.condition, tokens) + ")" +
 			ToString(node.conditional.body, tokens);
 	case AssignmentStmnt:
-		return "";
+		return ToString(node.assignmentStmnt.assignTo, tokens) +
+			" " + tokens.At(node.assignmentStmnt.op)->ToString() + " " +
+			ToString(node.assignmentStmnt.assignment, tokens) +
+			tokens.At(node.end)->ToString();
 	case IfStmnt:
 	{
 		eastl::string elseifs = "";
@@ -124,6 +131,16 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return "";
 	case StateStmnt:
 		return "";
+	case GenericsDecl:
+	{
+		eastl::string names = "";
+		for (NodeIndex name : *node.generics.names)
+		{
+			names += tokens.At(name)->ToString() + ", ";
+		}
+
+		return tokens.At(node.start)->ToString() + names + tokens.At(node.end)->ToString();
+	}
 	case Block:
 	{
 		eastl::string stmnts = "";
@@ -177,7 +194,7 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 		{
 			for (Expr* expr : *expr->functionCallExpr.params)
 			{
-				params += ToString(expr, tokens) + ",";
+				params += ToString(expr, tokens) + ", ";
 			}
 		}
 
@@ -199,7 +216,7 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 		eastl::string values = "";
 		for (Expr* expr : *expr->anonTypeExpr.values)
 		{
-			values += ToString(expr, tokens) + ",";
+			values += ToString(expr, tokens) + ", ";
 		}
 
 		return "{" + values + "}";
@@ -650,16 +667,55 @@ struct Syntax
 		return Node();
 	}
 
-	Expr* ParseGenerics()
+	Node* ParseGenerics()
 	{
 		if (Expect(UniqueType::Less))
 		{
-			return ParseGenericsExpr();
+			return ParseGenericDecl();
 		}
 		else
 		{
 			return nullptr;
 		}
+	}
+
+	Node* ParseGenericDecl()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::GenericsDecl);
+		node->generics.names = CreateVectorPtr<TokenIndex>();
+		Advance();
+
+		if (Expect(UniqueType::Greater))
+		{
+			AddError(curr, errors.emptyGenerics);
+			node->nodeID = NodeID::InvalidNode;
+			return node;
+		}
+
+		while (!Expect(UniqueType::Greater) && !IsEOF())
+		{
+			if (Expect(TokenType::Identifier, errors.notGenericIdent))
+			{
+				node->generics.names->push_back(curr->index);
+				Advance();
+				if (Expect(UniqueType::Comma)) Advance();
+			}
+			else
+			{
+				node->nodeID = NodeID::InvalidNode;
+				return node;
+			}
+		}
+
+		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
+		{
+			node->end = curr->index;
+			Advance();
+			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
 	}
 
 	Body ParseBody()
@@ -726,6 +782,8 @@ struct Syntax
 		{
 		case UniqueType::Name:
 			return ParseIdentifierStmnt();
+		case UniqueType::Lbrace:
+			return ParseBlockOrInlineType();
 		case UniqueType::If:
 			return ParseIf();
 		case UniqueType::For:
@@ -759,19 +817,59 @@ struct Syntax
 		return ParseExprStmnt();
 	}
 
+	Node* ParseBlockOrInlineType()
+	{
+		Token* start = curr;
+
+		Type type = ParseInlineType(true);
+		if (type.typeID != TypeID::InvalidType &&
+			(Expect(UniqueType::Assign) || Expect(UniqueType::ImplicitAssign)))
+		{
+			if ((type.typeID == TypeID::ImplicitType && Expect(UniqueType::Assign)) ||
+				(type.typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
+			{
+				AddError(curr, errors.inlineTypeWrongAssignmentOp);
+				return CreateNodePtr(curr, NodeID::InvalidNode);
+			}
+
+			Node* node = CreateNodePtr(start, NodeID::InlineDefinition);
+			node->inlineDefinition.type = type;
+			node->inlineDefinition.op = curr->index;
+			Advance();
+			node->inlineDefinition.assignment = ParseExpr();
+			return node;
+		}
+
+		curr = start;
+		return ParseBlock();
+	}
+
 	Node* ParseExprStmnt()
 	{
 		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ExpressionStmnt));
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
-			node->expressionStmnt.expression = expr;
-
 			if (ExpectSemicolon())
 			{
+				node->expressionStmnt.expression = expr;
 				node->end = curr->index;
 				Advance();
 				return node;
+			}
+			else if (IsAssignableExpr(expr) && IsAssignmentOperator())
+			{
+				node->nodeID = NodeID::AssignmentStmnt;
+				node->assignmentStmnt.assignTo = expr;
+				node->assignmentStmnt.op = curr->index;
+				Advance();
+				node->assignmentStmnt.assignment = ParseExpr();
+				if (ExpectSemicolon())
+				{
+					node->end = curr->index;
+					Advance();
+					return node;
+				}
 			}
 		}
 
@@ -796,7 +894,7 @@ struct Syntax
 				Advance();
 				Advance();
 				Node* elif = ParseConditional();
-				if (elif->nodeID != NodeID::InvalidNode) node->ifStmnt.elifs->push_back(ParseConditional());
+				if (elif->nodeID != NodeID::InvalidNode) node->ifStmnt.elifs->push_back(elif);
 				else
 				{
 					node->nodeID = NodeID::InvalidNode;
@@ -1115,11 +1213,13 @@ struct Syntax
 		if (Expect(TokenType::Identifier) &&
 			ThenExpect(UniqueType::ImplicitAssign))
 		{
+			Node node = CreateNode(start, NodeID::Definition);
+			node.definition.name = start->index;
+			node.definition.op = curr->index;
+
 			Advance();
 			Type type = Type(TypeID::UnknownType);
 			Expr* expr = ParseAssignmentType();
-			Node node = CreateNode(start, NodeID::Definition);
-			node.definition.name = start->index;
 			node.definition.type = type;
 			node.definition.assignment = expr;
 			node.end = curr->index;
@@ -1146,6 +1246,7 @@ struct Syntax
 	{
 		if (Expect(UniqueType::Assign, errors.expectedAssignment))
 		{
+			decl->definition.op = curr->index;
 			Advance();
 			Expr* expr = ParseAssignmentType();
 			decl->definition.assignment = expr;
@@ -1753,7 +1854,7 @@ struct Syntax
 		asExpr->asExpr.of = CopyExpr(of);
 		Advance();
 		asExpr->asExpr.to = arena->Emplace<Type>(ParseDeclarationType());
-		
+
 		return asExpr;
 	}
 

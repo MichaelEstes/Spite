@@ -40,11 +40,13 @@ struct Errors {
 	const eastl::string expectedBlockEnd = "Expected function block closure ('}')";
 
 	const eastl::string emptyGenerics = "Expected generic types not '<>'";
-	const eastl::string expectedGenericsClosure = "Expected generic declaration closure ('>')";
+	const eastl::string notGenericIdent = "Only identifiers expected as generic declarations";
+	const eastl::string expectedGenericsClosure = "Expected generic closure ('>')";
 
 	const eastl::string emptyInlineType = "Empty inline type not allowed ('{}')";
 	const eastl::string onlyOneInlineType = "Inline types with only one parameter are not allowed";
 	const eastl::string inlineTypeNoClosure = "Missing closure for inline type '}'";
+	const eastl::string inlineTypeWrongAssignmentOp = "Explicit types must be assigned with '=' and implicit types must be assigned with ':='";
 
 	const eastl::string implictTypeNotIdent = "Only identifiers are allowed in implicit types";
 

@@ -13,10 +13,12 @@ typedef size_t ScopeIndex;
 enum NodeID
 {
 	InvalidNode = 0,
+	CommentStmnt,
 	ExpressionStmnt,
 	UsingStmnt,
 	PackageStmnt,
 	Definition,
+	InlineDefinition,
 	Function,
 	Conditional,
 	AssignmentStmnt,
@@ -30,9 +32,9 @@ enum NodeID
 	ReturnStmnt,
 	OnCompileStmnt,
 	StateStmnt,
+	GenericsDecl,
 	WhereStmnt,
 	Block,
-	CommentStmnt,
 };
 
 struct Body
@@ -82,14 +84,22 @@ struct Node
 		{
 			Type type;
 			TokenIndex name;
+			TokenIndex op;
 			Expr* assignment;
 		} definition;
 
 		struct
 		{
+			Type type;
+			TokenIndex op;
+			Expr* assignment;
+		} inlineDefinition;
+
+		struct
+		{
 			Type returnType;
 			TokenIndex name;
-			Expr* generics;
+			Node* generics;
 			eastl::vector<Node*>* parameters;
 			Body body;
 		} function;
@@ -181,10 +191,14 @@ struct Node
 
 		struct
 		{
-			NodeIndex name;
-			NodeIndex type;
-			eastl::vector<NodeIndex> memberFunctions;
+			TokenIndex name;
+			eastl::vector<Node*>* members;
 		} state;
+
+		struct
+		{
+			eastl::vector<TokenIndex>* names;
+		} generics;
 	};
 
 	Node()
@@ -233,6 +247,9 @@ struct Node
 		case Definition:
 			definition = copy.definition;
 			break;
+		case InlineDefinition:
+			inlineDefinition = copy.inlineDefinition;
+			break;
 		case Function:
 			function = copy.function;
 			break;
@@ -274,6 +291,9 @@ struct Node
 			break;
 		case StateStmnt:
 			state = copy.state;
+			break;
+		case GenericsDecl:
+			generics = copy.generics;
 			break;
 		case Block:
 			block = copy.block;

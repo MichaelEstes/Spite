@@ -125,7 +125,9 @@
 		<declaration...> & <definition...> & <inset...>
 	</scope>
 
-<where> := Where <functionDeclaration>
+<inset> := <bracket> (size | null | serialized | noalign) </bracket>
+
+<where> := where <functionDeclaration>
 
 <constructor> := <identifier> :: <functionDeclaration>
 
