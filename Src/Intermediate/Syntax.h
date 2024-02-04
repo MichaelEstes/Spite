@@ -108,7 +108,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return tokens.At(node.start)->ToString() + " (" +
 			ToString(node.switchStmnt.switchOn, tokens) + " )\n" +
 			cases +
-			"default" + ToString(node.switchStmnt.defaultCase, tokens);
+			"default" + ToString(node.switchStmnt.defaultCase, tokens) + "\n";
 	}
 	return "";
 	case TernaryStmnt:
@@ -122,15 +122,66 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			(node.deferStmnt.deferIf
 				? ToString(*node.deferStmnt.conditional, tokens)
 				: ToString(node.deferStmnt.body, tokens));
+	case ContinueStmnt:
+		return tokens.At(node.continueStmnt.token)->ToString();
+	case BreakStmnt:
+		return tokens.At(node.breakStmnt.token)->ToString();
 	case ReturnStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			(!node.returnStmnt.voidReturn ? ToString(node.returnStmnt.expr, tokens) : "");
 	case OnCompileStmnt:
 		return "";
 	case WhereStmnt:
-		return "";
+	{
+		eastl::string params = "(";
+		if (node.whereStmnt.parameters != nullptr)
+		{
+			for (Node* param : *node.whereStmnt.parameters)
+			{
+				params += ToString(*param, tokens) + ", ";
+			}
+		}
+		params += ")";
+		return tokens.At(node.start)->ToString() +
+			params +
+			ToString(node.whereStmnt.body, tokens);
+	}
 	case StateStmnt:
-		return "";
+	{
+		eastl::string members = "";
+		for (Node* member : *node.state.members)
+		{
+			members += ToString(*member, tokens) + ",\n";
+		}
+
+		return tokens.At(node.start)->ToString() + " " +
+			tokens.At(node.state.name)->ToString() +
+			(node.state.generics ? ToString(*node.state.generics, tokens) : "") +
+			"\n{\n" + members + "}\n";
+	}
+	case InsetStmnt:
+	{
+		eastl::string inset = "";
+		switch (node.insetStmnt.type)
+		{
+		case SizeInset:
+			inset = "size";
+			break;
+		case NullInset:
+			inset = "null";
+			break;
+		case SerializedInset:
+			inset = "serialized";
+			break;
+		case NoAlignInset:
+			inset = "noalign";
+			break;
+		default:
+			break;
+		}
+
+		return tokens.At(node.start)->ToString() + inset + tokens.At(node.end)->ToString();
+	}
 	case GenericsDecl:
 	{
 		eastl::string names = "";
@@ -139,7 +190,8 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			names += tokens.At(name)->ToString() + ", ";
 		}
 
-		return tokens.At(node.start)->ToString() + names + tokens.At(node.end)->ToString();
+		return tokens.At(node.start)->ToString() + names + tokens.At(node.end)->ToString() +
+			(node.generics.whereStmnt ? ToString(*node.generics.whereStmnt, tokens) : "");
 	}
 	case Block:
 	{
@@ -334,7 +386,7 @@ struct Scope
 		nodes = copy.nodes;
 	}
 
-	void AddNode(Node node)
+	void AddNode(Node& node)
 	{
 		nodes.push_back(node.index);
 	}
@@ -445,8 +497,12 @@ struct Syntax
 		return currScope.index == 0 && currScope.parent == 0;
 	}
 
+
+	//size_t lastTokenIndex = -1;
 	inline bool IsEOF()
 	{
+		/*if (curr->index != lastTokenIndex) lastTokenIndex = curr->index;
+		else Logger::FatalErrorAt(errors.fatalError, curr->pos);*/
 		return curr->type == TokenType::EndOfFile;
 	}
 
@@ -555,17 +611,17 @@ struct Syntax
 		{
 		case UniqueType::Any:
 			if (Expect(TokenType::Comment)) ParseComments();
-			advance = false;
-			break;
+			return;
 		case UniqueType::Package:
 			AddError(curr, errors.multiplePackages);
 			ParsePackage(false);
-			advance = false;
-			break;
+			return;
 		case UniqueType::Using:
 			ParseUsing();
-			advance = false;
-			break;
+			return;
+		case UniqueType::State:
+			ParseState();
+			return;
 		case UniqueType::Name:
 		{
 			Node assignment = ParseAssignmentStatement();
@@ -621,6 +677,98 @@ struct Syntax
 		}
 	}
 
+	void ParseState()
+	{
+		Node node = CreateNode(curr, NodeID::StateStmnt);
+		Advance();
+		if (Expect(TokenType::Identifier, errors.expectedStateName))
+		{
+			node.state.name = curr->index;
+			node.state.members = CreateVectorPtr<Node*>();
+			Advance();
+			node.state.generics = ParseGenerics();
+
+			if (Expect(UniqueType::Where))
+			{
+				if (!node.state.generics) AddError(curr, errors.whereWithoutGenerics);
+				else node.state.generics->generics.whereStmnt = ParseWhere();
+			}
+
+			if (Expect(UniqueType::Lbrace, errors.expectedStateOpen))
+			{
+				Advance();
+				if (Expect(UniqueType::Rbrace))
+				{
+					AddError(curr, errors.emptyState);
+					Advance();
+					return;
+				}
+
+				while (!Expect(UniqueType::Rbrace) && !IsEOF())
+				{
+					Node* member = ParseStateMember();
+					if (member->nodeID != NodeID::InvalidNode) node.state.members->push_back(member);
+					if (Expect(UniqueType::Comma)) Advance();
+				}
+
+				if (Expect(UniqueType::Rbrace, errors.expectedStateClose))
+				{
+					node.end = curr->index;
+					Advance();
+					AddNode(node);
+				}
+			}
+		}
+	}
+
+	Node* ParseStateMember()
+	{
+		if (Expect(UniqueType::Lbrack)) return ParseStateInset();
+
+		return ParseDeclOrDef();
+	}
+
+	Node* ParseDeclOrDef()
+	{
+		Node* node = CreateNodePtr(ParseDeclaration());
+		if (Expect(UniqueType::Assign)) ParseAssignment(node);
+
+		return node;
+	}
+
+	Node* ParseStateInset()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::InsetStmnt);
+		Advance();
+
+		if (Expect(TokenType::Identifier, errors.expectedInsetName))
+		{
+			if (curr->val == "size") node->insetStmnt.type = InsetID::SizeInset;
+			else if (curr->val == "null") node->insetStmnt.type = InsetID::NullInset;
+			else if (curr->val == "serialized") node->insetStmnt.type = InsetID::SerializedInset;
+			else if (curr->val == "noalign") node->insetStmnt.type = InsetID::NoAlignInset;
+			else
+			{
+				AddError(curr, errors.expectedInsetName);
+				Advance();
+				if (Expect(UniqueType::Rbrack)) Advance();
+				node->nodeID = NodeID::InvalidNode;
+				return node;
+			}
+
+			Advance();
+			if (Expect(UniqueType::Rbrack, errors.expectedInsetClose))
+			{
+				node->end = curr->index;
+				Advance();
+				return node;
+			}
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
 	Node ParseFunction(Type& returnType, Token* start)
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
@@ -633,16 +781,30 @@ struct Syntax
 
 			if (Expect(UniqueType::DoubleColon))
 			{
-				//Parse method
+				Advance();
+				switch (curr->uniqueType)
+				{
+				case Name:
+				case OperatorOverload:
+				case Delete:
+				default:
+					break;
+				}
 			}
-			else if (Expect(UniqueType::Lparen, errors.expectedFunction))
+			else if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
 			{
 				function.function.returnType = returnType;
 				function.function.name = name->index;
 				Advance();
 				eastl::vector<Node*>* parameters = ParseParametersList();
 				function.function.parameters = parameters;
-				if (Expect(UniqueType::Rparen, errors.expectedFunctionClosure)) Advance();
+				if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
+
+				if (Expect(UniqueType::Where))
+				{
+					if (!function.function.generics) AddError(curr, errors.whereWithoutGenerics);
+					else function.function.generics->generics.whereStmnt = ParseWhere();
+				}
 
 				if (Expect(UniqueType::Lbrace))
 				{
@@ -660,7 +822,6 @@ struct Syntax
 				{
 					AddError(curr, errors.expectedBlockStart);
 				}
-
 			}
 		}
 
@@ -683,6 +844,7 @@ struct Syntax
 	{
 		Node* node = CreateNodePtr(curr, NodeID::GenericsDecl);
 		node->generics.names = CreateVectorPtr<TokenIndex>();
+		node->generics.whereStmnt = nullptr;
 		Advance();
 
 		if (Expect(UniqueType::Greater))
@@ -712,6 +874,44 @@ struct Syntax
 			node->end = curr->index;
 			Advance();
 			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
+	Node* ParseWhere()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::WhereStmnt);
+		Advance();
+
+		if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+		{
+			Advance();
+
+			eastl::vector<Node*>* parameters = ParseParametersList();
+			node->whereStmnt.parameters = parameters;
+			if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
+
+			if (Expect(UniqueType::Lbrace))
+			{
+				node->whereStmnt.body.statement = false;
+				node->whereStmnt.body.body = ParseBlock();
+				node->end = node->whereStmnt.body.body->end;
+				return node;
+			}
+			else if (Expect(UniqueType::FatArrow))
+			{
+				node->whereStmnt.body.statement = true;
+				Advance();
+				node->whereStmnt.body.body = ParseBlockStatment();
+				node->end = node->whereStmnt.body.body->end;
+				return node;
+			}
+			else
+			{
+				AddError(curr, errors.expectedBlockStart);
+			}
 		}
 
 		node->nodeID = NodeID::InvalidNode;
@@ -796,14 +996,19 @@ struct Syntax
 			return ParseDefer();
 		case UniqueType::Delete:
 			return ParseDelete();
+		case UniqueType::Continue:
+			return ParseContinue();
+		case UniqueType::Break:
+			return ParseBreak();
 		case UniqueType::Return:
 			return ParseReturn();
+
 		default:
 			Advance();
 			break;
 		}
 
-		return nullptr;
+		return CreateNodePtr(curr, NodeID::InvalidNode);
 	}
 
 	Node* ParseIdentifierStmnt()
@@ -821,6 +1026,7 @@ struct Syntax
 	{
 		Token* start = curr;
 
+		Logger::SetErrorRollback();
 		Type type = ParseInlineType(true);
 		if (type.typeID != TypeID::InvalidType &&
 			(Expect(UniqueType::Assign) || Expect(UniqueType::ImplicitAssign)))
@@ -841,6 +1047,7 @@ struct Syntax
 		}
 
 		curr = start;
+		Logger::ErrorRollback();
 		return ParseBlock();
 	}
 
@@ -850,7 +1057,7 @@ struct Syntax
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
-			if (ExpectSemicolon())
+			if (Expect(UniqueType::Semicolon))
 			{
 				node->expressionStmnt.expression = expr;
 				node->end = curr->index;
@@ -1019,17 +1226,18 @@ struct Syntax
 							node->switchStmnt.cases->push_back(ParseConditional());
 						}
 
-						if (Expect(UniqueType::Default, errors.expectedSwitchDefault))
+						if (Expect(UniqueType::Default))
 						{
 							Advance();
 							node->switchStmnt.defaultCase = ParseBody();
+						}
+						else node->switchStmnt.defaultCase = Body();
 
-							if (Expect(UniqueType::Rbrace, errors.expectedSwitchBlockClose))
-							{
-								node->end = curr->index;
-								Advance();
-								return node;
-							}
+						if (Expect(UniqueType::Rbrace, errors.expectedSwitchBlockClose))
+						{
+							node->end = curr->index;
+							Advance();
+							return node;
 						}
 					}
 				}
@@ -1112,6 +1320,38 @@ struct Syntax
 		return node;
 	}
 
+	Node* ParseContinue()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::ContinueStmnt);
+		node->continueStmnt.token = curr->index;
+		Advance();
+		if (ExpectSemicolon())
+		{
+			node->end = curr->index;
+			Advance();
+			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
+	Node* ParseBreak()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::BreakStmnt);
+		node->breakStmnt.token = curr->index;
+		Advance();
+		if (ExpectSemicolon())
+		{
+			node->end = curr->index;
+			Advance();
+			return node;
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
 	Node* ParseReturn()
 	{
 		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ReturnStmnt));
@@ -1141,35 +1381,19 @@ struct Syntax
 		return node;
 	}
 
-	eastl::vector<Node*>* ParseParametersList()
+	eastl::vector<Node*>* ParseParametersList(UniqueType end = UniqueType::Rparen)
 	{
 		eastl::vector<Node*>* parameters = CreateVectorPtr<Node*>();
 
 		if (Expect(UniqueType::Rparen)) return parameters;
 
-		Node first = ParseDeclaration();
-		if (first.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(first));
-		while (Expect(UniqueType::Comma) && !IsEOF())
+		while (!Expect(end) && !IsEOF())
 		{
-			Node decl = ParseDeclaration();
-			if (decl.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(decl));
-		}
+			Node* decl = ParseDeclOrDef();
+			if (decl->nodeID != NodeID::InvalidNode) parameters->push_back(decl);
+			else Advance();
 
-		if (Expect(UniqueType::Assign))
-		{
-			ParseAssignment(parameters->back());
-		}
-
-		else if (Expect(TokenType::Identifier))
-		{
-			Node assign = ParseAssignmentStatement();
-			if (assign.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(assign));
-		}
-
-		while (Expect(UniqueType::Comma) && !IsEOF())
-		{
-			Node def = ParseAssignmentStatement();
-			if (def.nodeID != NodeID::InvalidNode) parameters->push_back(CreateNodePtr(def));
+			if (Expect(UniqueType::Comma)) Advance();
 		}
 
 		return parameters;
@@ -1496,7 +1720,7 @@ struct Syntax
 		Advance();
 
 		eastl::vector<Node*> params = eastl::vector<Node*>();
-		while (curr->uniqueType != UniqueType::Lbrace && !IsEOF())
+		while (!Expect(UniqueType::Lbrace) && !IsEOF())
 		{
 			Node* def = CreateNodePtr(ParseDefinition());
 			if (def->nodeID == NodeID::Definition) params.push_back(def);
@@ -1997,7 +2221,6 @@ struct Syntax
 		case UniqueType::Shiftr:
 			return 5;
 		default:
-			AddError(curr, errors.expectedBinaryOperator);
 			return 0;
 		}
 	}

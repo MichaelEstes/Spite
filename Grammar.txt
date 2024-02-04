@@ -62,8 +62,6 @@
 
 <statements> := <statement...> | <statement>
 
-<inset> := <bracket> <insetKeyword> </bracket>
-
 <generics> := <angled> <type...>, </angled> 
 
 <type> := <namedType> | 

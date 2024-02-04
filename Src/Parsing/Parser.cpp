@@ -38,7 +38,7 @@ bool Parser::Parse()
 	syntax.BuildSyntax();
 	if (Logger::HasErrors())
 	{
-		//Logger::PrintErrors();
+		Logger::PrintErrors();
 		return false;
 	}
 

@@ -3,6 +3,8 @@
 #include "EASTL/string.h"
 
 struct Errors {
+	const eastl::string fatalError = "Fatal error";
+
 	const eastl::string missingSemicolon = "Expected a semicolon";
 
 	const eastl::string missingPackage = "File must start with a 'package' statement";
@@ -26,7 +28,7 @@ struct Errors {
 	const eastl::string missingOperand = "No operand found for expression";
 	const eastl::string expectedBinaryOperator = "Expected binary operator, possible compiler bug";
 
-	const eastl::string invalidSelector = "Expect an identifier after '.'";
+	const eastl::string invalidSelector = "Expected an identifier after '.'";
 	const eastl::string emptyIndex = "Unexpected empty index ('[]') in expression";
 	const eastl::string unclosedIndex = "Expected ']' after index expression";
 
@@ -34,8 +36,8 @@ struct Errors {
 
 	const eastl::string expectedImportedType = "Expected identifier after selector ('.') in declaration type";
 	const eastl::string expectedFunctionName = "Expected function name identifier";
-	const eastl::string expectedFunction = "Expected function starting with ('(')";
-	const eastl::string expectedFunctionClosure = "Expected function closure (')')";
+	const eastl::string expectedFunctionParamsOpen = "Expected function starting with ('(')";
+	const eastl::string expectedFunctionParamsClose = "Expected function closure (')')";
 	const eastl::string expectedBlockStart = "Expected function block opening ('{') or ('=>')";
 	const eastl::string expectedBlockEnd = "Expected function block closure ('}')";
 
@@ -62,5 +64,13 @@ struct Errors {
 	const eastl::string expectedSwitchClose = "Expected 'switch' statement closure (')')";
 	const eastl::string expectedSwitchBlockOpen = "Expected 'switch' statement block opening ('{')";
 	const eastl::string expectedSwitchBlockClose = "Expected 'switch' statement block closure ('}')";
-	const eastl::string expectedSwitchDefault = "'switch' statement must have a 'default' case";
+
+	const eastl::string expectedStateName = "Expected an identifier after 'state'";
+	const eastl::string expectedStateOpen = "Expected 'state' statement opening ('{')";
+	const eastl::string expectedStateClose = "Expected 'state' statement closure ('}')";
+	const eastl::string emptyState = "Empty 'state' is not allowed ('{}')";
+	const eastl::string expectedInsetName = "Expected valid identifier in state inset";
+	const eastl::string expectedInsetClose = "Expected state inset closure (']')";
+	const eastl::string whereWithoutGenerics = "'where' statement cannot be used without declaring generics";
+
 };

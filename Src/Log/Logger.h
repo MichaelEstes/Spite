@@ -65,6 +65,7 @@ public:
 
 	static void FatalErrorAt(eastl::string msg, Position pos, int errorCode = 1)
 	{
+		PrintErrors();
 		std::cout << "ERROR: " << msg << " :: found at position " + pos.ToString() << '\n';
 		std::exit(errorCode);
 	}
@@ -114,4 +115,19 @@ public:
 	}
 
 	inline static eastl::vector<LogMessage> errors = eastl::vector<LogMessage>();
+	
+	inline static size_t errorRollback = 0;
+	static void SetErrorRollback()
+	{
+		errorRollback = errors.size();
+	}
+
+	static void ErrorRollback()
+	{
+		while (errors.size() != errorRollback)
+		{
+			errors.pop_back();
+		}
+	}
+
 };

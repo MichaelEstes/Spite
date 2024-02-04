@@ -29,12 +29,23 @@ enum NodeID
 	TernaryStmnt,
 	DeleteStmnt,
 	DeferStmnt,
+	ContinueStmnt,
+	BreakStmnt,
 	ReturnStmnt,
 	OnCompileStmnt,
 	StateStmnt,
+	InsetStmnt,
 	GenericsDecl,
 	WhereStmnt,
 	Block,
+};
+
+enum InsetID
+{
+	SizeInset,
+	NullInset,
+	SerializedInset,
+	NoAlignInset,
 };
 
 struct Body
@@ -172,6 +183,16 @@ struct Node
 
 		struct
 		{
+			TokenIndex token;
+		} continueStmnt;
+
+		struct
+		{
+			TokenIndex token;
+		} breakStmnt;
+
+		struct
+		{
 			bool voidReturn;
 			Expr* expr;
 		} returnStmnt;
@@ -182,6 +203,8 @@ struct Node
 
 		struct
 		{
+			eastl::vector<Node*>* parameters;
+			Body body;
 		} whereStmnt;
 
 		struct
@@ -192,12 +215,19 @@ struct Node
 		struct
 		{
 			TokenIndex name;
+			Node* generics;
 			eastl::vector<Node*>* members;
 		} state;
 
 		struct
 		{
+			InsetID type;
+		} insetStmnt;
+
+		struct
+		{
 			eastl::vector<TokenIndex>* names;
+			Node* whereStmnt;
 		} generics;
 	};
 
@@ -280,6 +310,12 @@ struct Node
 		case DeferStmnt:
 			deferStmnt = copy.deferStmnt;
 			break;
+		case ContinueStmnt:
+			continueStmnt = copy.continueStmnt;
+			break;
+		case BreakStmnt:
+			breakStmnt = copy.breakStmnt;
+			break;
 		case ReturnStmnt:
 			returnStmnt = copy.returnStmnt;
 			break;
@@ -291,6 +327,9 @@ struct Node
 			break;
 		case StateStmnt:
 			state = copy.state;
+			break;
+		case InsetStmnt:
+			insetStmnt = copy.insetStmnt;
 			break;
 		case GenericsDecl:
 			generics = copy.generics;
