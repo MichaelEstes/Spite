@@ -49,21 +49,34 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			" " + tokens.At(node.inlineDefinition.op)->ToString() + " " +
 			ToString(node.inlineDefinition.assignment, tokens);
 	case Function:
+		return ToString(&node.function.returnType, tokens) + " " +
+			tokens.At(node.function.name)->ToString() +
+			(node.function.generics != nullptr ? ToString(*node.function.generics, tokens) : "") +
+			ToString(*node.function.decl, tokens);
+	case Method:
+		return ToString(&node.method.returnType, tokens) + " " +
+			tokens.At(node.method.stateName)->ToString() + "::" +
+			tokens.At(node.method.name)->ToString() +
+			(node.method.generics != nullptr ? ToString(*node.method.generics, tokens) : "") +
+			ToString(*node.method.decl, tokens);
+	case StateOperator:
+		return ToString(&node.stateOperator.returnType, tokens) + " " +
+			tokens.At(node.stateOperator.stateName)->ToString() + "::operator" +
+			(node.stateOperator.generics != nullptr ? ToString(*node.stateOperator.generics, tokens) : "") + "::" +
+			tokens.At(node.stateOperator.op)->ToString() +
+			ToString(*node.stateOperator.decl, tokens);
+	case FunctionDecl:
 	{
 		eastl::string params = "(";
-		if (node.function.parameters != nullptr)
+		if (node.functionDecl.parameters != nullptr)
 		{
-			for (Node* param : *node.function.parameters)
+			for (Node* param : *node.functionDecl.parameters)
 			{
 				params += ToString(*param, tokens) + ", ";
 			}
 		}
 		params += ")";
-		return ToString(&node.function.returnType, tokens) + " " +
-			tokens.At(node.function.name)->ToString() +
-			(node.function.generics != nullptr ? ToString(*node.function.generics, tokens) : "") +
-			params +
-			ToString(node.function.body, tokens);
+		return params + ToString(node.functionDecl.body, tokens);
 	}
 	case Conditional:
 		return "(" + ToString(node.conditional.condition, tokens) + ")" +
@@ -190,8 +203,9 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			names += tokens.At(name)->ToString() + ", ";
 		}
 
-		return tokens.At(node.start)->ToString() + names + tokens.At(node.end)->ToString() +
-			(node.generics.whereStmnt ? ToString(*node.generics.whereStmnt, tokens) : "");
+		return tokens.At(node.start)->ToString() + names +
+			(node.generics.whereStmnt ? " : " + ToString(*node.generics.whereStmnt, tokens) : "") +
+			tokens.At(node.end)->ToString();
 	}
 	case Block:
 	{
@@ -688,12 +702,6 @@ struct Syntax
 			Advance();
 			node.state.generics = ParseGenerics();
 
-			if (Expect(UniqueType::Where))
-			{
-				if (!node.state.generics) AddError(curr, errors.whereWithoutGenerics);
-				else node.state.generics->generics.whereStmnt = ParseWhere();
-			}
-
 			if (Expect(UniqueType::Lbrace, errors.expectedStateOpen))
 			{
 				Advance();
@@ -769,6 +777,38 @@ struct Syntax
 		return node;
 	}
 
+	Node* ParseFunctionDecl()
+	{
+		Node* node = CreateNodePtr(curr, NodeID::FunctionDecl);
+		Advance();
+		eastl::vector<Node*>* parameters = ParseParametersList();
+		node->functionDecl.parameters = parameters;
+		if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
+
+		if (Expect(UniqueType::Lbrace))
+		{
+			node->functionDecl.body.statement = false;
+			node->functionDecl.body.body = ParseBlock();
+			node->end = node->functionDecl.body.body->end;
+			return node;
+		}
+		else if (Expect(UniqueType::FatArrow))
+		{
+			Advance();
+			node->functionDecl.body.statement = true;
+			node->functionDecl.body.body = ParseBlockStatment();
+			node->end = node->functionDecl.body.body->end;
+			return node;
+		}
+		else
+		{
+			AddError(curr, errors.expectedBlockStart);
+		}
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
+	}
+
 	Node ParseFunction(Type& returnType, Token* start)
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
@@ -777,52 +817,76 @@ struct Syntax
 			Token* name = curr;
 			Advance();
 
-			function.function.generics = ParseGenerics();
-
 			if (Expect(UniqueType::DoubleColon))
 			{
-				Advance();
-				switch (curr->uniqueType)
-				{
-				case Name:
-				case OperatorOverload:
-				case Delete:
-				default:
-					break;
-				}
+				return ParseStateFunction(returnType, start, name);
 			}
-			else if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+			else
 			{
-				function.function.returnType = returnType;
-				function.function.name = name->index;
-				Advance();
-				eastl::vector<Node*>* parameters = ParseParametersList();
-				function.function.parameters = parameters;
-				if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
-
-				if (Expect(UniqueType::Where))
+				function.function.generics = ParseGenerics();
+				if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
 				{
-					if (!function.function.generics) AddError(curr, errors.whereWithoutGenerics);
-					else function.function.generics->generics.whereStmnt = ParseWhere();
-				}
-
-				if (Expect(UniqueType::Lbrace))
-				{
-					function.function.body.statement = false;
-					function.function.body.body = ParseBlock();
+					function.function.returnType = returnType;
+					function.function.name = name->index;
+					function.function.decl = ParseFunctionDecl();
+					function.end = function.function.decl->end;
 					return function;
-				}
-				else if (Expect(UniqueType::FatArrow))
-				{
-					function.function.body.statement = true;
-					function.function.body.body = ParseBlockStatment();
-					return function;
-				}
-				else
-				{
-					AddError(curr, errors.expectedBlockStart);
 				}
 			}
+		}
+
+		return Node();
+	}
+
+	Node ParseStateFunction(Type& returnType, Token* start, Token* name)
+	{
+		Advance();
+		switch (curr->uniqueType)
+		{
+		case Name:
+		{
+			Node method = CreateNode(start, NodeID::Method);
+			method.method.returnType = returnType;
+			method.method.stateName = name->index;
+			method.method.name = curr->index;
+			Advance();
+			method.method.generics = ParseGenerics();
+			if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+			{
+				method.method.decl = ParseFunctionDecl();
+				method.end = method.method.decl->end;
+				return method;
+			}
+			break;
+		}
+		case OperatorOverload:
+		{
+			Node op = CreateNode(start, NodeID::StateOperator);
+			op.stateOperator.returnType = returnType;
+			op.stateOperator.stateName = name->index;
+			Advance();
+			op.stateOperator.generics = ParseGenerics();
+			if (Expect(UniqueType::DoubleColon, errors.operatorDoubleColon))
+			{
+				Advance();
+				if (curr->type == TokenType::Operator)
+				{
+					op.stateOperator.op = curr->index;
+					Advance();
+					if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+					{
+						op.stateOperator.decl = ParseFunctionDecl();
+						op.end = op.stateOperator.decl->end;
+						return op;
+					}
+				}
+				else AddError(curr, errors.invalidOperator);
+			}
+			break;
+		}
+		case Delete:
+		default:
+			break;
 		}
 
 		return Node();
@@ -854,7 +918,7 @@ struct Syntax
 			return node;
 		}
 
-		while (!Expect(UniqueType::Greater) && !IsEOF())
+		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Colon) && !IsEOF())
 		{
 			if (Expect(TokenType::Identifier, errors.notGenericIdent))
 			{
@@ -867,6 +931,12 @@ struct Syntax
 				node->nodeID = NodeID::InvalidNode;
 				return node;
 			}
+		}
+
+		if (Expect(UniqueType::Colon))
+		{
+			Advance();
+			node->generics.whereStmnt = ParseWhere();
 		}
 
 		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
@@ -1043,6 +1113,14 @@ struct Syntax
 			node->inlineDefinition.op = curr->index;
 			Advance();
 			node->inlineDefinition.assignment = ParseExpr();
+			if (ExpectSemicolon())
+			{
+				node->end = curr->index;
+				Advance();
+				return node;
+			}
+
+			node->nodeID = NodeID::InvalidNode;
 			return node;
 		}
 

@@ -62,7 +62,7 @@
 
 <statements> := <statement...> | <statement>
 
-<generics> := <angled> <type...>, </angled> 
+<generics> := <angled> (<type...>,) ?(:<where>) </angled> 
 
 <type> := <namedType> | 
 			<primitive> | 
@@ -109,7 +109,7 @@
 							?((<declaration> | <expression>...) ?(<definition>...)), 
 						</parentheses>
 
-<functionDeclaration> := <functionSignature> ?(<where>) <block> | <functionSignature> ?(<where>) => <expression>
+<functionDeclaration> := <functionSignature> <block> | <functionSignature> => <expression>
 
 <function> := <type> <identifier> ?(<generics>) <functionDeclaration>
 
@@ -118,7 +118,7 @@
 <functionCall> := <identifier> <functionParams>
 
 <state> := state <identifier> 
-	?(<generics> ?(<where>))
+	?(<generics>)
 	<scope>
 		<declaration...> & <definition...> & <inset...>
 	</scope>

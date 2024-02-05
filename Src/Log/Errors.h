@@ -73,4 +73,7 @@ struct Errors {
 	const eastl::string expectedInsetClose = "Expected state inset closure (']')";
 	const eastl::string whereWithoutGenerics = "'where' statement cannot be used without declaring generics";
 
+	const eastl::string operatorDoubleColon = "Missing '::' after 'operator' and before the operator to overload";
+	const eastl::string invalidOperator = "Expected an overloadable operator";
 };
+

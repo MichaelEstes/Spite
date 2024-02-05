@@ -20,6 +20,15 @@ enum NodeID
 	Definition,
 	InlineDefinition,
 	Function,
+	FunctionDecl,
+	StateStmnt,
+	InsetStmnt,
+	GenericsDecl,
+	WhereStmnt,
+	Method,
+	StateOperator,
+	Destructor,
+	Constructor,
 	Conditional,
 	AssignmentStmnt,
 	IfStmnt,
@@ -33,10 +42,6 @@ enum NodeID
 	BreakStmnt,
 	ReturnStmnt,
 	OnCompileStmnt,
-	StateStmnt,
-	InsetStmnt,
-	GenericsDecl,
-	WhereStmnt,
 	Block,
 };
 
@@ -111,9 +116,56 @@ struct Node
 			Type returnType;
 			TokenIndex name;
 			Node* generics;
+			Node* decl;
+		} function;
+
+		struct
+		{
 			eastl::vector<Node*>* parameters;
 			Body body;
-		} function;
+		} functionDecl;
+
+		struct
+		{
+			TokenIndex name;
+			Node* generics;
+			eastl::vector<Node*>* members;
+		} state;
+
+		struct
+		{
+			InsetID type;
+		} insetStmnt;
+
+		struct
+		{
+			eastl::vector<TokenIndex>* names;
+			Node* whereStmnt;
+		} generics;
+
+		struct
+		{
+			eastl::vector<Node*>* parameters;
+			Body body;
+		} whereStmnt;
+
+		struct
+		{
+			Type returnType;
+			TokenIndex stateName;
+			TokenIndex name;
+			Node* generics;
+			Node* decl;
+		} method;
+
+		struct
+		{
+			Type returnType;
+			TokenIndex stateName;
+			Node* generics;
+			TokenIndex op;
+			Node* decl;
+		} stateOperator;
 
 		struct
 		{
@@ -203,32 +255,8 @@ struct Node
 
 		struct
 		{
-			eastl::vector<Node*>* parameters;
-			Body body;
-		} whereStmnt;
-
-		struct
-		{
 			eastl::vector<Node*>* inner;
 		} block;
-
-		struct
-		{
-			TokenIndex name;
-			Node* generics;
-			eastl::vector<Node*>* members;
-		} state;
-
-		struct
-		{
-			InsetID type;
-		} insetStmnt;
-
-		struct
-		{
-			eastl::vector<TokenIndex>* names;
-			Node* whereStmnt;
-		} generics;
 	};
 
 	Node()
@@ -283,6 +311,27 @@ struct Node
 		case Function:
 			function = copy.function;
 			break;
+		case FunctionDecl:
+			functionDecl = copy.functionDecl;
+			break;
+		case StateStmnt:
+			state = copy.state;
+			break;
+		case InsetStmnt:
+			insetStmnt = copy.insetStmnt;
+			break;
+		case GenericsDecl:
+			generics = copy.generics;
+			break;
+		case WhereStmnt:
+			whereStmnt = copy.whereStmnt;
+			break;
+		case Method:
+			method = copy.method;
+			break;
+		case StateOperator:
+			stateOperator = copy.stateOperator;
+			break;
 		case Conditional:
 			conditional = copy.conditional;
 			break;
@@ -321,18 +370,6 @@ struct Node
 			break;
 		case OnCompileStmnt:
 			onCompileStmnt = copy.onCompileStmnt;
-			break;
-		case WhereStmnt:
-			whereStmnt = copy.whereStmnt;
-			break;
-		case StateStmnt:
-			state = copy.state;
-			break;
-		case InsetStmnt:
-			insetStmnt = copy.insetStmnt;
-			break;
-		case GenericsDecl:
-			generics = copy.generics;
 			break;
 		case Block:
 			block = copy.block;
