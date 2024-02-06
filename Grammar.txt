@@ -105,7 +105,7 @@
 
 <block> := <scope> <statements> </scope>
 
-<functionSignature> := ?(<generics>) <parentheses> 
+<functionSignature> :=  <parentheses> 
 							?((<declaration> | <expression>...) ?(<definition>...)), 
 						</parentheses>
 

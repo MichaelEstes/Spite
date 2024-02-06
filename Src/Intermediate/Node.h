@@ -145,8 +145,7 @@ struct Node
 
 		struct
 		{
-			eastl::vector<Node*>* parameters;
-			Body body;
+			Node* decl;
 		} whereStmnt;
 
 		struct
@@ -166,6 +165,19 @@ struct Node
 			TokenIndex op;
 			Node* decl;
 		} stateOperator;
+
+		struct
+		{
+			TokenIndex stateName;
+			TokenIndex del;
+			Body body;
+		} destructor;
+
+		struct
+		{
+			TokenIndex stateName;
+			Node* decl;
+		} constructor;
 
 		struct
 		{
@@ -331,6 +343,12 @@ struct Node
 			break;
 		case StateOperator:
 			stateOperator = copy.stateOperator;
+			break;
+		case Destructor:
+			destructor = copy.destructor;
+			break;
+		case Constructor:
+			constructor = copy.constructor;
 			break;
 		case Conditional:
 			conditional = copy.conditional;

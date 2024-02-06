@@ -65,6 +65,13 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			(node.stateOperator.generics != nullptr ? ToString(*node.stateOperator.generics, tokens) : "") + "::" +
 			tokens.At(node.stateOperator.op)->ToString() +
 			ToString(*node.stateOperator.decl, tokens);
+	case Destructor:
+		return tokens.At(node.destructor.stateName)->ToString() + "::" +
+			tokens.At(node.destructor.del)->ToString() +
+			ToString(node.destructor.body, tokens);
+	case Constructor:
+		return tokens.At(node.destructor.stateName)->ToString() + "::" +
+			ToString(*node.constructor.decl, tokens);
 	case FunctionDecl:
 	{
 		eastl::string params = "(";
@@ -146,18 +153,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 		return "";
 	case WhereStmnt:
 	{
-		eastl::string params = "(";
-		if (node.whereStmnt.parameters != nullptr)
-		{
-			for (Node* param : *node.whereStmnt.parameters)
-			{
-				params += ToString(*param, tokens) + ", ";
-			}
-		}
-		params += ")";
-		return tokens.At(node.start)->ToString() +
-			params +
-			ToString(node.whereStmnt.body, tokens);
+		return tokens.At(node.start)->ToString() + ToString(*node.whereStmnt.decl, tokens);
 	}
 	case StateStmnt:
 	{
@@ -328,6 +324,53 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 	}
 }
 
+eastl::string PrimitiveToString(UniqueType type)
+{
+	switch (type)
+	{
+	case UniqueType::Void:
+		return "void";
+	case UniqueType::Bool:
+		return "bool";
+	case UniqueType::Byte:
+		return "byte";
+	case UniqueType::Ubyte:
+		return "ubyte";
+	case UniqueType::Int:
+		return "int";
+	case UniqueType::Int16:
+		return "int16";
+	case UniqueType::Int32:
+		return "int32";
+	case UniqueType::Int64:
+		return "int64";
+	case UniqueType::Int128:
+		return "int128";
+	case UniqueType::Uint:
+		return "uint";
+	case UniqueType::Uint16:
+		return "uint16";
+	case UniqueType::Uint32:
+		return "uint32";
+	case UniqueType::Uint64:
+		return "uint64";
+	case UniqueType::Uint128:
+		return "uint128";
+	case UniqueType::Float:
+		return "float";
+	case UniqueType::Float32:
+		return "float32";
+	case UniqueType::Float64:
+		return "float64";
+	case UniqueType::String:
+		return "string";
+	default:
+		break;
+	}
+
+	return "INVALID";
+}
+
 eastl::string ToString(Type* type, Tokens& tokens)
 {
 	switch (type->typeID)
@@ -335,7 +378,7 @@ eastl::string ToString(Type* type, Tokens& tokens)
 	case UnknownType:
 		return "implicit";
 	case PrimitiveType:
-		return tokens.At(type->primitiveType.name)->ToString();
+		return PrimitiveToString(type->primitiveType.type);
 	case NamedType:
 		return tokens.At(type->namedType.typeName)->ToString();
 	case ExplicitType:
@@ -648,7 +691,17 @@ struct Syntax
 		default:
 		{
 			Token* start = curr;
-			Type type = ParseDeclarationType(false);
+			Type type;
+			if (curr->uniqueType == UniqueType::Name)
+			{
+				UniqueType next = Peek()->uniqueType;
+				if (next == UniqueType::DoubleColon ||
+					next == UniqueType::Lparen ||
+					next == UniqueType::Less) type = CreateVoidType();
+				else type = ParseDeclarationType(false);
+			}
+			else type = ParseDeclarationType(false);
+
 			if (type.typeID == TypeID::InvalidType) break;
 			Node func = ParseFunction(type, start);
 			if (func.nodeID != NodeID::InvalidNode) AddNode(func);
@@ -843,7 +896,7 @@ struct Syntax
 		Advance();
 		switch (curr->uniqueType)
 		{
-		case Name:
+		case UniqueType::Name:
 		{
 			Node method = CreateNode(start, NodeID::Method);
 			method.method.returnType = returnType;
@@ -859,7 +912,7 @@ struct Syntax
 			}
 			break;
 		}
-		case OperatorOverload:
+		case UniqueType::OperatorOverload:
 		{
 			Node op = CreateNode(start, NodeID::StateOperator);
 			op.stateOperator.returnType = returnType;
@@ -884,7 +937,23 @@ struct Syntax
 			}
 			break;
 		}
-		case Delete:
+		case UniqueType::Delete:
+		{
+			Node del = CreateNode(start, NodeID::Destructor);
+			del.destructor.stateName = name->index;
+			del.destructor.del = curr->index;
+			Advance();
+			if (Expect(UniqueType::FatArrow)) Advance();
+			del.destructor.body = ParseBody();
+			return del;
+		}
+		case UniqueType::Lparen:
+		{
+			Node con = CreateNode(start, NodeID::Constructor);
+			con.constructor.stateName = name->index;
+			con.constructor.decl = ParseFunctionDecl();
+			return con;
+		}
 		default:
 			break;
 		}
@@ -955,34 +1024,9 @@ struct Syntax
 		Node* node = CreateNodePtr(curr, NodeID::WhereStmnt);
 		Advance();
 
-		if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
-		{
-			Advance();
+		node->whereStmnt.decl = ParseFunctionDecl();
 
-			eastl::vector<Node*>* parameters = ParseParametersList();
-			node->whereStmnt.parameters = parameters;
-			if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
-
-			if (Expect(UniqueType::Lbrace))
-			{
-				node->whereStmnt.body.statement = false;
-				node->whereStmnt.body.body = ParseBlock();
-				node->end = node->whereStmnt.body.body->end;
-				return node;
-			}
-			else if (Expect(UniqueType::FatArrow))
-			{
-				node->whereStmnt.body.statement = true;
-				Advance();
-				node->whereStmnt.body.body = ParseBlockStatment();
-				node->end = node->whereStmnt.body.body->end;
-				return node;
-			}
-			else
-			{
-				AddError(curr, errors.expectedBlockStart);
-			}
-		}
+		if (node->whereStmnt.decl->nodeID != NodeID::InvalidNode) return node;
 
 		node->nodeID = NodeID::InvalidNode;
 		return node;
@@ -1630,6 +1674,10 @@ struct Syntax
 				type = ParseArrayType();
 				break;
 
+			case UniqueType::Lparen:
+				type = ParseFunctionType();
+				break;
+
 			default:
 				AddError(curr, errors.expectedType);
 				break;
@@ -1758,6 +1806,13 @@ struct Syntax
 		genericsType.genericsType.type = arena->Emplace<Type>(type);
 
 		return genericsType;
+	}
+
+	Type ParseFunctionType()
+	{
+		Type functionType = Type(TypeID::FunctionType);
+
+		return functionType;
 	}
 
 	Expr* ParseAssignmentType()
@@ -2303,11 +2358,21 @@ struct Syntax
 		}
 	}
 
+	Type CreateVoidType()
+	{
+		Type type = Type(TypeID::PrimitiveType);
+		type.primitiveType.type = UniqueType::Void;
+		type.primitiveType.size = 0;
+		type.primitiveType.isSigned = false;
+
+		return type;
+	}
+
 	Type CreatePrimitive()
 	{
 		Token* start = curr;
 		Type type = Type(TypeID::PrimitiveType);
-		type.primitiveType.name = curr->index;
+		type.primitiveType.type = curr->uniqueType;
 		switch (curr->uniqueType)
 		{
 		case UniqueType::Void:

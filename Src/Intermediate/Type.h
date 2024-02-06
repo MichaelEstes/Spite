@@ -35,7 +35,7 @@ struct Type
 		struct
 		{
 			size_t size;
-			TokenIndex name;
+			UniqueType type;
 			bool isSigned;
 		} primitiveType;
 
@@ -76,8 +76,7 @@ struct Type
 		struct
 		{
 			Type* returnType;
-			// Param types
-			// Block?
+			eastl::vector<Type*>* paramTypes;
 		} functionType;
 
 		struct
