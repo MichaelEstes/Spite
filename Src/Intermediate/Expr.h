@@ -30,6 +30,7 @@ enum ExprID
 	UnaryExpr,
 	GroupedExpr,
 	GenericsExpr,
+	FunctionTypeExpr,
 };
 
 struct Expr
@@ -141,6 +142,12 @@ struct Expr
 			TokenIndex open;
 			TokenIndex close;
 		} genericsExpr;
+
+		struct
+		{
+			Expr* of;
+			Type* functionType;
+		} functionTypeExpr;
 	};
 
 	Expr(ExprID typeID, TokenIndex start)

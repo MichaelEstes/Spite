@@ -410,7 +410,16 @@ eastl::string ToString(Type* type, Tokens& tokens)
 	case GenericsType:
 		return ToString(type->genericsType.type, tokens) + ToString(type->genericsType.generics, tokens);
 	case FunctionType:
-		return ToString(type->functionType.returnType, tokens);
+	{
+		eastl::string params = "";
+
+		for (Type* type : *type->functionType.paramTypes)
+		{
+			params += ToString(type, tokens) + ", ";
+		}
+
+		return "::" + ToString(type->functionType.returnType, tokens) + "(" + params + ")";
+	}
 	case ImportedType:
 		return tokens.At(type->importedType.packageName)->ToString() +
 			"." +
@@ -523,6 +532,16 @@ struct Syntax
 		return arena->Emplace<eastl::vector<T>>();
 	}
 
+	inline Type* CreateTypePtr(TypeID typeID)
+	{
+		return arena->Emplace<Type>(typeID);
+	}
+
+	inline Type* CreateTypePtr(Type type)
+	{
+		return arena->Emplace<Type>(type);
+	}
+
 	inline Expr* CreateExpr(TokenIndex start, ExprID exprID)
 	{
 		return arena->Emplace<Expr>(exprID, start);
@@ -554,12 +573,21 @@ struct Syntax
 		return currScope.index == 0 && currScope.parent == 0;
 	}
 
-
-	//size_t lastTokenIndex = -1;
+	/*const size_t breakCount = 100000;
+	size_t lastTokenIndex = -1;
+	size_t sameCount = 0;*/
 	inline bool IsEOF()
 	{
-		/*if (curr->index != lastTokenIndex) lastTokenIndex = curr->index;
-		else Logger::FatalErrorAt(errors.fatalError, curr->pos);*/
+		/*if (curr->index != lastTokenIndex)
+		{
+			lastTokenIndex = curr->index;
+			sameCount = 0;
+		}
+		else
+		{
+			sameCount += 1;
+			if (sameCount > breakCount) Logger::FatalErrorAt(errors.fatalError, curr->pos);
+		}*/
 		return curr->type == TokenType::EndOfFile;
 	}
 
@@ -641,7 +669,7 @@ struct Syntax
 
 	inline void AddError(Token* token, const eastl::string& msg)
 	{
-		Logger::AddMessage(LogLevel::ERROR, token->pos, token->index, msg);
+		Logger::AddError(token->pos, token->index, msg);
 	}
 
 	void ParsePackage(bool setInTree = true)
@@ -1674,7 +1702,7 @@ struct Syntax
 				type = ParseArrayType();
 				break;
 
-			case UniqueType::Lparen:
+			case UniqueType::DoubleColon:
 				type = ParseFunctionType();
 				break;
 
@@ -1699,7 +1727,7 @@ struct Syntax
 		ptrType.pointerType.raw = Expect(UniqueType::Rawpointer);
 		ptrType.pointerType.ptr = curr->index;
 		Advance();
-		ptrType.pointerType.type = arena->Emplace<Type>(ParseDeclarationType());
+		ptrType.pointerType.type = CreateTypePtr(ParseDeclarationType());
 		return ptrType;
 	}
 
@@ -1708,7 +1736,7 @@ struct Syntax
 		Type arrType = Type(TypeID::ArrayType);
 		arrType.arrayType.arr = curr->index;
 		Advance();
-		arrType.arrayType.type = arena->Emplace<Type>(ParseDeclarationType());
+		arrType.arrayType.type = CreateTypePtr(ParseDeclarationType());
 		return arrType;
 	}
 
@@ -1803,7 +1831,7 @@ struct Syntax
 	{
 		Type genericsType = Type(TypeID::GenericsType);
 		genericsType.genericsType.generics = ParseGenericsExpr();
-		genericsType.genericsType.type = arena->Emplace<Type>(type);
+		genericsType.genericsType.type = CreateTypePtr(type);
 
 		return genericsType;
 	}
@@ -1811,8 +1839,29 @@ struct Syntax
 	Type ParseFunctionType()
 	{
 		Type functionType = Type(TypeID::FunctionType);
+		functionType.functionType.paramTypes = CreateVectorPtr<Type*>();
+		Advance();
 
-		return functionType;
+		functionType.functionType.returnType = CreateTypePtr(ParseDeclarationType());
+
+		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
+		{
+			Advance();
+			while (!Expect(UniqueType::Rparen) && !IsEOF())
+			{
+				Type type = ParseDeclarationType();
+				functionType.functionType.paramTypes->push_back(CreateTypePtr(type));
+				if (Expect(UniqueType::Comma)) Advance();
+			}
+
+			if (Expect(UniqueType::Rparen, errors.functionTypeClose))
+			{
+				Advance();
+				return functionType;
+			}
+		}
+
+		return Type();
 	}
 
 	Expr* ParseAssignmentType()
@@ -1959,6 +2008,10 @@ struct Syntax
 				expr = ParseReference(expr);
 				break;
 
+			case UniqueType::DoubleColon:
+				expr = ParseFunctionTypeExpr(expr);
+				break;
+
 			default:
 				return expr;
 				break;
@@ -1989,6 +2042,8 @@ struct Syntax
 
 		case UniqueType::Lbrace:
 			return ParseAnonTypeExpr();
+
+		case UniqueType::DoubleColon:
 
 		default:
 			switch (curr->type)
@@ -2077,6 +2132,11 @@ struct Syntax
 		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure)) Advance();
 
 		return anon;
+	}
+
+	Expr* ParseFunctionTypeExpr(Expr* on = nullptr)
+	{
+		return nullptr;
 	}
 
 	Expr* ParseSelector(Expr* on)
@@ -2210,7 +2270,7 @@ struct Syntax
 		Expr* asExpr = CreateExpr(of->start, ExprID::AsExpr);
 		asExpr->asExpr.of = CopyExpr(of);
 		Advance();
-		asExpr->asExpr.to = arena->Emplace<Type>(ParseDeclarationType());
+		asExpr->asExpr.to = CreateTypePtr(ParseDeclarationType());
 
 		return asExpr;
 	}

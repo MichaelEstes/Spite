@@ -50,6 +50,9 @@ struct Errors {
 	const eastl::string inlineTypeNoClosure = "Missing closure for inline type '}'";
 	const eastl::string inlineTypeWrongAssignmentOp = "Explicit types must be assigned with '=' and implicit types must be assigned with ':='";
 
+	const eastl::string functionTypeOpening = "Expected function type opening ('(')";
+	const eastl::string functionTypeClose = "Expected function type closure (')')";
+
 	const eastl::string implictTypeNotIdent = "Only identifiers are allowed in implicit types";
 
 	const eastl::string expectedConditionOpen = "Expected conditional opening ('(')";

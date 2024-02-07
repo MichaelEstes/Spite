@@ -85,7 +85,7 @@
 
 <genericType> := <namedType> <generics> 
 
-<functionType> := <type> <parenthesis> ?(<type...>,) </parenthesis>
+<functionType> := :: <type> <parenthesis> ?(<type...>,) </parenthesis>
 
 <declaration> := <identifier> : <type>
 
