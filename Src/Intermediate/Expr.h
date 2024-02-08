@@ -146,13 +146,11 @@ struct Expr
 
 		struct
 		{
-			Expr* of;
 			Type* functionType;
 		} functionTypeExpr;
 
 		struct
 		{
-			Expr* of;
 			Type* returnType;
 			Node* functionDecl;
 		} functionTypeDeclExpr;

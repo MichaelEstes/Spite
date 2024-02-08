@@ -319,11 +319,9 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 			tokens.At(expr->genericsExpr.close)->ToString();
 	}
 	case FunctionTypeExpr:
-		return (expr->functionTypeExpr.of ? ToString(expr->functionTypeExpr.of, tokens) : "") +
-			ToString(expr->functionTypeExpr.functionType, tokens);
+		return ToString(expr->functionTypeExpr.functionType, tokens);
 	case FunctionTypeDeclExpr:
-		return (expr->functionTypeDeclExpr.of ? ToString(expr->functionTypeDeclExpr.of, tokens) : "") +
-			ToString(expr->functionTypeDeclExpr.returnType, tokens) +
+		return ToString(expr->functionTypeDeclExpr.returnType, tokens) +
 			ToString(*expr->functionTypeDeclExpr.functionDecl, tokens);
 	return "";
 	default:
@@ -1867,14 +1865,7 @@ struct Syntax
 
 	Expr* ParseAssignmentType()
 	{
-		switch (curr->uniqueType)
-		{
-		case UniqueType::New:
-			return ParseNewExpr();
-
-		default:
-			return ParseExpr();
-		}
+		return ParseExpr();
 	}
 
 	Expr* ParseNewExpr()
@@ -2015,10 +2006,6 @@ struct Syntax
 				expr = ParseReference(expr);
 				break;
 
-			case UniqueType::DoubleColon:
-				expr = ParseFunctionTypeExpr(expr);
-				break;
-
 			default:
 				return expr;
 				break;
@@ -2052,6 +2039,9 @@ struct Syntax
 
 		case UniqueType::DoubleColon:
 			return ParseFunctionTypeExpr();
+
+		case UniqueType::New:
+			return ParseNewExpr();
 
 		default:
 			switch (curr->type)
@@ -2142,7 +2132,7 @@ struct Syntax
 		return anon;
 	}
 
-	Expr* ParseFunctionTypeExpr(Expr* on = nullptr)
+	Expr* ParseFunctionTypeExpr()
 	{
 		Token* start = curr;
 		Expr* expr = CreateExpr(start->index, ExprID::FunctionTypeDeclExpr);
@@ -2157,7 +2147,6 @@ struct Syntax
 			if (Expect(TokenType::Identifier), Peek()->uniqueType == UniqueType::Colon)
 			{
 				curr = lparen;
-				expr->functionTypeDeclExpr.of = on;
 				expr->functionTypeDeclExpr.returnType = returnType;
 				expr->functionTypeDeclExpr.functionDecl = ParseFunctionDecl();
 				return expr;
@@ -2166,7 +2155,6 @@ struct Syntax
 			{
 				curr = start;
 				expr->typeID = ExprID::FunctionTypeExpr;
-				expr->functionTypeExpr.of = on;
 				expr->functionTypeExpr.functionType = CreateTypePtr(ParseFunctionType());
 				return expr;
 			}
