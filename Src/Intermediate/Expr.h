@@ -31,6 +31,7 @@ enum ExprID
 	GroupedExpr,
 	GenericsExpr,
 	FunctionTypeExpr,
+	FunctionTypeDeclExpr,
 };
 
 struct Expr
@@ -148,6 +149,13 @@ struct Expr
 			Expr* of;
 			Type* functionType;
 		} functionTypeExpr;
+
+		struct
+		{
+			Expr* of;
+			Type* returnType;
+			Node* functionDecl;
+		} functionTypeDeclExpr;
 	};
 
 	Expr(ExprID typeID, TokenIndex start)
@@ -230,6 +238,12 @@ struct Expr
 			break;
 		case GenericsExpr:
 			genericsExpr = copy.genericsExpr;
+			break;
+		case FunctionTypeExpr:
+			functionTypeExpr = copy.functionTypeExpr;
+			break;
+		case FunctionTypeDeclExpr:
+			functionTypeDeclExpr = copy.functionTypeDeclExpr;
 			break;
 		default:
 			break;

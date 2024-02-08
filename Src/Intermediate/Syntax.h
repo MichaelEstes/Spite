@@ -318,6 +318,13 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 			types +
 			tokens.At(expr->genericsExpr.close)->ToString();
 	}
+	case FunctionTypeExpr:
+		return (expr->functionTypeExpr.of ? ToString(expr->functionTypeExpr.of, tokens) : "") +
+			ToString(expr->functionTypeExpr.functionType, tokens);
+	case FunctionTypeDeclExpr:
+		return (expr->functionTypeDeclExpr.of ? ToString(expr->functionTypeDeclExpr.of, tokens) : "") +
+			ToString(expr->functionTypeDeclExpr.returnType, tokens) +
+			ToString(*expr->functionTypeDeclExpr.functionDecl, tokens);
 	return "";
 	default:
 		return "";
@@ -545,13 +552,6 @@ struct Syntax
 	inline Expr* CreateExpr(TokenIndex start, ExprID exprID)
 	{
 		return arena->Emplace<Expr>(exprID, start);
-	}
-
-	inline Expr* CopyExpr(Expr* expr)
-	{
-		Expr* copy = CreateExpr(expr->start, expr->typeID);
-		*copy = *expr;
-		return copy;
 	}
 
 	inline void StartScope()
@@ -1842,7 +1842,8 @@ struct Syntax
 		functionType.functionType.paramTypes = CreateVectorPtr<Type*>();
 		Advance();
 
-		functionType.functionType.returnType = CreateTypePtr(ParseDeclarationType());
+		functionType.functionType.returnType = Expect(UniqueType::Lparen)
+			? CreateTypePtr(CreateVoidType()) : CreateTypePtr(ParseDeclarationType());
 
 		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
 		{
@@ -1925,6 +1926,13 @@ struct Syntax
 		return ParseBinaryExpr();
 	}
 
+	inline Expr* CopyExpr(Expr* expr)
+	{
+		Expr* copy = CreateExpr(expr->start, expr->typeID);
+		*copy = *expr;
+		return copy;
+	}
+
 	Expr* ParseBinaryExpr(Expr* expr = nullptr, int currPrecedence = 1)
 	{
 		if (!expr)
@@ -1987,16 +1995,15 @@ struct Syntax
 				break;
 
 			case UniqueType::Less:
-				if (TestGenericsExpr())
+			{
+				ExprID exprID = expr->typeID;
+				if ((exprID == ExprID::IdentifierExpr || exprID == ExprID::SelectorExpr) && TestGenericsExpr())
 				{
 					expr = ParseGenericsExpr(expr);
+					break;
 				}
-				else
-				{
-					return expr;
-				}
-				break;
-
+				else return expr;
+			}
 			case UniqueType::As:
 				expr = ParseAs(expr);
 				break;
@@ -2044,6 +2051,7 @@ struct Syntax
 			return ParseAnonTypeExpr();
 
 		case UniqueType::DoubleColon:
+			return ParseFunctionTypeExpr();
 
 		default:
 			switch (curr->type)
@@ -2136,13 +2144,41 @@ struct Syntax
 
 	Expr* ParseFunctionTypeExpr(Expr* on = nullptr)
 	{
-		return nullptr;
+		Token* start = curr;
+		Expr* expr = CreateExpr(start->index, ExprID::FunctionTypeDeclExpr);
+		Advance();
+		Type* returnType = Expect(UniqueType::Lparen)
+			? CreateTypePtr(CreateVoidType()) : CreateTypePtr(ParseDeclarationType());
+
+		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
+		{
+			Token* lparen = curr;
+			Advance();
+			if (Expect(TokenType::Identifier), Peek()->uniqueType == UniqueType::Colon)
+			{
+				curr = lparen;
+				expr->functionTypeDeclExpr.of = on;
+				expr->functionTypeDeclExpr.returnType = returnType;
+				expr->functionTypeDeclExpr.functionDecl = ParseFunctionDecl();
+				return expr;
+			}
+			else
+			{
+				curr = start;
+				expr->typeID = ExprID::FunctionTypeExpr;
+				expr->functionTypeExpr.of = on;
+				expr->functionTypeExpr.functionType = CreateTypePtr(ParseFunctionType());
+				return expr;
+			}
+		}
+
+		return CreateExpr(start->index, ExprID::InvalidExpr);
 	}
 
 	Expr* ParseSelector(Expr* on)
 	{
 		Expr* selector = CreateExpr(curr->index, ExprID::SelectorExpr);
-		selector->selectorExpr.on = CopyExpr(on);
+		selector->selectorExpr.on = on;
 		if (ThenExpect(TokenType::Identifier, errors.identifierExpected))
 		{
 			selector->selectorExpr.select = ParseIdentifierExpr();
@@ -2154,7 +2190,7 @@ struct Syntax
 	{
 		Token* lBrack = curr;
 		Expr* indexExpr = CreateExpr(lBrack->index, ExprID::IndexExpr);
-		indexExpr->indexExpr.of = CopyExpr(of);
+		indexExpr->indexExpr.of = of;
 		indexExpr->indexExpr.lBrack = lBrack->index;
 		Advance();
 		if (curr->uniqueType == UniqueType::Rbrack)
@@ -2205,26 +2241,27 @@ struct Syntax
 	{
 		Token* start = curr;
 
+		Advance();
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Semicolon) && !IsEOF())
 		{
+			if (Expect(TokenType::Operator) || Expect(TokenType::Literal))
+			{
+				curr = start;
+				return false;
+			}
 			Advance();
 		}
 
-		if (Expect(UniqueType::Greater) && Peek()->uniqueType == UniqueType::Lparen)
-		{
-			curr = start;
-			return true;
-		}
-
+		bool generics = Expect(UniqueType::Greater);
 		curr = start;
-		return false;
+		return generics;
 	}
 
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
 		Expr* generics = CreateExpr(curr->index, ExprID::GenericsExpr);
 		eastl::vector<Type>* genericTypes = CreateVectorPtr<Type>();
-		generics->genericsExpr.expr = (expr != nullptr ? CopyExpr(expr) : expr);
+		generics->genericsExpr.expr = expr;
 		generics->genericsExpr.open = curr->index;
 		generics->genericsExpr.types = genericTypes;
 
@@ -2268,7 +2305,7 @@ struct Syntax
 	Expr* ParseAs(Expr* of)
 	{
 		Expr* asExpr = CreateExpr(of->start, ExprID::AsExpr);
-		asExpr->asExpr.of = CopyExpr(of);
+		asExpr->asExpr.of = of;
 		Advance();
 		asExpr->asExpr.to = CreateTypePtr(ParseDeclarationType());
 
@@ -2278,7 +2315,7 @@ struct Syntax
 	Expr* ParseDereference(Expr* of)
 	{
 		Expr* expr = CreateExpr(of->start, ExprID::DereferenceExpr);
-		expr->dereferenceExpr.of = CopyExpr(of);
+		expr->dereferenceExpr.of = of;
 		expr->dereferenceExpr.op = curr->index;
 		Advance();
 
@@ -2288,7 +2325,7 @@ struct Syntax
 	Expr* ParseReference(Expr* of)
 	{
 		Expr* expr = CreateExpr(of->start, ExprID::ReferenceExpr);
-		expr->dereferenceExpr.of = CopyExpr(of);
+		expr->dereferenceExpr.of = of;
 		expr->dereferenceExpr.op = curr->index;
 		Advance();
 
