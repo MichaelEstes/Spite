@@ -25,7 +25,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	switch (node.nodeID)
 	{
 	case InvalidNode:
-		return "unknown";
+		return "INVALID";
 	case CommentStmnt:
 		return tokens.At(node.start)->ToString();
 	case ExpressionStmnt:
@@ -149,8 +149,6 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	case ReturnStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			(!node.returnStmnt.voidReturn ? ToString(node.returnStmnt.expr, tokens) : "");
-	case OnCompileStmnt:
-		return "";
 	case WhereStmnt:
 	{
 		return tokens.At(node.start)->ToString() + ToString(*node.whereStmnt.decl, tokens);
@@ -203,6 +201,10 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			(node.generics.whereStmnt ? " : " + ToString(*node.generics.whereStmnt, tokens) : "") +
 			tokens.At(node.end)->ToString();
 	}
+	case CompileStmnt:
+		return ToString(node.compileStmnt.compileExpr, tokens);
+	case CompileDebugStmnt:
+		return tokens.At(node.start)->ToString() + " " + ToString(node.compileDebugStmnt.body, tokens);
 	case Block:
 	{
 		eastl::string stmnts = "";
@@ -323,7 +325,10 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 	case FunctionTypeDeclExpr:
 		return ToString(expr->functionTypeDeclExpr.returnType, tokens) +
 			ToString(*expr->functionTypeDeclExpr.functionDecl, tokens);
-	return "";
+	case CompileExpr:
+		return tokens.At(expr->start)->ToString() + " " +
+			ToString(expr->compileExpr.returnType, tokens) + " " +
+			ToString(*expr->compileExpr.body, tokens);
 	default:
 		return "";
 	}
@@ -705,6 +710,12 @@ struct Syntax
 		case UniqueType::State:
 			ParseState();
 			return;
+		case UniqueType::OnCompile:
+			ParseCompile();
+			return;
+		case UniqueType::OnCompileDebug:
+			ParseCompileDebug();
+			return;
 		case UniqueType::Name:
 		{
 			Node assignment = ParseAssignmentStatement();
@@ -854,6 +865,41 @@ struct Syntax
 
 		node->nodeID = NodeID::InvalidNode;
 		return node;
+	}
+
+	void ParseCompile()
+	{
+		Node node = CreateNode(curr, NodeID::CompileStmnt);
+		Expr* expr = ParseCompileExpr();
+		if (expr->typeID != ExprID::InvalidExpr)
+		{
+			node.compileStmnt.compileExpr = expr;
+
+			if (Expect(UniqueType::Semicolon))
+			{
+				node.end = curr->index;
+				Advance();
+			}
+			else
+			{
+				//Scott Baio
+				node.end = node.compileStmnt.compileExpr->compileExpr.body->body->end;
+			}
+
+			AddNode(node);
+		}
+	}
+
+	void ParseCompileDebug()
+	{
+		Node node = CreateNode(curr, NodeID::CompileDebugStmnt);
+		Advance();
+		node.compileDebugStmnt.body = ParseBody();
+		if (node.compileDebugStmnt.body)
+		{
+			node.end = node.compileDebugStmnt.body.body->end;
+			AddNode(node);
+		}
 	}
 
 	Node* ParseFunctionDecl()
@@ -1888,6 +1934,23 @@ struct Syntax
 		return newExpr;
 	}
 
+	Expr* ParseCompileExpr()
+	{
+		Expr* expr = CreateExpr(curr->index, ExprID::CompileExpr);
+		Advance();
+		Type type = ParseDeclarationType();
+		if (type.typeID != TypeID::InvalidType)
+		{
+			expr->compileExpr.returnType = CreateTypePtr(type);
+			if (Expect(UniqueType::FatArrow)) Advance();
+			expr->compileExpr.body = arena->Emplace<Body>(ParseBody());
+			return expr;
+		}
+
+		expr->typeID = ExprID::InvalidExpr;
+		return expr;
+	}
+
 	Expr* ParseAnonymousType()
 	{
 		Token* rBrace = curr;
@@ -2043,6 +2106,8 @@ struct Syntax
 		case UniqueType::New:
 			return ParseNewExpr();
 
+		case UniqueType::OnCompile:
+			return ParseCompileExpr();
 		default:
 			switch (curr->type)
 			{
@@ -2144,7 +2209,9 @@ struct Syntax
 		{
 			Token* lparen = curr;
 			Advance();
-			if (Expect(TokenType::Identifier), Peek()->uniqueType == UniqueType::Colon)
+			UniqueType peekType = Peek()->uniqueType;
+			if ((Expect(TokenType::Identifier) && peekType == UniqueType::Colon) ||
+				(Expect(UniqueType::Rparen) && (peekType == UniqueType::Lbrace || peekType == UniqueType::FatArrow)))
 			{
 				curr = lparen;
 				expr->functionTypeDeclExpr.returnType = returnType;

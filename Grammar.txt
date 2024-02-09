@@ -138,10 +138,9 @@
 			<destructor> | 
 			<operatorOverload>
 
-<compileTime> := #OnCompile <expression>
-	| #OnCompile <type> <scope> <statements> </scope>
+<compileTime> := #compile <type> (<block> | (=> <statement>)
 
-<compileTimeDebug> := #OnCompileDebug <scope> <statements> </scope>
+<compileTimeDebug> := #compileDebug (<block> | (<statement>)
 
 <functionValue> := <type> <functionDeclaration>
 

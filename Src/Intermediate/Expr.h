@@ -9,6 +9,7 @@ typedef size_t TokenIndex;
 typedef size_t ScopeIndex;
 
 struct Node;
+struct Body;
 struct Type;
 
 enum ExprID
@@ -32,6 +33,7 @@ enum ExprID
 	GenericsExpr,
 	FunctionTypeExpr,
 	FunctionTypeDeclExpr,
+	CompileExpr,
 };
 
 struct Expr
@@ -154,6 +156,12 @@ struct Expr
 			Type* returnType;
 			Node* functionDecl;
 		} functionTypeDeclExpr;
+
+		struct
+		{
+			Type* returnType;
+			Body* body;
+		} compileExpr;
 	};
 
 	Expr(ExprID typeID, TokenIndex start)
@@ -242,6 +250,9 @@ struct Expr
 			break;
 		case FunctionTypeDeclExpr:
 			functionTypeDeclExpr = copy.functionTypeDeclExpr;
+			break;
+		case CompileExpr:
+			compileExpr = copy.compileExpr;
 			break;
 		default:
 			break;

@@ -41,7 +41,8 @@ enum NodeID
 	ContinueStmnt,
 	BreakStmnt,
 	ReturnStmnt,
-	OnCompileStmnt,
+	CompileStmnt,
+	CompileDebugStmnt,
 	Block,
 };
 
@@ -62,6 +63,12 @@ struct Body
 	{
 		statement = false;
 		body = nullptr;
+	}
+
+	Body(const Body& copy)
+	{
+		statement = copy.statement;
+		body = copy.body;
 	}
 
 	operator void* () const
@@ -263,7 +270,13 @@ struct Node
 
 		struct
 		{
-		} onCompileStmnt;
+			Expr* compileExpr;
+		} compileStmnt;
+
+		struct
+		{
+			Body body;
+		} compileDebugStmnt;
 
 		struct
 		{
@@ -386,8 +399,11 @@ struct Node
 		case ReturnStmnt:
 			returnStmnt = copy.returnStmnt;
 			break;
-		case OnCompileStmnt:
-			onCompileStmnt = copy.onCompileStmnt;
+		case CompileStmnt:
+			compileStmnt = copy.compileStmnt;
+			break;
+		case CompileDebugStmnt:
+			compileDebugStmnt = copy.compileDebugStmnt;
 			break;
 		case Block:
 			block = copy.block;
