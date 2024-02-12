@@ -33,17 +33,15 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	case UsingStmnt:
 		return tokens.At(node.start)->ToString() + " " +
 			tokens.At(node.using_.packageName)->ToString() +
-			(node.using_.alias != -1 ? " as " + tokens.At(node.using_.alias)->ToString() : "") +
-			tokens.At(node.end)->ToString();
+			(node.using_.alias != -1 ? " as " + tokens.At(node.using_.alias)->ToString() : "");
 	case PackageStmnt:
 		return tokens.At(node.start)->ToString() + " " +
-			tokens.At(node.package.name)->ToString() +
-			tokens.At(node.end)->ToString();
+			tokens.At(node.package.name)->ToString();
 	case Definition:
 		return tokens.At(node.definition.name)->ToString() + " : " +
 			ToString(&node.definition.type, tokens) +
 			(node.definition.assignment != nullptr
-				? " " + tokens.At(node.definition.op)->ToString() + " " + ToString(node.definition.assignment, tokens) + tokens.At(node.end)->ToString() : "");
+				? " " + tokens.At(node.definition.op)->ToString() + " " + ToString(node.definition.assignment, tokens) : "");
 	case InlineDefinition:
 		return ToString(&node.inlineDefinition.type, tokens) +
 			" " + tokens.At(node.inlineDefinition.op)->ToString() + " " +
@@ -91,8 +89,7 @@ eastl::string ToString(Node& node, Tokens& tokens)
 	case AssignmentStmnt:
 		return ToString(node.assignmentStmnt.assignTo, tokens) +
 			" " + tokens.At(node.assignmentStmnt.op)->ToString() + " " +
-			ToString(node.assignmentStmnt.assignment, tokens) +
-			tokens.At(node.end)->ToString();
+			ToString(node.assignmentStmnt.assignment, tokens);
 	case IfStmnt:
 	{
 		eastl::string elseifs = "";
@@ -197,9 +194,8 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			names += tokens.At(name)->ToString() + ", ";
 		}
 
-		return tokens.At(node.start)->ToString() + names +
-			(node.generics.whereStmnt ? " : " + ToString(*node.generics.whereStmnt, tokens) : "") +
-			tokens.At(node.end)->ToString();
+		return "<" + names +
+			(node.generics.whereStmnt ? " : " + ToString(*node.generics.whereStmnt, tokens) : "") + ">";
 	}
 	case CompileStmnt:
 		return ToString(node.compileStmnt.compileExpr, tokens);
@@ -639,16 +635,6 @@ struct Syntax
 		return toCheck == checkAginst;
 	}
 
-	inline bool ExpectSemicolon()
-	{
-		return Expect(UniqueType::Semicolon, errors.missingSemicolon);
-	}
-
-	inline bool ThenExpectSemicolon()
-	{
-		return ThenExpect(UniqueType::Semicolon, errors.missingSemicolon);
-	}
-
 	inline void Advance()
 	{
 		curr = tokens.Next(curr);
@@ -683,12 +669,10 @@ struct Syntax
 		{
 			Node node = CreateNode(start, NodeID::PackageStmnt);
 			node.package.name = curr->index;
-			if (ThenExpectSemicolon())
-			{
-				node.end = curr->index;
-				if (setInTree) package = node;
-				Advance();
-			}
+			Advance();
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node.end = curr->index;
+			if (setInTree) package = node;
 		}
 	}
 
@@ -766,18 +750,16 @@ struct Syntax
 				&& ThenExpect(TokenType::Identifier, errors.expectedUsingAlias))
 			{
 				node.using_.alias = curr->index;
+				Advance();
 			}
 			else
 			{
 				node.using_.alias = -1;
 			}
 
-			if (ThenExpectSemicolon())
-			{
-				node.end = curr->index;
-				if (addNode) imports.push_back(node);
-				Advance();
-			}
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node.end = curr->index;
+			if (addNode) imports.push_back(node);
 		}
 	}
 
@@ -877,8 +859,8 @@ struct Syntax
 
 			if (Expect(UniqueType::Semicolon))
 			{
-				node.end = curr->index;
 				Advance();
+				node.end = curr->index;
 			}
 			else
 			{
@@ -1190,6 +1172,7 @@ struct Syntax
 			return ParseReturn();
 
 		default:
+			if (curr->type == TokenType::Literal) return ParseExprStmnt();
 			Advance();
 			break;
 		}
@@ -1229,14 +1212,8 @@ struct Syntax
 			node->inlineDefinition.op = curr->index;
 			Advance();
 			node->inlineDefinition.assignment = ParseExpr();
-			if (ExpectSemicolon())
-			{
-				node->end = curr->index;
-				Advance();
-				return node;
-			}
-
-			node->nodeID = NodeID::InvalidNode;
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->end = curr->index;
 			return node;
 		}
 
@@ -1251,27 +1228,22 @@ struct Syntax
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
-			if (Expect(UniqueType::Semicolon))
-			{
-				node->expressionStmnt.expression = expr;
-				node->end = curr->index;
-				Advance();
-				return node;
-			}
-			else if (IsAssignableExpr(expr) && IsAssignmentOperator())
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->expressionStmnt.expression = expr;
+			node->end = curr->index;
+
+			if (IsAssignableExpr(expr) && IsAssignmentOperator())
 			{
 				node->nodeID = NodeID::AssignmentStmnt;
 				node->assignmentStmnt.assignTo = expr;
 				node->assignmentStmnt.op = curr->index;
 				Advance();
 				node->assignmentStmnt.assignment = ParseExpr();
-				if (ExpectSemicolon())
-				{
-					node->end = curr->index;
-					Advance();
-					return node;
-				}
+				if (Expect(UniqueType::Semicolon)) Advance();
+				node->end = curr->index;
 			}
+
+			return node;
 		}
 
 		node->nodeID = NodeID::InvalidNode;
@@ -1502,12 +1474,9 @@ struct Syntax
 		if (primaryExpr->typeID != ExprID::InvalidExpr)
 		{
 			node->deleteStmnt.primaryExpr = primaryExpr;
-			if (ExpectSemicolon())
-			{
-				node->end = curr->index;
-				Advance();
-				return node;
-			}
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->end = curr->index;
+			return node;
 		}
 
 		node->nodeID = NodeID::InvalidNode;
@@ -1519,14 +1488,8 @@ struct Syntax
 		Node* node = CreateNodePtr(curr, NodeID::ContinueStmnt);
 		node->continueStmnt.token = curr->index;
 		Advance();
-		if (ExpectSemicolon())
-		{
-			node->end = curr->index;
-			Advance();
-			return node;
-		}
-
-		node->nodeID = NodeID::InvalidNode;
+		if (Expect(UniqueType::Semicolon)) Advance();
+		node->end = curr->index;
 		return node;
 	}
 
@@ -1535,14 +1498,8 @@ struct Syntax
 		Node* node = CreateNodePtr(curr, NodeID::BreakStmnt);
 		node->breakStmnt.token = curr->index;
 		Advance();
-		if (ExpectSemicolon())
-		{
-			node->end = curr->index;
-			Advance();
-			return node;
-		}
-
-		node->nodeID = NodeID::InvalidNode;
+		if (Expect(UniqueType::Semicolon)) Advance();
+		node->end = curr->index;
 		return node;
 	}
 
@@ -1562,17 +1519,10 @@ struct Syntax
 		{
 			node->returnStmnt.voidReturn = false;
 			node->returnStmnt.expr = ParseExpr();
-			if (ExpectSemicolon())
-			{
-				node->end = curr->index;
-				Advance();
-				return node;
-			}
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->end = curr->index;
+			return node;
 		}
-
-
-		node->nodeID = NodeID::InvalidNode;
-		return node;
 	}
 
 	eastl::vector<Node*>* ParseParametersList(UniqueType end = UniqueType::Rparen)
@@ -1641,10 +1591,7 @@ struct Syntax
 			node.definition.type = type;
 			node.definition.assignment = expr;
 			node.end = curr->index;
-			if (ExpectSemicolon())
-			{
-				Advance();
-			}
+			if (Expect(UniqueType::Semicolon)) Advance();
 			return node;
 		}
 
@@ -1668,9 +1615,9 @@ struct Syntax
 			Advance();
 			Expr* expr = ParseAssignmentType();
 			decl->definition.assignment = expr;
-			decl->end = curr->index;
 
-			Advance();
+			if (Expect(UniqueType::Semicolon)) Advance();
+			decl->end = curr->index;
 			return true;
 		}
 
@@ -1926,10 +1873,7 @@ struct Syntax
 			Advance();
 			newExpr->newExpr.atExpr = ParsePrimaryExpr();
 		}
-		else
-		{
-			newExpr->newExpr.atExpr = nullptr;
-		}
+		else newExpr->newExpr.atExpr = nullptr;
 
 		return newExpr;
 	}
