@@ -20,153 +20,153 @@ eastl::string ToString(Expr* expr, Tokens& tokens);
 eastl::string ToString(Type* type, Tokens& tokens);
 eastl::string ToString(Body& body, Tokens& tokens);
 
-eastl::string ToString(Node& node, Tokens& tokens)
+eastl::string ToString(Node* node, Tokens& tokens)
 {
-	switch (node.nodeID)
+	switch (node->nodeID)
 	{
 	case InvalidNode:
 		return "INVALID";
 	case CommentStmnt:
-		return tokens.At(node.start)->ToString();
+		return tokens.At(node->start)->ToString();
 	case ExpressionStmnt:
-		return ToString(node.expressionStmnt.expression, tokens);
+		return ToString(node->expressionStmnt.expression, tokens);
 	case UsingStmnt:
-		return tokens.At(node.start)->ToString() + " " +
-			tokens.At(node.using_.packageName)->ToString() +
-			(node.using_.alias != -1 ? " as " + tokens.At(node.using_.alias)->ToString() : "");
+		return tokens.At(node->start)->ToString() + " " +
+			tokens.At(node->using_.packageName)->ToString() +
+			(node->using_.alias != -1 ? " as " + tokens.At(node->using_.alias)->ToString() : "");
 	case PackageStmnt:
-		return tokens.At(node.start)->ToString() + " " +
-			tokens.At(node.package.name)->ToString();
+		return tokens.At(node->start)->ToString() + " " +
+			tokens.At(node->package.name)->ToString();
 	case Definition:
-		return tokens.At(node.definition.name)->ToString() + " : " +
-			ToString(&node.definition.type, tokens) +
-			(node.definition.assignment != nullptr
-				? " " + tokens.At(node.definition.op)->ToString() + " " + ToString(node.definition.assignment, tokens) : "");
+		return tokens.At(node->definition.name)->ToString() + " : " +
+			ToString(&node->definition.type, tokens) +
+			(node->definition.assignment != nullptr
+				? " " + tokens.At(node->definition.op)->ToString() + " " + ToString(node->definition.assignment, tokens) : "");
 	case InlineDefinition:
-		return ToString(&node.inlineDefinition.type, tokens) +
-			" " + tokens.At(node.inlineDefinition.op)->ToString() + " " +
-			ToString(node.inlineDefinition.assignment, tokens);
+		return ToString(&node->inlineDefinition.type, tokens) +
+			" " + tokens.At(node->inlineDefinition.op)->ToString() + " " +
+			ToString(node->inlineDefinition.assignment, tokens);
 	case Function:
-		return ToString(&node.function.returnType, tokens) + " " +
-			tokens.At(node.function.name)->ToString() +
-			(node.function.generics != nullptr ? ToString(*node.function.generics, tokens) : "") +
-			ToString(*node.function.decl, tokens);
+		return ToString(&node->function.returnType, tokens) + " " +
+			tokens.At(node->function.name)->ToString() +
+			(node->function.generics != nullptr ? ToString(node->function.generics, tokens) : "") +
+			ToString(node->function.decl, tokens);
 	case Method:
-		return ToString(&node.method.returnType, tokens) + " " +
-			tokens.At(node.method.stateName)->ToString() + "::" +
-			tokens.At(node.method.name)->ToString() +
-			(node.method.generics != nullptr ? ToString(*node.method.generics, tokens) : "") +
-			ToString(*node.method.decl, tokens);
+		return ToString(&node->method.returnType, tokens) + " " +
+			tokens.At(node->method.stateName)->ToString() + "::" +
+			tokens.At(node->method.name)->ToString() +
+			(node->method.generics != nullptr ? ToString(node->method.generics, tokens) : "") +
+			ToString(node->method.decl, tokens);
 	case StateOperator:
-		return ToString(&node.stateOperator.returnType, tokens) + " " +
-			tokens.At(node.stateOperator.stateName)->ToString() + "::operator" +
-			(node.stateOperator.generics != nullptr ? ToString(*node.stateOperator.generics, tokens) : "") + "::" +
-			tokens.At(node.stateOperator.op)->ToString() +
-			ToString(*node.stateOperator.decl, tokens);
+		return ToString(&node->stateOperator.returnType, tokens) + " " +
+			tokens.At(node->stateOperator.stateName)->ToString() + "::operator" +
+			(node->stateOperator.generics != nullptr ? ToString(node->stateOperator.generics, tokens) : "") + "::" +
+			tokens.At(node->stateOperator.op)->ToString() +
+			ToString(node->stateOperator.decl, tokens);
 	case Destructor:
-		return tokens.At(node.destructor.stateName)->ToString() + "::" +
-			tokens.At(node.destructor.del)->ToString() +
-			ToString(node.destructor.body, tokens);
+		return tokens.At(node->destructor.stateName)->ToString() + "::" +
+			tokens.At(node->destructor.del)->ToString() +
+			ToString(node->destructor.body, tokens);
 	case Constructor:
-		return tokens.At(node.destructor.stateName)->ToString() + "::" +
-			ToString(*node.constructor.decl, tokens);
+		return tokens.At(node->destructor.stateName)->ToString() + "::" +
+			ToString(node->constructor.decl, tokens);
 	case FunctionDecl:
 	{
 		eastl::string params = "(";
-		if (node.functionDecl.parameters != nullptr)
+		if (node->functionDecl.parameters != nullptr)
 		{
-			for (Node* param : *node.functionDecl.parameters)
+			for (Node* param : *node->functionDecl.parameters)
 			{
-				params += ToString(*param, tokens) + ", ";
+				params += ToString(param, tokens) + ", ";
 			}
 		}
 		params += ")";
-		return params + ToString(node.functionDecl.body, tokens);
+		return params + ToString(node->functionDecl.body, tokens);
 	}
 	case Conditional:
-		return "(" + ToString(node.conditional.condition, tokens) + ")" +
-			ToString(node.conditional.body, tokens);
+		return "(" + ToString(node->conditional.condition, tokens) + ")" +
+			ToString(node->conditional.body, tokens);
 	case AssignmentStmnt:
-		return ToString(node.assignmentStmnt.assignTo, tokens) +
-			" " + tokens.At(node.assignmentStmnt.op)->ToString() + " " +
-			ToString(node.assignmentStmnt.assignment, tokens);
+		return ToString(node->assignmentStmnt.assignTo, tokens) +
+			" " + tokens.At(node->assignmentStmnt.op)->ToString() + " " +
+			ToString(node->assignmentStmnt.assignment, tokens);
 	case IfStmnt:
 	{
 		eastl::string elseifs = "";
-		for (Node* elseif : *node.ifStmnt.elifs)
+		for (Node* elseif : *node->ifStmnt.elifs)
 		{
-			elseifs += "else if " + ToString(*elseif, tokens);
+			elseifs += "else if " + ToString(elseif, tokens);
 		}
 
-		return tokens.At(node.start)->ToString() + " " +
-			ToString(*node.ifStmnt.condition, tokens) +
+		return tokens.At(node->start)->ToString() + " " +
+			ToString(node->ifStmnt.condition, tokens) +
 			elseifs +
-			(node.ifStmnt.elseCondition ? "else " + ToString(node.ifStmnt.elseCondition, tokens) : "");
+			(node->ifStmnt.elseCondition ? "else " + ToString(node->ifStmnt.elseCondition, tokens) : "");
 	}
 	case ForStmnt:
-		return tokens.At(node.start)->ToString() + " (" +
-			(node.forStmnt.isDeclaration
-				? ToString(*node.forStmnt.iterated.declaration, tokens)
-				: tokens.At(node.forStmnt.iterated.identifier)->ToString()) +
-			" " + tokens.At(node.forStmnt.iterator)->ToString() + " " +
-			ToString(node.forStmnt.toIterate, tokens) + ")" +
-			ToString(node.forStmnt.body, tokens);
+		return tokens.At(node->start)->ToString() + " (" +
+			(node->forStmnt.isDeclaration
+				? ToString(node->forStmnt.iterated.declaration, tokens)
+				: tokens.At(node->forStmnt.iterated.identifier)->ToString()) +
+			" " + tokens.At(node->forStmnt.iterator)->ToString() + " " +
+			ToString(node->forStmnt.toIterate, tokens) + ")" +
+			ToString(node->forStmnt.body, tokens);
 	case WhileStmnt:
-		return tokens.At(node.start)->ToString() + " "
-			+ ToString(*node.whileStmnt.conditional, tokens);
+		return tokens.At(node->start)->ToString() + " "
+			+ ToString(node->whileStmnt.conditional, tokens);
 	case SwitchStmnt:
 	{
 		eastl::string cases = "";
-		for (Node* node : *node.switchStmnt.cases)
+		for (Node* node : *node->switchStmnt.cases)
 		{
-			cases += "case " + ToString(*node, tokens);
+			cases += "case " + ToString(node, tokens);
 		}
 
-		return tokens.At(node.start)->ToString() + " (" +
-			ToString(node.switchStmnt.switchOn, tokens) + " )\n" +
+		return tokens.At(node->start)->ToString() + " (" +
+			ToString(node->switchStmnt.switchOn, tokens) + " )\n" +
 			cases +
-			"default" + ToString(node.switchStmnt.defaultCase, tokens) + "\n";
+			"default" + ToString(node->switchStmnt.defaultCase, tokens) + "\n";
 	}
 	return "";
 	case TernaryStmnt:
 		return "";
 	case DeleteStmnt:
-		return tokens.At(node.start)->ToString() +
-			(node.deleteStmnt.arrDelete ? "[]" : "") + " " +
-			ToString(node.deleteStmnt.primaryExpr, tokens);
+		return tokens.At(node->start)->ToString() +
+			(node->deleteStmnt.arrDelete ? "[]" : "") + " " +
+			ToString(node->deleteStmnt.primaryExpr, tokens);
 	case DeferStmnt:
-		return tokens.At(node.start)->ToString() + " " +
-			(node.deferStmnt.deferIf
-				? ToString(*node.deferStmnt.conditional, tokens)
-				: ToString(node.deferStmnt.body, tokens));
+		return tokens.At(node->start)->ToString() + " " +
+			(node->deferStmnt.deferIf
+				? ToString(node->deferStmnt.conditional, tokens)
+				: ToString(node->deferStmnt.body, tokens));
 	case ContinueStmnt:
-		return tokens.At(node.continueStmnt.token)->ToString();
+		return tokens.At(node->continueStmnt.token)->ToString();
 	case BreakStmnt:
-		return tokens.At(node.breakStmnt.token)->ToString();
+		return tokens.At(node->breakStmnt.token)->ToString();
 	case ReturnStmnt:
-		return tokens.At(node.start)->ToString() + " " +
-			(!node.returnStmnt.voidReturn ? ToString(node.returnStmnt.expr, tokens) : "");
+		return tokens.At(node->start)->ToString() + " " +
+			(!node->returnStmnt.voidReturn ? ToString(node->returnStmnt.expr, tokens) : "");
 	case WhereStmnt:
 	{
-		return tokens.At(node.start)->ToString() + ToString(*node.whereStmnt.decl, tokens);
+		return tokens.At(node->start)->ToString() + ToString(node->whereStmnt.decl, tokens);
 	}
 	case StateStmnt:
 	{
 		eastl::string members = "";
-		for (Node* member : *node.state.members)
+		for (Node* member : *node->state.members)
 		{
-			members += ToString(*member, tokens) + ",\n";
+			members += ToString(member, tokens) + ",\n";
 		}
 
-		return tokens.At(node.start)->ToString() + " " +
-			tokens.At(node.state.name)->ToString() +
-			(node.state.generics ? ToString(*node.state.generics, tokens) : "") +
+		return tokens.At(node->start)->ToString() + " " +
+			tokens.At(node->state.name)->ToString() +
+			(node->state.generics ? ToString(node->state.generics, tokens) : "") +
 			"\n{\n" + members + "}\n";
 	}
 	case InsetStmnt:
 	{
 		eastl::string inset = "";
-		switch (node.insetStmnt.type)
+		switch (node->insetStmnt.type)
 		{
 		case SizeInset:
 			inset = "size";
@@ -184,29 +184,29 @@ eastl::string ToString(Node& node, Tokens& tokens)
 			break;
 		}
 
-		return tokens.At(node.start)->ToString() + inset + tokens.At(node.end)->ToString();
+		return tokens.At(node->start)->ToString() + inset + tokens.At(node->end)->ToString();
 	}
 	case GenericsDecl:
 	{
 		eastl::string names = "";
-		for (NodeIndex name : *node.generics.names)
+		for (NodeIndex name : *node->generics.names)
 		{
 			names += tokens.At(name)->ToString() + ", ";
 		}
 
 		return "<" + names +
-			(node.generics.whereStmnt ? " : " + ToString(*node.generics.whereStmnt, tokens) : "") + ">";
+			(node->generics.whereStmnt ? " : " + ToString(node->generics.whereStmnt, tokens) : "") + ">";
 	}
 	case CompileStmnt:
-		return ToString(node.compileStmnt.compileExpr, tokens);
+		return ToString(node->compileStmnt.compileExpr, tokens);
 	case CompileDebugStmnt:
-		return tokens.At(node.start)->ToString() + " " + ToString(node.compileDebugStmnt.body, tokens);
+		return tokens.At(node->start)->ToString() + " " + ToString(node->compileDebugStmnt.body, tokens);
 	case Block:
 	{
 		eastl::string stmnts = "";
-		for (Node* stmnt : *node.block.inner)
+		for (Node* stmnt : *node->block.inner)
 		{
-			stmnts += ToString(*stmnt, tokens) + "\n";
+			stmnts += ToString(stmnt, tokens) + "\n";
 		}
 		return "\n{\n" + stmnts + "}\n";
 	}
@@ -220,11 +220,11 @@ eastl::string ToString(Body& body, Tokens& tokens)
 	if (!body) return "";
 	if (body.statement)
 	{
-		return " " + ToString(*body.body, tokens) + "\n";
+		return " " + ToString(body.body, tokens) + "\n";
 	}
 	else
 	{
-		return ToString(*body.body, tokens);
+		return ToString(body.body, tokens);
 	}
 }
 
@@ -320,7 +320,7 @@ eastl::string ToString(Expr* expr, Tokens& tokens)
 		return ToString(expr->functionTypeExpr.functionType, tokens);
 	case FunctionTypeDeclExpr:
 		return ToString(expr->functionTypeDeclExpr.returnType, tokens) +
-			ToString(*expr->functionTypeDeclExpr.functionDecl, tokens);
+			ToString(expr->functionTypeDeclExpr.functionDecl, tokens);
 	case CompileExpr:
 		return tokens.At(expr->start)->ToString() + " " +
 			ToString(expr->compileExpr.returnType, tokens) + " " +
@@ -393,7 +393,7 @@ eastl::string ToString(Type* type, Tokens& tokens)
 
 		for (Node* node : *type->explicitType.declarations)
 		{
-			types += ToString(*node, tokens) + ", ";
+			types += ToString(node, tokens) + ", ";
 		}
 
 		return "{ " + types + "}";
@@ -440,14 +440,12 @@ struct Scope
 	NodeIndex scopeOf;
 	ScopeIndex parent;
 	ScopeIndex index;
-	eastl::vector<NodeIndex> nodes;
 
 	Scope()
 	{
 		scopeOf = 0;
 		parent = 0;
 		index = 0;
-		nodes = eastl::vector<NodeIndex>();
 	}
 
 	Scope(const Scope& copy)
@@ -455,12 +453,6 @@ struct Scope
 		scopeOf = copy.scopeOf;
 		parent = copy.parent;
 		index = copy.index;
-		nodes = copy.nodes;
-	}
-
-	void AddNode(Node& node)
-	{
-		nodes.push_back(node.index);
 	}
 };
 
@@ -471,18 +463,18 @@ struct Syntax
 	Token* curr;
 	Errors errors;
 
-	eastl::vector<Node> nodes;
+	eastl::vector<Node*> nodes;
 	eastl::vector<Scope> scopes;
-	eastl::vector<Node> imports;
-	Node package;
+	eastl::vector<Node*> imports;
+	Node* package;
 	Arena* arena;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
-		nodes = eastl::vector<Node>();
+		nodes = eastl::vector<Node*>();
 		scopes = eastl::vector<Scope>();
-		imports = eastl::vector<Node>();
+		imports = eastl::vector<Node*>();
 		currScope = Scope();
 		scopes.push_back(currScope);
 	}
@@ -494,42 +486,35 @@ struct Syntax
 
 	void Print()
 	{
-		if (package.nodeID == NodeID::PackageStmnt)
+		if (package->nodeID == NodeID::PackageStmnt)
 		{
 			Logger::Info(ToString(package, tokens));
 		}
 
-		for (Node node : imports)
+		for (Node* node : imports)
 		{
 			Logger::Info(ToString(node, tokens));
 		}
 
-		for (Node node : nodes)
+		for (Node* node : nodes)
 		{
 			Logger::Info(ToString(node, tokens));
 		}
 	}
 
-	void AddNode(Node& node)
+	inline void AddNode(Node* node)
 	{
-		node.index = nodes.size();
-		currScope.AddNode(node);
 		nodes.emplace_back(node);
 	}
 
-	inline Node CreateNode(Token* start, NodeID nodeID)
-	{
-		return Node(nodeID, start->index, currScope.index);
-	}
-
-	inline Node* CreateNodePtr(Token* start, NodeID nodeID)
+	inline Node* CreateNode(Token* start, NodeID nodeID)
 	{
 		return arena->Emplace<Node>(nodeID, start->index, currScope.index);
 	}
 
-	inline Node* CreateNodePtr(Node node)
+	inline Node* InvalidNode()
 	{
-		return arena->Emplace<Node>(node);
+		return arena->Emplace<Node>();
 	}
 
 	template<typename T>
@@ -650,7 +635,7 @@ struct Syntax
 	{
 		while (Expect(TokenType::Comment))
 		{
-			Node node = CreateNode(curr, NodeID::CommentStmnt);
+			Node* node = CreateNode(curr, NodeID::CommentStmnt);
 			AddNode(node);
 			curr = tokens.Next(curr);
 		}
@@ -667,11 +652,11 @@ struct Syntax
 		if (Expect(UniqueType::Package, errors.missingPackage) &&
 			ThenExpect(TokenType::Identifier, errors.missingPackageName))
 		{
-			Node node = CreateNode(start, NodeID::PackageStmnt);
-			node.package.name = curr->index;
+			Node* node = CreateNode(start, NodeID::PackageStmnt);
+			node->package.name = curr->index;
 			Advance();
 			if (Expect(UniqueType::Semicolon)) Advance();
-			node.end = curr->index;
+			node->end = curr->index;
 			if (setInTree) package = node;
 		}
 	}
@@ -702,8 +687,8 @@ struct Syntax
 			return;
 		case UniqueType::Name:
 		{
-			Node assignment = ParseAssignmentStatement();
-			if (assignment.nodeID != NodeID::InvalidNode)
+			Node* assignment = ParseAssignmentStatement();
+			if (assignment->nodeID != NodeID::InvalidNode)
 			{
 				AddNode(assignment);
 				return;
@@ -724,8 +709,8 @@ struct Syntax
 			else type = ParseDeclarationType(false);
 
 			if (type.typeID == TypeID::InvalidType) break;
-			Node func = ParseFunction(type, start);
-			if (func.nodeID != NodeID::InvalidNode) AddNode(func);
+			Node* func = ParseFunction(type, start);
+			if (func->nodeID != NodeID::InvalidNode) AddNode(func);
 			return;
 		}
 		}
@@ -742,37 +727,37 @@ struct Syntax
 		if (Expect(UniqueType::Using) &&
 			ThenExpect(TokenType::Identifier, errors.missingUsingName))
 		{
-			Node node = CreateNode(start, NodeID::UsingStmnt);
-			node.using_.packageName = curr->index;
+			Node* node = CreateNode(start, NodeID::UsingStmnt);
+			node->using_.packageName = curr->index;
 			Advance();
 
 			if (Expect(UniqueType::As)
 				&& ThenExpect(TokenType::Identifier, errors.expectedUsingAlias))
 			{
-				node.using_.alias = curr->index;
+				node->using_.alias = curr->index;
 				Advance();
 			}
 			else
 			{
-				node.using_.alias = -1;
+				node->using_.alias = -1;
 			}
 
 			if (Expect(UniqueType::Semicolon)) Advance();
-			node.end = curr->index;
+			node->end = curr->index;
 			if (addNode) imports.push_back(node);
 		}
 	}
 
 	void ParseState()
 	{
-		Node node = CreateNode(curr, NodeID::StateStmnt);
+		Node* node = CreateNode(curr, NodeID::StateStmnt);
 		Advance();
 		if (Expect(TokenType::Identifier, errors.expectedStateName))
 		{
-			node.state.name = curr->index;
-			node.state.members = CreateVectorPtr<Node*>();
+			node->state.name = curr->index;
+			node->state.members = CreateVectorPtr<Node*>();
 			Advance();
-			node.state.generics = ParseGenerics();
+			node->state.generics = ParseGenerics();
 
 			if (Expect(UniqueType::Lbrace, errors.expectedStateOpen))
 			{
@@ -787,13 +772,13 @@ struct Syntax
 				while (!Expect(UniqueType::Rbrace) && !IsEOF())
 				{
 					Node* member = ParseStateMember();
-					if (member->nodeID != NodeID::InvalidNode) node.state.members->push_back(member);
+					if (member->nodeID != NodeID::InvalidNode) node->state.members->push_back(member);
 					if (Expect(UniqueType::Comma)) Advance();
 				}
 
 				if (Expect(UniqueType::Rbrace, errors.expectedStateClose))
 				{
-					node.end = curr->index;
+					node->end = curr->index;
 					Advance();
 					AddNode(node);
 				}
@@ -810,7 +795,7 @@ struct Syntax
 
 	Node* ParseDeclOrDef()
 	{
-		Node* node = CreateNodePtr(ParseDeclaration());
+		Node* node = ParseDeclaration();
 		if (Expect(UniqueType::Assign)) ParseAssignment(node);
 
 		return node;
@@ -818,7 +803,7 @@ struct Syntax
 
 	Node* ParseStateInset()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::InsetStmnt);
+		Node* node = CreateNode(curr, NodeID::InsetStmnt);
 		Advance();
 
 		if (Expect(TokenType::Identifier, errors.expectedInsetName))
@@ -851,21 +836,21 @@ struct Syntax
 
 	void ParseCompile()
 	{
-		Node node = CreateNode(curr, NodeID::CompileStmnt);
+		Node* node = CreateNode(curr, NodeID::CompileStmnt);
 		Expr* expr = ParseCompileExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
-			node.compileStmnt.compileExpr = expr;
+			node->compileStmnt.compileExpr = expr;
 
 			if (Expect(UniqueType::Semicolon))
 			{
 				Advance();
-				node.end = curr->index;
+				node->end = curr->index;
 			}
 			else
 			{
 				//Scott Baio
-				node.end = node.compileStmnt.compileExpr->compileExpr.body->body->end;
+				node->end = node->compileStmnt.compileExpr->compileExpr.body->body->end;
 			}
 
 			AddNode(node);
@@ -874,19 +859,19 @@ struct Syntax
 
 	void ParseCompileDebug()
 	{
-		Node node = CreateNode(curr, NodeID::CompileDebugStmnt);
+		Node* node = CreateNode(curr, NodeID::CompileDebugStmnt);
 		Advance();
-		node.compileDebugStmnt.body = ParseBody();
-		if (node.compileDebugStmnt.body)
+		node->compileDebugStmnt.body = ParseBody();
+		if (node->compileDebugStmnt.body)
 		{
-			node.end = node.compileDebugStmnt.body.body->end;
+			node->end = node->compileDebugStmnt.body.body->end;
 			AddNode(node);
 		}
 	}
 
 	Node* ParseFunctionDecl()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::FunctionDecl);
+		Node* node = CreateNode(curr, NodeID::FunctionDecl);
 		Advance();
 		eastl::vector<Node*>* parameters = ParseParametersList();
 		node->functionDecl.parameters = parameters;
@@ -916,11 +901,11 @@ struct Syntax
 		return node;
 	}
 
-	Node ParseFunction(Type& returnType, Token* start)
+	Node* ParseFunction(Type& returnType, Token* start)
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
 		{
-			Node function = CreateNode(start, NodeID::Function);
+			Node* node = CreateNode(start, NodeID::Function);
 			Token* name = curr;
 			Advance();
 
@@ -930,60 +915,60 @@ struct Syntax
 			}
 			else
 			{
-				function.function.generics = ParseGenerics();
+				node->function.generics = ParseGenerics();
 				if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
 				{
-					function.function.returnType = returnType;
-					function.function.name = name->index;
-					function.function.decl = ParseFunctionDecl();
-					function.end = function.function.decl->end;
-					return function;
+					node->function.returnType = returnType;
+					node->function.name = name->index;
+					node->function.decl = ParseFunctionDecl();
+					node->end = node->function.decl->end;
+					return node;
 				}
 			}
 		}
 
-		return Node();
+		return InvalidNode();
 	}
 
-	Node ParseStateFunction(Type& returnType, Token* start, Token* name)
+	Node* ParseStateFunction(Type& returnType, Token* start, Token* name)
 	{
 		Advance();
 		switch (curr->uniqueType)
 		{
 		case UniqueType::Name:
 		{
-			Node method = CreateNode(start, NodeID::Method);
-			method.method.returnType = returnType;
-			method.method.stateName = name->index;
-			method.method.name = curr->index;
+			Node* node = CreateNode(start, NodeID::Method);
+			node->method.returnType = returnType;
+			node->method.stateName = name->index;
+			node->method.name = curr->index;
 			Advance();
-			method.method.generics = ParseGenerics();
+			node->method.generics = ParseGenerics();
 			if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
 			{
-				method.method.decl = ParseFunctionDecl();
-				method.end = method.method.decl->end;
-				return method;
+				node->method.decl = ParseFunctionDecl();
+				node->end = node->method.decl->end;
+				return node;
 			}
 			break;
 		}
 		case UniqueType::OperatorOverload:
 		{
-			Node op = CreateNode(start, NodeID::StateOperator);
-			op.stateOperator.returnType = returnType;
-			op.stateOperator.stateName = name->index;
+			Node* op = CreateNode(start, NodeID::StateOperator);
+			op->stateOperator.returnType = returnType;
+			op->stateOperator.stateName = name->index;
 			Advance();
-			op.stateOperator.generics = ParseGenerics();
+			op->stateOperator.generics = ParseGenerics();
 			if (Expect(UniqueType::DoubleColon, errors.operatorDoubleColon))
 			{
 				Advance();
 				if (curr->type == TokenType::Operator)
 				{
-					op.stateOperator.op = curr->index;
+					op->stateOperator.op = curr->index;
 					Advance();
 					if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
 					{
-						op.stateOperator.decl = ParseFunctionDecl();
-						op.end = op.stateOperator.decl->end;
+						op->stateOperator.decl = ParseFunctionDecl();
+						op->end = op->stateOperator.decl->end;
 						return op;
 					}
 				}
@@ -993,26 +978,26 @@ struct Syntax
 		}
 		case UniqueType::Delete:
 		{
-			Node del = CreateNode(start, NodeID::Destructor);
-			del.destructor.stateName = name->index;
-			del.destructor.del = curr->index;
+			Node* del = CreateNode(start, NodeID::Destructor);
+			del->destructor.stateName = name->index;
+			del->destructor.del = curr->index;
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
-			del.destructor.body = ParseBody();
+			del->destructor.body = ParseBody();
 			return del;
 		}
 		case UniqueType::Lparen:
 		{
-			Node con = CreateNode(start, NodeID::Constructor);
-			con.constructor.stateName = name->index;
-			con.constructor.decl = ParseFunctionDecl();
+			Node* con = CreateNode(start, NodeID::Constructor);
+			con->constructor.stateName = name->index;
+			con->constructor.decl = ParseFunctionDecl();
 			return con;
 		}
 		default:
 			break;
 		}
 
-		return Node();
+		return InvalidNode();
 	}
 
 	Node* ParseGenerics()
@@ -1029,7 +1014,7 @@ struct Syntax
 
 	Node* ParseGenericDecl()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::GenericsDecl);
+		Node* node = CreateNode(curr, NodeID::GenericsDecl);
 		node->generics.names = CreateVectorPtr<TokenIndex>();
 		node->generics.whereStmnt = nullptr;
 		Advance();
@@ -1075,7 +1060,7 @@ struct Syntax
 
 	Node* ParseWhere()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::WhereStmnt);
+		Node* node = CreateNode(curr, NodeID::WhereStmnt);
 		Advance();
 
 		node->whereStmnt.decl = ParseFunctionDecl();
@@ -1115,7 +1100,7 @@ struct Syntax
 
 	Node* ParseBlock()
 	{
-		Node* block = CreateNodePtr(curr, NodeID::Block);
+		Node* block = CreateNode(curr, NodeID::Block);
 		block->block.inner = CreateVectorPtr<Node*>();
 		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart))
 		{
@@ -1177,7 +1162,7 @@ struct Syntax
 			break;
 		}
 
-		return CreateNodePtr(curr, NodeID::InvalidNode);
+		return CreateNode(curr, NodeID::InvalidNode);
 	}
 
 	Node* ParseIdentifierStmnt()
@@ -1185,7 +1170,7 @@ struct Syntax
 		Token* next = Peek();
 		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
 		{
-			return CreateNodePtr(ParseAssignmentStatement());
+			return ParseAssignmentStatement();
 		}
 
 		return ParseExprStmnt();
@@ -1204,10 +1189,10 @@ struct Syntax
 				(type.typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
 			{
 				AddError(curr, errors.inlineTypeWrongAssignmentOp);
-				return CreateNodePtr(curr, NodeID::InvalidNode);
+				return CreateNode(curr, NodeID::InvalidNode);
 			}
 
-			Node* node = CreateNodePtr(start, NodeID::InlineDefinition);
+			Node* node = CreateNode(start, NodeID::InlineDefinition);
 			node->inlineDefinition.type = type;
 			node->inlineDefinition.op = curr->index;
 			Advance();
@@ -1224,7 +1209,7 @@ struct Syntax
 
 	Node* ParseExprStmnt()
 	{
-		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ExpressionStmnt));
+		Node* node = CreateNode(curr, NodeID::ExpressionStmnt);
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
@@ -1252,7 +1237,7 @@ struct Syntax
 
 	Node* ParseIf()
 	{
-		Node* node = CreateNodePtr(CreateNode(curr, NodeID::IfStmnt));
+		Node* node = CreateNode(curr, NodeID::IfStmnt);
 		Advance();
 
 		Node* conditional = ParseConditional();
@@ -1292,7 +1277,7 @@ struct Syntax
 
 	Node* ParseConditional()
 	{
-		Node* node = CreateNodePtr(CreateNode(curr, NodeID::Conditional));
+		Node* node = CreateNode(curr, NodeID::Conditional);
 		if (Expect(UniqueType::Lparen, errors.expectedConditionOpen))
 		{
 			Advance();
@@ -1314,7 +1299,7 @@ struct Syntax
 
 	Node* ParseFor()
 	{
-		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ForStmnt));
+		Node* node = CreateNode(curr, NodeID::ForStmnt);
 		Advance();
 		if (Expect(UniqueType::Lparen, errors.expectedForOpen))
 		{
@@ -1324,7 +1309,7 @@ struct Syntax
 				if (Peek()->uniqueType == UniqueType::Colon)
 				{
 					node->forStmnt.isDeclaration = true;
-					node->forStmnt.iterated.declaration = CreateNodePtr(ParseDeclaration());
+					node->forStmnt.iterated.declaration = ParseDeclaration();
 				}
 				else
 				{
@@ -1366,7 +1351,7 @@ struct Syntax
 
 	Node* ParseSwitch()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::SwitchStmnt);
+		Node* node = CreateNode(curr, NodeID::SwitchStmnt);
 		Advance();
 
 		if (Expect(UniqueType::Lparen, errors.expectedSwitchOpen))
@@ -1416,7 +1401,7 @@ struct Syntax
 
 	Node* ParseWhile()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::WhileStmnt);
+		Node* node = CreateNode(curr, NodeID::WhileStmnt);
 		Advance();
 		Node* conditional = ParseConditional();
 		if (conditional->nodeID != NodeID::InvalidNode)
@@ -1432,7 +1417,7 @@ struct Syntax
 
 	Node* ParseDefer()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::DeferStmnt);
+		Node* node = CreateNode(curr, NodeID::DeferStmnt);
 		Advance();
 
 		if (Expect(UniqueType::If))
@@ -1461,7 +1446,7 @@ struct Syntax
 
 	Node* ParseDelete()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::DeleteStmnt);
+		Node* node = CreateNode(curr, NodeID::DeleteStmnt);
 		Advance();
 		if (Expect(UniqueType::Array))
 		{
@@ -1485,7 +1470,7 @@ struct Syntax
 
 	Node* ParseContinue()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::ContinueStmnt);
+		Node* node = CreateNode(curr, NodeID::ContinueStmnt);
 		node->continueStmnt.token = curr->index;
 		Advance();
 		if (Expect(UniqueType::Semicolon)) Advance();
@@ -1495,7 +1480,7 @@ struct Syntax
 
 	Node* ParseBreak()
 	{
-		Node* node = CreateNodePtr(curr, NodeID::BreakStmnt);
+		Node* node = CreateNode(curr, NodeID::BreakStmnt);
 		node->breakStmnt.token = curr->index;
 		Advance();
 		if (Expect(UniqueType::Semicolon)) Advance();
@@ -1505,7 +1490,7 @@ struct Syntax
 
 	Node* ParseReturn()
 	{
-		Node* node = CreateNodePtr(CreateNode(curr, NodeID::ReturnStmnt));
+		Node* node = CreateNode(curr, NodeID::ReturnStmnt);
 		Advance();
 		if (Expect(UniqueType::Semicolon))
 		{
@@ -1543,7 +1528,7 @@ struct Syntax
 		return parameters;
 	}
 
-	Node ParseAssignmentStatement()
+	Node* ParseAssignmentStatement()
 	{
 		Token* start = curr;
 		switch (Peek()->uniqueType)
@@ -1551,15 +1536,15 @@ struct Syntax
 		case UniqueType::ImplicitAssign:
 		case UniqueType::Colon:
 		{
-			Node def = ParseDefinition();
+			Node* def = ParseDefinition();
 			return def;
 		}
 		default:
-			return Node();
+			return InvalidNode();
 		}
 	}
 
-	Node ParseDefinition()
+	Node* ParseDefinition()
 	{
 		Token* start = curr;
 		Expect(TokenType::Identifier, errors.identifierExpected);
@@ -1571,40 +1556,40 @@ struct Syntax
 			return ParseExplicitAssignment();
 		default:
 			AddError(start, errors.expectedDefinition);
-			return Node();
+			return InvalidNode();
 		}
 	}
 
-	Node ParseImplicitAssignment()
+	Node* ParseImplicitAssignment()
 	{
 		Token* start = curr;
 		if (Expect(TokenType::Identifier) &&
 			ThenExpect(UniqueType::ImplicitAssign))
 		{
-			Node node = CreateNode(start, NodeID::Definition);
-			node.definition.name = start->index;
-			node.definition.op = curr->index;
+			Node* node = CreateNode(start, NodeID::Definition);
+			node->definition.name = start->index;
+			node->definition.op = curr->index;
 
 			Advance();
 			Type type = Type(TypeID::UnknownType);
 			Expr* expr = ParseAssignmentType();
-			node.definition.type = type;
-			node.definition.assignment = expr;
-			node.end = curr->index;
+			node->definition.type = type;
+			node->definition.assignment = expr;
+			node->end = curr->index;
 			if (Expect(UniqueType::Semicolon)) Advance();
 			return node;
 		}
 
-		return Node();
+		return InvalidNode();
 	}
 
-	Node ParseExplicitAssignment()
+	Node* ParseExplicitAssignment()
 	{
-		Node node = ParseDeclaration();
+		Node* node = ParseDeclaration();
 
-		if (ParseAssignment(&node)) return node;
+		if (ParseAssignment(node)) return node;
 
-		return Node();
+		return InvalidNode();
 	}
 
 	bool ParseAssignment(Node* decl)
@@ -1624,7 +1609,7 @@ struct Syntax
 		return false;
 	}
 
-	Node ParseDeclaration()
+	Node* ParseDeclaration()
 	{
 		Token* start = curr;
 		if (Expect(TokenType::Identifier, errors.identifierExpected) &&
@@ -1632,15 +1617,15 @@ struct Syntax
 		{
 			Advance();
 			Type type = ParseDeclarationType();
-			Node node = CreateNode(start, NodeID::Definition);
-			node.definition.name = start->index;
-			node.definition.type = type;
-			node.definition.assignment = nullptr;
+			Node* node = CreateNode(start, NodeID::Definition);
+			node->definition.name = start->index;
+			node->definition.type = type;
+			node->definition.assignment = nullptr;
 
 			return node;
 		}
 
-		return Node();
+		return InvalidNode();
 	}
 
 	Type ParseDeclarationType(bool allowImplicitType = true)
@@ -1792,7 +1777,7 @@ struct Syntax
 		type.explicitType.declarations = decls;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			Node* node = CreateNodePtr(ParseDeclaration());
+			Node* node = ParseDeclaration();
 			if (node->nodeID != NodeID::InvalidNode)
 			{
 				decls->push_back(node);
@@ -1903,7 +1888,7 @@ struct Syntax
 		eastl::vector<Node*> params = eastl::vector<Node*>();
 		while (!Expect(UniqueType::Lbrace) && !IsEOF())
 		{
-			Node* def = CreateNodePtr(ParseDefinition());
+			Node* def = ParseDefinition();
 			if (def->nodeID == NodeID::Definition) params.push_back(def);
 			if (Expect(UniqueType::Comma)) Advance();
 		}

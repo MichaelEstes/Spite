@@ -83,7 +83,6 @@ struct Node
 	TokenIndex end;
 	ScopeIndex scope;
 	NodeID nodeID;
-	NodeIndex index;
 
 	union
 	{
@@ -290,7 +289,6 @@ struct Node
 		end = 0;
 		scope = 0;
 		nodeID = NodeID::InvalidNode;
-		index = 0;
 	}
 
 	Node(NodeID nodeID, TokenIndex start, ScopeIndex scope)
@@ -311,7 +309,6 @@ struct Node
 		end = copy.end;
 		scope = copy.scope;
 		nodeID = copy.nodeID;
-		index = copy.index;
 
 		switch (nodeID)
 		{

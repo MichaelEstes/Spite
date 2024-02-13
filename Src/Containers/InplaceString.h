@@ -59,3 +59,15 @@ struct InplaceString
 		return *(start + i);
 	}
 };
+
+struct InplaceStringHash
+{
+	size_t operator()(const InplaceString& str) const
+	{
+		size_t result = 0;
+		for (int i = 0; i < str.count; i++) 
+			result += (i * 0xDEAD) ^ str[i];
+		
+		return result;
+	}
+};
