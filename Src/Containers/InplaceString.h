@@ -58,7 +58,21 @@ struct InplaceString
 	{
 		return *(start + i);
 	}
+
+	size_t Hash()
+	{
+		size_t result = 0;
+		for (int i = 0; i < count; i++)
+			result += (i * 0xDEAD) ^ *(start + i);
+
+		return result;
+	}
 };
+
+inline bool operator==(const InplaceString& l, const InplaceString& r)
+{
+	return l.start == r.start && l.last == r.last;
+}
 
 struct InplaceStringHash
 {

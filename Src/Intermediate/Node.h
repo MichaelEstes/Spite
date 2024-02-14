@@ -7,7 +7,6 @@
 #include "Type.h"
 
 typedef size_t NodeIndex;
-typedef size_t TokenIndex;
 typedef size_t ScopeIndex;
 
 enum NodeID
@@ -79,8 +78,8 @@ struct Body
 
 struct Node
 {
-	TokenIndex start;
-	TokenIndex end;
+	Token* start;
+	Token* end;
 	ScopeIndex scope;
 	NodeID nodeID;
 
@@ -93,34 +92,34 @@ struct Node
 
 		struct
 		{
-			TokenIndex packageName;
-			TokenIndex alias;
+			Token* packageName;
+			Token* alias;
 		} using_;
 
 		struct
 		{
-			TokenIndex name;
+			Token* name;
 		} package;
 
 		struct
 		{
 			Type type;
-			TokenIndex name;
-			TokenIndex op;
+			Token* name;
+			Token* op;
 			Expr* assignment;
 		} definition;
 
 		struct
 		{
 			Type type;
-			TokenIndex op;
+			Token* op;
 			Expr* assignment;
 		} inlineDefinition;
 
 		struct
 		{
 			Type returnType;
-			TokenIndex name;
+			Token* name;
 			Node* generics;
 			Node* decl;
 		} function;
@@ -133,7 +132,7 @@ struct Node
 
 		struct
 		{
-			TokenIndex name;
+			Token* name;
 			Node* generics;
 			eastl::vector<Node*>* members;
 		} state;
@@ -145,7 +144,7 @@ struct Node
 
 		struct
 		{
-			eastl::vector<TokenIndex>* names;
+			eastl::vector<Token*>* names;
 			Node* whereStmnt;
 		} generics;
 
@@ -157,8 +156,8 @@ struct Node
 		struct
 		{
 			Type returnType;
-			TokenIndex stateName;
-			TokenIndex name;
+			Token* stateName;
+			Token* name;
 			Node* generics;
 			Node* decl;
 		} method;
@@ -166,22 +165,22 @@ struct Node
 		struct
 		{
 			Type returnType;
-			TokenIndex stateName;
+			Token* stateName;
 			Node* generics;
-			TokenIndex op;
+			Token* op;
 			Node* decl;
 		} stateOperator;
 
 		struct
 		{
-			TokenIndex stateName;
-			TokenIndex del;
+			Token* stateName;
+			Token* del;
 			Body body;
 		} destructor;
 
 		struct
 		{
-			TokenIndex stateName;
+			Token* stateName;
 			Node* decl;
 		} constructor;
 
@@ -194,7 +193,7 @@ struct Node
 		struct
 		{
 			Expr* assignTo;
-			TokenIndex op;
+			Token* op;
 			Expr* assignment;
 		} assignmentStmnt;
 
@@ -212,9 +211,9 @@ struct Node
 			union
 			{
 				Node* declaration;
-				TokenIndex identifier;
+				Token* identifier;
 			}iterated;
-			TokenIndex iterator;
+			Token* iterator;
 			Expr* toIterate;
 			Body body;
 		} forStmnt;
@@ -253,12 +252,12 @@ struct Node
 
 		struct
 		{
-			TokenIndex token;
+			Token* token;
 		} continueStmnt;
 
 		struct
 		{
-			TokenIndex token;
+			Token* token;
 		} breakStmnt;
 
 		struct
@@ -291,7 +290,7 @@ struct Node
 		nodeID = NodeID::InvalidNode;
 	}
 
-	Node(NodeID nodeID, TokenIndex start, ScopeIndex scope)
+	Node(NodeID nodeID, Token* start, ScopeIndex scope)
 	{
 		this->nodeID = nodeID;
 		this->start = start;

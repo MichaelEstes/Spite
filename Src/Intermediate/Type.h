@@ -4,10 +4,6 @@
 
 #include "../Tokens/Tokens.h"
 
-typedef size_t NodeIndex;
-typedef size_t TokenIndex;
-typedef size_t ScopeIndex;
-
 struct Node;
 struct Expr;
 
@@ -41,7 +37,7 @@ struct Type
 
 		struct
 		{
-			TokenIndex typeName;
+			Token* typeName;
 		} namedType;
 
 		struct
@@ -51,19 +47,19 @@ struct Type
 
 		struct
 		{
-			eastl::vector<TokenIndex>* identifiers;
+			eastl::vector<Token*>* identifiers;
 		} implicitType;
 
 		struct
 		{
 			bool raw;
-			TokenIndex ptr;
+			Token* ptr;
 			Type* type;
 		} pointerType;
 
 		struct
 		{
-			TokenIndex arr;
+			Token* arr;
 			Type* type;
 		} arrayType;
 
@@ -81,8 +77,8 @@ struct Type
 
 		struct
 		{
-			TokenIndex packageName;
-			TokenIndex typeName;
+			Token* packageName;
+			Token* typeName;
 		} importedType;
 
 	};

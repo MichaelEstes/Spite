@@ -4,10 +4,6 @@
 
 #include "../Tokens/Tokens.h"
 
-typedef size_t NodeIndex;
-typedef size_t TokenIndex;
-typedef size_t ScopeIndex;
-
 struct Node;
 struct Body;
 struct Type;
@@ -39,23 +35,23 @@ enum ExprID
 struct Expr
 {
 	ExprID typeID;
-	TokenIndex start;
+	Token* start;
 
 	union {
 		struct
 		{
-			TokenIndex val;
+			Token* val;
 			UniqueType type;
 		} literalExpr;
 
 		struct
 		{
-			TokenIndex identifier;
+			Token* identifier;
 		} identfierExpr;
 
 		struct
 		{
-			TokenIndex primitive;
+			Token* primitive;
 		} primitiveExpr;
 
 		struct
@@ -68,28 +64,28 @@ struct Expr
 		{
 			Expr* of;
 			Expr* index;
-			TokenIndex lBrack;
-			TokenIndex rBrack;
+			Token* lBrack;
+			Token* rBrack;
 		} indexExpr;
 
 		struct
 		{
 			Expr* function;
 			eastl::vector<Expr*>* params;
-			TokenIndex lParen;
-			TokenIndex rParen;
+			Token* lParen;
+			Token* rParen;
 		} functionCallExpr;
 
 		struct
 		{
-			TokenIndex newIndex;
+			Token* newIndex;
 			Expr* primaryExpr;
 			Expr* atExpr;
 		} newExpr;
 
 		struct
 		{
-			TokenIndex fixed;
+			Token* fixed;
 			Expr* atExpr;
 		} fixedExpr;
 
@@ -107,43 +103,43 @@ struct Expr
 		struct
 		{
 			Expr* of;
-			TokenIndex op;
+			Token* op;
 		} dereferenceExpr;
 
 		struct
 		{
 			Expr* of;
-			TokenIndex op;
+			Token* op;
 		} referenceExpr;
 
 		struct
 		{
 			Expr* left;
 			Expr* right;
-			TokenIndex op;
+			Token* op;
 			UniqueType opType;
 		} binaryExpr;
 
 		struct
 		{
 			Expr* expr;
-			TokenIndex op;
+			Token* op;
 			UniqueType opType;
 		} unaryExpr;
 
 		struct
 		{
 			Expr* expr;
-			TokenIndex lParen;
-			TokenIndex rParen;
+			Token* lParen;
+			Token* rParen;
 		} groupedExpr;
 
 		struct
 		{
 			Expr* expr;
 			eastl::vector<Type>* types;
-			TokenIndex open;
-			TokenIndex close;
+			Token* open;
+			Token* close;
 		} genericsExpr;
 
 		struct
@@ -164,7 +160,7 @@ struct Expr
 		} compileExpr;
 	};
 
-	Expr(ExprID typeID, TokenIndex start)
+	Expr(ExprID typeID, Token* start)
 	{
 		this->typeID = typeID;
 		this->start = start;
@@ -180,11 +176,11 @@ struct Expr
 		*this = copy;
 	}
 
-	Expr(TokenIndex start, Token* op, Expr* left, Expr* right)
+	Expr(Token* start, Token* op, Expr* left, Expr* right)
 	{
 		typeID = ExprID::BinaryExpr;
 		this->start = start;
-		this->binaryExpr.op = op->index;
+		this->binaryExpr.op = op;
 		this->binaryExpr.opType = op->uniqueType;
 		this->binaryExpr.left = left;
 		this->binaryExpr.right = right;
