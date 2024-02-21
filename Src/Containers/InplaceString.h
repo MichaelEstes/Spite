@@ -1,5 +1,7 @@
 #pragma once
 #include "EASTL/string.h"
+#include "llvm/ADT/StringRef.h"
+
 struct InplaceString
 {
 	char* start;
@@ -17,7 +19,7 @@ struct InplaceString
 		last = toCopy.last;
 		count = toCopy.count;
 	}
-	
+
 	inline void Clear()
 	{
 		count = 0;
@@ -71,7 +73,14 @@ struct InplaceString
 
 inline bool operator==(const InplaceString& l, const InplaceString& r)
 {
-	return l.start == r.start && l.last == r.last;
+	if (l.count != r.count) return false;
+
+	for (int i = 0; i < l.count; i++)
+	{
+		if (l[i] != r[i]) return false;
+	}
+
+	return true;
 }
 
 struct InplaceStringHash
@@ -79,9 +88,9 @@ struct InplaceStringHash
 	size_t operator()(const InplaceString& str) const
 	{
 		size_t result = 0;
-		for (int i = 0; i < str.count; i++) 
+		for (int i = 0; i < str.count; i++)
 			result += (i * 0xDEAD) ^ str[i];
-		
+
 		return result;
 	}
 };

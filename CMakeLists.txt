@@ -2,6 +2,7 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.8)
+project ("Spite_Lang")
 
 set(EASTL_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../EASTL)
 include_directories (${EASTL_ROOT_DIR}/include)
@@ -12,13 +13,19 @@ include_directories (${EASTL_ROOT_DIR}/test/packages/EAStdC/include)
 include_directories (${EASTL_ROOT_DIR}/test/packages/EATest/include)
 include_directories (${EASTL_ROOT_DIR}/test/packages/EAThread/include)
 
+find_package(LLVM REQUIRED CONFIG)
+
+message(${LLVM_INCLUDE_DIRS})
+
+include_directories(${LLVM_INCLUDE_DIRS})
+separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+add_definitions(${LLVM_DEFINITIONS_LIST})
+
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
-
-project ("Spite_Lang")
 
 # Add source to this project's executable.
 add_executable (Spite_Lang 
@@ -27,7 +34,8 @@ add_executable (Spite_Lang
 "Src/Intermediate/SymbolTable.h" "Src/Utils/Profiler.h" "Src/Tokens/TokenTree.h" "Src/Containers/Flags.h"
 "Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/InplaceString.h" "Src/Log/Errors.h"
 "Src/Containers/Arena.h" "Src/Intermediate/Type.h" "Src/Intermediate/Expr.h" "Src/Intermediate/Node.h" 
-"Src/Config/BuildConfig.h"  "Src/Config/Config.h")
+"Src/Config/BuildConfig.h"  "Src/Config/Config.h" "Src/Containers/Table.h" "Src/Output/LLVM/LLVMBuilder.h" 
+"Src/Intermediate/Checker.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
@@ -43,8 +51,10 @@ else()
 	set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
 	set(EASTL_LIBRARY debug ${EASTL_ROOT_DIR}/lib/libEASTL.a optimized ${EASTL_ROOT_DIR}/lib/libEASTL.a)
-	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/build)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/out/build)
 endif()
 
-target_link_libraries(Spite_Lang ${EASTL_LIBRARY})
+llvm_map_components_to_libnames(llvm_libs support core irreader)
+
+target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs})
 # TODO: Add tests and install targets if needed.

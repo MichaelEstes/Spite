@@ -453,9 +453,10 @@ struct Syntax
 	Tokens& tokens;
 	Scope currScope;
 	Token* curr;
-	SymbolTable symbolTable;
+	SymbolTable* symbolTable;
 	Errors errors;
 
+	size_t nodeCount;
 	eastl::vector<Node*> nodes;
 	eastl::vector<Scope> scopes;
 	eastl::vector<Node*> imports;
@@ -465,6 +466,7 @@ struct Syntax
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
+		nodeCount = 0;
 		nodes = eastl::vector<Node*>();
 		scopes = eastl::vector<Scope>();
 		imports = eastl::vector<Node*>();
@@ -502,6 +504,7 @@ struct Syntax
 
 	inline Node* CreateNode(Token* start, NodeID nodeID)
 	{
+		nodeCount += 1;
 		return arena->Emplace<Node>(nodeID, start, currScope.index);
 	}
 
@@ -550,37 +553,27 @@ struct Syntax
 		return currScope.index == 0 && currScope.parent == 0;
 	}
 
-	/*const size_t breakCount = 100000;
-	size_t lastTokenIndex = -1;
-	size_t sameCount = 0;*/
 	inline bool IsEOF()
 	{
-		/*if (curr->index != lastTokenIndex)
-		{
-			lastTokenIndex = curr->index;
-			sameCount = 0;
-		}
-		else
-		{
-			sameCount += 1;
-			if (sameCount > breakCount) Logger::FatalErrorAt(errors.fatalError, curr->pos);
-		}*/
-		return curr->type == TokenType::EndOfFile;
+		return curr->type & TokenType::EndOfFile;
 	}
 
 	void BuildSyntax()
 	{
-		arena = new Arena((tokens.tokens.size() / 4) * sizeof(Node));
+		arena = new Arena((tokens.tokens.size() / 2) * sizeof(Node));
+		symbolTable = arena->Emplace<SymbolTable>();
 		curr = tokens.First();
 
 		ParseComments();
 		ParsePackage();
+		symbolTable->package = package;
 
 		while (!IsEOF())
 		{
 			ParseNext();
 		}
 
+		Logger::Info("Created " + eastl::to_string(nodeCount) + " Nodes");
 		Print();
 	}
 
@@ -684,6 +677,7 @@ struct Syntax
 			if (assignment->nodeID != NodeID::InvalidNode)
 			{
 				AddNode(assignment);
+				symbolTable->AddGlobalVal(assignment);
 				return;
 			}
 		}
@@ -774,6 +768,7 @@ struct Syntax
 					node->end = curr;
 					Advance();
 					AddNode(node);
+					symbolTable->AddState(node);
 				}
 			}
 		}
@@ -846,6 +841,7 @@ struct Syntax
 				node->end = node->compileStmnt.compileExpr->compileExpr.body->body->end;
 			}
 
+			symbolTable->AddOnCompile(node);
 			AddNode(node);
 		}
 	}
@@ -858,6 +854,8 @@ struct Syntax
 		if (node->compileDebugStmnt.body)
 		{
 			node->end = node->compileDebugStmnt.body.body->end;
+
+			symbolTable->AddOnCompile(node);
 			AddNode(node);
 		}
 	}
@@ -915,6 +913,7 @@ struct Syntax
 					node->function.name = name;
 					node->function.decl = ParseFunctionDecl();
 					node->end = node->function.decl->end;
+					symbolTable->AddFunction(node);
 					return node;
 				}
 			}
@@ -940,6 +939,7 @@ struct Syntax
 			{
 				node->method.decl = ParseFunctionDecl();
 				node->end = node->method.decl->end;
+				symbolTable->AddMethod(node);
 				return node;
 			}
 			break;
@@ -962,6 +962,7 @@ struct Syntax
 					{
 						op->stateOperator.decl = ParseFunctionDecl();
 						op->end = op->stateOperator.decl->end;
+						symbolTable->AddOperator(op);
 						return op;
 					}
 				}
@@ -977,6 +978,7 @@ struct Syntax
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
 			del->destructor.body = ParseBody();
+			symbolTable->SetDestructor(del);
 			return del;
 		}
 		case UniqueType::Lparen:
@@ -984,6 +986,7 @@ struct Syntax
 			Node* con = CreateNode(start, NodeID::Constructor);
 			con->constructor.stateName = name;
 			con->constructor.decl = ParseFunctionDecl();
+			symbolTable->AddConstructor(con);
 			return con;
 		}
 		default:

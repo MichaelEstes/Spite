@@ -4,6 +4,9 @@
 #include "../Tokens/Tokens.h"
 #include "../Intermediate/Syntax.h"
 #include "../Utils/Profiler.h"
+#include "../Intermediate/Checker.h"
+
+#include "../Output//LLVM/LLVMBuilder.h"
 
 extern Config config;
 
@@ -24,7 +27,7 @@ bool Parser::Parse()
 	scanner.Finalize();
 	tokens.Finalize();
 
-	if (Logger::HasErrors()) 
+	if (Logger::HasErrors())
 	{
 		Logger::PrintErrors();
 		return false;
@@ -44,6 +47,38 @@ bool Parser::Parse()
 
 	elapsedScanTime = profiler.End();
 	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + config.file);
+
+	profiler = Profiler();
+
+	Checker checker = Checker(syntax);
+	checker.Check();
+
+	if (Logger::HasErrors())
+	{
+		Logger::PrintErrors();
+		return false;
+	}
+
+	elapsedScanTime = profiler.End();
+	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
+
+
+	switch (config.output)
+	{
+	case Llvm:
+	{
+		LLVMBuilder builder = LLVMBuilder(syntax);
+		break;
+	}
+	case C:
+		break;
+	case Ir:
+		break;
+	case OutputInvalid:
+		break;
+	default:
+		break;
+	}
 
 	return true;
 }

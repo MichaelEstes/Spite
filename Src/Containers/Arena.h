@@ -21,13 +21,13 @@ struct Arena
 	size_t chunkSize;
 	std::function<size_t(size_t)> getNewChunkSize;
 
-	Arena() : chunkSize(defaultChunkSize), getNewChunkSize([](size_t size) -> size_t { return size; })
+	Arena() : chunkSize(defaultChunkSize), getNewChunkSize([](size_t size) -> size_t { return size * 2; })
 	{
 		CreateChunk();
 	}
 
-	Arena(size_t chunkSize, 
-		std::function<size_t(size_t)> getNewChunkSize = [](size_t size) -> size_t { return size; }) 
+	Arena(size_t chunkSize,
+		std::function<size_t(size_t)> getNewChunkSize = [](size_t size) -> size_t { return size * 2; })
 		: chunkSize(chunkSize), getNewChunkSize(getNewChunkSize)
 	{
 		CreateChunk();
@@ -65,11 +65,11 @@ struct Arena
 
 	~Arena()
 	{
-		delete[] (char*)chunk.start;
+		delete[](char*)chunk.start;
 
 		for (Chunk curr : prevChunks)
 		{
-			delete[] (char*)curr.start;
+			delete[](char*)curr.start;
 		}
 	}
 };
