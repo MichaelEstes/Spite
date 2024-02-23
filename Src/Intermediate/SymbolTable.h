@@ -59,7 +59,7 @@ struct SymbolTable
 
 	void AddGlobalVal(Node* globalVal)
 	{
-		functionMap[globalVal->definition.name->val] = globalVal;
+		globalValMap[globalVal->definition.name->val] = globalVal;
 	}
 
 	void AddOnCompile(Node* compile)

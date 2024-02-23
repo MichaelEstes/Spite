@@ -68,6 +68,7 @@ bool Parser::Parse()
 	case Llvm:
 	{
 		LLVMBuilder builder = LLVMBuilder(syntax);
+		builder.Build();
 		break;
 	}
 	case C:
