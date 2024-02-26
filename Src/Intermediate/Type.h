@@ -16,6 +16,7 @@ enum TypeID
 	ExplicitType,
 	ImplicitType,
 	PointerType,
+	ValueType,
 	ArrayType,
 	GenericsType,
 	FunctionType,
@@ -52,10 +53,16 @@ struct Type
 
 		struct
 		{
-			bool raw;
+			bool valuePtr;
 			Token* ptr;
 			Type* type;
 		} pointerType;
+
+		struct
+		{
+			Token* valueOp;
+			Type* type;
+		} valueType;
 
 		struct
 		{
@@ -118,6 +125,9 @@ struct Type
 			break;
 		case PointerType:
 			pointerType = copy.pointerType;
+			break;
+		case ValueType:
+			valueType = copy.valueType;
 			break;
 		case ArrayType:
 			arrayType = copy.arrayType;

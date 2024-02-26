@@ -21,7 +21,6 @@ enum NodeID
 	Function,
 	FunctionDecl,
 	StateStmnt,
-	InsetStmnt,
 	GenericsDecl,
 	WhereStmnt,
 	Method,
@@ -48,9 +47,10 @@ enum NodeID
 enum InsetID
 {
 	SizeInset,
-	NullInset,
+	SOAInset,
 	SerializedInset,
 	NoAlignInset,
+	InvalidInset
 };
 
 struct Body
@@ -135,12 +135,8 @@ struct Node
 			Token* name;
 			Node* generics;
 			eastl::vector<Node*>* members;
+			eastl::vector<InsetID>* insets;
 		} state;
-
-		struct
-		{
-			InsetID type;
-		} insetStmnt;
 
 		struct
 		{
@@ -337,9 +333,6 @@ struct Node
 			break;
 		case StateStmnt:
 			state = copy.state;
-			break;
-		case InsetStmnt:
-			insetStmnt = copy.insetStmnt;
 			break;
 		case GenericsDecl:
 			generics = copy.generics;

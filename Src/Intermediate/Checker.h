@@ -39,8 +39,6 @@ struct Checker
 			break;
 		case StateStmnt:
 			break;
-		case InsetStmnt:
-			break;
 		case GenericsDecl:
 			break;
 		case WhereStmnt:

@@ -62,7 +62,7 @@ bool Parser::Parse()
 	elapsedScanTime = profiler.End();
 	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
 
-
+	profiler = Profiler();
 	switch (config.output)
 	{
 	case Llvm:
@@ -80,6 +80,9 @@ bool Parser::Parse()
 	default:
 		break;
 	}
+
+	elapsedScanTime = profiler.End();
+	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output for " + config.file);
 
 	return true;
 }

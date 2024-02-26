@@ -45,6 +45,8 @@ enum UniqueType
 	FloatLiteral,
 	HexLiteral,
 	StringLiteral,
+	TrueLiteral,
+	FalseLiteral,
 
 	// TopLevelKeywords 
 	Using,
@@ -80,6 +82,7 @@ enum UniqueType
 	Float,
 	Float32,
 	Float64,
+	Float128,
 	String,
 
 	// FlowControlKeywords 
@@ -101,7 +104,7 @@ enum UniqueType
 	Fixed,
 	Delete,
 	Pointer,
-	Rawpointer,
+	ValuePointer,
 	As,
 	At,
 
@@ -641,7 +644,11 @@ public:
 		{ "float", TokenType::Primitive, UniqueType::Float },
 		{ "float32", TokenType::Primitive, UniqueType::Float32 },
 		{ "float64", TokenType::Primitive, UniqueType::Float64 },
+		{ "float128", TokenType::Primitive, UniqueType::Float128 },
 		{ "string", TokenType::Primitive, UniqueType::String },
+
+		{ "true", TokenType::Literal, UniqueType::TrueLiteral },
+		{ "false", TokenType::Literal, UniqueType::FalseLiteral },
 
 		{ "if", TokenType::Flow, UniqueType::If },
 		{ "else", TokenType::Flow, UniqueType::Else },
@@ -659,7 +666,7 @@ public:
 		{ "new", TokenType::Decorator, UniqueType::New },
 		{ "fixed", TokenType::Decorator, UniqueType::Fixed },
 		{ "delete", TokenType::Decorator, UniqueType::Delete },
-		{ "~*", TokenType::Decorator, UniqueType::Rawpointer },
+		{ "~*", TokenType::Decorator, UniqueType::ValuePointer },
 		{ "as", TokenType::Decorator, UniqueType::As },
 		{ "at", TokenType::Decorator, UniqueType::At },
 		{ "=>", TokenType::Decorator, UniqueType::FatArrow },

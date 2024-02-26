@@ -40,6 +40,24 @@ namespace EA::StdC
 }
 
 Config config;
+int targetArchBitWidth;
+
+int GetTargetArchBitWidth()
+{
+	switch (config.arch)
+	{
+	case X64:
+		return 64;
+	case X86:
+		return 32;
+	case Arm32:
+		return 32;
+	case Arm64:
+		return 64;
+	default:
+		return 64;
+	}
+}
 
 int main(int argc, char** argv)
 {
@@ -49,6 +67,7 @@ int main(int argc, char** argv)
 		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
 
 	config = ParseConfig(argc, argv);
+	targetArchBitWidth = GetTargetArchBitWidth();
 
 	Parser parser = Parser();
 	if (!parser.Parse())

@@ -13,6 +13,7 @@
 #include "Expr.h"
 #include "SymbolTable.h"
 
+extern int targetArchBitWidth;
 
 eastl::string ToString(Expr* expr);
 eastl::string ToString(Type* type);
@@ -150,6 +151,32 @@ eastl::string ToString(Node* node)
 	}
 	case StateStmnt:
 	{
+		eastl::string insets = "";
+		for (InsetID inset : *node->state.insets)
+		{
+			eastl::string insetStr = "[";
+			switch (inset)
+			{
+			case SizeInset:
+				insetStr += "size";
+				break;
+			case SOAInset:
+				insetStr += "soa";
+				break;
+			case SerializedInset:
+				insetStr += "serialized";
+				break;
+			case NoAlignInset:
+				insetStr += "noalign";
+				break;
+			default:
+				break;
+			}
+			insetStr += "],\n";
+			insets += insetStr;
+		}
+
+
 		eastl::string members = "";
 		for (Node* member : *node->state.members)
 		{
@@ -159,30 +186,7 @@ eastl::string ToString(Node* node)
 		return node->start->ToString() + " " +
 			node->state.name->ToString() +
 			(node->state.generics ? ToString(node->state.generics) : "") +
-			"\n{\n" + members + "}\n";
-	}
-	case InsetStmnt:
-	{
-		eastl::string inset = "";
-		switch (node->insetStmnt.type)
-		{
-		case SizeInset:
-			inset = "size";
-			break;
-		case NullInset:
-			inset = "null";
-			break;
-		case SerializedInset:
-			inset = "serialized";
-			break;
-		case NoAlignInset:
-			inset = "noalign";
-			break;
-		default:
-			break;
-		}
-
-		return node->start->ToString() + inset + node->end->ToString();
+			"\n{\n" + insets + members + "}\n";
 	}
 	case GenericsDecl:
 	{
@@ -403,6 +407,8 @@ eastl::string ToString(Type* type)
 	}
 	case PointerType:
 		return type->pointerType.ptr->ToString() + ToString(type->pointerType.type);
+	case ValueType:
+		return type->valueType.valueOp->ToString() + ToString(type->valueType.type);
 	case ArrayType:
 		return type->arrayType.arr->ToString() + ToString(type->arrayType.type);
 	case GenericsType:
@@ -743,6 +749,7 @@ struct Syntax
 		{
 			node->state.name = curr;
 			node->state.members = CreateVectorPtr<Node*>();
+			node->state.insets = CreateVectorPtr<InsetID>();
 			Advance();
 			node->state.generics = ParseGenerics();
 
@@ -758,8 +765,7 @@ struct Syntax
 
 				while (!Expect(UniqueType::Rbrace) && !IsEOF())
 				{
-					Node* member = ParseStateMember();
-					if (member->nodeID != NodeID::InvalidNode) node->state.members->push_back(member);
+					ParseStateMember(node);
 					if (Expect(UniqueType::Comma)) Advance();
 				}
 
@@ -774,11 +780,17 @@ struct Syntax
 		}
 	}
 
-	Node* ParseStateMember()
+	void ParseStateMember(Node* state)
 	{
-		if (Expect(UniqueType::Lbrack)) return ParseStateInset();
+		if (Expect(UniqueType::Lbrack))
+		{
+			InsetID inset = ParseStateInset();
+			if (inset != InsetID::InvalidInset) state->state.insets->push_back(inset);
+			return;
+		}
 
-		return ParseDeclOrDef();
+		Node* member = ParseDeclOrDef();
+		if (member->nodeID != NodeID::InvalidNode) state->state.members->push_back(member);
 	}
 
 	Node* ParseDeclOrDef()
@@ -789,37 +801,34 @@ struct Syntax
 		return node;
 	}
 
-	Node* ParseStateInset()
+	InsetID ParseStateInset()
 	{
-		Node* node = CreateNode(curr, NodeID::InsetStmnt);
 		Advance();
 
 		if (Expect(TokenType::Identifier, errors.expectedInsetName))
 		{
-			if (curr->val == "size") node->insetStmnt.type = InsetID::SizeInset;
-			else if (curr->val == "null") node->insetStmnt.type = InsetID::NullInset;
-			else if (curr->val == "serialized") node->insetStmnt.type = InsetID::SerializedInset;
-			else if (curr->val == "noalign") node->insetStmnt.type = InsetID::NoAlignInset;
+			InsetID inset = InsetID::InvalidInset;
+			if (curr->val == "size") inset = InsetID::SizeInset;
+			else if (curr->val == "soa") inset = InsetID::SOAInset;
+			else if (curr->val == "serialized") inset = InsetID::SerializedInset;
+			else if (curr->val == "noalign") inset = InsetID::NoAlignInset;
 			else
 			{
 				AddError(curr, errors.expectedInsetName);
 				Advance();
 				if (Expect(UniqueType::Rbrack)) Advance();
-				node->nodeID = NodeID::InvalidNode;
-				return node;
+				return inset;
 			}
 
 			Advance();
 			if (Expect(UniqueType::Rbrack, errors.expectedInsetClose))
 			{
-				node->end = curr;
 				Advance();
-				return node;
+				return inset;
 			}
 		}
 
-		node->nodeID = NodeID::InvalidNode;
-		return node;
+		return InsetID::InvalidInset;
 	}
 
 	void ParseCompile()
@@ -1666,8 +1675,12 @@ struct Syntax
 				break;
 
 			case UniqueType::Multiply:
-			case UniqueType::Rawpointer:
+			case UniqueType::ValuePointer:
 				type = ParsePointerType();
+				break;
+
+			case UniqueType::Tilde:
+				type = ParseValueType();
 				break;
 
 			case UniqueType::Array:
@@ -1696,11 +1709,23 @@ struct Syntax
 	Type ParsePointerType()
 	{
 		Type ptrType = Type(TypeID::PointerType);
-		ptrType.pointerType.raw = Expect(UniqueType::Rawpointer);
+		ptrType.pointerType.valuePtr = Expect(UniqueType::ValuePointer);
 		ptrType.pointerType.ptr = curr;
 		Advance();
 		ptrType.pointerType.type = CreateTypePtr(ParseDeclarationType());
 		return ptrType;
+	}
+
+	Type ParseValueType()
+	{
+		Type valueType = Type(TypeID::ValueType);
+		valueType.valueType.valueOp = curr;
+		Advance();
+		Type* type = CreateTypePtr(ParseDeclarationType());
+		if (type->typeID == TypeID::ValueType)
+			AddError(curr, errors.nestedValueType);
+		valueType.valueType.type = type;
+		return valueType;
 	}
 
 	Type ParseArrayType()
@@ -2010,12 +2035,6 @@ struct Syntax
 		case UniqueType::Name:
 			return ParseIdentifierExpr();
 
-		case UniqueType::IntLiteral:
-		case UniqueType::FloatLiteral:
-		case UniqueType::HexLiteral:
-		case UniqueType::StringLiteral:
-			return ParseLiteralExpr();
-
 		case UniqueType::Lparen:
 			return ParseGroupedExpr();
 
@@ -2036,6 +2055,9 @@ struct Syntax
 		default:
 			switch (curr->type)
 			{
+			case TokenType::Literal:
+				return ParseLiteralExpr();
+
 			case TokenType::Primitive:
 				return ParsePrimitiveExpr();
 
@@ -2338,11 +2360,6 @@ struct Syntax
 		}
 	}
 
-	size_t GetTargetArchBitWidth()
-	{
-		return 64;
-	}
-
 	bool IsAssignableExpr(Expr* expr)
 	{
 		ExprID type = expr->typeID;
@@ -2457,7 +2474,7 @@ struct Syntax
 			type.primitiveType.isSigned = false;
 			break;
 		case UniqueType::Bool:
-			type.primitiveType.size = 8;
+			type.primitiveType.size = 1;
 			type.primitiveType.isSigned = true;
 			break;
 		case UniqueType::Byte:
@@ -2469,7 +2486,7 @@ struct Syntax
 			type.primitiveType.isSigned = false;
 			break;
 		case UniqueType::Int:
-			type.primitiveType.size = GetTargetArchBitWidth();
+			type.primitiveType.size = targetArchBitWidth;
 			type.primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int16:
@@ -2489,7 +2506,7 @@ struct Syntax
 			type.primitiveType.isSigned = true;
 			break;
 		case UniqueType::Uint:
-			type.primitiveType.size = GetTargetArchBitWidth();
+			type.primitiveType.size = targetArchBitWidth;
 			type.primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint16:
@@ -2509,7 +2526,7 @@ struct Syntax
 			type.primitiveType.isSigned = false;
 			break;
 		case UniqueType::Float:
-			type.primitiveType.size = GetTargetArchBitWidth();
+			type.primitiveType.size = targetArchBitWidth;
 			type.primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float32:
@@ -2521,7 +2538,7 @@ struct Syntax
 			type.primitiveType.isSigned = true;
 			break;
 		case UniqueType::String:
-			type.primitiveType.size = GetTargetArchBitWidth() * 2;
+			type.primitiveType.size = targetArchBitWidth * 2;
 			type.primitiveType.isSigned = false;
 			break;
 		default:

@@ -32,6 +32,7 @@ struct Errors {
 	const eastl::string emptyIndex = "Unexpected empty index ('[]') in expression";
 	const eastl::string unclosedIndex = "Expected ']' after index expression";
 
+	const eastl::string nestedValueType = "Cannot have a value type of a value type (ie. ~~MyType)";
 	const eastl::string emptyAnonymousType = "Found empty anonymous type";
 
 	const eastl::string expectedImportedType = "Expected identifier after selector ('.') in declaration type";

@@ -79,7 +79,9 @@
 
 <pointerType> := * <type>
 
-<rawPointerType> := ~* <type>
+<uniquePointerType> := ~* <type>
+
+<valueType> := ~ <type>
 
 <arrayType> := <bracket></bracket> <type>
 
