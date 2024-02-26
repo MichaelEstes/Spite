@@ -186,11 +186,6 @@ struct LLVMBuilder
 	{
 		for (auto& [key, value] : syntax.symbolTable->globalValMap)
 		{
-		
-		}
-
-		for (auto& [key, value] : syntax.symbolTable->globalValMap)
-		{
 			auto& decl = value->definition;
 			LType* type = TypeToLType(decl.type);
 			Constant* initialValue = ConstantInt::get(type, 42);
