@@ -33,7 +33,7 @@ struct Checker
 			break;
 		case InlineDefinition:
 			break;
-		case Function:
+		case FunctionStmnt:
 			break;
 		case FunctionDecl:
 			break;

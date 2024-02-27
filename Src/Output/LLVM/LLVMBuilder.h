@@ -17,6 +17,8 @@ using LLVMContext = llvm::LLVMContext;
 using Module = llvm::Module;
 using IRBuilder = llvm::IRBuilder<>;
 using StructType = llvm::StructType;
+using LFunctionType = llvm::FunctionType;
+using Function = llvm::Function;
 using Constant = llvm::Constant;
 using ConstantInt = llvm::ConstantInt;
 using GlobalVariable = llvm::GlobalVariable;
@@ -78,6 +80,7 @@ struct LLVMBuilder
 	void Build()
 	{
 		BuildTypes();
+
 		BuildGlobals();
 
 		module->print(llvm::outs(), nullptr);
@@ -102,7 +105,7 @@ struct LLVMBuilder
 			}
 
 			StructType* structType = StructType::getTypeByName(context, ToStringRef(key));
-			structType->setBody(llvm::ArrayRef<LType*>(members.begin(), members.end()));
+			structType->setBody(ToArrayRef<LType*>(members));
 
 			structType->print(llvm::outs(), true);
 			std::cout << '\n';
@@ -182,6 +185,25 @@ struct LLVMBuilder
 		}
 	}
 
+	void BuildFunction()
+	{
+		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		{
+			auto& func = value->function;
+			auto& decl = func.decl->functionDecl;
+			eastl::vector<LType*> params = eastl::vector<LType*>();
+			for (Node* node : *decl.parameters)
+			{
+				Type& type = node->definition.type;
+				LType* lType = TypeToLType(type);
+				if (lType) params.push_back(lType);
+			}
+			LType* returnType = TypeToLType(func.returnType);
+			LFunctionType* functionType = LFunctionType::get(returnType, ToArrayRef<LType*>(params), false);
+			Function::Create(functionType, Function::ExternalLinkage, ToStringRef(key), module);
+		}
+	}
+
 	void BuildGlobals()
 	{
 		for (auto& [key, value] : syntax.symbolTable->globalValMap)
@@ -205,4 +227,9 @@ struct LLVMBuilder
 		return StringRef(str.start, str.count);
 	}
 
+	template<typename T>
+	inline llvm::ArrayRef<T> ToArrayRef(const eastl::vector<T>& vec)
+	{
+		return llvm::ArrayRef<T>(vec.begin(), vec.end());
+	}
 };

@@ -64,14 +64,15 @@ struct Flags
 
 	void SetAll()
 	{
-		for (unsigned int i = 0; i < count; i++) flags[i] = 0;
+		for (unsigned int i = 0; i < count; i++) flags[i] = 1;
 	}
 
 	inline bool operator [](unsigned int i) const 
 	{ 
 		int index = i / bitCount;
 		int offset = i % bitCount;
-		return (bool)(flags[index] << offset) & 1;
+		int ret = (flags[index] >> offset) & 1;
+		return ret;
 	}
 
 	inline Flags& operator=(const Flags& toCopy)

@@ -5,6 +5,7 @@
 #include "../Tokens/Tokens.h"
 #include "Expr.h"
 #include "Type.h"
+#include "../Containers/Flags.h"
 
 typedef size_t NodeIndex;
 typedef size_t ScopeIndex;
@@ -18,7 +19,7 @@ enum NodeID
 	PackageStmnt,
 	Definition,
 	InlineDefinition,
-	Function,
+	FunctionStmnt,
 	FunctionDecl,
 	StateStmnt,
 	GenericsDecl,
@@ -135,7 +136,7 @@ struct Node
 			Token* name;
 			Node* generics;
 			eastl::vector<Node*>* members;
-			eastl::vector<InsetID>* insets;
+			Flags<>* insetFlags;
 		} state;
 
 		struct
@@ -325,7 +326,7 @@ struct Node
 		case InlineDefinition:
 			inlineDefinition = copy.inlineDefinition;
 			break;
-		case Function:
+		case FunctionStmnt:
 			function = copy.function;
 			break;
 		case FunctionDecl:

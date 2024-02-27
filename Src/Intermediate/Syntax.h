@@ -45,7 +45,7 @@ eastl::string ToString(Node* node)
 		return ToString(&node->inlineDefinition.type) +
 			" " + node->inlineDefinition.op->ToString() + " " +
 			ToString(node->inlineDefinition.assignment);
-	case Function:
+	case FunctionStmnt:
 		return ToString(&node->function.returnType) + " " +
 			node->function.name->ToString() +
 			(node->function.generics != nullptr ? ToString(node->function.generics) : "") +
@@ -152,30 +152,11 @@ eastl::string ToString(Node* node)
 	case StateStmnt:
 	{
 		eastl::string insets = "";
-		for (InsetID inset : *node->state.insets)
-		{
-			eastl::string insetStr = "[";
-			switch (inset)
-			{
-			case SizeInset:
-				insetStr += "size";
-				break;
-			case SOAInset:
-				insetStr += "soa";
-				break;
-			case SerializedInset:
-				insetStr += "serialized";
-				break;
-			case NoAlignInset:
-				insetStr += "noalign";
-				break;
-			default:
-				break;
-			}
-			insetStr += "],\n";
-			insets += insetStr;
-		}
-
+		Flags<>* flags = node->state.insetFlags;
+		if ((*flags)[SizeInset]) insets += "[size]\n";
+		if ((*flags)[SOAInset]) insets += "[soa]\n";
+		if ((*flags)[SerializedInset]) insets += "[serialized]\n";
+		if ((*flags)[NoAlignInset]) insets += "[noalign]\n";
 
 		eastl::string members = "";
 		for (Node* member : *node->state.members)
@@ -749,7 +730,7 @@ struct Syntax
 		{
 			node->state.name = curr;
 			node->state.members = CreateVectorPtr<Node*>();
-			node->state.insets = CreateVectorPtr<InsetID>();
+			node->state.insetFlags = arena->Emplace<Flags<>>();
 			Advance();
 			node->state.generics = ParseGenerics();
 
@@ -785,7 +766,7 @@ struct Syntax
 		if (Expect(UniqueType::Lbrack))
 		{
 			InsetID inset = ParseStateInset();
-			if (inset != InsetID::InvalidInset) state->state.insets->push_back(inset);
+			if (inset != InsetID::InvalidInset) state->state.insetFlags->Set(inset);
 			return;
 		}
 
@@ -905,7 +886,7 @@ struct Syntax
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
 		{
-			Node* node = CreateNode(start, NodeID::Function);
+			Node* node = CreateNode(start, NodeID::FunctionStmnt);
 			Token* name = curr;
 			Advance();
 
