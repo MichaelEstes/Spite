@@ -1,6 +1,7 @@
 #pragma once
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -23,10 +24,15 @@ using Constant = llvm::Constant;
 using ConstantInt = llvm::ConstantInt;
 using GlobalVariable = llvm::GlobalVariable;
 using GlobalValue = llvm::GlobalValue;
+using BasicBlock = llvm::BasicBlock;
+using AllocaInst = llvm::AllocaInst;
+using Value = llvm::Value;
 using StringRef = llvm::StringRef;
 
 struct LPrimitives
 {
+	LType* voidType;
+
 	LType* boolType;
 	LType* byteType;
 
@@ -43,6 +49,8 @@ struct LPrimitives
 
 	LPrimitives(LLVMContext& context)
 	{
+		voidType = LType::getVoidTy(context);
+
 		boolType = LType::getInt1Ty(context);
 		byteType = LType::getInt8Ty(context);
 
@@ -63,25 +71,28 @@ struct LLVMBuilder
 {
 	Syntax& syntax;
 	LLVMContext context;
-	IRBuilder builder;
+	IRBuilder* builder;
 	Module* module;
 	LPrimitives primitives;
+	eastl::hash_map<InplaceString, AllocaInst*, InplaceStringHash> localVariableMap;
 
-	LLVMBuilder(Syntax& syntax) : syntax(syntax), builder(context), primitives(context)
+	LLVMBuilder(Syntax& syntax) : syntax(syntax), primitives(context)
 	{
 		module = new Module(ToStringRef(syntax.package->package.name->val), context);
+		builder = new IRBuilder(context);
 	}
 
 	~LLVMBuilder()
 	{
 		delete module;
+		delete builder;
 	}
 
 	void Build()
 	{
 		BuildTypes();
-
 		BuildGlobals();
+		BuildFunctions();
 
 		module->print(llvm::outs(), nullptr);
 	}
@@ -151,6 +162,8 @@ struct LLVMBuilder
 	{
 		switch (primitive)
 		{
+		case Void:
+			return primitives.voidType;
 		case Bool:
 			return primitives.boolType;
 		case Byte:
@@ -185,7 +198,7 @@ struct LLVMBuilder
 		}
 	}
 
-	void BuildFunction()
+	void BuildFunctions()
 	{
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
 		{
@@ -200,8 +213,43 @@ struct LLVMBuilder
 			}
 			LType* returnType = TypeToLType(func.returnType);
 			LFunctionType* functionType = LFunctionType::get(returnType, ToArrayRef<LType*>(params), false);
-			Function::Create(functionType, Function::ExternalLinkage, ToStringRef(key), module);
+			Function* llvmFunc = Function::Create(functionType, Function::ExternalLinkage, ToStringRef(key), module);
+			if (decl.body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
 		}
+
+		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		{
+			auto& func = value->function;
+			auto& funcDecl = func.decl->functionDecl;
+			auto& parameters = funcDecl.parameters;
+			Function* llvmFunc = module->getFunction(ToStringRef(key));
+			BasicBlock* entryBasicBlock = BasicBlock::Create(context, "entry", llvmFunc);
+			builder->SetInsertPoint(entryBasicBlock);
+
+			localVariableMap.clear();
+			for (auto& param : llvmFunc->args())
+			{
+				int paramNo = param.getArgNo();
+				Node* defNode = funcDecl.parameters->at(paramNo);
+				auto& paramDef = defNode->definition;
+				InplaceString name = paramDef.name->val;
+				llvm::Type* type = llvmFunc->getFunctionType()->getParamType(paramNo);
+				AllocaInst* allocInst = builder->CreateAlloca(type, GetDefinitionValue(defNode), ToStringRef(name));
+				localVariableMap[name] = allocInst;
+				builder->CreateStore(&param, allocInst);
+			}
+		}
+	}
+
+	Value* GetDefinitionValue(Node* definitionNode)
+	{
+		auto& def = definitionNode->definition;
+		if (def.assignment)
+		{
+
+		}
+
+		return nullptr;
 	}
 
 	void BuildGlobals()
