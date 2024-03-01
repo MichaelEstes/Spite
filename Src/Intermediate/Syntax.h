@@ -126,9 +126,6 @@ eastl::string ToString(Node* node)
 			cases +
 			"default" + ToString(node->switchStmnt.defaultCase) + "\n";
 	}
-	return "";
-	case TernaryStmnt:
-		return "";
 	case DeleteStmnt:
 		return node->start->ToString() +
 			(node->deleteStmnt.arrDelete ? "[]" : "") + " " +
@@ -1502,10 +1499,16 @@ struct Syntax
 
 		if (Expect(UniqueType::Rparen)) return parameters;
 
+		bool parsingDefs = false;
 		while (!Expect(end) && !IsEOF())
 		{
 			Node* decl = ParseDeclOrDef();
-			if (decl->nodeID != NodeID::InvalidNode) parameters->push_back(decl);
+			if (decl->nodeID != NodeID::InvalidNode)
+			{
+				if (parsingDefs && !decl->definition.assignment) AddError(decl->start, errors.declAfterDef);
+				else if (!parsingDefs && decl->definition.assignment) parsingDefs = true;
+				parameters->push_back(decl);
+			}
 			else Advance();
 
 			if (Expect(UniqueType::Comma)) Advance();

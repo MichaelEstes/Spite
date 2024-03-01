@@ -34,7 +34,6 @@ enum NodeID
 	ForStmnt,
 	WhileStmnt,
 	SwitchStmnt,
-	TernaryStmnt,
 	DeleteStmnt,
 	DeferStmnt,
 	ContinueStmnt,
@@ -229,10 +228,6 @@ struct Node
 
 		struct
 		{
-		} ternaryStmnt;
-
-		struct
-		{
 			Expr* primaryExpr;
 			bool arrDelete;
 		} deleteStmnt;
@@ -370,9 +365,6 @@ struct Node
 			break;
 		case SwitchStmnt:
 			switchStmnt = copy.switchStmnt;
-			break;
-		case TernaryStmnt:
-			ternaryStmnt = copy.ternaryStmnt;
 			break;
 		case DeleteStmnt:
 			deleteStmnt = copy.deleteStmnt;

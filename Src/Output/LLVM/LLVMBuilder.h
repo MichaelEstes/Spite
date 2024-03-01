@@ -8,6 +8,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Verifier.h"
 
 #include "../../Intermediate/Syntax.h"
 
@@ -22,6 +23,8 @@ using LFunctionType = llvm::FunctionType;
 using Function = llvm::Function;
 using Constant = llvm::Constant;
 using ConstantInt = llvm::ConstantInt;
+using ConstantFloat = llvm::ConstantFP;
+using ConstantExpr = llvm::ConstantExpr;
 using GlobalVariable = llvm::GlobalVariable;
 using GlobalValue = llvm::GlobalValue;
 using BasicBlock = llvm::BasicBlock;
@@ -203,9 +206,11 @@ struct LLVMBuilder
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
 		{
 			auto& func = value->function;
-			auto& decl = func.decl->functionDecl;
+			auto& funcDecl = func.decl->functionDecl;
+			auto& body = funcDecl.body;
+			auto& parameters = funcDecl.parameters;
 			eastl::vector<LType*> params = eastl::vector<LType*>();
-			for (Node* node : *decl.parameters)
+			for (Node* node : *parameters)
 			{
 				Type& type = node->definition.type;
 				LType* lType = TypeToLType(type);
@@ -214,13 +219,14 @@ struct LLVMBuilder
 			LType* returnType = TypeToLType(func.returnType);
 			LFunctionType* functionType = LFunctionType::get(returnType, ToArrayRef<LType*>(params), false);
 			Function* llvmFunc = Function::Create(functionType, Function::ExternalLinkage, ToStringRef(key), module);
-			if (decl.body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
+			if (body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
 		}
 
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
 		{
 			auto& func = value->function;
 			auto& funcDecl = func.decl->functionDecl;
+			auto& body = funcDecl.body;
 			auto& parameters = funcDecl.parameters;
 			Function* llvmFunc = module->getFunction(ToStringRef(key));
 			BasicBlock* entryBasicBlock = BasicBlock::Create(context, "entry", llvmFunc);
@@ -230,7 +236,7 @@ struct LLVMBuilder
 			for (auto& param : llvmFunc->args())
 			{
 				int paramNo = param.getArgNo();
-				Node* defNode = funcDecl.parameters->at(paramNo);
+				Node* defNode = parameters->at(paramNo);
 				auto& paramDef = defNode->definition;
 				InplaceString name = paramDef.name->val;
 				llvm::Type* type = llvmFunc->getFunctionType()->getParamType(paramNo);
@@ -238,6 +244,8 @@ struct LLVMBuilder
 				localVariableMap[name] = allocInst;
 				builder->CreateStore(&param, allocInst);
 			}
+
+			NodeGenerator(body.body);
 		}
 	}
 
@@ -265,14 +273,158 @@ struct LLVMBuilder
 				false,
 				GlobalValue::ExternalLinkage,
 				initialValue,
-				ToStringRef(key)
+				PackageName(key)
 			);
+		}
+	}
+
+	void NodeGenerator(Node* node)
+	{
+		switch (node->nodeID)
+		{
+		case ExpressionStmnt:
+		{
+			auto& expressionStmnt = node->expressionStmnt;
+			break;
+		}
+		case Definition:
+		{
+			auto& definition = node->definition;
+			break;
+		}
+		case InlineDefinition:
+		{
+			auto& inlineDefinition = node->inlineDefinition;
+			break;
+		}
+		case Conditional:
+		{
+			auto& conditional = node->conditional;
+			break;
+		}
+		case AssignmentStmnt:
+		{
+			auto& assignmentStmnt = node->assignmentStmnt;
+			break;
+		}
+		case IfStmnt:
+		{
+			auto& ifStmnt = node->ifStmnt;
+			break;
+		}
+		case ForStmnt:
+		{
+			auto& forStmnt = node->forStmnt;
+			break;
+		}
+		case WhileStmnt:
+		{
+			auto& whileStmnt = node->whileStmnt;
+			break;
+		}
+		case SwitchStmnt:
+		{
+			auto& switchStmnt = node->switchStmnt;
+			break;
+		}
+		case DeleteStmnt:
+		{
+			auto& deleteStmnt = node->deleteStmnt;
+			break;
+		}
+		case DeferStmnt:
+		{
+			auto& deferStmnt = node->deferStmnt;
+			break;
+		}
+		case ContinueStmnt:
+		{
+			auto& continueStmnt = node->continueStmnt;
+			break;
+		}
+		case BreakStmnt:
+		{
+			auto& breakStmnt = node->breakStmnt;
+			break;
+		}
+		case ReturnStmnt:
+		{
+			auto& returnStmnt = node->returnStmnt;
+			break;
+		}
+		case Block:
+		{
+			auto& block = node->block;
+			for (Node* node : *block.inner) NodeGenerator(node);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	void ExprGenerator(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case InvalidExpr:
+			break;
+		case LiteralExpr:
+			break;
+		case IdentifierExpr:
+			break;
+		case PrimitiveExpr:
+			break;
+		case SelectorExpr:
+			break;
+		case IndexExpr:
+			break;
+		case FunctionCallExpr:
+			break;
+		case NewExpr:
+			break;
+		case FixedExpr:
+			break;
+		case AnonTypeExpr:
+			break;
+		case AsExpr:
+			break;
+		case DereferenceExpr:
+			break;
+		case ReferenceExpr:
+			break;
+		case BinaryExpr:
+			break;
+		case UnaryExpr:
+			break;
+		case GroupedExpr:
+			break;
+		case GenericsExpr:
+			break;
+		case FunctionTypeExpr:
+			break;
+		case FunctionTypeDeclExpr:
+			break;
+		case CompileExpr:
+			break;
+		default:
+			break;
 		}
 	}
 
 	inline StringRef ToStringRef(const InplaceString& str)
 	{
 		return StringRef(str.start, str.count);
+	}
+
+	inline StringRef PackageName(const InplaceString& str)
+	{
+		InplaceString& packageStr = syntax.package->package.name->val;
+		size_t count = packageStr.count + str.count;
+		char* concated = new char[count];
+		memcpy(concated, packageStr.start, packageStr.count);
+		memcpy(concated + packageStr.count, str.start, str.count);
+		return StringRef(concated, count);
 	}
 
 	template<typename T>

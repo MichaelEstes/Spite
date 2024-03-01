@@ -42,6 +42,8 @@ struct Errors {
 	const eastl::string expectedBlockStart = "Expected function block opening ('{') or ('=>')";
 	const eastl::string expectedBlockEnd = "Expected function block closure ('}')";
 
+	const eastl::string declAfterDef = "Cannot have a parameter without a default value after having a parameter with a default value";
+
 	const eastl::string emptyGenerics = "Expected generic types not '<>'";
 	const eastl::string notGenericIdent = "Only identifiers expected as generic declarations";
 	const eastl::string expectedGenericsClosure = "Expected generic closure ('>')";

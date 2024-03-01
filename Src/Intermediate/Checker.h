@@ -63,8 +63,6 @@ struct Checker
 			break;
 		case SwitchStmnt:
 			break;
-		case TernaryStmnt:
-			break;
 		case DeleteStmnt:
 			break;
 		case DeferStmnt:
