@@ -19,8 +19,10 @@ using LLVMContext = llvm::LLVMContext;
 using Module = llvm::Module;
 using IRBuilder = llvm::IRBuilder<>;
 using StructType = llvm::StructType;
+using LPointerType = llvm::PointerType;
 using LFunctionType = llvm::FunctionType;
 using Function = llvm::Function;
+using Argument = llvm::Argument;
 using Constant = llvm::Constant;
 using ConstantInt = llvm::ConstantInt;
 using ConstantFloat = llvm::ConstantFP;
@@ -104,7 +106,7 @@ struct LLVMBuilder
 	{
 		for (auto& [key, value] : syntax.symbolTable->stateMap)
 		{
-			StructType::create(context, ToStringRef(key));
+			StructType::create(context, PackageName(key));
 		}
 
 		for (auto& [key, value] : syntax.symbolTable->stateMap)
@@ -118,8 +120,20 @@ struct LLVMBuilder
 				if (lType) members.push_back(lType);
 			}
 
-			StructType* structType = StructType::getTypeByName(context, ToStringRef(key));
+			StringRef typeName = PackageName(key);
+			StructType* structType = StructType::getTypeByName(context, typeName);
 			structType->setBody(ToArrayRef<LType*>(members));
+
+			for (Node* node : value.methods)
+			{
+				auto& method = node->method;
+				auto& funcDecl = method.decl->functionDecl;
+				auto& body = funcDecl.body;
+				auto& parameters = funcDecl.parameters;
+				eastl::vector<LType*> params = CreateParams(parameters);
+				params.push_back(structType->getPointerTo());
+				CreateFunction(method.returnType, MethodName(key, method.name), params, body);
+			}
 
 			structType->print(llvm::outs(), true);
 			std::cout << '\n';
@@ -201,6 +215,49 @@ struct LLVMBuilder
 		}
 	}
 
+	inline eastl::vector<LType*> CreateParams(eastl::vector<Node*>* parameters)
+	{
+		eastl::vector<LType*> params = eastl::vector<LType*>();
+		for (Node* node : *parameters)
+		{
+			Type& type = node->definition.type;
+			LType* lType = TypeToLType(type);
+			if (lType) params.push_back(lType);
+		}
+
+		return params;
+	}
+
+	inline void CreateFunction(Type& returnType, const StringRef& name, const eastl::vector<LType*>& params, Body& body)
+	{
+		LType* lReturnType = TypeToLType(returnType);
+		LFunctionType* functionType = LFunctionType::get(lReturnType, ToArrayRef<LType*>(params), false);
+		Function* llvmFunc = Function::Create(functionType, Function::ExternalLinkage, name, module);
+		if (body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
+	}
+
+	inline Function* InitFunction(const StringRef& funcName, eastl::vector<Node*>* parameters)
+	{
+		Function* llvmFunc = module->getFunction(funcName);
+		BasicBlock* entryBasicBlock = BasicBlock::Create(context, "entry", llvmFunc);
+		builder->SetInsertPoint(entryBasicBlock);
+
+		localVariableMap.clear();
+		for (unsigned i = 0; i < parameters->size(); i++)
+		{
+			Argument* param = llvmFunc->getArg(i);
+			Node* defNode = parameters->at(i);
+			auto& paramDef = defNode->definition;
+			InplaceString paramName = paramDef.name->val;
+			LType* type = param->getType();
+			AllocaInst* allocInst = builder->CreateAlloca(type, GetDefinitionValue(defNode), ToStringRef(paramName));
+			localVariableMap[paramName] = allocInst;
+			builder->CreateStore(param, allocInst);
+		}
+
+		return llvmFunc;
+	}
+
 	void BuildFunctions()
 	{
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
@@ -209,17 +266,8 @@ struct LLVMBuilder
 			auto& funcDecl = func.decl->functionDecl;
 			auto& body = funcDecl.body;
 			auto& parameters = funcDecl.parameters;
-			eastl::vector<LType*> params = eastl::vector<LType*>();
-			for (Node* node : *parameters)
-			{
-				Type& type = node->definition.type;
-				LType* lType = TypeToLType(type);
-				if (lType) params.push_back(lType);
-			}
-			LType* returnType = TypeToLType(func.returnType);
-			LFunctionType* functionType = LFunctionType::get(returnType, ToArrayRef<LType*>(params), false);
-			Function* llvmFunc = Function::Create(functionType, Function::ExternalLinkage, ToStringRef(key), module);
-			if (body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
+			eastl::vector<LType*> params = CreateParams(parameters);
+			CreateFunction(func.returnType, PackageName(key), params, body);
 		}
 
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
@@ -228,24 +276,28 @@ struct LLVMBuilder
 			auto& funcDecl = func.decl->functionDecl;
 			auto& body = funcDecl.body;
 			auto& parameters = funcDecl.parameters;
-			Function* llvmFunc = module->getFunction(ToStringRef(key));
-			BasicBlock* entryBasicBlock = BasicBlock::Create(context, "entry", llvmFunc);
-			builder->SetInsertPoint(entryBasicBlock);
 
-			localVariableMap.clear();
-			for (auto& param : llvmFunc->args())
-			{
-				int paramNo = param.getArgNo();
-				Node* defNode = parameters->at(paramNo);
-				auto& paramDef = defNode->definition;
-				InplaceString name = paramDef.name->val;
-				llvm::Type* type = llvmFunc->getFunctionType()->getParamType(paramNo);
-				AllocaInst* allocInst = builder->CreateAlloca(type, GetDefinitionValue(defNode), ToStringRef(name));
-				localVariableMap[name] = allocInst;
-				builder->CreateStore(&param, allocInst);
-			}
-
+			InitFunction(PackageName(key), parameters);
 			NodeGenerator(body.body);
+		}
+
+		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		{
+			for (Node* methodNode : value.methods)
+			{
+				auto& method = methodNode->method;
+				auto& funcDecl = method.decl->functionDecl;
+				auto& body = funcDecl.body;
+				auto& parameters = funcDecl.parameters;
+
+				Function* llvmFunc = InitFunction(MethodName(key, method.name), parameters);
+				Argument* param = llvmFunc->getArg(parameters->size());
+				LType* type = param->getType();
+				AllocaInst* allocInst = builder->CreateAlloca(type, nullptr, "this");
+				builder->CreateStore(param, allocInst);
+
+				NodeGenerator(body.body);
+			}
 		}
 	}
 
@@ -417,13 +469,28 @@ struct LLVMBuilder
 		return StringRef(str.start, str.count);
 	}
 
+	inline StringRef MethodName(const InplaceString& stateName, const Token* nameTok)
+	{
+		const InplaceString& methodName = nameTok->val;
+		InplaceString& packageStr = syntax.package->package.name->val;
+		size_t count = packageStr.count + stateName.count + methodName.count + 2;
+		char* concated = new char[count];
+		memcpy(concated, packageStr.start, packageStr.count);
+		concated[packageStr.count] = ':';
+		memcpy(concated + packageStr.count + 1, stateName.start, stateName.count);
+		concated[packageStr.count + stateName.count + 1] = ':';
+		memcpy(concated + packageStr.count + stateName.count + 2, methodName.start, methodName.count);
+		return StringRef(concated, count);
+	}
+
 	inline StringRef PackageName(const InplaceString& str)
 	{
 		InplaceString& packageStr = syntax.package->package.name->val;
-		size_t count = packageStr.count + str.count;
+		size_t count = packageStr.count + str.count + 1;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);
-		memcpy(concated + packageStr.count, str.start, str.count);
+		concated[packageStr.count] = ':';
+		memcpy(concated + packageStr.count + 1, str.start, str.count);
 		return StringRef(concated, count);
 	}
 
