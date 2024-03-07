@@ -4,6 +4,8 @@
 struct Checker
 {
 	Syntax& syntax;
+	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalDefinitionMap;
+	eastl::hash_map<InplaceString, Node*, InplaceStringHash> localDefinitionMap;
 
 	Checker(Syntax& syntax) : syntax(syntax) {}
 
@@ -11,11 +13,11 @@ struct Checker
 	{
 		for (Node* node : syntax.nodes)
 		{
-			CheckNode(node);
+			CheckNode(node, true);
 		}
 	}
 
-	void CheckNode(Node* node)
+	void CheckNode(Node* node, bool global)
 	{
 		switch (node->nodeID)
 		{
@@ -29,7 +31,7 @@ struct Checker
 			CheckExpr(node->expressionStmnt.expression);
 			break;
 		case Definition:
-			CheckDefinition(node);
+			CheckDefinition(node, global);
 			break;
 		case InlineDefinition:
 			break;
@@ -78,7 +80,10 @@ struct Checker
 		case CompileDebugStmnt:
 			break;
 		case Block:
+		{
+			for (Node* n : *node->block.inner) CheckNode(n, false);
 			break;
+		}
 		default:
 			break;
 		}
@@ -89,16 +94,120 @@ struct Checker
 
 	}
 
-	void CheckDefinition(Node* node, bool declarationOnly = false)
+	void CheckDefinition(Node* node, bool global)
 	{
 		auto& definition = node->definition;
-		Type& type = definition.type;
+		Type* type = definition.type;
+		if (type->typeID == TypeID::ImplicitType)
+		{
+			InferType(definition.assignment, definition.type);
+		}
 
+		InplaceString& name = definition.name->val;
+		if (global) globalDefinitionMap[name] = node;
+		else localDefinitionMap[name] = node;
 	}
 
-	Type DeduceType(Expr* of)
+	void InferType(Expr* of, Type*& type)
 	{
+		switch (of->typeID)
+		{
+		case InvalidExpr:
+			type->typeID = TypeID::InvalidType;
+			break;
+		case LiteralExpr:
+		{
+			auto& literal = of->literalExpr;
+			UniqueType uniqueType;
+			switch (literal.type)
+			{
+			case IntLiteral:
+				uniqueType = UniqueType::Int;
+				break;
+			case FloatLiteral:
+				uniqueType = UniqueType::Float;
+				break;
+			case HexLiteral:
+				uniqueType = UniqueType::Int;
+				break;
+			case StringLiteral:
+				uniqueType = UniqueType::String;
+				break;
+			case TrueLiteral:
+			case FalseLiteral:
+				uniqueType = UniqueType::Bool;
+				break;
+			default:
+				uniqueType = UniqueType::Void;
+				break;
+			}
 
+			type = syntax.CreatePrimitive(uniqueType);
+			break;
+		}
+		case IdentifierExpr:
+		{
+			InplaceString& val = of->identfierExpr.identifier->val;
+			if (globalDefinitionMap.find(val) != globalDefinitionMap.end())
+			{
+
+			}
+			else if (localDefinitionMap.find(val) != localDefinitionMap.end())
+			{
+
+			}
+			break;
+		}
+		case PrimitiveExpr:
+			type = syntax.CreatePrimitive(of->primitiveExpr.primitive->uniqueType);
+			break;
+		case SelectorExpr:
+			break;
+		case IndexExpr:
+		{
+			type->typeID = TypeID::ArrayType;
+			InferType(of->indexExpr.of, type->arrayType.type);
+			break;
+		}
+		case FunctionCallExpr:
+			break;
+		case NewExpr:
+		{
+			type->typeID = TypeID::PointerType;
+			type->pointerType.valuePtr = false;
+			type->pointerType.type = syntax.CreateTypePtr(TypeID::InvalidType);
+			InferType(of->newExpr.primaryExpr, type->pointerType.type);
+			break;
+		}
+		case FixedExpr:
+			break;
+		case AnonTypeExpr:
+			break;
+		case AsExpr:
+			break;
+		case DereferenceExpr:
+			break;
+		case ReferenceExpr:
+			break;
+		case BinaryExpr:
+			break;
+		case UnaryExpr:
+			break;
+		case GroupedExpr:
+
+			break;
+		case GenericsExpr:
+			break;
+		case FunctionTypeExpr:
+			break;
+		case FunctionTypeDeclExpr:
+			break;
+		case CompileExpr:
+			*type = *of->compileExpr.returnType;
+			break;
+		default:
+			break;
+		}
 	}
 
 };

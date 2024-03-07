@@ -271,7 +271,7 @@ public:
 	{
 		for (int i = 0; i <= count; i++)
 		{
-			Token curr = tokens[i];
+			Token& curr = tokens[i];
 			std::cout << curr.type << ":" << curr.uniqueType << " " << curr.ToString() << '\n';
 		}
 	}

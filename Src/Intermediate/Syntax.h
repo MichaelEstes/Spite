@@ -38,26 +38,26 @@ eastl::string ToString(Node* node)
 			node->package.name->ToString();
 	case Definition:
 		return node->definition.name->ToString() + " : " +
-			ToString(&node->definition.type) +
+			ToString(node->definition.type) +
 			(node->definition.assignment != nullptr
 				? " " + node->definition.op->ToString() + " " + ToString(node->definition.assignment) : "");
 	case InlineDefinition:
-		return ToString(&node->inlineDefinition.type) +
+		return ToString(node->inlineDefinition.type) +
 			" " + node->inlineDefinition.op->ToString() + " " +
 			ToString(node->inlineDefinition.assignment);
 	case FunctionStmnt:
-		return ToString(&node->function.returnType) + " " +
+		return ToString(node->function.returnType) + " " +
 			node->function.name->ToString() +
 			(node->function.generics != nullptr ? ToString(node->function.generics) : "") +
 			ToString(node->function.decl);
 	case Method:
-		return ToString(&node->method.returnType) + " " +
+		return ToString(node->method.returnType) + " " +
 			node->method.stateName->ToString() + "::" +
 			node->method.name->ToString() +
 			(node->method.generics != nullptr ? ToString(node->method.generics) : "") +
 			ToString(node->method.decl);
 	case StateOperator:
-		return ToString(&node->stateOperator.returnType) + " " +
+		return ToString(node->stateOperator.returnType) + " " +
 			node->stateOperator.stateName->ToString() + "::operator" +
 			(node->stateOperator.generics != nullptr ? ToString(node->stateOperator.generics) : "") + "::" +
 			node->stateOperator.op->ToString() +
@@ -280,9 +280,9 @@ eastl::string ToString(Expr* expr)
 	{
 		eastl::string types = "";
 
-		for (Type type : *expr->genericsExpr.types)
+		for (Type* type : *expr->genericsExpr.types)
 		{
-			types += ToString(&type) + ", ";
+			types += ToString(type) + ", ";
 		}
 
 		return (expr->genericsExpr.expr != nullptr ? ToString(expr->genericsExpr.expr) : "") +
@@ -508,11 +508,6 @@ struct Syntax
 		return arena->Emplace<Type>(typeID);
 	}
 
-	inline Type* CreateTypePtr(Type type)
-	{
-		return arena->Emplace<Type>(type);
-	}
-
 	inline Expr* CreateExpr(Token* start, ExprID exprID)
 	{
 		return arena->Emplace<Expr>(exprID, start);
@@ -668,7 +663,7 @@ struct Syntax
 		default:
 		{
 			Token* start = curr;
-			Type type;
+			Type* type;
 			if (curr->uniqueType == UniqueType::Name)
 			{
 				UniqueType next = Peek()->uniqueType;
@@ -679,7 +674,7 @@ struct Syntax
 			}
 			else type = ParseDeclarationType(false);
 
-			if (type.typeID == TypeID::InvalidType) break;
+			if (type->typeID == TypeID::InvalidType) break;
 			Node* func = ParseFunction(type, start);
 			if (func->nodeID != NodeID::InvalidNode) AddNode(func);
 			return;
@@ -879,7 +874,7 @@ struct Syntax
 		return node;
 	}
 
-	Node* ParseFunction(Type& returnType, Token* start)
+	Node* ParseFunction(Type* returnType, Token* start)
 	{
 		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
 		{
@@ -909,7 +904,7 @@ struct Syntax
 		return InvalidNode();
 	}
 
-	Node* ParseStateFunction(Type& returnType, Token* start, Token* name)
+	Node* ParseStateFunction(Type* returnType, Token* start, Token* name)
 	{
 		Advance();
 		switch (curr->uniqueType)
@@ -1164,12 +1159,12 @@ struct Syntax
 		Token* start = curr;
 
 		Logger::SetErrorRollback();
-		Type type = ParseInlineType(true);
-		if (type.typeID != TypeID::InvalidType &&
+		Type* type = ParseInlineType(true);
+		if (type->typeID != TypeID::InvalidType &&
 			(Expect(UniqueType::Assign) || Expect(UniqueType::ImplicitAssign)))
 		{
-			if ((type.typeID == TypeID::ImplicitType && Expect(UniqueType::Assign)) ||
-				(type.typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
+			if ((type->typeID == TypeID::ImplicitType && Expect(UniqueType::Assign)) ||
+				(type->typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
 			{
 				AddError(curr, errors.inlineTypeWrongAssignmentOp);
 				return CreateNode(curr, NodeID::InvalidNode);
@@ -1560,7 +1555,7 @@ struct Syntax
 			node->definition.op = curr;
 
 			Advance();
-			Type type = Type(TypeID::UnknownType);
+			Type* type = CreateTypePtr(TypeID::UnknownType);
 			Expr* expr = ParseAssignmentType();
 			node->definition.type = type;
 			node->definition.assignment = expr;
@@ -1605,7 +1600,7 @@ struct Syntax
 			ThenExpect(UniqueType::Colon, errors.expectedColon))
 		{
 			Advance();
-			Type type = ParseDeclarationType();
+			Type* type = ParseDeclarationType();
 			Node* node = CreateNode(start, NodeID::Definition);
 			node->definition.name = start;
 			node->definition.type = type;
@@ -1617,14 +1612,14 @@ struct Syntax
 		return InvalidNode();
 	}
 
-	Type ParseDeclarationType(bool allowImplicitType = true)
+	Type* ParseDeclarationType(bool allowImplicitType = true)
 	{
-		Type type = Type();
+		Type* type = CreateTypePtr(TypeID::InvalidType);
 
 		switch (curr->type)
 		{
 		case Primitive:
-			type = CreatePrimitive();
+			type = CreatePrimitive(curr->uniqueType);
 			Advance();
 			break;
 
@@ -1636,16 +1631,16 @@ struct Syntax
 				Advance();
 				if (ThenExpect(TokenType::Identifier, errors.expectedImportedType))
 				{
-					type.typeID = TypeID::ImportedType;
-					type.importedType.packageName = name;
-					type.importedType.typeName = curr;
+					type->typeID = TypeID::ImportedType;
+					type->importedType.packageName = name;
+					type->importedType.typeName = curr;
 					Advance();
 				}
 			}
 			else
 			{
-				type.typeID = TypeID::NamedType;
-				type.namedType.typeName = name;
+				type->typeID = TypeID::NamedType;
+				type->namedType.typeName = name;
 				Advance();
 			}
 		}
@@ -1682,7 +1677,7 @@ struct Syntax
 			break;
 		}
 
-		if (type.typeID != TypeID::InvalidType && Expect(UniqueType::Less))
+		if (type->typeID != TypeID::InvalidType && Expect(UniqueType::Less))
 		{
 			type = ParseGenericsType(type);
 		}
@@ -1690,38 +1685,38 @@ struct Syntax
 		return type;
 	}
 
-	Type ParsePointerType()
+	Type* ParsePointerType()
 	{
-		Type ptrType = Type(TypeID::PointerType);
-		ptrType.pointerType.valuePtr = Expect(UniqueType::ValuePointer);
-		ptrType.pointerType.ptr = curr;
+		Type* ptrType = CreateTypePtr(TypeID::PointerType);
+		ptrType->pointerType.valuePtr = Expect(UniqueType::ValuePointer);
+		ptrType->pointerType.ptr = curr;
 		Advance();
-		ptrType.pointerType.type = CreateTypePtr(ParseDeclarationType());
+		ptrType->pointerType.type = ParseDeclarationType();
 		return ptrType;
 	}
 
-	Type ParseValueType()
+	Type* ParseValueType()
 	{
-		Type valueType = Type(TypeID::ValueType);
-		valueType.valueType.valueOp = curr;
+		Type* valueType = CreateTypePtr(TypeID::ValueType);
+		valueType->valueType.valueOp = curr;
 		Advance();
-		Type* type = CreateTypePtr(ParseDeclarationType());
+		Type* type = ParseDeclarationType();
 		if (type->typeID == TypeID::ValueType)
 			AddError(curr, errors.nestedValueType);
-		valueType.valueType.type = type;
+		valueType->valueType.type = type;
 		return valueType;
 	}
 
-	Type ParseArrayType()
+	Type* ParseArrayType()
 	{
-		Type arrType = Type(TypeID::ArrayType);
-		arrType.arrayType.arr = curr;
+		Type* arrType = CreateTypePtr(TypeID::ArrayType);
+		arrType->arrayType.arr = curr;
 		Advance();
-		arrType.arrayType.type = CreateTypePtr(ParseDeclarationType());
+		arrType->arrayType.type = ParseDeclarationType();
 		return arrType;
 	}
 
-	Type ParseInlineType(bool allowImplicitType)
+	Type* ParseInlineType(bool allowImplicitType)
 	{
 		Token* start = curr;
 		Advance();
@@ -1732,7 +1727,7 @@ struct Syntax
 			if (Expect(UniqueType::Rbrace))
 			{
 				AddError(curr, errors.emptyInlineType);
-				return Type();
+				return CreateTypePtr(TypeID::InvalidType);
 			}
 
 			return implicit ? ParseImplicitType() : ParseExplicitType();
@@ -1741,11 +1736,11 @@ struct Syntax
 		return ParseExplicitType();
 	}
 
-	Type ParseImplicitType()
+	Type* ParseImplicitType()
 	{
-		Type type = Type(TypeID::ImplicitType);
+		Type* type = CreateTypePtr(TypeID::ImplicitType);
 		eastl::vector<Token*>* idents = CreateVectorPtr<Token*>();
-		type.implicitType.identifiers = idents;
+		type->implicitType.identifiers = idents;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
 			if (Expect(TokenType::Identifier, errors.implictTypeNotIdent))
@@ -1756,7 +1751,8 @@ struct Syntax
 			}
 			else
 			{
-				return Type();
+				type->typeID = TypeID::InvalidType;
+				return type;
 			}
 		}
 
@@ -1766,20 +1762,22 @@ struct Syntax
 			if (idents->size() == 1)
 			{
 				AddError(curr, errors.onlyOneInlineType);
-				return Type();
+				type->typeID = TypeID::InvalidType;
+				return type;
 			}
 			Advance();
 			return type;
 		}
 
-		return Type();
+		type->typeID = TypeID::InvalidType;
+		return type;
 	}
 
-	Type ParseExplicitType()
+	Type* ParseExplicitType()
 	{
-		Type type = Type(TypeID::ExplicitType);
+		Type* type = CreateTypePtr(TypeID::ExplicitType);
 		eastl::vector<Node*>* decls = CreateVectorPtr<Node*>();
-		type.explicitType.declarations = decls;
+		type->explicitType.declarations = decls;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
 			Node* node = ParseDeclaration();
@@ -1790,7 +1788,8 @@ struct Syntax
 			}
 			else
 			{
-				return Type();
+				type->typeID = TypeID::InvalidType;
+				return type;
 			}
 		}
 
@@ -1799,40 +1798,43 @@ struct Syntax
 			if (decls->size() == 1)
 			{
 				AddError(curr, errors.onlyOneInlineType);
-				return Type();
+				type->typeID = TypeID::InvalidType;
+				return type;
 			}
 			Advance();
 			return type;
 		}
 
-		return Type();
+		type->typeID = TypeID::InvalidType;
+		return type;
 	}
 
-	Type ParseGenericsType(Type& type)
+	Type* ParseGenericsType(Type* type)
 	{
-		Type genericsType = Type(TypeID::GenericsType);
-		genericsType.genericsType.generics = ParseGenericsExpr();
-		genericsType.genericsType.type = CreateTypePtr(type);
+		Type* genericsType = CreateTypePtr(TypeID::GenericsType);
+		genericsType->genericsType.generics = ParseGenericsExpr();
+		genericsType->genericsType.type = type;
 
 		return genericsType;
 	}
 
-	Type ParseFunctionType()
+	Type* ParseFunctionType()
 	{
-		Type functionType = Type(TypeID::FunctionType);
-		functionType.functionType.paramTypes = CreateVectorPtr<Type*>();
+		Type* functionType = CreateTypePtr(TypeID::FunctionType);
+		functionType->functionType.paramTypes = CreateVectorPtr<Type*>();
 		Advance();
 
-		functionType.functionType.returnType = Expect(UniqueType::Lparen)
-			? CreateTypePtr(CreateVoidType()) : CreateTypePtr(ParseDeclarationType());
+		functionType->functionType.returnType = Expect(UniqueType::Lparen)
+			? CreateVoidType()
+			: ParseDeclarationType();
 
 		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
 		{
 			Advance();
 			while (!Expect(UniqueType::Rparen) && !IsEOF())
 			{
-				Type type = ParseDeclarationType();
-				functionType.functionType.paramTypes->push_back(CreateTypePtr(type));
+				Type* type = ParseDeclarationType();
+				functionType->functionType.paramTypes->push_back(type);
 				if (Expect(UniqueType::Comma)) Advance();
 			}
 
@@ -1843,7 +1845,8 @@ struct Syntax
 			}
 		}
 
-		return Type();
+		functionType->typeID = TypeID::InvalidType;
+		return functionType;
 	}
 
 	Expr* ParseAssignmentType()
@@ -1872,10 +1875,10 @@ struct Syntax
 	{
 		Expr* expr = CreateExpr(curr, ExprID::CompileExpr);
 		Advance();
-		Type type = ParseDeclarationType();
-		if (type.typeID != TypeID::InvalidType)
+		Type* type = ParseDeclarationType();
+		if (type->typeID != TypeID::InvalidType)
 		{
-			expr->compileExpr.returnType = CreateTypePtr(type);
+			expr->compileExpr.returnType = type;
 			if (Expect(UniqueType::FatArrow)) Advance();
 			expr->compileExpr.body = arena->Emplace<Body>(ParseBody());
 			return expr;
@@ -2134,7 +2137,8 @@ struct Syntax
 		Expr* expr = CreateExpr(start, ExprID::FunctionTypeDeclExpr);
 		Advance();
 		Type* returnType = Expect(UniqueType::Lparen)
-			? CreateTypePtr(CreateVoidType()) : CreateTypePtr(ParseDeclarationType());
+			? CreateVoidType() 
+			: ParseDeclarationType();
 
 		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
 		{
@@ -2153,7 +2157,7 @@ struct Syntax
 			{
 				curr = start;
 				expr->typeID = ExprID::FunctionTypeExpr;
-				expr->functionTypeExpr.functionType = CreateTypePtr(ParseFunctionType());
+				expr->functionTypeExpr.functionType = ParseFunctionType();
 				return expr;
 			}
 		}
@@ -2246,7 +2250,7 @@ struct Syntax
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
 		Expr* generics = CreateExpr(curr, ExprID::GenericsExpr);
-		eastl::vector<Type>* genericTypes = CreateVectorPtr<Type>();
+		eastl::vector<Type*>* genericTypes = CreateVectorPtr<Type*>();
 		generics->genericsExpr.expr = expr;
 		generics->genericsExpr.open = curr;
 		generics->genericsExpr.types = genericTypes;
@@ -2262,8 +2266,8 @@ struct Syntax
 
 		while (!Expect(UniqueType::Greater) && !IsEOF())
 		{
-			Type type = ParseDeclarationType();
-			if (type.typeID != TypeID::InvalidType)
+			Type* type = ParseDeclarationType();
+			if (type->typeID != TypeID::InvalidType)
 			{
 				genericTypes->push_back(type);
 				if (Expect(UniqueType::Comma)) Advance();
@@ -2293,7 +2297,7 @@ struct Syntax
 		Expr* asExpr = CreateExpr(of->start, ExprID::AsExpr);
 		asExpr->asExpr.of = of;
 		Advance();
-		asExpr->asExpr.to = CreateTypePtr(ParseDeclarationType());
+		asExpr->asExpr.to = ParseDeclarationType();
 
 		return asExpr;
 	}
@@ -2436,94 +2440,93 @@ struct Syntax
 		}
 	}
 
-	Type CreateVoidType()
+	Type* CreateVoidType()
 	{
-		Type type = Type(TypeID::PrimitiveType);
-		type.primitiveType.type = UniqueType::Void;
-		type.primitiveType.size = 0;
-		type.primitiveType.isSigned = false;
+		Type* type = CreateTypePtr(TypeID::PrimitiveType);
+		type->primitiveType.type = UniqueType::Void;
+		type->primitiveType.size = 0;
+		type->primitiveType.isSigned = false;
 
 		return type;
 	}
 
-	Type CreatePrimitive()
+	Type* CreatePrimitive(UniqueType primType)
 	{
-		Token* start = curr;
-		Type type = Type(TypeID::PrimitiveType);
-		type.primitiveType.type = curr->uniqueType;
-		switch (curr->uniqueType)
+		Type* type = CreateTypePtr(TypeID::PrimitiveType);
+		type->primitiveType.type = primType;
+		switch (primType)
 		{
 		case UniqueType::Void:
-			type.primitiveType.size = 0;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 0;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Bool:
-			type.primitiveType.size = 1;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 1;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Byte:
-			type.primitiveType.size = 8;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 8;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Ubyte:
-			type.primitiveType.size = 8;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 8;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Int:
-			type.primitiveType.size = targetArchBitWidth;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = targetArchBitWidth;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int16:
-			type.primitiveType.size = 16;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 16;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int32:
-			type.primitiveType.size = 32;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int64:
-			type.primitiveType.size = 64;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int128:
-			type.primitiveType.size = 128;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 128;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Uint:
-			type.primitiveType.size = targetArchBitWidth;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = targetArchBitWidth;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint16:
-			type.primitiveType.size = 16;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 16;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint32:
-			type.primitiveType.size = 32;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint64:
-			type.primitiveType.size = 64;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint128:
-			type.primitiveType.size = 128;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = 128;
+			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Float:
-			type.primitiveType.size = targetArchBitWidth;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = targetArchBitWidth;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float32:
-			type.primitiveType.size = 32;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float64:
-			type.primitiveType.size = 64;
-			type.primitiveType.isSigned = true;
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::String:
-			type.primitiveType.size = targetArchBitWidth * 2;
-			type.primitiveType.isSigned = false;
+			type->primitiveType.size = targetArchBitWidth * 2;
+			type->primitiveType.isSigned = false;
 			break;
 		default:
 			break;

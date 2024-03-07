@@ -137,7 +137,7 @@ struct Expr
 		struct
 		{
 			Expr* expr;
-			eastl::vector<Type>* types;
+			eastl::vector<Type*>* types;
 			Token* open;
 			Token* close;
 		} genericsExpr;

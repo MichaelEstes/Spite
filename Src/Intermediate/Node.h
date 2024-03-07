@@ -103,7 +103,7 @@ struct Node
 
 		struct
 		{
-			Type type;
+			Type* type;
 			Token* name;
 			Token* op;
 			Expr* assignment;
@@ -111,14 +111,14 @@ struct Node
 
 		struct
 		{
-			Type type;
+			Type* type;
 			Token* op;
 			Expr* assignment;
 		} inlineDefinition;
 
 		struct
 		{
-			Type returnType;
+			Type* returnType;
 			Token* name;
 			Node* generics;
 			Node* decl;
@@ -151,7 +151,7 @@ struct Node
 
 		struct
 		{
-			Type returnType;
+			Type* returnType;
 			Token* stateName;
 			Token* name;
 			Node* generics;
@@ -160,7 +160,7 @@ struct Node
 
 		struct
 		{
-			Type returnType;
+			Type* returnType;
 			Token* stateName;
 			Node* generics;
 			Token* op;

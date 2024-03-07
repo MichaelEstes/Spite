@@ -115,7 +115,7 @@ struct LLVMBuilder
 			eastl::vector<LType*> members = eastl::vector<LType*>();
 			for (Node* member : *state.members)
 			{
-				Type& type = member->definition.type;
+				Type* type = member->definition.type;
 				LType* lType = TypeToLType(type);
 				if (lType) members.push_back(lType);
 			}
@@ -140,16 +140,16 @@ struct LLVMBuilder
 		}
 	}
 
-	LType* TypeToLType(Type& type)
+	LType* TypeToLType(Type* type)
 	{
-		switch (type.typeID)
+		switch (type->typeID)
 		{
 		case InvalidType:
 			break;
 		case UnknownType:
 			break;
 		case PrimitiveType:
-			return GetPrimitiveType(type.primitiveType.type);
+			return GetPrimitiveType(type->primitiveType.type);
 		case NamedType:
 			break;
 		case ExplicitType:
@@ -220,7 +220,7 @@ struct LLVMBuilder
 		eastl::vector<LType*> params = eastl::vector<LType*>();
 		for (Node* node : *parameters)
 		{
-			Type& type = node->definition.type;
+			Type* type = node->definition.type;
 			LType* lType = TypeToLType(type);
 			if (lType) params.push_back(lType);
 		}
@@ -228,7 +228,7 @@ struct LLVMBuilder
 		return params;
 	}
 
-	inline void CreateFunction(Type& returnType, const StringRef& name, const eastl::vector<LType*>& params, Body& body)
+	inline void CreateFunction(Type* returnType, const StringRef& name, const eastl::vector<LType*>& params, Body& body)
 	{
 		LType* lReturnType = TypeToLType(returnType);
 		LFunctionType* functionType = LFunctionType::get(lReturnType, ToArrayRef<LType*>(params), false);
