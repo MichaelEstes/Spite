@@ -210,7 +210,7 @@ eastl::string ToString(Expr* expr)
 	case LiteralExpr:
 		return expr->literalExpr.val->ToString();
 	case IdentifierExpr:
-		return expr->identfierExpr.identifier->ToString();
+		return expr->identifierExpr.identifier->ToString();
 	case PrimitiveExpr:
 		return expr->primitiveExpr.primitive->ToString();
 	case SelectorExpr:
@@ -2058,7 +2058,7 @@ struct Syntax
 	Expr* ParseIdentifierExpr()
 	{
 		Expr* ident = CreateExpr(curr, ExprID::IdentifierExpr);
-		ident->identfierExpr.identifier = curr;
+		ident->identifierExpr.identifier = curr;
 		Advance();
 		return ident;
 	}
@@ -2137,7 +2137,7 @@ struct Syntax
 		Expr* expr = CreateExpr(start, ExprID::FunctionTypeDeclExpr);
 		Advance();
 		Type* returnType = Expect(UniqueType::Lparen)
-			? CreateVoidType() 
+			? CreateVoidType()
 			: ParseDeclarationType();
 
 		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
@@ -2169,7 +2169,7 @@ struct Syntax
 	{
 		Expr* selector = CreateExpr(curr, ExprID::SelectorExpr);
 		selector->selectorExpr.on = on;
-		if (ThenExpect(TokenType::Identifier, errors.identifierExpected))
+		if (ThenExpect(TokenType::Identifier, errors.invalidSelector))
 		{
 			selector->selectorExpr.select = ParseIdentifierExpr();
 		}

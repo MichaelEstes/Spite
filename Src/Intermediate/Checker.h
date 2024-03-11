@@ -36,9 +36,16 @@ struct Checker
 		case InlineDefinition:
 			break;
 		case FunctionStmnt:
+		{
+			CheckNode(node->function.decl, true);
 			break;
+		}
 		case FunctionDecl:
+		{
+			auto& body = node->functionDecl.body;
+			if (!body.statement) CheckNode(node->functionDecl.body.body, true);
 			break;
+		}
 		case StateStmnt:
 			break;
 		case GenericsDecl:
@@ -81,6 +88,7 @@ struct Checker
 			break;
 		case Block:
 		{
+			localDefinitionMap.clear();
 			for (Node* n : *node->block.inner) CheckNode(n, false);
 			break;
 		}
@@ -98,9 +106,9 @@ struct Checker
 	{
 		auto& definition = node->definition;
 		Type* type = definition.type;
-		if (type->typeID == TypeID::ImplicitType)
+		if (type->typeID == TypeID::UnknownType)
 		{
-			InferType(definition.assignment, definition.type);
+			definition.type = InferType(definition.assignment);
 		}
 
 		InplaceString& name = definition.name->val;
@@ -108,13 +116,81 @@ struct Checker
 		else localDefinitionMap[name] = node;
 	}
 
-	void InferType(Expr* of, Type*& type)
+	inline Node* GetStateNodeForName(InplaceString& val)
+	{
+		if (auto entry = syntax.symbolTable->stateMap.find(val); entry != syntax.symbolTable->stateMap.end())
+		{
+			return entry->second.state;
+		}
+		return nullptr;
+	}
+
+	Node* GetNodeForName(InplaceString& val)
+	{
+		if (auto entry = globalDefinitionMap.find(val); entry != globalDefinitionMap.end())
+		{
+			return entry->second;
+		}
+		else if (auto entry = localDefinitionMap.find(val); entry != localDefinitionMap.end())
+		{
+			return entry->second;
+		}
+		else
+		{
+			return GetStateNodeForName(val);
+		}
+	}
+
+	inline bool IsNotBaseType(Type* type)
+	{
+		TypeID typeId = type->typeID;
+		return typeId == TypeID::GenericsType || typeId == TypeID::ArrayType ||
+			typeId == TypeID::ValueType || typeId == TypeID::PointerType;
+	}
+
+	Type* GetBaseType(Type* type)
+	{
+		while (IsNotBaseType(type))
+		{
+			switch (type->typeID)
+			{
+			case PointerType:
+				return type->pointerType.type;
+				break;
+			case ValueType:
+				return type->valueType.type;
+				break;
+			case ArrayType:
+				return type->arrayType.type;
+				break;
+			case GenericsType:
+				return type->genericsType.type;
+				break;
+			default:
+				return nullptr;
+				break;
+			}
+		}
+	}
+
+	Type* GetInnerType(Type* of, Expr* selector)
+	{
+		if (of)
+		{
+
+		}
+
+		return nullptr;
+	}
+
+	Type* InferType(Expr* of)
 	{
 		switch (of->typeID)
 		{
 		case InvalidExpr:
-			type->typeID = TypeID::InvalidType;
-			break;
+		{
+			return syntax.CreateTypePtr(TypeID::InvalidType);
+		}
 		case LiteralExpr:
 		{
 			auto& literal = of->literalExpr;
@@ -142,42 +218,87 @@ struct Checker
 				break;
 			}
 
-			type = syntax.CreatePrimitive(uniqueType);
-			break;
+			return syntax.CreatePrimitive(uniqueType);
 		}
 		case IdentifierExpr:
 		{
-			InplaceString& val = of->identfierExpr.identifier->val;
-			if (globalDefinitionMap.find(val) != globalDefinitionMap.end())
+			Type* type = syntax.CreateTypePtr(TypeID::InvalidType);
+			InplaceString& val = of->identifierExpr.identifier->val;
+			Node* node = GetNodeForName(val);
+			if (!node) return type;
+			else if (node->nodeID == NodeID::Definition) *type = *node->definition.type;
+			else if (node->nodeID == NodeID::StateStmnt)
 			{
-
+				type->typeID = TypeID::NamedType;
+				type->namedType.typeName = node->state.name;
 			}
-			else if (localDefinitionMap.find(val) != localDefinitionMap.end())
-			{
 
-			}
-			break;
+			return type;
 		}
 		case PrimitiveExpr:
-			type = syntax.CreatePrimitive(of->primitiveExpr.primitive->uniqueType);
-			break;
+		{
+			return syntax.CreatePrimitive(of->primitiveExpr.primitive->uniqueType);
+		}
 		case SelectorExpr:
-			break;
+		{
+			Type* type = syntax.CreateTypePtr(TypeID::InvalidType);
+			Expr* firstSelector = of;
+			while (firstSelector->selectorExpr.on->typeID == ExprID::SelectorExpr)
+			{
+				firstSelector = firstSelector->selectorExpr.on;
+			}
+
+			auto& selector = of->selectorExpr;
+			auto& firstIdent = selector.on->identifierExpr;
+			if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
+			{
+				type->typeID = TypeID::ImportedType;
+				type->importedType.packageName = selector.on->identifierExpr.identifier;
+				type->importedType.typeName = selector.on->identifierExpr.identifier;
+				break;
+			}
+
+			InplaceString& val = firstIdent.identifier->val;
+			Node* node = GetNodeForName(val);
+			if (node->nodeID == NodeID::Definition)
+			{
+				Type* baseType = GetBaseType(node->definition.type);
+				switch (type->typeID)
+				{
+				case NamedType:
+					*type = *GetInnerType(baseType, of);
+					break;
+				case PrimitiveType:
+					break;
+				case ImportedType:
+					break;
+				default:
+					break;
+				}
+			}
+			else if (node->nodeID == NodeID::StateStmnt)
+			{
+				type->typeID = TypeID::NamedType;
+				type->namedType.typeName = node->state.name;
+			}
+
+			return type;
+		}
 		case IndexExpr:
 		{
-			type->typeID = TypeID::ArrayType;
-			InferType(of->indexExpr.of, type->arrayType.type);
-			break;
+			Type* type = syntax.CreateTypePtr(TypeID::ArrayType);
+			type->arrayType.type = InferType(of->indexExpr.of);
+			return type;
 		}
 		case FunctionCallExpr:
 			break;
 		case NewExpr:
 		{
-			type->typeID = TypeID::PointerType;
+			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
 			type->pointerType.valuePtr = false;
 			type->pointerType.type = syntax.CreateTypePtr(TypeID::InvalidType);
-			InferType(of->newExpr.primaryExpr, type->pointerType.type);
-			break;
+			type->pointerType.type = InferType(of->newExpr.primaryExpr);
+			return type;
 		}
 		case FixedExpr:
 			break;
@@ -194,8 +315,7 @@ struct Checker
 		case UnaryExpr:
 			break;
 		case GroupedExpr:
-
-			break;
+			return InferType(of->groupedExpr.expr);
 		case GenericsExpr:
 			break;
 		case FunctionTypeExpr:
@@ -203,10 +323,9 @@ struct Checker
 		case FunctionTypeDeclExpr:
 			break;
 		case CompileExpr:
-			*type = *of->compileExpr.returnType;
-			break;
+			return of->compileExpr.returnType;
 		default:
-			break;
+			return syntax.CreateTypePtr(TypeID::InvalidType);
 		}
 	}
 

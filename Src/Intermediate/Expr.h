@@ -47,7 +47,7 @@ struct Expr
 		struct
 		{
 			Token* identifier;
-		} identfierExpr;
+		} identifierExpr;
 
 		struct
 		{
@@ -197,7 +197,7 @@ struct Expr
 			literalExpr = copy.literalExpr;
 			break;
 		case IdentifierExpr:
-			identfierExpr = copy.identfierExpr;
+			identifierExpr = copy.identifierExpr;
 			break;
 		case PrimitiveExpr:
 			primitiveExpr = copy.primitiveExpr;
