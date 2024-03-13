@@ -621,7 +621,7 @@ public:
 		{ "assert", TokenType::Keyword, UniqueType::Assert },
 		{ "where", TokenType::Keyword, UniqueType::Where },
 		{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
-		{ "#compileDebug", TokenType::Keyword, UniqueType::OnCompileDebug },
+		{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
 		{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 
 		{ "public", TokenType::AccessModifier, UniqueType::Public },

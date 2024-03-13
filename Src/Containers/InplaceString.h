@@ -32,11 +32,6 @@ struct InplaceString
 		return eastl::string(start, count);
 	}
 
-	inline operator eastl::string() const
-	{
-		return eastl::string(start, count);
-	}
-
 	inline InplaceString& operator+=(char* next)
 	{
 		count += 1;

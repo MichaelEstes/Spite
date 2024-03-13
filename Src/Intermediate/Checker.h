@@ -150,34 +150,71 @@ struct Checker
 
 	Type* GetBaseType(Type* type)
 	{
-		while (IsNotBaseType(type))
+		Type* baseType = type;
+		while (IsNotBaseType(baseType))
 		{
-			switch (type->typeID)
+			switch (baseType->typeID)
 			{
 			case PointerType:
-				return type->pointerType.type;
+				baseType = baseType->pointerType.type;
 				break;
 			case ValueType:
-				return type->valueType.type;
+				baseType = baseType->valueType.type;
 				break;
 			case ArrayType:
-				return type->arrayType.type;
+				baseType = baseType->arrayType.type;
 				break;
 			case GenericsType:
-				return type->genericsType.type;
+				baseType = baseType->genericsType.type;
 				break;
 			default:
-				return nullptr;
 				break;
 			}
 		}
+
+		return baseType;
 	}
 
-	Type* GetInnerType(Type* of, Expr* selector)
+	Node* FindStateMember(Node* of, InplaceString& val)
 	{
-		if (of)
+		eastl::vector<Node*>* members = of->state.members;
+		for (Node* node : *members)
 		{
+			if (node->definition.name->val == val) return node;
+		}
 
+		return nullptr;
+	}
+
+	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents)
+	{
+		Node* state = GetStateNodeForName(of->namedType.typeName->val);
+		if (state)
+		{
+			for (int i = idents.size() - 1; i >= 0; i--)
+			{
+				InplaceString& val = idents.at(i)->val;
+				Node* node = FindStateMember(state, val);
+				if (node)
+				{
+					Type* type = node->definition.type;
+					if (i == 0) return type;
+
+					state = GetStateNodeForName(type->namedType.typeName->val);
+					if (!state)
+					{
+						// AddError missing selector state
+					}
+				}
+				else
+				{
+					// AddError no member for state
+				}
+			}
+		}
+		else
+		{
+			// AddError missing state
 		}
 
 		return nullptr;
@@ -243,32 +280,34 @@ struct Checker
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::InvalidType);
 			Expr* firstSelector = of;
+			eastl::vector<Token*> idents = eastl::vector<Token*>();
 			while (firstSelector->selectorExpr.on->typeID == ExprID::SelectorExpr)
 			{
+				idents.push_back(firstSelector->selectorExpr.select->identifierExpr.identifier);
 				firstSelector = firstSelector->selectorExpr.on;
 			}
+			idents.push_back(firstSelector->selectorExpr.select->identifierExpr.identifier);
 
 			auto& selector = of->selectorExpr;
-			auto& firstIdent = selector.on->identifierExpr;
-			if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
+			InplaceString& firstName = firstSelector->selectorExpr.on->identifierExpr.identifier->val;
+			Node* node = GetNodeForName(firstName);
+			if (!node)
 			{
-				type->typeID = TypeID::ImportedType;
-				type->importedType.packageName = selector.on->identifierExpr.identifier;
-				type->importedType.typeName = selector.on->identifierExpr.identifier;
-				break;
+				if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
+				{
+					type->typeID = TypeID::ImportedType;
+					type->importedType.packageName = selector.on->identifierExpr.identifier;
+					type->importedType.typeName = selector.on->identifierExpr.identifier;
+				}
+				else break;
 			}
-
-			InplaceString& val = firstIdent.identifier->val;
-			Node* node = GetNodeForName(val);
-			if (node->nodeID == NodeID::Definition)
+			else if (node->nodeID == NodeID::Definition)
 			{
 				Type* baseType = GetBaseType(node->definition.type);
-				switch (type->typeID)
+				switch (baseType->typeID)
 				{
 				case NamedType:
-					*type = *GetInnerType(baseType, of);
-					break;
-				case PrimitiveType:
+					*type = *GetInnerType(baseType, idents);
 					break;
 				case ImportedType:
 					break;
@@ -325,8 +364,9 @@ struct Checker
 		case CompileExpr:
 			return of->compileExpr.returnType;
 		default:
-			return syntax.CreateTypePtr(TypeID::InvalidType);
+			break;
 		}
+		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
 };
