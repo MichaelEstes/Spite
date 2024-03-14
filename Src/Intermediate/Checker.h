@@ -220,6 +220,11 @@ struct Checker
 		return nullptr;
 	}
 
+	inline Type* GetUnaryType()
+	{
+		return nullptr;
+	}
+
 	Type* InferType(Expr* of)
 	{
 		switch (of->typeID)
@@ -307,7 +312,7 @@ struct Checker
 				switch (baseType->typeID)
 				{
 				case NamedType:
-					*type = *GetInnerType(baseType, idents);
+					type = GetInnerType(baseType, idents);
 					break;
 				case ImportedType:
 					break;
@@ -335,16 +340,51 @@ struct Checker
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
 			type->pointerType.valuePtr = false;
-			type->pointerType.type = syntax.CreateTypePtr(TypeID::InvalidType);
 			type->pointerType.type = InferType(of->newExpr.primaryExpr);
 			return type;
 		}
 		case FixedExpr:
-			break;
+		{
+			Type* fixedType = InferType(of->fixedExpr.atExpr);
+			if (fixedType->typeID != TypeID::ArrayType)
+			{
+				// AddError, fixed types must evaluate to array types
+				return syntax.CreateTypePtr(TypeID::InvalidType);
+			}
+
+			Type* baseType;
+			Type* type;
+			do
+			{
+				fixedType = fixedType->arrayType.type;
+				Type* pointerType = syntax.CreateTypePtr(TypeID::PointerType);
+				pointerType->pointerType.valuePtr = false;
+				if (!type)
+				{
+					type = pointerType;
+					baseType = type;
+				}
+				else
+				{
+					type->pointerType.type = pointerType;
+					type = type->pointerType.type;
+				}
+			} while (fixedType->typeID == TypeID::ArrayType);
+
+			type->pointerType.type = fixedType;
+			return baseType;
+		}
 		case AnonTypeExpr:
-			break;
+		{
+			// AddError AnonType can not be implicitly assigned, loss of member handle name
+			// Maybe in the future
+			// anon := { 1, 2.0, 'str' }
+			// anon[0] = 1 
+			// anon[2] = 'str'
+			return syntax.CreateTypePtr(TypeID::InvalidType);
+		}
 		case AsExpr:
-			break;
+			return of->asExpr.to;
 		case DereferenceExpr:
 			break;
 		case ReferenceExpr:
