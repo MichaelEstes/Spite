@@ -116,11 +116,11 @@ struct Checker
 		else localDefinitionMap[name] = node;
 	}
 
-	inline Node* GetStateNodeForName(InplaceString& val)
+	inline StateSymbol* GetStateForName(InplaceString& val)
 	{
 		if (auto entry = syntax.symbolTable->stateMap.find(val); entry != syntax.symbolTable->stateMap.end())
 		{
-			return entry->second.state;
+			return &entry->second;
 		}
 		return nullptr;
 	}
@@ -137,7 +137,7 @@ struct Checker
 		}
 		else
 		{
-			return GetStateNodeForName(val);
+			return GetStateForName(val)->state;
 		}
 	}
 
@@ -188,7 +188,7 @@ struct Checker
 
 	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents)
 	{
-		Node* state = GetStateNodeForName(of->namedType.typeName->val);
+		Node* state = GetStateForName(of->namedType.typeName->val)->state;
 		if (state)
 		{
 			for (int i = idents.size() - 1; i >= 0; i--)
@@ -200,7 +200,7 @@ struct Checker
 					Type* type = node->definition.type;
 					if (i == 0) return type;
 
-					state = GetStateNodeForName(type->namedType.typeName->val);
+					state = GetStateForName(type->namedType.typeName->val)->state;
 					if (!state)
 					{
 						// AddError missing selector state
@@ -220,9 +220,54 @@ struct Checker
 		return nullptr;
 	}
 
-	inline Type* GetUnaryType()
+	Type* GetStateOperatorType(Token* op, Type* namedType)
 	{
-		return nullptr;
+		StateSymbol* state = GetStateForName(namedType->namedType.typeName->val);
+		if (state)
+		{
+			for (Node* opNode : state->operators)
+			{
+				if (opNode->stateOperator.op->uniqueType == op->uniqueType)
+				{
+					return opNode->stateOperator.returnType;
+				}
+			}
+		}
+		else
+		{
+			// AddError state not found for named type
+		}
+
+		return syntax.CreateTypePtr(TypeID::InvalidType);
+	}
+
+	Type* GetOperatorType(Token* op, Type* left, Type* right)
+	{
+	
+		return syntax.CreateTypePtr(TypeID::InvalidType);
+	}
+
+	Type* GetUnaryType(Token* op, Type* type)
+	{
+		switch (type->typeID)
+		{
+		case PrimitiveType:
+			if (op->uniqueType == UniqueType::Not) return syntax.CreatePrimitive(UniqueType::Bool);
+			return type;
+		case NamedType:
+			return GetStateOperatorType(op, type);
+		case ImportedType:
+			// TODO Support imported types
+			return syntax.CreateTypePtr(TypeID::InvalidType);
+		case PointerType:
+			return GetUnaryType(op, type->pointerType.type);
+		case ValueType:
+			return GetUnaryType(op, type->valueType.type);
+		case GenericsType:
+			return GetUnaryType(op, type->genericsType.type);
+		default:
+			return syntax.CreateTypePtr(TypeID::InvalidType);
+		}
 	}
 
 	Type* InferType(Expr* of)
@@ -346,14 +391,15 @@ struct Checker
 		case FixedExpr:
 		{
 			Type* fixedType = InferType(of->fixedExpr.atExpr);
+			if (fixedType->typeID == TypeID::PointerType) fixedType = fixedType->pointerType.type;
 			if (fixedType->typeID != TypeID::ArrayType)
 			{
 				// AddError, fixed types must evaluate to array types
 				return syntax.CreateTypePtr(TypeID::InvalidType);
 			}
 
-			Type* baseType;
-			Type* type;
+			Type* baseType = nullptr;
+			Type* type = nullptr;
 			do
 			{
 				fixedType = fixedType->arrayType.type;
@@ -388,11 +434,19 @@ struct Checker
 		case DereferenceExpr:
 			break;
 		case ReferenceExpr:
-			break;
+		{
+			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
+			type->pointerType.valuePtr = false;
+			type->pointerType.type = InferType(of->referenceExpr.of);
+			return type;
+		}
 		case BinaryExpr:
 			break;
 		case UnaryExpr:
-			break;
+		{
+			Type* type = InferType(of->unaryExpr.expr);
+			return GetUnaryType(of->unaryExpr.op, type);
+		}
 		case GroupedExpr:
 			return InferType(of->groupedExpr.expr);
 		case GenericsExpr:

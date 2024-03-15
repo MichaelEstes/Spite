@@ -2101,7 +2101,7 @@ struct Syntax
 		Expr* fixed = CreateExpr(curr, ExprID::FixedExpr);
 		fixed->fixedExpr.fixed = curr;
 		Advance();
-		fixed->fixedExpr.atExpr = ParseOperand();
+		fixed->fixedExpr.atExpr = ParsePrimaryExpr();
 		return fixed;
 	}
 
