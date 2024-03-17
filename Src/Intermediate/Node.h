@@ -398,3 +398,81 @@ struct Node
 
 	~Node() {};
 };
+
+bool operator==(const Type& left, const Type& right)
+{
+	if (left.typeID != right.typeID) return false;
+
+	switch (left.typeID)
+	{
+	case PrimitiveType:
+	{
+		auto& l = left.primitiveType;
+		auto& r = right.primitiveType;
+		return l.isSigned == r.isSigned && l.size == r.size && l.type == r.type;
+	}
+	case NamedType:
+		return left.namedType.typeName->val == right.namedType.typeName->val;
+	case ExplicitType:
+	{
+		if (left.explicitType.declarations->size() != right.explicitType.declarations->size()) return false;
+		for (int i = 0; i < left.explicitType.declarations->size(); i++)
+		{
+			if (*left.explicitType.declarations->at(i)->definition.type !=
+				*right.explicitType.declarations->at(i)->definition.type) return false;
+		}
+		return true;
+	}
+	case ImplicitType:
+		// Implicit Types cannot be compared
+		return false;
+	case PointerType:
+	{
+		auto& l = left.pointerType;
+		auto& r = right.pointerType;
+		return l.valuePtr == r.valuePtr && *l.type == *r.type;
+	}
+	case ValueType:
+		return *left.valueType.type == *right.valueType.type;
+	case ArrayType:
+		return *left.arrayType.type == *right.arrayType.type;
+	case GenericsType:
+	{
+		auto& l = left.genericsType;
+		auto& r = right.genericsType;
+		eastl::vector<Type*>* lTypes = l.generics->genericsExpr.types;
+		eastl::vector<Type*>* rTypes = r.generics->genericsExpr.types;
+		if (lTypes->size() != rTypes->size()) return false;
+		for (int i = 0; i < lTypes->size(); i++)
+		{
+			if (*lTypes->at(i) != *rTypes->at(i)) return false;
+		}
+
+		return *l.type == *r.type;
+	}
+	case FunctionType:
+	{
+		auto& l = left.functionType;
+		auto& r = right.functionType;
+		if (*l.returnType != *r.returnType) return false;
+		if (l.paramTypes->size() != r.paramTypes->size()) return false;
+		for (int i = 0; i < l.paramTypes->size(); i++)
+		{
+			if (*l.paramTypes->at(i) != *r.paramTypes->at(i)) return false;
+		}
+		return true;
+	}
+	case ImportedType:
+		return left.importedType.packageName->val == right.importedType.packageName->val &&
+			left.importedType.typeName->val == right.importedType.typeName->val;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+bool operator!=(const Type& left, const Type& right)
+{
+	return !(left == right);
+}

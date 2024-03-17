@@ -35,7 +35,7 @@ add_executable (Spite_Lang
 "Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/InplaceString.h" "Src/Log/Errors.h"
 "Src/Containers/Arena.h" "Src/Intermediate/Type.h" "Src/Intermediate/Expr.h" "Src/Intermediate/Node.h" 
 "Src/Config/BuildConfig.h"  "Src/Config/Config.h" "Src/Containers/Table.h" "Src/Output/LLVM/LLVMBuilder.h" 
-"Src/Intermediate/Checker.h")
+"Src/Intermediate/Checker.h" "Src/Containers/TupleLookup.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)

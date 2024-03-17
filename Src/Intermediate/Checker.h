@@ -220,16 +220,19 @@ struct Checker
 		return nullptr;
 	}
 
-	Type* GetStateOperatorType(Token* op, Type* namedType)
+	Type* GetStateOperatorType(Token* op, Type* namedType, Type* rhs = nullptr)
 	{
 		StateSymbol* state = GetStateForName(namedType->namedType.typeName->val);
 		if (state)
 		{
 			for (Node* opNode : state->operators)
 			{
-				if (opNode->stateOperator.op->uniqueType == op->uniqueType)
+				auto& stateOp = opNode->stateOperator;
+				if (stateOp.op->uniqueType == op->uniqueType)
 				{
-					return opNode->stateOperator.returnType;
+					if (!rhs) return stateOp.returnType;
+					else if (*stateOp.decl->functionDecl.parameters->at(0)->definition.type == *rhs)
+						return stateOp.returnType;
 				}
 			}
 		}
@@ -241,9 +244,94 @@ struct Checker
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
+	bool IsFloat(Type* primitive)
+	{
+		switch (primitive->primitiveType.type)
+		{
+		case UniqueType::Float:
+		case UniqueType::Float32:
+		case UniqueType::Float64:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	inline Type* GetPrimitiveOperatorType(Type* left, Type* right)
+	{
+		auto& lPrim = left->primitiveType;
+		auto& rPrim = right->primitiveType;
+		switch (lPrim.type)
+		{
+		case UniqueType::Void:
+			break;
+		case UniqueType::Bool:
+			break;
+		case UniqueType::Byte:
+		case UniqueType::Int:
+		case UniqueType::Int16:
+		case UniqueType::Int32:
+		case UniqueType::Int64:
+		case UniqueType::Int128:
+		{
+			if (IsFloat(right)) return right;
+			else if (!rPrim.isSigned) return left;
+			else if (lPrim.size > rPrim.size) return left;
+			else return right;
+		}
+		case UniqueType::Ubyte:
+		case UniqueType::Uint:
+		case UniqueType::Uint16:
+		case UniqueType::Uint32:
+		case UniqueType::Uint64:
+		case UniqueType::Uint128:
+			break;
+		case UniqueType::Float:
+		case UniqueType::Float32:
+		case UniqueType::Float64:
+			break;
+		case UniqueType::String:
+			break;
+		default:
+			break;
+		}
+	}
+
 	Type* GetOperatorType(Token* op, Type* left, Type* right)
 	{
-	
+		switch (left->typeID)
+		{
+		case PrimitiveType:
+		{
+			if (right->typeID == TypeID::PrimitiveType)
+			{
+				return GetPrimitiveOperatorType(left, right);
+			}
+
+			break;
+		}
+		case NamedType:
+			return GetStateOperatorType(op, left, right);
+		case ExplicitType:
+			break;
+		case ImplicitType:
+			break;
+		case PointerType:
+			break;
+		case ValueType:
+			break;
+		case ArrayType:
+			break;
+		case GenericsType:
+			break;
+		case FunctionType:
+			break;
+		case ImportedType:
+			break;
+		default:
+			break;
+		}
+
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
@@ -441,7 +529,11 @@ struct Checker
 			return type;
 		}
 		case BinaryExpr:
-			break;
+		{
+			Type* left = InferType(of->binaryExpr.left);
+			Type* right = InferType(of->binaryExpr.right);
+			return GetOperatorType(of->binaryExpr.op, left, right);
+		}
 		case UnaryExpr:
 		{
 			Type* type = InferType(of->unaryExpr.expr);
@@ -450,11 +542,25 @@ struct Checker
 		case GroupedExpr:
 			return InferType(of->groupedExpr.expr);
 		case GenericsExpr:
-			break;
+		{
+			Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
+			type->genericsType.generics->genericsExpr.types = of->genericsExpr.types;
+			type->genericsType.type = InferType(of->genericsExpr.expr);
+			return type;
+		}
 		case FunctionTypeExpr:
-			break;
+			return of->functionTypeExpr.functionType;
 		case FunctionTypeDeclExpr:
-			break;
+		{
+			Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
+			type->functionType.returnType = of->functionTypeDeclExpr.returnType;
+			type->functionType.paramTypes = syntax.CreateVectorPtr<Type*>();
+			for (Node* param : *of->functionTypeDeclExpr.functionDecl->functionDecl.parameters)
+			{
+				type->functionType.paramTypes->push_back(param->definition.type);
+			}
+			return type;
+		}
 		case CompileExpr:
 			return of->compileExpr.returnType;
 		default:
