@@ -1,64 +1,123 @@
 #pragma once
 #include "Syntax.h"
+#include "EASTL/deque.h"
 
 struct Checker
 {
+	enum DefinitionContext
+	{
+		GlobalDef,
+		FuncDef,
+		MethodDef
+	};
+
 	Syntax& syntax;
-	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalDefinitionMap;
-	eastl::hash_map<InplaceString, Node*, InplaceStringHash> localDefinitionMap;
+	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>> scopeQueue;
+	eastl::hash_map<InplaceString, Node*, InplaceStringHash>* globalScope;
+	DefinitionContext defContext;
 
 	Checker(Syntax& syntax) : syntax(syntax) {}
 
 	void Check()
 	{
-		for (Node* node : syntax.nodes)
+		defContext = DefinitionContext::GlobalDef;
+		for (auto& [key, value] : syntax.symbolTable->globalValMap)
 		{
-			CheckNode(node, true);
+			CheckGlobalVal(value);
+		}
+
+		defContext = DefinitionContext::MethodDef;
+		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		{
+			CheckState(value.state);
+			CheckConstructors(value.constructors);
+			CheckMethods(value.methods);
+			CheckOperators(value.operators);
+			CheckDestructor(value.destructor);
+		}
+
+		defContext = DefinitionContext::FuncDef;
+		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		{
+			CheckFunction(value);
+		}
+
+		for (Node* node : syntax.symbolTable->onCompiles)
+		{
+
 		}
 	}
 
-	void CheckNode(Node* node, bool global)
+	void AddScope()
+	{
+		scopeQueue.push_back(eastl::hash_map<InplaceString, Node*, InplaceStringHash>());
+	}
+
+	void PopScope()
+	{
+		scopeQueue.pop_back();
+		if (scopeQueue.size() == 0)
+		{
+			//Add Error, global scope popped
+		}
+	}
+
+	void CheckGlobalVal(Node* global)
+	{
+		CheckDefinition(global);
+	}
+
+	void CheckState(Node* state)
+	{
+		if (!state)
+		{
+			// Add Error, state was not defined
+			return;
+		}
+
+
+	}
+
+	void CheckConstructors(eastl::vector<Node*>& constructors)
+	{
+		for (Node* node : constructors)
+		{
+
+		}
+	}
+
+	void CheckMethods(eastl::vector<Node*>& methods)
+	{
+
+	}
+
+	void CheckOperators(eastl::vector<Node*>& operators)
+	{
+
+	}
+
+	void CheckDestructor(Node* destructor)
+	{
+		if (!destructor) return; // Destructor not required
+
+	}
+
+	void CheckFunction(Node* function)
+	{
+
+	}
+
+	void CheckNode(Node* node)
 	{
 		switch (node->nodeID)
 		{
-		case InvalidNode:
-		case CommentStmnt:
-		case UsingStmnt:
-		case PackageStmnt:
-			break;
-
 		case ExpressionStmnt:
 			CheckExpr(node->expressionStmnt.expression);
 			break;
 		case Definition:
-			CheckDefinition(node, global);
+			CheckDefinition(node);
 			break;
 		case InlineDefinition:
-			break;
-		case FunctionStmnt:
-		{
-			CheckNode(node->function.decl, true);
-			break;
-		}
-		case FunctionDecl:
-		{
-			auto& body = node->functionDecl.body;
-			if (!body.statement) CheckNode(node->functionDecl.body.body, true);
-			break;
-		}
-		case StateStmnt:
-			break;
-		case GenericsDecl:
-			break;
-		case WhereStmnt:
-			break;
-		case Method:
-			break;
-		case StateOperator:
-			break;
-		case Destructor:
-			break;
-		case Constructor:
 			break;
 		case Conditional:
 			break;
@@ -82,14 +141,11 @@ struct Checker
 			break;
 		case ReturnStmnt:
 			break;
-		case CompileStmnt:
-			break;
-		case CompileDebugStmnt:
-			break;
 		case Block:
 		{
-			localDefinitionMap.clear();
-			for (Node* n : *node->block.inner) CheckNode(n, false);
+			AddScope();
+			for (Node* n : *node->block.inner) CheckNode(n);
+			PopScope();
 			break;
 		}
 		default:
@@ -99,10 +155,54 @@ struct Checker
 
 	void CheckExpr(Expr* expr)
 	{
-
+		switch (expr->typeID)
+		{
+		case InvalidExpr:
+			break;
+		case LiteralExpr:
+			break;
+		case IdentifierExpr:
+			break;
+		case PrimitiveExpr:
+			break;
+		case SelectorExpr:
+			break;
+		case IndexExpr:
+			break;
+		case FunctionCallExpr:
+			break;
+		case NewExpr:
+			break;
+		case FixedExpr:
+			break;
+		case AnonTypeExpr:
+			break;
+		case AsExpr:
+			break;
+		case DereferenceExpr:
+			break;
+		case ReferenceExpr:
+			break;
+		case BinaryExpr:
+			break;
+		case UnaryExpr:
+			break;
+		case GroupedExpr:
+			break;
+		case GenericsExpr:
+			break;
+		case FunctionTypeExpr:
+			break;
+		case FunctionTypeDeclExpr:
+			break;
+		case CompileExpr:
+			break;
+		default:
+			break;
+		}
 	}
 
-	void CheckDefinition(Node* node, bool global)
+	void CheckDefinition(Node* node)
 	{
 		auto& definition = node->definition;
 		Type* type = definition.type;
@@ -112,8 +212,7 @@ struct Checker
 		}
 
 		InplaceString& name = definition.name->val;
-		if (global) globalDefinitionMap[name] = node;
-		else localDefinitionMap[name] = node;
+		scopeQueue.back()[name] = node;
 	}
 
 	inline StateSymbol* GetStateForName(InplaceString& val)
@@ -125,20 +224,22 @@ struct Checker
 		return nullptr;
 	}
 
+	Node* FindInScope(InplaceString& val)
+	{
+		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)
+		{
+			if (auto entry = it->find(val); entry != it->end())
+			{
+				return entry->second;
+			}
+		}
+	}
+
 	Node* GetNodeForName(InplaceString& val)
 	{
-		if (auto entry = globalDefinitionMap.find(val); entry != globalDefinitionMap.end())
-		{
-			return entry->second;
-		}
-		else if (auto entry = localDefinitionMap.find(val); entry != localDefinitionMap.end())
-		{
-			return entry->second;
-		}
-		else
-		{
-			return GetStateForName(val)->state;
-		}
+		Node* node = FindInScope(val);
+		if (node) return node;
+		else return GetStateForName(val)->state;
 	}
 
 	inline bool IsNotBaseType(Type* type)
@@ -257,6 +358,39 @@ struct Checker
 		}
 	}
 
+	bool IsInt(Type* primitive)
+	{
+		switch (primitive->primitiveType.type)
+		{
+		case UniqueType::Byte:
+		case UniqueType::Int:
+		case UniqueType::Int16:
+		case UniqueType::Int32:
+		case UniqueType::Int64:
+		case UniqueType::Int128:
+		case UniqueType::Ubyte:
+		case UniqueType::Uint:
+		case UniqueType::Uint16:
+		case UniqueType::Uint32:
+		case UniqueType::Uint64:
+		case UniqueType::Uint128:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	bool IsString(Type* primitive)
+	{
+		switch (primitive->primitiveType.type)
+		{
+		case UniqueType::String:
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	inline Type* GetPrimitiveOperatorType(Type* left, Type* right)
 	{
 		auto& lPrim = left->primitiveType;
@@ -275,6 +409,7 @@ struct Checker
 		case UniqueType::Int128:
 		{
 			if (IsFloat(right)) return right;
+			else if (IsString(right)) return right;
 			else if (!rPrim.isSigned) return left;
 			else if (lPrim.size > rPrim.size) return left;
 			else return right;
@@ -285,16 +420,29 @@ struct Checker
 		case UniqueType::Uint32:
 		case UniqueType::Uint64:
 		case UniqueType::Uint128:
-			break;
+		{
+			if (IsFloat(right)) return right;
+			else if (IsString(right)) return right;
+			else if (rPrim.isSigned) return right;
+			else if (lPrim.size > rPrim.size) return left;
+			else return right;
+		}
 		case UniqueType::Float:
 		case UniqueType::Float32:
 		case UniqueType::Float64:
-			break;
+		{
+			if (IsInt(right)) return left;
+			else if (IsString(right)) return right;
+			else if (lPrim.size > rPrim.size) return left;
+			else return right;
+		}
 		case UniqueType::String:
-			break;
+			return left;
 		default:
 			break;
 		}
+
+		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Type* GetOperatorType(Token* op, Type* left, Type* right)
@@ -313,20 +461,30 @@ struct Checker
 		case NamedType:
 			return GetStateOperatorType(op, left, right);
 		case ExplicitType:
-			break;
 		case ImplicitType:
+			// Add Error, Binary operators not valid with explicit and implicit types
 			break;
 		case PointerType:
+		{
+			if (IsInt(right))
+			{
+				return left;
+			}
+			// Add Error, pointers are ints, can't operate with anything other than ints
 			break;
+		}
+		break;
 		case ValueType:
-			break;
+			return GetOperatorType(op, left->valueType.type, right);
 		case ArrayType:
 			break;
 		case GenericsType:
 			break;
 		case FunctionType:
+			// Add error, can't multiply functions
 			break;
 		case ImportedType:
+			// TODO Add imported type checking
 			break;
 		default:
 			break;

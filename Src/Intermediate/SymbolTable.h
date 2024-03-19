@@ -9,12 +9,12 @@
 
 struct StateSymbol
 {
-	Node* state;
+	Node* state = nullptr;
 
 	eastl::vector<Node*> constructors;
 	eastl::vector<Node*> methods;
 	eastl::vector<Node*> operators;
-	Node* destructor;
+	Node* destructor = nullptr;
 };
 
 struct SymbolTable
@@ -25,31 +25,47 @@ struct SymbolTable
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalValMap;
 	eastl::vector<Node*> onCompiles;
 
+	StateSymbol& GetOrCreateState(InplaceString& name)
+	{
+		if (stateMap.find(name) != stateMap.end())
+		{
+			return stateMap[name];
+		}
+		else
+		{
+			stateMap[name] = StateSymbol();
+			return stateMap[name];
+		}
+	}
+	
 	void AddState(Node* state)
 	{
-		StateSymbol symbol = StateSymbol();
+		StateSymbol symbol = GetOrCreateState(state->state.name->val);
 		symbol.state = state;
-		stateMap[state->state.name->val] = symbol;
 	}
 
 	void AddConstructor(Node* constructor)
 	{
-		stateMap[constructor->constructor.stateName->val].constructors.push_back(constructor);
+		StateSymbol symbol = GetOrCreateState(constructor->constructor.stateName->val);
+		symbol.constructors.push_back(constructor);
 	}
 
 	void AddMethod(Node* method)
 	{
-		stateMap[method->method.stateName->val].methods.push_back(method);
+		StateSymbol symbol = GetOrCreateState(method->method.stateName->val);
+		symbol.methods.push_back(method);
 	}
 
 	void AddOperator(Node* stateOperator)
 	{
-		stateMap[stateOperator->stateOperator.stateName->val].operators.push_back(stateOperator);
+		StateSymbol symbol = GetOrCreateState(stateOperator->stateOperator.stateName->val);
+		symbol.operators.push_back(stateOperator);
 	}
 
 	void SetDestructor(Node* destructor)
 	{
-		stateMap[destructor->destructor.stateName->val].destructor = destructor;
+		StateSymbol symbol = GetOrCreateState(destructor->destructor.stateName->val);
+		symbol.destructor = destructor;
 	}
 
 	void AddFunction(Node* function)
