@@ -20,6 +20,8 @@ struct Checker
 
 	void Check()
 	{
+		AddScope();
+		globalScope = &scopeQueue.back();
 		defContext = DefinitionContext::GlobalDef;
 		for (auto& [key, value] : syntax.symbolTable->globalValMap)
 		{
@@ -50,7 +52,7 @@ struct Checker
 
 	void AddScope()
 	{
-		scopeQueue.push_back(eastl::hash_map<InplaceString, Node*, InplaceStringHash>());
+		scopeQueue.emplace_back();
 	}
 
 	void PopScope()
@@ -58,7 +60,7 @@ struct Checker
 		scopeQueue.pop_back();
 		if (scopeQueue.size() == 0)
 		{
-			//Add Error, global scope popped
+			Logger::FatalError("Checker::PopScope Global scope removed, possible compiler error");
 		}
 	}
 
@@ -80,31 +82,55 @@ struct Checker
 
 	void CheckConstructors(eastl::vector<Node*>& constructors)
 	{
-		for (Node* node : constructors)
+		for (Node* constructor : constructors)
 		{
-
+			auto& decl = constructor->constructor.decl;
+			CheckFunctionDecl(decl);
 		}
 	}
 
 	void CheckMethods(eastl::vector<Node*>& methods)
 	{
-
+		for (Node* method : methods)
+		{
+			auto& decl = method->method.decl;
+			CheckFunctionDecl(decl);
+		}
 	}
 
 	void CheckOperators(eastl::vector<Node*>& operators)
 	{
-
+		for (Node* op : operators)
+		{
+			auto& decl = op->stateOperator.decl;
+			CheckFunctionDecl(decl);
+		}
 	}
 
 	void CheckDestructor(Node* destructor)
 	{
 		if (!destructor) return; // Destructor not required
-
+		CheckBody(destructor->destructor.body);
 	}
 
 	void CheckFunction(Node* function)
 	{
+		auto& decl = function->function.decl;
+		CheckFunctionDecl(decl);
+	}
 
+	inline void CheckFunctionDecl(Node* functionDecl)
+	{
+		auto& params = functionDecl->functionDecl.parameters;
+		auto& body = functionDecl->functionDecl.body;
+		CheckBody(body);
+	}
+
+	inline void CheckBody(Body& body)
+	{
+		if (body.statement) AddScope();
+		CheckNode(body.body);
+		if (body.statement) PopScope();
 	}
 
 	void CheckNode(Node* node)
@@ -212,7 +238,8 @@ struct Checker
 		}
 
 		InplaceString& name = definition.name->val;
-		scopeQueue.back()[name] = node;
+		eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
+		back[name] = node;
 	}
 
 	inline StateSymbol* GetStateForName(InplaceString& val)

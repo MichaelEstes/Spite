@@ -47,35 +47,35 @@ public:
 		}
 	}
 
-	static void Error(eastl::string msg)
+	static void Error(const eastl::string& msg)
 	{
 		std::cout << "ERROR: " << msg << '\n';
 	}
 
-	static void ErrorAt(eastl::string msg, Position pos)
+	static void ErrorAt(const eastl::string& msg, Position pos)
 	{
 		std::cout << "ERROR: " << msg << " :: found at position " + pos.ToString() << '\n';
 	}
 
-	static void FatalError(eastl::string msg, int errorCode = 1)
+	static void FatalError(const eastl::string& msg, int errorCode = 1)
 	{
 		std::cout << "ERROR: " << msg << '\n';
 		std::exit(errorCode);
 	}
 
-	static void FatalErrorAt(eastl::string msg, Position pos, int errorCode = 1)
+	static void FatalErrorAt(const eastl::string& msg, Position& pos, int errorCode = 1)
 	{
 		PrintErrors();
 		std::cout << "ERROR: " << msg << " :: found at position " + pos.ToString() << '\n';
 		std::exit(errorCode);
 	}
 
-	static void Warning(eastl::string msg)
+	static void Warning(const eastl::string& msg)
 	{
 		std::cout << "WARNING: " << msg << '\n';
 	}
 
-	static void Info(eastl::string msg)
+	static void Info(const eastl::string& msg)
 	{
 		std::cout << "INFO: " << msg << '\n';
 	}

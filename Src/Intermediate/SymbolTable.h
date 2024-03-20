@@ -25,7 +25,7 @@ struct SymbolTable
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalValMap;
 	eastl::vector<Node*> onCompiles;
 
-	StateSymbol& GetOrCreateState(InplaceString& name)
+	StateSymbol& GetOrCreateState(const InplaceString& name)
 	{
 		if (stateMap.find(name) != stateMap.end())
 		{
@@ -40,31 +40,31 @@ struct SymbolTable
 	
 	void AddState(Node* state)
 	{
-		StateSymbol symbol = GetOrCreateState(state->state.name->val);
+		StateSymbol& symbol = GetOrCreateState(state->state.name->val);
 		symbol.state = state;
 	}
 
 	void AddConstructor(Node* constructor)
 	{
-		StateSymbol symbol = GetOrCreateState(constructor->constructor.stateName->val);
+		StateSymbol& symbol = GetOrCreateState(constructor->constructor.stateName->val);
 		symbol.constructors.push_back(constructor);
 	}
 
 	void AddMethod(Node* method)
 	{
-		StateSymbol symbol = GetOrCreateState(method->method.stateName->val);
+		StateSymbol& symbol = GetOrCreateState(method->method.stateName->val);
 		symbol.methods.push_back(method);
 	}
 
 	void AddOperator(Node* stateOperator)
 	{
-		StateSymbol symbol = GetOrCreateState(stateOperator->stateOperator.stateName->val);
+		StateSymbol& symbol = GetOrCreateState(stateOperator->stateOperator.stateName->val);
 		symbol.operators.push_back(stateOperator);
 	}
 
 	void SetDestructor(Node* destructor)
 	{
-		StateSymbol symbol = GetOrCreateState(destructor->destructor.stateName->val);
+		StateSymbol& symbol = GetOrCreateState(destructor->destructor.stateName->val);
 		symbol.destructor = destructor;
 	}
 
