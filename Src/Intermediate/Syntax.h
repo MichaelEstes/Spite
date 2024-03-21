@@ -384,11 +384,11 @@ eastl::string ToString(Type* type)
 		return "{ " + types + "}";
 	}
 	case PointerType:
-		return type->pointerType.ptr->ToString() + ToString(type->pointerType.type);
+		return "*" + ToString(type->pointerType.type);
 	case ValueType:
-		return type->valueType.valueOp->ToString() + ToString(type->valueType.type);
+		return "~" + ToString(type->valueType.type);
 	case ArrayType:
-		return type->arrayType.arr->ToString() + ToString(type->arrayType.type);
+		return "[]" + ToString(type->arrayType.type);
 	case GenericsType:
 		return ToString(type->genericsType.type) + ToString(type->genericsType.generics);
 	case FunctionType:
@@ -465,20 +465,26 @@ struct Syntax
 
 	void Print()
 	{
+		eastl::string toPrint = "";
 		if (package->nodeID == NodeID::PackageStmnt)
 		{
-			Logger::Info(ToString(package));
+			toPrint += ToString(package);
+			toPrint += '\n';
 		}
 
 		for (Node* node : imports)
 		{
-			Logger::Info(ToString(node));
+			toPrint += ToString(node);
+			toPrint += '\n';
 		}
 
 		for (Node* node : nodes)
 		{
-			Logger::Info(ToString(node));
+			toPrint += ToString(node);
+			toPrint += '\n';
 		}
+
+		Logger::Info(toPrint);
 	}
 
 	inline void AddNode(Node* node)
@@ -553,7 +559,6 @@ struct Syntax
 		}
 
 		Logger::Info("Created " + eastl::to_string(nodeCount) + " Nodes");
-		Print();
 	}
 
 	inline bool Expect(UniqueType type, const eastl::string& errMsg = "")
@@ -1654,7 +1659,6 @@ struct Syntax
 				break;
 
 			case UniqueType::Multiply:
-			case UniqueType::ValuePointer:
 				type = ParsePointerType();
 				break;
 
@@ -1688,7 +1692,6 @@ struct Syntax
 	Type* ParsePointerType()
 	{
 		Type* ptrType = CreateTypePtr(TypeID::PointerType);
-		ptrType->pointerType.valuePtr = Expect(UniqueType::ValuePointer);
 		ptrType->pointerType.ptr = curr;
 		Advance();
 		ptrType->pointerType.type = ParseDeclarationType();

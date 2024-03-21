@@ -314,9 +314,21 @@ struct Checker
 		return nullptr;
 	}
 
+	Node* FindStateMethod(StateSymbol* of, InplaceString& val)
+	{
+		eastl::vector<Node*>& methods = of->methods;
+		for (Node* node : methods)
+		{
+			if (node->method.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
+
 	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents)
 	{
-		Node* state = GetStateForName(of->namedType.typeName->val)->state;
+		StateSymbol* stateSymbol = GetStateForName(of->namedType.typeName->val);
+		Node* state = stateSymbol->state;
 		if (state)
 		{
 			for (int i = idents.size() - 1; i >= 0; i--)
@@ -328,7 +340,8 @@ struct Checker
 					Type* type = node->definition.type;
 					if (i == 0) return type;
 
-					state = GetStateForName(type->namedType.typeName->val)->state;
+					stateSymbol = GetStateForName(type->namedType.typeName->val);
+					state = stateSymbol->state;
 					if (!state)
 					{
 						// AddError missing selector state
@@ -336,7 +349,15 @@ struct Checker
 				}
 				else
 				{
-					// AddError no member for state
+					Node* method = FindStateMethod(stateSymbol, val);
+					if (method && i == 0)
+					{
+						return method->method.returnType;
+					}
+					else
+					{
+						// AddError no member for state
+					}
 				}
 			}
 		}
@@ -345,7 +366,7 @@ struct Checker
 			// AddError missing state
 		}
 
-		return nullptr;
+		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Type* GetStateOperatorType(Token* op, Type* namedType, Type* rhs = nullptr)
@@ -653,11 +674,14 @@ struct Checker
 			return type;
 		}
 		case FunctionCallExpr:
-			break;
+		{
+			// TODO infer return types of functions
+			Type* type = InferType(of->functionCallExpr.function);
+			return type;
+		}
 		case NewExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
-			type->pointerType.valuePtr = false;
 			type->pointerType.type = InferType(of->newExpr.primaryExpr);
 			return type;
 		}
@@ -677,7 +701,6 @@ struct Checker
 			{
 				fixedType = fixedType->arrayType.type;
 				Type* pointerType = syntax.CreateTypePtr(TypeID::PointerType);
-				pointerType->pointerType.valuePtr = false;
 				if (!type)
 				{
 					type = pointerType;
@@ -709,7 +732,6 @@ struct Checker
 		case ReferenceExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
-			type->pointerType.valuePtr = false;
 			type->pointerType.type = InferType(of->referenceExpr.of);
 			return type;
 		}

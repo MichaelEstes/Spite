@@ -59,6 +59,7 @@ bool Parser::Parse()
 		return false;
 	}
 
+	syntax.Print();
 	elapsedScanTime = profiler.End();
 	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
 

@@ -53,7 +53,6 @@ struct Type
 
 		struct
 		{
-			bool valuePtr;
 			Token* ptr;
 			Type* type;
 		} pointerType;

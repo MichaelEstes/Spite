@@ -104,9 +104,11 @@ enum UniqueType
 	Fixed,
 	Delete,
 	Pointer,
-	ValuePointer,
 	As,
 	At,
+	FatArrow,
+	Tilde,
+	AtOp,
 
 	// OperatorKeywords 
 	Add,
@@ -149,9 +151,6 @@ enum UniqueType
 	In,
 	To,
 	Array,
-	FatArrow,
-	Tilde,
-	AtOp,
 
 	// SEPERATORS 
 	Lparen,
@@ -666,7 +665,6 @@ public:
 		{ "new", TokenType::Decorator, UniqueType::New },
 		{ "fixed", TokenType::Decorator, UniqueType::Fixed },
 		{ "delete", TokenType::Decorator, UniqueType::Delete },
-		{ "~*", TokenType::Decorator, UniqueType::ValuePointer },
 		{ "as", TokenType::Decorator, UniqueType::As },
 		{ "at", TokenType::Decorator, UniqueType::At },
 		{ "=>", TokenType::Decorator, UniqueType::FatArrow },

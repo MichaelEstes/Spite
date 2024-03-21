@@ -430,7 +430,7 @@ bool operator==(const Type& left, const Type& right)
 	{
 		auto& l = left.pointerType;
 		auto& r = right.pointerType;
-		return l.valuePtr == r.valuePtr && *l.type == *r.type;
+		return *l.type == *r.type;
 	}
 	case ValueType:
 		return *left.valueType.type == *right.valueType.type;
