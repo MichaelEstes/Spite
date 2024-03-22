@@ -251,6 +251,15 @@ struct Checker
 		return nullptr;
 	}
 
+	inline Node* GetFunctionForName(InplaceString& val)
+	{
+		if (auto entry = syntax.symbolTable->functionMap.find(val); entry != syntax.symbolTable->functionMap.end())
+		{
+			return entry->second;
+		}
+		return nullptr;
+	}
+
 	Node* FindInScope(InplaceString& val)
 	{
 		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)
@@ -266,7 +275,9 @@ struct Checker
 	{
 		Node* node = FindInScope(val);
 		if (node) return node;
-		else return GetStateForName(val)->state;
+		StateSymbol* state = GetStateForName(val);
+		if (state) return state->state;
+		else return GetFunctionForName(val);
 	}
 
 	inline bool IsNotBaseType(Type* type)
@@ -613,6 +624,7 @@ struct Checker
 				type->typeID = TypeID::NamedType;
 				type->namedType.typeName = node->state.name;
 			}
+			else if (node->nodeID == NodeID::FunctionStmnt) return node->function.returnType;
 
 			return type;
 		}
