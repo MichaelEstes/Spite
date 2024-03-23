@@ -651,9 +651,7 @@ struct Checker
 			{
 				if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
 				{
-					type->typeID = TypeID::ImportedType;
-					type->importedType.packageName = selector.on->identifierExpr.identifier;
-					type->importedType.typeName = selector.on->identifierExpr.identifier;
+					//TODO check imported type exists
 				}
 				else break;
 			}
@@ -689,6 +687,7 @@ struct Checker
 		{
 			// TODO infer return types of functions
 			Type* type = InferType(of->functionCallExpr.function);
+			if (type->typeID == TypeID::FunctionType) return type->functionType.returnType;
 			return type;
 		}
 		case NewExpr:
@@ -763,6 +762,10 @@ struct Checker
 		case GenericsExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
+			type->genericsType.generics = syntax.CreateExpr(of->start, ExprID::GenericsExpr);
+			type->genericsType.generics->genericsExpr.expr = nullptr;
+			type->genericsType.generics->genericsExpr.open = of->genericsExpr.open;
+			type->genericsType.generics->genericsExpr.close = of->genericsExpr.close;
 			type->genericsType.generics->genericsExpr.types = of->genericsExpr.types;
 			type->genericsType.type = InferType(of->genericsExpr.expr);
 			return type;
