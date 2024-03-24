@@ -32,7 +32,7 @@ add_executable (Spite_Lang
 "Spite_Lang.cpp" "Spite_Lang.h" "Src/Parsing/Parser.h" "Src/Parsing/Parser.cpp"
 "Src/Log/Logger.h" "Src/Parsing/Scanner.h" "Src/Parsing/Position.h" "Src/Intermediate/Syntax.h"
 "Src/Intermediate/SymbolTable.h" "Src/Utils/Profiler.h" "Src/Tokens/TokenTree.h" "Src/Containers/Flags.h"
-"Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/InplaceString.h" "Src/Log/Errors.h"
+"Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/InplaceString.h" 
 "Src/Containers/Arena.h" "Src/Intermediate/Type.h" "Src/Intermediate/Expr.h" "Src/Intermediate/Node.h" 
 "Src/Config/BuildConfig.h"  "Src/Config/Config.h" "Src/Containers/Table.h" "Src/Output/LLVM/LLVMBuilder.h" 
 "Src/Intermediate/Checker.h" "Src/Containers/TupleLookup.h")
