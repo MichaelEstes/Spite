@@ -3,7 +3,6 @@
 #include "EASTL/vector.h"
 
 #include "../Tokens/Tokens.h"
-#include "../Log/Errors.h"
 #include "../Log/Logger.h"
 #include "../Utils/Utils.h"
 #include "../Containers/Arena.h"
@@ -438,7 +437,6 @@ struct Syntax
 	Scope currScope;
 	Token* curr;
 	SymbolTable* symbolTable;
-	Errors errors;
 
 	size_t nodeCount;
 	eastl::vector<Node*> nodes;
@@ -619,8 +617,8 @@ struct Syntax
 	void ParsePackage(bool setInTree = true)
 	{
 		Token* start = curr;
-		if (Expect(UniqueType::Package, errors.missingPackage) &&
-			ThenExpect(TokenType::Identifier, errors.missingPackageName))
+		if (Expect(UniqueType::Package, "File must start with a 'package' statement") &&
+			ThenExpect(TokenType::Identifier, "Expected an identifier after package token"))
 		{
 			Node* node = CreateNode(start, NodeID::PackageStmnt);
 			node->package.name = curr;
@@ -640,7 +638,7 @@ struct Syntax
 			if (Expect(TokenType::Comment)) ParseComments();
 			return;
 		case UniqueType::Package:
-			AddError(curr, errors.multiplePackages);
+			AddError(curr, "File cannot have multiple 'package' statements");
 			ParsePackage(false);
 			return;
 		case UniqueType::Using:
@@ -692,18 +690,18 @@ struct Syntax
 	void ParseUsing()
 	{
 		bool addNode = IsGlobalScope();
-		if (!addNode) AddError(curr, errors.usingOutsideOfGlobal);
+		if (!addNode) AddError(curr, "Cannot import packages outside of the global scope");
 
 		Token* start = curr;
 		if (Expect(UniqueType::Using) &&
-			ThenExpect(TokenType::Identifier, errors.missingUsingName))
+			ThenExpect(TokenType::Identifier, "Expected an identifier after 'using' token"))
 		{
 			Node* node = CreateNode(start, NodeID::UsingStmnt);
 			node->using_.packageName = curr;
 			Advance();
 
 			if (Expect(UniqueType::As)
-				&& ThenExpect(TokenType::Identifier, errors.expectedUsingAlias))
+				&& ThenExpect(TokenType::Identifier, "Expected an alias identifier after 'as' in using statement"))
 			{
 				node->using_.alias = curr;
 				Advance();
@@ -723,7 +721,7 @@ struct Syntax
 	{
 		Node* node = CreateNode(curr, NodeID::StateStmnt);
 		Advance();
-		if (Expect(TokenType::Identifier, errors.expectedStateName))
+		if (Expect(TokenType::Identifier, "Expected an identifier after 'state'"))
 		{
 			node->state.name = curr;
 			node->state.members = CreateVectorPtr<Node*>();
@@ -731,12 +729,12 @@ struct Syntax
 			Advance();
 			node->state.generics = ParseGenerics();
 
-			if (Expect(UniqueType::Lbrace, errors.expectedStateOpen))
+			if (Expect(UniqueType::Lbrace, "Expected 'state' statement opening ('{')"))
 			{
 				Advance();
 				if (Expect(UniqueType::Rbrace))
 				{
-					AddError(curr, errors.emptyState);
+					AddError(curr, "Empty 'state' is not allowed ('{}')");
 					Advance();
 					return;
 				}
@@ -747,7 +745,7 @@ struct Syntax
 					if (Expect(UniqueType::Comma)) Advance();
 				}
 
-				if (Expect(UniqueType::Rbrace, errors.expectedStateClose))
+				if (Expect(UniqueType::Rbrace, "Expected 'state' statement closure ('}')"))
 				{
 					node->end = curr;
 					Advance();
@@ -783,7 +781,7 @@ struct Syntax
 	{
 		Advance();
 
-		if (Expect(TokenType::Identifier, errors.expectedInsetName))
+		if (Expect(TokenType::Identifier, "Expected identifier as state inset"))
 		{
 			InsetID inset = InsetID::InvalidInset;
 			if (curr->val == "size") inset = InsetID::SizeInset;
@@ -792,14 +790,14 @@ struct Syntax
 			else if (curr->val == "noalign") inset = InsetID::NoAlignInset;
 			else
 			{
-				AddError(curr, errors.expectedInsetName);
+				AddError(curr, "Expected valid state inset");
 				Advance();
 				if (Expect(UniqueType::Rbrack)) Advance();
 				return inset;
 			}
 
 			Advance();
-			if (Expect(UniqueType::Rbrack, errors.expectedInsetClose))
+			if (Expect(UniqueType::Rbrack, "Expected state inset closure (']')"))
 			{
 				Advance();
 				return inset;
@@ -853,7 +851,7 @@ struct Syntax
 		Advance();
 		eastl::vector<Node*>* parameters = ParseParametersList();
 		node->functionDecl.parameters = parameters;
-		if (Expect(UniqueType::Rparen, errors.expectedFunctionParamsClose)) Advance();
+		if (Expect(UniqueType::Rparen, "Expected function closure (')')")) Advance();
 
 		if (Expect(UniqueType::Lbrace))
 		{
@@ -872,7 +870,7 @@ struct Syntax
 		}
 		else
 		{
-			AddError(curr, errors.expectedBlockStart);
+			AddError(curr, "Expected function block opening ('{') or ('=>')");
 		}
 
 		node->nodeID = NodeID::InvalidNode;
@@ -881,7 +879,7 @@ struct Syntax
 
 	Node* ParseFunction(Type* returnType, Token* start)
 	{
-		if (Expect(TokenType::Identifier, errors.expectedFunctionName))
+		if (Expect(TokenType::Identifier, "Expected function name identifier"))
 		{
 			Node* node = CreateNode(start, NodeID::FunctionStmnt);
 			Token* name = curr;
@@ -894,7 +892,7 @@ struct Syntax
 			else
 			{
 				node->function.generics = ParseGenerics();
-				if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+				if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
 				{
 					node->function.returnType = returnType;
 					node->function.name = name;
@@ -922,7 +920,7 @@ struct Syntax
 			node->method.name = curr;
 			Advance();
 			node->method.generics = ParseGenerics();
-			if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+			if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
 			{
 				node->method.decl = ParseFunctionDecl();
 				node->end = node->method.decl->end;
@@ -938,14 +936,14 @@ struct Syntax
 			op->stateOperator.stateName = name;
 			Advance();
 			op->stateOperator.generics = ParseGenerics();
-			if (Expect(UniqueType::DoubleColon, errors.operatorDoubleColon))
+			if (Expect(UniqueType::DoubleColon, "Missing '::' after 'operator' and before the operator to overload"))
 			{
 				Advance();
 				if (curr->type == TokenType::Operator)
 				{
 					op->stateOperator.op = curr;
 					Advance();
-					if (Expect(UniqueType::Lparen, errors.expectedFunctionParamsOpen))
+					if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
 					{
 						op->stateOperator.decl = ParseFunctionDecl();
 						op->end = op->stateOperator.decl->end;
@@ -953,7 +951,7 @@ struct Syntax
 						return op;
 					}
 				}
-				else AddError(curr, errors.invalidOperator);
+				else AddError(curr, "Expected an overloadable operator");
 			}
 			break;
 		}
@@ -1004,14 +1002,14 @@ struct Syntax
 
 		if (Expect(UniqueType::Greater))
 		{
-			AddError(curr, errors.emptyGenerics);
+			AddError(curr, "Expected generic types not '<>'");
 			node->nodeID = NodeID::InvalidNode;
 			return node;
 		}
 
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Colon) && !IsEOF())
 		{
-			if (Expect(TokenType::Identifier, errors.notGenericIdent))
+			if (Expect(TokenType::Identifier, "Only identifiers expected as generic declarations"))
 			{
 				node->generics.names->push_back(curr);
 				Advance();
@@ -1030,7 +1028,7 @@ struct Syntax
 			node->generics.whereStmnt = ParseWhere();
 		}
 
-		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
+		if (Expect(UniqueType::Greater, "Expected generic closure ('>')"))
 		{
 			node->end = curr;
 			Advance();
@@ -1085,7 +1083,7 @@ struct Syntax
 	{
 		Node* block = CreateNode(curr, NodeID::Block);
 		block->block.inner = CreateVectorPtr<Node*>();
-		if (!Expect(UniqueType::Lbrace, errors.expectedBlockStart))
+		if (!Expect(UniqueType::Lbrace, "Expected function block opening ('{') or ('=>')"))
 		{
 			block->nodeID = NodeID::InvalidNode;
 			return block;
@@ -1100,7 +1098,7 @@ struct Syntax
 			if (stmnt != nullptr) block->block.inner->push_back(stmnt);
 		}
 
-		if (Expect(UniqueType::Rbrace, errors.expectedBlockEnd))
+		if (Expect(UniqueType::Rbrace, "Expected function block closure ('}')"))
 		{
 			block->end = curr;
 			Advance();
@@ -1171,7 +1169,7 @@ struct Syntax
 			if ((type->typeID == TypeID::ImplicitType && Expect(UniqueType::Assign)) ||
 				(type->typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
 			{
-				AddError(curr, errors.inlineTypeWrongAssignmentOp);
+				AddError(curr, "Explicit types must be assigned with '=' and implicit types must be assigned with ':='");
 				return CreateNode(curr, NodeID::InvalidNode);
 			}
 
@@ -1261,12 +1259,12 @@ struct Syntax
 	Node* ParseConditional()
 	{
 		Node* node = CreateNode(curr, NodeID::Conditional);
-		if (Expect(UniqueType::Lparen, errors.expectedConditionOpen))
+		if (Expect(UniqueType::Lparen, "Expected conditional opening ('(')"))
 		{
 			Advance();
 			Expr* condition = ParseExpr();
 			if (condition->typeID != ExprID::InvalidExpr &&
-				Expect(UniqueType::Rparen, errors.expectedConditionClose))
+				Expect(UniqueType::Rparen, "Expected conditional closure (')')"))
 			{
 				Advance();
 				node->conditional.condition = condition;
@@ -1284,10 +1282,10 @@ struct Syntax
 	{
 		Node* node = CreateNode(curr, NodeID::ForStmnt);
 		Advance();
-		if (Expect(UniqueType::Lparen, errors.expectedForOpen))
+		if (Expect(UniqueType::Lparen, "Expected 'for' statement opening ('(')"))
 		{
 			Advance();
-			if (Expect(TokenType::Identifier, errors.expectedForIdent))
+			if (Expect(TokenType::Identifier, "Expected identifier after '(' in 'for' statement"))
 			{
 				if (Peek()->uniqueType == UniqueType::Colon)
 				{
@@ -1305,7 +1303,7 @@ struct Syntax
 				else if (Expect(UniqueType::To)) node->forStmnt.rangeFor = true;
 				else
 				{
-					AddError(curr, errors.expectedForIterator);
+					AddError(curr, "Expected for iterator '..' or 'in'");
 					node->nodeID = NodeID::InvalidNode;
 					return node;
 				}
@@ -1317,7 +1315,7 @@ struct Syntax
 				if (expr->typeID != ExprID::InvalidExpr)
 				{
 					node->forStmnt.toIterate = expr;
-					if (Expect(UniqueType::Rparen, errors.expectedForClose))
+					if (Expect(UniqueType::Rparen, "Expected 'for' statement closure (')')"))
 					{
 						Advance();
 						node->forStmnt.body = ParseBody();
@@ -1337,7 +1335,7 @@ struct Syntax
 		Node* node = CreateNode(curr, NodeID::SwitchStmnt);
 		Advance();
 
-		if (Expect(UniqueType::Lparen, errors.expectedSwitchOpen))
+		if (Expect(UniqueType::Lparen, "Expected 'switch' statement opening ('(')"))
 		{
 			Advance();
 			Expr* switchOn = ParseExpr();
@@ -1345,11 +1343,11 @@ struct Syntax
 			{
 				node->switchStmnt.switchOn = switchOn;
 
-				if (Expect(UniqueType::Rparen, errors.expectedSwitchClose))
+				if (Expect(UniqueType::Rparen, "Expected 'switch' statement closure (')')"))
 				{
 					Advance();
 
-					if (Expect(UniqueType::Lbrace, errors.expectedSwitchBlockOpen))
+					if (Expect(UniqueType::Lbrace, "Expected 'switch' statement block opening ('{')"))
 					{
 						Advance();
 
@@ -1367,7 +1365,7 @@ struct Syntax
 						}
 						else node->switchStmnt.defaultCase = Body();
 
-						if (Expect(UniqueType::Rbrace, errors.expectedSwitchBlockClose))
+						if (Expect(UniqueType::Rbrace, "Expected 'switch' statement block closure ('}')"))
 						{
 							node->end = curr;
 							Advance();
@@ -1505,7 +1503,8 @@ struct Syntax
 			Node* decl = ParseDeclOrDef();
 			if (decl->nodeID != NodeID::InvalidNode)
 			{
-				if (parsingDefs && !decl->definition.assignment) AddError(decl->start, errors.declAfterDef);
+				if (parsingDefs && !decl->definition.assignment) 
+					AddError(decl->start, "Cannot have a parameter without a default value after having a parameter with a default value");
 				else if (!parsingDefs && decl->definition.assignment) parsingDefs = true;
 				parameters->push_back(decl);
 			}
@@ -1536,7 +1535,7 @@ struct Syntax
 	Node* ParseDefinition()
 	{
 		Token* start = curr;
-		Expect(TokenType::Identifier, errors.identifierExpected);
+		Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug");
 		switch (Peek()->uniqueType)
 		{
 		case UniqueType::ImplicitAssign:
@@ -1544,7 +1543,7 @@ struct Syntax
 		case UniqueType::Colon:
 			return ParseExplicitAssignment();
 		default:
-			AddError(start, errors.expectedDefinition);
+			AddError(start, "Expected a variable definition");
 			return InvalidNode();
 		}
 	}
@@ -1583,7 +1582,7 @@ struct Syntax
 
 	bool ParseAssignment(Node* decl)
 	{
-		if (Expect(UniqueType::Assign, errors.expectedAssignment))
+		if (Expect(UniqueType::Assign, "Variable declerations must have assignments"))
 		{
 			decl->definition.op = curr;
 			Advance();
@@ -1601,8 +1600,8 @@ struct Syntax
 	Node* ParseDeclaration()
 	{
 		Token* start = curr;
-		if (Expect(TokenType::Identifier, errors.identifierExpected) &&
-			ThenExpect(UniqueType::Colon, errors.expectedColon))
+		if (Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug") &&
+			ThenExpect(UniqueType::Colon, "Expected a colon (':') after identifier in explicit definition"))
 		{
 			Advance();
 			Type* type = ParseDeclarationType();
@@ -1634,7 +1633,7 @@ struct Syntax
 			if (Peek()->uniqueType == UniqueType::Period)
 			{
 				Advance();
-				if (ThenExpect(TokenType::Identifier, errors.expectedImportedType))
+				if (ThenExpect(TokenType::Identifier, "Expected identifier after selector ('.') in declaration type"))
 				{
 					type->typeID = TypeID::ImportedType;
 					type->importedType.packageName = name;
@@ -1675,7 +1674,7 @@ struct Syntax
 				break;
 
 			default:
-				AddError(curr, errors.expectedType);
+				AddError(curr, "Expected type decleration");
 				break;
 			}
 			break;
@@ -1705,7 +1704,7 @@ struct Syntax
 		Advance();
 		Type* type = ParseDeclarationType();
 		if (type->typeID == TypeID::ValueType)
-			AddError(curr, errors.nestedValueType);
+			AddError(curr, "Cannot have a value type of a value type (ie. ~~MyType)");
 		valueType->valueType.type = type;
 		return valueType;
 	}
@@ -1729,7 +1728,7 @@ struct Syntax
 			bool implicit = Expect(TokenType::Identifier) && next->uniqueType == UniqueType::Comma;
 			if (Expect(UniqueType::Rbrace))
 			{
-				AddError(curr, errors.emptyInlineType);
+				AddError(curr, "Empty inline type not allowed ('{}')");
 				return CreateTypePtr(TypeID::InvalidType);
 			}
 
@@ -1746,7 +1745,7 @@ struct Syntax
 		type->implicitType.identifiers = idents;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			if (Expect(TokenType::Identifier, errors.implictTypeNotIdent))
+			if (Expect(TokenType::Identifier, "Only identifiers are allowed in implicit types"))
 			{
 				idents->push_back(curr);
 				Advance();
@@ -1760,11 +1759,11 @@ struct Syntax
 		}
 
 
-		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure))
+		if (Expect(UniqueType::Rbrace, "Missing closure for inline type '}'"))
 		{
 			if (idents->size() == 1)
 			{
-				AddError(curr, errors.onlyOneInlineType);
+				AddError(curr, "Inline types with only one parameter are not allowed");
 				type->typeID = TypeID::InvalidType;
 				return type;
 			}
@@ -1796,11 +1795,11 @@ struct Syntax
 			}
 		}
 
-		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure))
+		if (Expect(UniqueType::Rbrace, "Missing closure for inline type '}'"))
 		{
 			if (decls->size() == 1)
 			{
-				AddError(curr, errors.onlyOneInlineType);
+				AddError(curr, "Inline types with only one parameter are not allowed");
 				type->typeID = TypeID::InvalidType;
 				return type;
 			}
@@ -1831,7 +1830,7 @@ struct Syntax
 			? CreateVoidType()
 			: ParseDeclarationType();
 
-		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
+		if (Expect(UniqueType::Lparen, "Expected function type opening ('(')"))
 		{
 			Advance();
 			while (!Expect(UniqueType::Rparen) && !IsEOF())
@@ -1841,7 +1840,7 @@ struct Syntax
 				if (Expect(UniqueType::Comma)) Advance();
 			}
 
-			if (Expect(UniqueType::Rparen, errors.functionTypeClose))
+			if (Expect(UniqueType::Rparen, "Expected function type closure (')')"))
 			{
 				Advance();
 				return functionType;
@@ -1906,7 +1905,7 @@ struct Syntax
 
 		if (params.size() == 0)
 		{
-			AddError(rBrace, errors.emptyAnonymousType);
+			AddError(rBrace, "Cannot have an empty anonymous type");
 			return nullptr;
 		}
 
@@ -2052,7 +2051,7 @@ struct Syntax
 				return ParsePrimitiveExpr();
 
 			default:
-				AddError(curr, errors.missingOperand);
+				AddError(curr, "No operand found for expression");
 				return CreateExpr(curr, ExprID::InvalidExpr);
 			}
 		}
@@ -2091,7 +2090,7 @@ struct Syntax
 		Advance();
 		Expr* innerExpr = ParseExpr();
 		groupExpr->groupedExpr.expr = innerExpr;
-		if (Expect(UniqueType::Rparen, errors.unclosedGroupExpression))
+		if (Expect(UniqueType::Rparen, "Expected ')' after group expression"))
 		{
 			groupExpr->groupedExpr.rParen = curr;
 			Advance();
@@ -2116,7 +2115,7 @@ struct Syntax
 
 		if (Expect(UniqueType::Rbrace))
 		{
-			AddError(curr, errors.emptyInlineType);
+			AddError(curr, "Empty inline type not allowed ('{}')");
 			Advance();
 			return anon;
 		}
@@ -2129,7 +2128,7 @@ struct Syntax
 			anon->anonTypeExpr.values->push_back(ParseExpr());
 		}
 
-		if (Expect(UniqueType::Rbrace, errors.inlineTypeNoClosure)) Advance();
+		if (Expect(UniqueType::Rbrace, "Missing closure for inline type '}'")) Advance();
 
 		return anon;
 	}
@@ -2143,7 +2142,7 @@ struct Syntax
 			? CreateVoidType()
 			: ParseDeclarationType();
 
-		if (Expect(UniqueType::Lparen, errors.functionTypeOpening))
+		if (Expect(UniqueType::Lparen, "Expected function type opening ('(')"))
 		{
 			Token* lparen = curr;
 			Advance();
@@ -2172,7 +2171,7 @@ struct Syntax
 	{
 		Expr* selector = CreateExpr(curr, ExprID::SelectorExpr);
 		selector->selectorExpr.on = on;
-		if (ThenExpect(TokenType::Identifier, errors.invalidSelector))
+		if (ThenExpect(TokenType::Identifier, "Expected an identifier after '.'"))
 		{
 			selector->selectorExpr.select = ParseIdentifierExpr();
 		}
@@ -2189,13 +2188,13 @@ struct Syntax
 		if (curr->uniqueType == UniqueType::Rbrack)
 		{
 			indexExpr->indexExpr.rBrack = curr;
-			AddError(curr, errors.emptyIndex);
+			AddError(curr, "Unexpected empty index ('[]') in expression");
 		}
 		else
 		{
 			Expr* expr = ParseExpr();
 			indexExpr->indexExpr.index = expr;
-			if (Expect(UniqueType::Rbrack, errors.unclosedIndex))
+			if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
 			{
 				indexExpr->indexExpr.rBrack = curr;
 				Advance();
@@ -2221,7 +2220,7 @@ struct Syntax
 			funcCall->functionCallExpr.params = nullptr;
 		}
 
-		if (Expect(UniqueType::Rparen, errors.unclosedFunctionCall))
+		if (Expect(UniqueType::Rparen, "Missing ')' at end of function call"))
 		{
 			funcCall->functionCallExpr.rParen = curr;
 			Advance();
@@ -2263,7 +2262,7 @@ struct Syntax
 		if (Expect(UniqueType::Greater))
 		{
 			Advance();
-			AddError(curr, errors.emptyGenerics);
+			AddError(curr, "Expected generic types not '<>'");
 			return generics;
 		}
 
@@ -2282,7 +2281,7 @@ struct Syntax
 			}
 		}
 
-		if (Expect(UniqueType::Greater, errors.expectedGenericsClosure))
+		if (Expect(UniqueType::Greater, "Expected generic closure ('>')"))
 		{
 			generics->genericsExpr.close = curr;
 			Advance();

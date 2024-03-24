@@ -50,6 +50,12 @@ struct Checker
 		}
 	}
 
+	void AddError(Token* token, const eastl::string& err)
+	{
+		Logger::FatalErrorAt(err, token->pos);
+		//Logger::AddError(token->pos, token->index, err);
+	}
+
 	void AddScope()
 	{
 		scopeQueue.emplace_back();
@@ -236,6 +242,16 @@ struct Checker
 		{
 			definition.type = InferType(definition.assignment);
 		}
+		else
+		{
+			Type* inferredType = InferType(definition.assignment);
+			if (*definition.type != *inferredType)
+			{
+				AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
+			}
+		}
+
+		CheckExpr(definition.assignment);
 
 		InplaceString& name = definition.name->val;
 		eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();

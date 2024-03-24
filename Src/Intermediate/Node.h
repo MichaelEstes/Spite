@@ -401,6 +401,8 @@ struct Node
 
 bool operator==(const Type& left, const Type& right)
 {
+	if (left.typeID == TypeID::ValueType) return *left.valueType.type == right;
+	if (right.typeID == TypeID::ValueType) return *right.valueType.type == left;
 	if (left.typeID != right.typeID) return false;
 
 	switch (left.typeID)
@@ -433,7 +435,9 @@ bool operator==(const Type& left, const Type& right)
 		return *l.type == *r.type;
 	}
 	case ValueType:
-		return *left.valueType.type == *right.valueType.type;
+		// Should never get here, value types are just a signal to copy a type's memory into a new location
+		// Essentially the opposite of a reference type, since everything defaults to a reference
+		return false;
 	case ArrayType:
 		return *left.arrayType.type == *right.arrayType.type;
 	case GenericsType:
