@@ -150,7 +150,7 @@ struct Checker
 			CheckDefinition(node);
 			break;
 		case InlineDefinition:
-			break;
+			CheckInlineDefinition(node);
 		case Conditional:
 			break;
 		case AssignmentStmnt:
@@ -248,6 +248,7 @@ struct Checker
 			if (*definition.type != *inferredType)
 			{
 				AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
+				return;
 			}
 		}
 
@@ -256,6 +257,69 @@ struct Checker
 		InplaceString& name = definition.name->val;
 		eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
 		back[name] = node;
+	}
+
+	void CheckInlineDefinition(Node* node)
+	{
+		auto& inlineDefinition = node->inlineDefinition;
+		Type* type = inlineDefinition.type;
+		Expr* expr = inlineDefinition.assignment;
+		if (expr->typeID != ExprID::AnonTypeExpr)
+		{
+			AddError(node->start, "Can only assign anonymous type expressions to inline types");
+			return;
+		}
+		
+		auto& anonExpr = expr->anonTypeExpr;
+		if (type->typeID == TypeID::ImplicitType)
+		{
+			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;
+			if (anonExpr.values->size() != identifiers->size())
+			{
+				AddError(node->start, "Incorrect number of anonymous type expression compared to implicit type values");
+				return;
+			}
+
+			type->typeID = TypeID::ExplicitType;
+			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
+			for (int i = 0; i < identifiers->size(); i++)
+			{
+				Expr* itemExpr = anonExpr.values->at(i);
+				Token* token = identifiers->at(i);
+				Node* decl = syntax.CreateNode(token, NodeID::Definition);
+				decl->definition.assignment = nullptr;
+				decl->definition.name = token;
+				decl->definition.type = InferType(itemExpr);
+				type->explicitType.declarations->push_back(decl);
+			}
+			
+		}
+		else if (type->typeID == TypeID::ExplicitType)
+		{
+			eastl::vector<Node*>* decls = type->explicitType.declarations;
+			if (anonExpr.values->size() != decls->size())
+			{
+				AddError(node->start, "Incorrect number of anonymous type expression compared to explicit type declarations");
+				return;
+			}
+
+			for (int i = 0; i < decls->size(); i++)
+			{
+				Expr* itemExpr = anonExpr.values->at(i);
+				Node* decl = decls->at(i);
+				
+				Type* inferredType = InferType(itemExpr);
+				if (*decl->definition.type != *inferredType)
+				{
+					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
+					return;
+				}
+			}
+		}
+		else
+		{
+			AddError(node->start, "Inline definition type can only be an implicit or explicit type");
+		}
 	}
 
 	inline StateSymbol* GetStateForName(InplaceString& val)
@@ -466,6 +530,13 @@ struct Checker
 		}
 	}
 
+	bool IsBoolLike(Type* type)
+	{
+		TypeID id = type->typeID;
+		// TODO Support bool checks on state
+		return id == TypeID::PrimitiveType || id == TypeID::PointerType;
+	}
+
 	inline Type* GetPrimitiveOperatorType(Type* left, Type* right)
 	{
 		auto& lPrim = left->primitiveType;
@@ -546,6 +617,7 @@ struct Checker
 				return left;
 			}
 			// Add Error, pointers are ints, can't operate with anything other than ints
+			// To think about, if both operands are pointer should it treat them as the underlying types?
 			break;
 		}
 		break;
