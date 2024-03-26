@@ -91,7 +91,7 @@ struct Checker
 		for (Node* constructor : constructors)
 		{
 			auto& decl = constructor->constructor.decl;
-			CheckFunctionDecl(decl);
+			CheckFunctionDecl(decl, constructor);
 		}
 	}
 
@@ -100,7 +100,7 @@ struct Checker
 		for (Node* method : methods)
 		{
 			auto& decl = method->method.decl;
-			CheckFunctionDecl(decl);
+			CheckFunctionDecl(decl, method);
 		}
 	}
 
@@ -109,37 +109,37 @@ struct Checker
 		for (Node* op : operators)
 		{
 			auto& decl = op->stateOperator.decl;
-			CheckFunctionDecl(decl);
+			CheckFunctionDecl(decl, op);
 		}
 	}
 
 	void CheckDestructor(Node* destructor)
 	{
 		if (!destructor) return; // Destructor not required
-		CheckBody(destructor->destructor.body);
+		CheckBody(destructor->destructor.body, destructor);
 	}
 
 	void CheckFunction(Node* function)
 	{
 		auto& decl = function->function.decl;
-		CheckFunctionDecl(decl);
+		CheckFunctionDecl(decl, function);
 	}
 
-	inline void CheckFunctionDecl(Node* functionDecl)
+	inline void CheckFunctionDecl(Node* functionDecl, Node* of)
 	{
 		auto& params = functionDecl->functionDecl.parameters;
 		auto& body = functionDecl->functionDecl.body;
-		CheckBody(body);
+		CheckBody(body, of);
 	}
 
-	inline void CheckBody(Body& body)
+	inline void CheckBody(Body& body, Node* of)
 	{
 		if (body.statement) AddScope();
-		CheckNode(body.body);
+		CheckNode(body.body, of);
 		if (body.statement) PopScope();
 	}
 
-	void CheckNode(Node* node)
+	void CheckNode(Node* node, Node* of)
 	{
 		switch (node->nodeID)
 		{
@@ -152,11 +152,33 @@ struct Checker
 		case InlineDefinition:
 			CheckInlineDefinition(node);
 		case Conditional:
+		{
+			auto& conditional = node->conditional;
+			if (!IsBoolLike(InferType(conditional.condition))) AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
+			CheckBody(conditional.body, node);
 			break;
+		}
 		case AssignmentStmnt:
+		{
+			auto& assignment = node->assignmentStmnt;
+			if (*InferType(assignment.assignTo) != *InferType(assignment.assignment))
+			{
+				AddError(node->start, "Invalid type evaluation for assignment expression");
+			}
 			break;
+		}
 		case IfStmnt:
+		{
+			auto& ifStmnt = node->ifStmnt;
+			CheckNode(ifStmnt.condition, node);
+			for (Node* elif : *ifStmnt.elifs)
+			{
+				CheckNode(elif, node);
+			}
+
+			if (ifStmnt.elseCondition) CheckBody(ifStmnt.elseCondition, node);
 			break;
+		}
 		case ForStmnt:
 			break;
 		case WhileStmnt:
@@ -176,7 +198,7 @@ struct Checker
 		case Block:
 		{
 			AddScope();
-			for (Node* n : *node->block.inner) CheckNode(n);
+			for (Node* n : *node->block.inner) CheckNode(n, node);
 			PopScope();
 			break;
 		}
@@ -282,7 +304,7 @@ struct Checker
 
 			type->typeID = TypeID::ExplicitType;
 			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
-			for (int i = 0; i < identifiers->size(); i++)
+			for (int i = 0; i < identifiers->size(); i++) 
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
