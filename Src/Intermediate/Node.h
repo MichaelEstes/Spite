@@ -208,7 +208,7 @@ struct Node
 			{
 				Node* declaration;
 				Token* identifier;
-			}iterated;
+			} iterated;
 			Token* iterator;
 			Expr* toIterate;
 			Body body;

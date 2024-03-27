@@ -180,6 +180,23 @@ struct Checker
 			break;
 		}
 		case ForStmnt:
+		{
+			auto& forStmnt = node->forStmnt;
+			if (forStmnt.isDeclaration)
+			{
+				Token* identifier = forStmnt.iterated.identifier;
+				Node* decl = syntax.CreateNode(identifier, NodeID::Definition);
+				decl->definition.assignment = nullptr;
+				decl->definition.name = identifier;
+				Type* type = InferType(forStmnt.toIterate);
+				if (type->typeID == TypeID::ArrayType) decl->definition.type = type->arrayType.type;
+				else decl->definition.type = type;
+				forStmnt.isDeclaration = true;
+				forStmnt.iterated.declaration = decl;
+			}
+
+			CheckBody(forStmnt.body, node);
+		}
 			break;
 		case WhileStmnt:
 			break;
