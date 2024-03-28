@@ -78,6 +78,18 @@ inline bool operator==(const InplaceString& l, const InplaceString& r)
 	return true;
 }
 
+inline const eastl::string operator+(const eastl::string l, const InplaceString& r)
+{
+	return l + eastl::string(r.start, r.count);
+}
+
+inline const eastl::string operator+(const char* l, const InplaceString& r)
+{
+	const eastl::string str = eastl::string(l);
+
+	return str + r;
+}
+
 struct InplaceStringHash
 {
 	size_t operator()(const InplaceString& str) const

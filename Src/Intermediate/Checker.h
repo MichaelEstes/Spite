@@ -31,11 +31,13 @@ struct Checker
 		defContext = DefinitionContext::MethodDef;
 		for (auto& [key, value] : syntax.symbolTable->stateMap)
 		{
-			CheckState(value.state);
+			AddScope();
+			CheckState(key, value.state);
 			CheckConstructors(value.constructors);
 			CheckMethods(value.methods);
 			CheckOperators(value.operators);
 			CheckDestructor(value.destructor);
+			PopScope();
 		}
 
 		defContext = DefinitionContext::FuncDef;
@@ -48,6 +50,15 @@ struct Checker
 		{
 
 		}
+
+		scopeQueue.pop_back();
+		if (scopeQueue.size() != 0) AddError("Checker:Check Not all scopes popped, possible compiler error");
+	}
+
+	void AddError(const eastl::string& err)
+	{
+		Logger::FatalError(err);
+		//Logger::AddError(token->pos, token->index, err);
 	}
 
 	void AddError(Token* token, const eastl::string& err)
@@ -75,15 +86,19 @@ struct Checker
 		CheckDefinition(global);
 	}
 
-	void CheckState(Node* state)
+	void CheckState(const InplaceString& name, Node* state)
 	{
 		if (!state)
 		{
-			// Add Error, state was not defined
+			AddError("State was not defined for name: " + name);
 			return;
 		}
 
-
+		auto& stateRef = state->state;
+		for (Node* member : *stateRef.members)
+		{
+			CheckDefinition(member);
+		}
 	}
 
 	void CheckConstructors(eastl::vector<Node*>& constructors)
@@ -129,14 +144,15 @@ struct Checker
 	{
 		auto& params = functionDecl->functionDecl.parameters;
 		auto& body = functionDecl->functionDecl.body;
-		CheckBody(body, of);
+		CheckBody(body, of, params);
 	}
 
-	inline void CheckBody(Body& body, Node* of)
+	inline void CheckBody(Body& body, Node* of, eastl::vector<Node*>* params = nullptr)
 	{
-		if (body.statement) AddScope();
+		AddScope();
+		if (params) for (Node* node : *params) CheckDefinition(node);
 		CheckNode(body.body, of);
-		if (body.statement) PopScope();
+		PopScope();
 	}
 
 	void CheckNode(Node* node, Node* of)
@@ -151,6 +167,7 @@ struct Checker
 			break;
 		case InlineDefinition:
 			CheckInlineDefinition(node);
+			break;
 		case Conditional:
 		{
 			auto& conditional = node->conditional;
@@ -161,7 +178,9 @@ struct Checker
 		case AssignmentStmnt:
 		{
 			auto& assignment = node->assignmentStmnt;
-			if (*InferType(assignment.assignTo) != *InferType(assignment.assignment))
+			Type* to = InferType(assignment.assignTo);
+			Type* from = InferType(assignment.assignment);
+			if (*to != *from)
 			{
 				AddError(node->start, "Invalid type evaluation for assignment expression");
 			}
@@ -182,26 +201,42 @@ struct Checker
 		case ForStmnt:
 		{
 			auto& forStmnt = node->forStmnt;
-			if (forStmnt.isDeclaration)
+			if (!forStmnt.isDeclaration)
 			{
 				Token* identifier = forStmnt.iterated.identifier;
 				Node* decl = syntax.CreateNode(identifier, NodeID::Definition);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = identifier;
 				Type* type = InferType(forStmnt.toIterate);
-				if (type->typeID == TypeID::ArrayType) decl->definition.type = type->arrayType.type;
-				else decl->definition.type = type;
+				if (forStmnt.rangeFor)
+				{
+					if (!IsInt(type))
+						AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
+				}
+				else
+				{
+					if (type->typeID == TypeID::ArrayType)
+						type = type->arrayType.type;
+				}
+
+				decl->definition.type = type;
 				forStmnt.isDeclaration = true;
 				forStmnt.iterated.declaration = decl;
 			}
 
 			CheckBody(forStmnt.body, node);
+			break;
 		}
-			break;
 		case WhileStmnt:
+		{
+			CheckNode(node->whileStmnt.conditional, node);
 			break;
+		}
 		case SwitchStmnt:
+		{
+
 			break;
+		}
 		case DeleteStmnt:
 			break;
 		case DeferStmnt:
@@ -214,9 +249,7 @@ struct Checker
 			break;
 		case Block:
 		{
-			AddScope();
 			for (Node* n : *node->block.inner) CheckNode(n, node);
-			PopScope();
 			break;
 		}
 		default:
@@ -281,7 +314,7 @@ struct Checker
 		{
 			definition.type = InferType(definition.assignment);
 		}
-		else
+		else if (definition.assignment)
 		{
 			Type* inferredType = InferType(definition.assignment);
 			if (*definition.type != *inferredType)
@@ -291,11 +324,10 @@ struct Checker
 			}
 		}
 
-		CheckExpr(definition.assignment);
-
 		InplaceString& name = definition.name->val;
 		eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
-		back[name] = node;
+		if (back.find(name) != back.end()) AddError(node->start, "Re-definition of variable name: " + name);
+		else back[name] = node;
 	}
 
 	void CheckInlineDefinition(Node* node)
@@ -308,7 +340,7 @@ struct Checker
 			AddError(node->start, "Can only assign anonymous type expressions to inline types");
 			return;
 		}
-		
+
 		auto& anonExpr = expr->anonTypeExpr;
 		if (type->typeID == TypeID::ImplicitType)
 		{
@@ -321,7 +353,7 @@ struct Checker
 
 			type->typeID = TypeID::ExplicitType;
 			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
-			for (int i = 0; i < identifiers->size(); i++) 
+			for (int i = 0; i < identifiers->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
@@ -331,7 +363,7 @@ struct Checker
 				decl->definition.type = InferType(itemExpr);
 				type->explicitType.declarations->push_back(decl);
 			}
-			
+
 		}
 		else if (type->typeID == TypeID::ExplicitType)
 		{
@@ -346,7 +378,7 @@ struct Checker
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Node* decl = decls->at(i);
-				
+
 				Type* inferredType = InferType(itemExpr);
 				if (*decl->definition.type != *inferredType)
 				{
@@ -647,7 +679,7 @@ struct Checker
 			return GetStateOperatorType(op, left, right);
 		case ExplicitType:
 		case ImplicitType:
-			// Add Error, Binary operators not valid with explicit and implicit types
+			AddError(op, "Binary operators are not valid with explicit and implicit types");
 			break;
 		case PointerType:
 		{
@@ -667,7 +699,7 @@ struct Checker
 		case GenericsType:
 			break;
 		case FunctionType:
-			// Add error, can't multiply functions
+			AddError(op, "You can't multiply functions");
 			break;
 		case ImportedType:
 			// TODO Add imported type checking
@@ -741,19 +773,19 @@ struct Checker
 		}
 		case IdentifierExpr:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::InvalidType);
 			InplaceString& val = of->identifierExpr.identifier->val;
 			Node* node = GetNodeForName(val);
-			if (!node) return type;
-			else if (node->nodeID == NodeID::Definition) *type = *node->definition.type;
+			if (!node) break;
+			else if (node->nodeID == NodeID::Definition) return node->definition.type;
 			else if (node->nodeID == NodeID::StateStmnt)
 			{
-				type->typeID = TypeID::NamedType;
+				Type* type = syntax.CreateTypePtr(TypeID::NamedType);
 				type->namedType.typeName = node->state.name;
+				return type;
 			}
 			else if (node->nodeID == NodeID::FunctionStmnt) return node->function.returnType;
 
-			return type;
+			break;
 		}
 		case PrimitiveExpr:
 		{
@@ -915,6 +947,7 @@ struct Checker
 		default:
 			break;
 		}
+
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
