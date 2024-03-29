@@ -380,7 +380,7 @@ public:
 				else if (val[0] == '#')
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-					Logger::AddError(pos, token->index, "Illegal use of the '#' symbol, the '#' symbol can only be used in front of OnCompile and OnCompileDebug");
+					Logger::AddError(pos, token->index, "Illegal use of the '#' symbol, the '#' symbol can only be used in front of compile and debug");
 				}
 				else
 				{
@@ -563,11 +563,17 @@ public:
 		{
 			val += curr;
 
-			if (*next == '\n')
+			if (*curr == '\n')
 			{
 				if (config.comments)
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Comment, UniqueType::Any);
+				}
+				else
+				{
+					pos.columnOffset = 0;
+					pos.line += 1;
+					pos.fileOffset += val.count;
 				}
 				Reset(tokens);
 			}

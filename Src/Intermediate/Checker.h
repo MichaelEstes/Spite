@@ -234,22 +234,48 @@ struct Checker
 		}
 		case SwitchStmnt:
 		{
+			auto& switchStmnt = node->switchStmnt;
+			if (!IsInt(InferType(switchStmnt.switchOn)))
+			{
+				AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
+			}
 
+			for (Node* caseStmnt : *switchStmnt.cases) {
+				CheckNode(caseStmnt, node);
+			}
+
+			if (switchStmnt.defaultCase) CheckBody(switchStmnt.defaultCase, node);
 			break;
 		}
 		case DeleteStmnt:
+		{
+			auto& deleteStmnt = node->deleteStmnt;
 			break;
+		}
 		case DeferStmnt:
+		{
+			auto& deferStmnt = node->deferStmnt;
+			if (deferStmnt.deferIf) CheckNode(deferStmnt.conditional, node);
+			else CheckBody(deferStmnt.body, node);
 			break;
+		}
 		case ContinueStmnt:
+		{
 			break;
+		}
 		case BreakStmnt:
 			break;
 		case ReturnStmnt:
+		{
+			if (InferType(node->returnStmnt.expr)->typeID == TypeID::InvalidType)
+			{
+				AddError(node->start, "Return expressions doesn't evaluate to a valid type");
+			}
 			break;
+		}
 		case Block:
 		{
-			for (Node* n : *node->block.inner) CheckNode(n, node);
+			for (Node* n : *node->block.inner) CheckNode(n, of);
 			break;
 		}
 		default:

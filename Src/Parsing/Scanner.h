@@ -43,7 +43,15 @@ public:
 		return fileSize;
 	}
 
-	inline Token* Next(Tokens& tokens)
+	inline void Scan(Tokens& tokens)
+	{
+		do
+		{
+			Next(tokens);
+		} while (!Finished());
+	}
+
+	inline void Next(Tokens& tokens)
 	{
 		Position start = pos;
 		Token* out = nullptr;
@@ -54,8 +62,6 @@ public:
 			UpdatePosition(*curr);
 			index += 1;
 		}
-
-		return out;
 	}
 
 	inline bool Finished()

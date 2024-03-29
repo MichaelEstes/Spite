@@ -19,10 +19,7 @@ bool Parser::Parse()
 	size_t fileSize = scanner.Init();
 	tokens.Init(fileSize);
 
-	do
-	{
-		Token* next = scanner.Next(tokens);
-	} while (!scanner.Finished());
+	scanner.Scan(tokens);
 
 	scanner.Finalize();
 	tokens.Finalize();
