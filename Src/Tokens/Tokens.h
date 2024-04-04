@@ -191,6 +191,15 @@ struct Token
 		this->index = index;
 	}
 
+	Token(const char* val)
+	{
+		this->val = InplaceString(val);
+		this->pos = Position();
+		this->type = TokenType::Identifier;
+		this->uniqueType = UniqueType::Name;
+		this->index = 0;
+	}
+
 	inline bool IsCompleted()
 	{
 		return type != TokenType::None;
@@ -206,6 +215,8 @@ struct Token
 		return val.ToString();
 	}
 };
+
+static Token thisToken = "this";
 
 class Tokens
 {

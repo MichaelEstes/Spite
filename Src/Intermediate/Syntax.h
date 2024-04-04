@@ -433,6 +433,8 @@ struct Scope
 
 struct Syntax
 {
+	const InplaceString thisStr = "this";
+
 	Tokens& tokens;
 	Scope currScope;
 	Token* curr;
@@ -907,6 +909,17 @@ struct Syntax
 		return InvalidNode();
 	}
 
+	void AddUniformCallParam(eastl::vector<Node*>* params, Token* stateName)
+	{
+		Token* thisName = &thisToken;
+		Node* param = CreateNode(thisName, NodeID::Definition);
+		param->definition.assignment = nullptr;
+		param->definition.name = thisName;
+		param->definition.type = CreateTypePtr(TypeID::NamedType);
+		param->definition.type->namedType.typeName = stateName;
+		params->insert(params->begin(), param);
+	}
+
 	Node* ParseStateFunction(Type* returnType, Token* start, Token* name)
 	{
 		Advance();
@@ -924,6 +937,7 @@ struct Syntax
 			{
 				node->method.decl = ParseFunctionDecl();
 				node->end = node->method.decl->end;
+				AddUniformCallParam(node->method.decl->functionDecl.parameters, node->method.stateName);
 				symbolTable->AddMethod(node);
 				return node;
 			}
@@ -947,6 +961,7 @@ struct Syntax
 					{
 						op->stateOperator.decl = ParseFunctionDecl();
 						op->end = op->stateOperator.decl->end;
+						AddUniformCallParam(op->stateOperator.decl->functionDecl.parameters, op->stateOperator.stateName);
 						symbolTable->AddOperator(op);
 						return op;
 					}
@@ -971,6 +986,7 @@ struct Syntax
 			Node* con = CreateNode(start, NodeID::Constructor);
 			con->constructor.stateName = name;
 			con->constructor.decl = ParseFunctionDecl();
+			AddUniformCallParam(con->constructor.decl->functionDecl.parameters, con->constructor.stateName);
 			symbolTable->AddConstructor(con);
 			return con;
 		}

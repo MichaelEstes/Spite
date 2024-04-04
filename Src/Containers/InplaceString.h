@@ -4,8 +4,8 @@
 
 struct InplaceString
 {
-	char* start;
-	char* last;
+	const char* start;
+	const char* last;
 	int count;
 
 	InplaceString()
@@ -18,6 +18,18 @@ struct InplaceString
 		start = toCopy.start;
 		last = toCopy.last;
 		count = toCopy.count;
+	}
+
+	InplaceString(const char* toCopy)
+	{
+		count = 0;
+		start = toCopy;
+		const char* end = toCopy;
+		while (*end)
+		{
+			count += 1;
+			end += 1;
+		}
 	}
 
 	inline void Clear()
@@ -51,7 +63,7 @@ struct InplaceString
 		return true;
 	}
 
-	inline char& operator [](unsigned int i) const
+	inline const char& operator [](unsigned int i) const
 	{
 		return *(start + i);
 	}

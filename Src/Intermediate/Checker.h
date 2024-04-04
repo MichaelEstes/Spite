@@ -342,11 +342,18 @@ struct Checker
 		}
 		else if (definition.assignment)
 		{
-			Type* inferredType = InferType(definition.assignment);
-			if (*definition.type != *inferredType)
+			if (type->typeID == TypeID::ExplicitType)
 			{
-				AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
-				return;
+				CheckAnonType(node->start, type, definition.assignment);
+			}
+			else
+			{
+				Type* inferredType = InferType(definition.assignment);
+				if (*definition.type != *inferredType)
+				{
+					AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
+					return;
+				}
 			}
 		}
 
@@ -361,9 +368,14 @@ struct Checker
 		auto& inlineDefinition = node->inlineDefinition;
 		Type* type = inlineDefinition.type;
 		Expr* expr = inlineDefinition.assignment;
+		CheckAnonType(node->start, type, expr);
+	}
+
+	void CheckAnonType(Token* start, Type* type, Expr* expr)
+	{
 		if (expr->typeID != ExprID::AnonTypeExpr)
 		{
-			AddError(node->start, "Can only assign anonymous type expressions to inline types");
+			AddError(start, "Can only assign anonymous type expressions to inline types");
 			return;
 		}
 
@@ -373,7 +385,7 @@ struct Checker
 			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;
 			if (anonExpr.values->size() != identifiers->size())
 			{
-				AddError(node->start, "Incorrect number of anonymous type expression compared to implicit type values");
+				AddError(start, "Incorrect number of anonymous type expression compared to implicit type values");
 				return;
 			}
 
@@ -396,7 +408,7 @@ struct Checker
 			eastl::vector<Node*>* decls = type->explicitType.declarations;
 			if (anonExpr.values->size() != decls->size())
 			{
-				AddError(node->start, "Incorrect number of anonymous type expression compared to explicit type declarations");
+				AddError(start, "Incorrect number of anonymous type expression compared to explicit type declarations");
 				return;
 			}
 
@@ -408,14 +420,14 @@ struct Checker
 				Type* inferredType = InferType(itemExpr);
 				if (*decl->definition.type != *inferredType)
 				{
-					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
+					AddError(start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
 					return;
 				}
 			}
 		}
 		else
 		{
-			AddError(node->start, "Inline definition type can only be an implicit or explicit type");
+			AddError(start, "Inline definition type can only be an implicit or explicit type");
 		}
 	}
 
@@ -491,15 +503,19 @@ struct Checker
 		return baseType;
 	}
 
-	Node* FindStateMember(Node* of, InplaceString& val)
+	inline Node* FindTypeMember(eastl::vector<Node*>* members, InplaceString& val)
 	{
-		eastl::vector<Node*>* members = of->state.members;
 		for (Node* node : *members)
 		{
 			if (node->definition.name->val == val) return node;
 		}
 
 		return nullptr;
+	}
+
+	inline Node* FindStateMember(Node* of, InplaceString& val)
+	{
+		return FindTypeMember(of->state.members, val);
 	}
 
 	Node* FindStateMethod(StateSymbol* of, InplaceString& val)
@@ -513,47 +529,42 @@ struct Checker
 		return nullptr;
 	}
 
-	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents)
+	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents, int index)
 	{
-		StateSymbol* stateSymbol = GetStateForName(of->namedType.typeName->val);
-		Node* state = stateSymbol->state;
-		if (state)
+		Node* node = nullptr;
+		Token* curr = idents.at(index);
+		if (of->typeID == TypeID::ExplicitType)
 		{
-			for (int i = idents.size() - 1; i >= 0; i--)
+			auto& expl = of->explicitType;
+			node = FindTypeMember(expl.declarations, curr->val);
+		}
+		else if (of->typeID == TypeID::NamedType)
+		{
+			StateSymbol* stateSymbol = GetStateForName(of->namedType.typeName->val);
+			if (stateSymbol && stateSymbol->state)
 			{
-				InplaceString& val = idents.at(i)->val;
-				Node* node = FindStateMember(state, val);
-				if (node)
+				node = FindStateMember(stateSymbol->state, curr->val);
+				if (!node)
 				{
-					Type* type = node->definition.type;
-					if (i == 0) return type;
-
-					stateSymbol = GetStateForName(type->namedType.typeName->val);
-					state = stateSymbol->state;
-					if (!state)
-					{
-						// AddError missing selector state
-					}
-				}
-				else
-				{
-					Node* method = FindStateMethod(stateSymbol, val);
-					if (method && i == 0)
-					{
-						return method->method.returnType;
-					}
+					node = FindStateMethod(stateSymbol, curr->val);
+					if (node && index == 0) return node->method.returnType;
 					else
 					{
-						// AddError no member for state
+						AddError(curr, "No state member or method found selector");
+						return syntax.CreateTypePtr(TypeID::InvalidType);
 					}
 				}
 			}
 		}
-		else
+
+		if (node && node->nodeID == NodeID::Definition)
 		{
-			// AddError missing state
+			Type* type = node->definition.type;
+			if (index == 0) return type;
+			else return GetInnerType(type, idents, index - 1);
 		}
 
+		AddError(curr, "Unable to determine an inner type for selector statement");
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
@@ -575,9 +586,10 @@ struct Checker
 		}
 		else
 		{
-			// AddError state not found for named type
+			AddError(op, "State not found for named type: " + ToString(namedType));
 		}
 
+		AddError(op, "No operator found for state");
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
@@ -713,7 +725,7 @@ struct Checker
 			{
 				return left;
 			}
-			// Add Error, pointers are ints, can't operate with anything other than ints
+			// AddError pointers are ints, can't operate with anything other than ints
 			// To think about, if both operands are pointer should it treat them as the underlying types?
 			break;
 		}
@@ -836,7 +848,7 @@ struct Checker
 			{
 				if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
 				{
-					//TODO check imported type exists
+					//TODO check imported types and function return types
 				}
 				else break;
 			}
@@ -845,10 +857,10 @@ struct Checker
 				Type* baseType = GetBaseType(node->definition.type);
 				switch (baseType->typeID)
 				{
-				case NamedType:
-					type = GetInnerType(baseType, idents);
-					break;
+				case ExplicitType:
 				case ImportedType:
+				case NamedType:
+					type = GetInnerType(baseType, idents, idents.size() - 1);
 					break;
 				default:
 					break;
@@ -870,7 +882,6 @@ struct Checker
 		}
 		case FunctionCallExpr:
 		{
-			// TODO infer return types of functions
 			Type* type = InferType(of->functionCallExpr.function);
 			if (type->typeID == TypeID::FunctionType) return type->functionType.returnType;
 			return type;
@@ -924,7 +935,11 @@ struct Checker
 		case AsExpr:
 			return of->asExpr.to;
 		case DereferenceExpr:
-			break;
+		{
+			Type* type = InferType(of->dereferenceExpr.of);
+			if (type->typeID == TypeID::PointerType) return type->pointerType.type;
+			return type;
+		}
 		case ReferenceExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
