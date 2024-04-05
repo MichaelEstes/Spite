@@ -15,6 +15,7 @@ struct Checker
 	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>> scopeQueue;
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash>* globalScope;
 	DefinitionContext defContext;
+	Node* currentContext = nullptr;
 
 	Checker(Syntax& syntax) : syntax(syntax) {}
 
@@ -94,6 +95,7 @@ struct Checker
 			return;
 		}
 
+		currentContext = state;
 		auto& stateRef = state->state;
 		for (Node* member : *stateRef.members)
 		{
@@ -105,6 +107,7 @@ struct Checker
 	{
 		for (Node* constructor : constructors)
 		{
+			currentContext = constructor;
 			auto& decl = constructor->constructor.decl;
 			CheckFunctionDecl(decl, constructor);
 		}
@@ -114,6 +117,7 @@ struct Checker
 	{
 		for (Node* method : methods)
 		{
+			currentContext = method;
 			auto& decl = method->method.decl;
 			CheckFunctionDecl(decl, method);
 		}
@@ -123,6 +127,7 @@ struct Checker
 	{
 		for (Node* op : operators)
 		{
+			currentContext = op;
 			auto& decl = op->stateOperator.decl;
 			CheckFunctionDecl(decl, op);
 		}
@@ -130,12 +135,14 @@ struct Checker
 
 	void CheckDestructor(Node* destructor)
 	{
+		currentContext = nullptr;
 		if (!destructor) return; // Destructor not required
 		CheckBody(destructor->destructor.body, destructor);
 	}
 
 	void CheckFunction(Node* function)
 	{
+		currentContext = function;
 		auto& decl = function->function.decl;
 		CheckFunctionDecl(decl, function);
 	}
@@ -145,6 +152,14 @@ struct Checker
 		auto& params = functionDecl->functionDecl.parameters;
 		auto& body = functionDecl->functionDecl.body;
 		CheckBody(body, of, params);
+	}
+
+	inline void CheckBody(Body& body, Node* of, Node* param)
+	{
+		AddScope();
+		if (param) CheckDefinition(param);
+		CheckNode(body.body, of);
+		PopScope();
 	}
 
 	inline void CheckBody(Body& body, Node* of, eastl::vector<Node*>* params = nullptr)
@@ -182,7 +197,7 @@ struct Checker
 			Type* from = InferType(assignment.assignment);
 			if (*to != *from)
 			{
-				AddError(node->start, "Invalid type evaluation for assignment expression");
+				AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
 			}
 			break;
 		}
@@ -224,7 +239,7 @@ struct Checker
 				forStmnt.iterated.declaration = decl;
 			}
 
-			CheckBody(forStmnt.body, node);
+			CheckBody(forStmnt.body, node, forStmnt.iterated.declaration);
 			break;
 		}
 		case WhileStmnt:
@@ -369,6 +384,23 @@ struct Checker
 		Type* type = inlineDefinition.type;
 		Expr* expr = inlineDefinition.assignment;
 		CheckAnonType(node->start, type, expr);
+
+		if (type->typeID == TypeID::ExplicitType)
+		{
+			eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
+			auto& explicitType = type->explicitType;
+			for (Node* decl : *explicitType.declarations)
+			{
+				InplaceString& name = decl->definition.name->val;
+				if (back.find(name) != back.end()) AddError(decl->start, "Re-definition of variable name: " + name);
+				else back[name] = decl;
+			}
+		}
+		else
+		{
+			AddError(node->start, "Unabled to create a valid inline definition");
+		}
+
 	}
 
 	void CheckAnonType(Token* start, Type* type, Expr* expr)
@@ -401,7 +433,6 @@ struct Checker
 				decl->definition.type = InferType(itemExpr);
 				type->explicitType.declarations->push_back(decl);
 			}
-
 		}
 		else if (type->typeID == TypeID::ExplicitType)
 		{
@@ -568,6 +599,41 @@ struct Checker
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
+	Node* GetGenerics(Node* node)
+	{
+		switch (node->nodeID)
+		{
+		case FunctionStmnt:
+			return node->function.generics;
+		case StateStmnt:
+			return node->state.generics;
+		case Method:
+			return node->method.generics;
+		case StateOperator:
+			return node->stateOperator.generics;
+		default:
+			return nullptr;
+		}
+	}
+
+	bool IsGenericType(Type* namedType)
+	{
+		if (currentContext)
+		{
+			Node* generics = GetGenerics(currentContext);
+			if (generics)
+			{
+				InplaceString& name = namedType->namedType.typeName->val;
+				for (Token* gen : *generics->generics.names)
+				{
+					if (gen->val == name) return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	Type* GetStateOperatorType(Token* op, Type* namedType, Type* rhs = nullptr)
 	{
 		StateSymbol* state = GetStateForName(namedType->namedType.typeName->val);
@@ -584,9 +650,13 @@ struct Checker
 				}
 			}
 		}
+		else if (IsGenericType(namedType))
+		{
+			return namedType;
+		}
 		else
 		{
-			AddError(op, "State not found for named type: " + ToString(namedType));
+			AddError(op, "Checker:GetStateOperatorType State not found for named type: " + ToString(namedType));
 		}
 
 		AddError(op, "No operator found for state");
@@ -876,9 +946,14 @@ struct Checker
 		}
 		case IndexExpr:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::ArrayType);
-			type->arrayType.type = InferType(of->indexExpr.of);
-			return type;
+			Type* inferred = InferType(of->indexExpr.of);
+			if (inferred->typeID == TypeID::ArrayType) return inferred;
+			else 
+			{
+				Type* type = syntax.CreateTypePtr(TypeID::ArrayType);
+				type->arrayType.type = inferred;
+				return type;
+			}
 		}
 		case FunctionCallExpr:
 		{
