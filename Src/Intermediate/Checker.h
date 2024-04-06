@@ -186,7 +186,11 @@ struct Checker
 		case Conditional:
 		{
 			auto& conditional = node->conditional;
-			if (!IsBoolLike(InferType(conditional.condition))) AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
+			Type* inferred = InferType(conditional.condition);
+			if (!IsBoolLike(inferred))
+			{
+				AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
+			}
 			CheckBody(conditional.body, node);
 			break;
 		}
@@ -500,17 +504,10 @@ struct Checker
 		else return GetFunctionForName(val);
 	}
 
-	inline bool IsNotBaseType(Type* type)
-	{
-		TypeID typeId = type->typeID;
-		return typeId == TypeID::GenericsType || typeId == TypeID::ArrayType ||
-			typeId == TypeID::ValueType || typeId == TypeID::PointerType;
-	}
-
 	Type* GetBaseType(Type* type)
 	{
 		Type* baseType = type;
-		while (IsNotBaseType(baseType))
+		while (baseType->typeID == TypeID::PointerType || baseType->typeID == TypeID::ValueType)
 		{
 			switch (baseType->typeID)
 			{
@@ -520,12 +517,12 @@ struct Checker
 			case ValueType:
 				baseType = baseType->valueType.type;
 				break;
-			case ArrayType:
-				baseType = baseType->arrayType.type;
-				break;
-			case GenericsType:
-				baseType = baseType->genericsType.type;
-				break;
+				/*case ArrayType:
+					baseType = baseType->arrayType.type;
+					break;
+				case GenericsType:
+					baseType = baseType->genericsType.type;
+					break;*/
 			default:
 				break;
 			}
@@ -634,7 +631,7 @@ struct Checker
 		return false;
 	}
 
-	Type* GetStateOperatorType(Token* op, Type* namedType, Type* rhs = nullptr)
+	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
 		StateSymbol* state = GetStateForName(namedType->namedType.typeName->val);
 		if (state)
@@ -642,7 +639,7 @@ struct Checker
 			for (Node* opNode : state->operators)
 			{
 				auto& stateOp = opNode->stateOperator;
-				if (stateOp.op->uniqueType == op->uniqueType)
+				if (stateOp.op->uniqueType == op)
 				{
 					if (!rhs) return stateOp.returnType;
 					else if (*stateOp.decl->functionDecl.parameters->at(0)->definition.type == *rhs)
@@ -656,10 +653,10 @@ struct Checker
 		}
 		else
 		{
-			AddError(op, "Checker:GetStateOperatorType State not found for named type: " + ToString(namedType));
+			AddError(token, "Checker:GetStateOperatorType State not found for named type: " + ToString(namedType));
 		}
 
-		AddError(op, "No operator found for state");
+		AddError(token, "No operator found for state");
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
@@ -714,6 +711,46 @@ struct Checker
 		TypeID id = type->typeID;
 		// TODO Support bool checks on state
 		return id == TypeID::PrimitiveType || id == TypeID::PointerType;
+	}
+
+	bool IsStateType(Type* type)
+	{
+		switch (type->typeID)
+		{
+		case ImportedType:
+		case NamedType:
+			return true;
+		case PointerType:
+			return IsStateType(type->pointerType.type);
+		case ValueType:
+			return IsStateType(type->valueType.type);
+		case GenericsType:
+			return IsStateType(type->genericsType.type);
+		default:
+			return false;
+		}
+	}
+
+	bool IsTypeExpr(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case NewExpr:
+		case PrimitiveExpr:
+		case FixedExpr:
+		case AnonTypeExpr:
+		case FunctionTypeExpr:
+			return true;
+		case IdentifierExpr:
+			return GetStateForName(expr->identifierExpr.identifier->val);
+		case SelectorExpr:
+			//Todo check if imported type
+			break;
+		case IndexExpr:
+			return IsTypeExpr(expr->indexExpr.of);
+		default:
+			break;
+		}
 	}
 
 	inline Type* GetPrimitiveOperatorType(Type* left, Type* right)
@@ -784,7 +821,7 @@ struct Checker
 			break;
 		}
 		case NamedType:
-			return GetStateOperatorType(op, left, right);
+			return GetStateOperatorType(op, op->uniqueType, left, right);
 		case ExplicitType:
 		case ImplicitType:
 			AddError(op, "Binary operators are not valid with explicit and implicit types");
@@ -827,7 +864,7 @@ struct Checker
 			if (op->uniqueType == UniqueType::Not) return syntax.CreatePrimitive(UniqueType::Bool);
 			return type;
 		case NamedType:
-			return GetStateOperatorType(op, type);
+			return GetStateOperatorType(op, op->uniqueType, type);
 		case ImportedType:
 			// TODO Support imported types
 			return syntax.CreateTypePtr(TypeID::InvalidType);
@@ -946,14 +983,51 @@ struct Checker
 		}
 		case IndexExpr:
 		{
-			Type* inferred = InferType(of->indexExpr.of);
-			if (inferred->typeID == TypeID::ArrayType) return inferred;
-			else 
+			// Index expression can be used for creating an array eg. myVal: []int = int[12];
+			// Or getting a value at an index eg. myInt := myVal[4];
+			// Check if it's creating an array by checking if the indexed expression is a valid type to create
+			// an array with eg. int[expr] (primitive) MyState[expr] (state)
+			if (IsTypeExpr(of->indexExpr.of))
 			{
+				// Type expression, create array type
 				Type* type = syntax.CreateTypePtr(TypeID::ArrayType);
-				type->arrayType.type = inferred;
+				type->arrayType.type = InferType(of->indexExpr.of);
 				return type;
 			}
+			else
+			{
+				//Not a type expression, try and evaluated indexed type
+				Expr* curr = of;
+				int indexDimensions = 0;
+				while (curr->typeID == ExprID::IndexExpr)
+				{
+					curr = curr->indexExpr.of;
+					indexDimensions += 1;
+				}
+
+				Type* type = GetBaseType(InferType(curr));
+				if (type->typeID == TypeID::ArrayType)
+				{
+					for (int i = 0; i < indexDimensions; i++)
+					{
+						if (type->typeID != TypeID::ArrayType)
+						{
+							AddError(curr->start, "Index used on non-array type");
+							return syntax.CreateTypePtr(TypeID::InvalidType);
+						}
+
+						type = type->arrayType.type;
+					}
+				}
+				else if (IsStateType(type))
+				{
+					Type* indexType = GetStateOperatorType(of->start, UniqueType::Array, type);
+					if (indexType) return indexType;
+				}
+
+				return type;
+			}
+			break;
 		}
 		case FunctionCallExpr:
 		{
