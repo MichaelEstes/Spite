@@ -17,6 +17,86 @@ struct StateSymbol
 	Node* destructor = nullptr;
 };
 
+struct TypeHash
+{
+	InplaceStringHash inplaceStrHasher;
+
+	size_t operator()(const Type* type) const
+	{
+		switch (type->typeID)
+		{
+		case PrimitiveType:
+			return type->primitiveType.type;
+		case NamedType:
+		{
+			size_t hash = 0;
+			auto& namedType = type->namedType;
+			hash += inplaceStrHasher(namedType.typeName->val);
+			return hash;
+		}
+		case ExplicitType:
+		{
+			size_t hash = 0;
+			for (Node* node : *type->explicitType.declarations)
+			{
+				Type* defType = node->definition.type;
+				hash += this->operator()(defType);
+			}
+			return hash;
+		}
+		case PointerType:
+		{
+			size_t hash = '*';
+			return hash + this->operator()(type->pointerType.type);
+		}
+		case ValueType:
+		{
+			size_t hash = '~';
+			return hash + this->operator()(type->valueType.type);
+		}
+		case ArrayType:
+		{
+			size_t hash = '[' + ']';
+			return hash + this->operator()(type->arrayType.type);
+		}
+		case GenericsType:
+		{
+			size_t hash = 0;
+			auto& genericType = type->genericsType;
+			for (Type* genType : *genericType.generics->genericsExpr.types)
+			{
+				hash += this->operator()(genType);
+			}
+			return hash + this->operator()(genericType.type);
+		}
+		case FunctionType:
+		{
+			size_t hash = 0;
+			auto& functionType = type->functionType;
+			hash += this->operator()(functionType.returnType);
+			for (Type* param : *functionType.paramTypes)
+			{
+				hash += this->operator()(param);
+			}
+			return hash;
+		}
+		case ImportedType:
+		{
+			size_t hash = 0;
+			auto& importedType = type->importedType;
+			hash += inplaceStrHasher(importedType.packageName->val);
+			hash += inplaceStrHasher(importedType.typeName->val);
+			return hash;
+		}
+		default:
+			break;
+		}
+
+		Logger::FatalError("SymbolTable:TypeHash Unable to create hash for Type");
+		return 0;
+	}
+};
+
 struct SymbolTable
 {
 	Node* package;

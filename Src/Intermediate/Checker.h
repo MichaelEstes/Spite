@@ -357,6 +357,11 @@ struct Checker
 		Type* type = definition.type;
 		if (type->typeID == TypeID::UnknownType)
 		{
+			Type* inferredType = InferType(definition.assignment);
+			if (!inferredType)
+			{
+				AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
+			}
 			definition.type = InferType(definition.assignment);
 		}
 		else if (definition.assignment)
@@ -368,6 +373,10 @@ struct Checker
 			else
 			{
 				Type* inferredType = InferType(definition.assignment);
+				if (!inferredType)
+				{
+					AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
+				}
 				if (*definition.type != *inferredType)
 				{
 					AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
@@ -484,7 +493,7 @@ struct Checker
 		return nullptr;
 	}
 
-	Node* FindInScope(InplaceString& val)
+	inline Node* FindInScope(InplaceString& val)
 	{
 		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)
 		{
@@ -504,6 +513,187 @@ struct Checker
 		else return GetFunctionForName(val);
 	}
 
+	inline Type* FunctionToFunctionType(Node* node)
+	{
+		Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
+		Node* decl = nullptr;
+
+		switch (node->nodeID)
+		{
+		case FunctionStmnt:
+		{
+			type->functionType.returnType = node->function.returnType;
+			decl = node->function.decl;
+		}
+		case Method:
+		{
+			type->functionType.returnType = node->method.returnType;
+			decl = node->method.decl;
+		}
+		default:
+			break;
+		}
+		
+		return FillFunctionTypeParams(decl, type);
+	}
+
+	inline Type* FillFunctionTypeParams(Node* decl, Type* type)
+	{
+		type->functionType.paramTypes = syntax.CreateVectorPtr<Type*>();
+		for (Node* node : *decl->functionDecl.parameters)
+		{
+			type->functionType.paramTypes->push_back(node->definition.type);
+		}
+
+		return type;
+	}
+
+	inline Type* GetTypeFromName(InplaceString& name)
+	{
+		Node* node = GetNodeForName(name);
+
+		switch (node->nodeID)
+		{
+		case Definition:
+			return node->definition.type;
+		case FunctionStmnt:
+			return FunctionToFunctionType(node);
+		case StateStmnt:
+		{
+			Type* type = syntax.CreateTypePtr(TypeID::NamedType);
+			type->namedType.typeName = node->state.name;
+			return type;
+		}
+		}
+
+		return nullptr;
+	}
+
+	inline Type* GetSelectorType(Expr* of, Type* type)
+	{
+		auto& selector = of->selectorExpr;
+		InplaceString& name = selector.select->identifierExpr.identifier->val;
+
+		if (type->typeID == TypeID::ExplicitType)
+		{
+			Node* explicitMember = FindTypeMember(type->explicitType.declarations, name);
+			return explicitMember->definition.type;
+		}
+
+		if (type->typeID != TypeID::NamedType)
+		{
+			AddError(of->start, "Checker:GetSelectorType Expected a named type from selector");
+			return nullptr;
+		}
+
+		StateSymbol* stateSymbol = GetStateForName(type->namedType.typeName->val);
+		if (!stateSymbol || !stateSymbol->state)
+		{
+			AddError(of->start, "Checker:GetSelectorType No state found for named type: " + ToString(type));
+			return nullptr;
+		}
+
+		Node* member = FindStateMember(stateSymbol->state, name);
+		if (member)
+		{
+			return member->definition.type;
+		}
+		else
+		{
+			Node* method = FindStateMethod(stateSymbol, name);
+			if (!method)
+			{
+				AddError(of->start, "Unable to find member or method for type: " + ToString(type));
+				return nullptr;
+			}
+
+			return FunctionToFunctionType(method);
+		}
+	}
+
+	inline Type* GetIndexType(Expr* of, Type* type)
+	{
+		if (!type)
+		{
+			AddError(of->start, "Checker:GetIndexType undefined type for expression: " + ToString(of));
+		}
+		auto& index = of->indexExpr;
+
+		switch (type->typeID)
+		{
+		case PrimitiveType:
+		{
+			Type* arrType = syntax.CreateTypePtr(TypeID::ArrayType);
+			arrType->arrayType.type = type;
+			return arrType;
+		}
+		case NamedType:
+			// Find index operator for type
+			// Check if creating an array or accessing an index of array
+			break;
+		case ExplicitType:
+			break;
+		case ImplicitType:
+			break;
+		case PointerType:
+			break;
+		case ValueType:
+			break;
+		case ArrayType:
+			return type->arrayType.type;
+		case GenericsType:
+			break;
+		case FunctionType:
+			break;
+		case ImportedType:
+			break;
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
+	inline Type* GetFunctionCallType(Expr* of, Type* type)
+	{
+		auto& function = of->functionCallExpr;
+
+		if (!type) return nullptr;
+		switch (type->typeID)
+		{
+		case NamedType:
+			// Constructor
+			return type;
+		case FunctionType:
+			break;
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
+	Type* EvalType(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case PrimitiveExpr:
+			return syntax.CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
+		case IdentifierExpr:
+			return GetTypeFromName(expr->identifierExpr.identifier->val);
+		case SelectorExpr:
+			return GetSelectorType(expr, EvalType(expr->selectorExpr.on));
+		case IndexExpr:
+			return GetIndexType(expr, EvalType(expr->indexExpr.of));
+		case FunctionCallExpr:
+			return GetFunctionCallType(expr, EvalType(expr->functionCallExpr.function));
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
 	Type* GetBaseType(Type* type)
 	{
 		Type* baseType = type;
@@ -517,12 +707,6 @@ struct Checker
 			case ValueType:
 				baseType = baseType->valueType.type;
 				break;
-				/*case ArrayType:
-					baseType = baseType->arrayType.type;
-					break;
-				case GenericsType:
-					baseType = baseType->genericsType.type;
-					break;*/
 			default:
 				break;
 			}
@@ -555,45 +739,6 @@ struct Checker
 		}
 
 		return nullptr;
-	}
-
-	Type* GetInnerType(Type* of, eastl::vector<Token*>& idents, int index)
-	{
-		Node* node = nullptr;
-		Token* curr = idents.at(index);
-		if (of->typeID == TypeID::ExplicitType)
-		{
-			auto& expl = of->explicitType;
-			node = FindTypeMember(expl.declarations, curr->val);
-		}
-		else if (of->typeID == TypeID::NamedType)
-		{
-			StateSymbol* stateSymbol = GetStateForName(of->namedType.typeName->val);
-			if (stateSymbol && stateSymbol->state)
-			{
-				node = FindStateMember(stateSymbol->state, curr->val);
-				if (!node)
-				{
-					node = FindStateMethod(stateSymbol, curr->val);
-					if (node && index == 0) return node->method.returnType;
-					else
-					{
-						AddError(curr, "No state member or method found selector");
-						return syntax.CreateTypePtr(TypeID::InvalidType);
-					}
-				}
-			}
-		}
-
-		if (node && node->nodeID == NodeID::Definition)
-		{
-			Type* type = node->definition.type;
-			if (index == 0) return type;
-			else return GetInnerType(type, idents, index - 1);
-		}
-
-		AddError(curr, "Unable to determine an inner type for selector statement");
-		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Node* GetGenerics(Node* node)
@@ -884,9 +1029,13 @@ struct Checker
 		switch (of->typeID)
 		{
 		case InvalidExpr:
-		{
 			return syntax.CreateTypePtr(TypeID::InvalidType);
-		}
+		case PrimitiveExpr:
+		case IdentifierExpr:
+		case SelectorExpr:
+		case IndexExpr:
+		case FunctionCallExpr:
+			return EvalType(of);
 		case LiteralExpr:
 		{
 			auto& literal = of->literalExpr;
@@ -915,125 +1064,6 @@ struct Checker
 			}
 
 			return syntax.CreatePrimitive(uniqueType);
-		}
-		case IdentifierExpr:
-		{
-			InplaceString& val = of->identifierExpr.identifier->val;
-			Node* node = GetNodeForName(val);
-			if (!node) break;
-			else if (node->nodeID == NodeID::Definition) return node->definition.type;
-			else if (node->nodeID == NodeID::StateStmnt)
-			{
-				Type* type = syntax.CreateTypePtr(TypeID::NamedType);
-				type->namedType.typeName = node->state.name;
-				return type;
-			}
-			else if (node->nodeID == NodeID::FunctionStmnt) return node->function.returnType;
-
-			break;
-		}
-		case PrimitiveExpr:
-		{
-			return syntax.CreatePrimitive(of->primitiveExpr.primitive->uniqueType);
-		}
-		case SelectorExpr:
-		{
-			Type* type = syntax.CreateTypePtr(TypeID::InvalidType);
-			Expr* firstSelector = of;
-			eastl::vector<Token*> idents = eastl::vector<Token*>();
-			while (firstSelector->selectorExpr.on->typeID == ExprID::SelectorExpr)
-			{
-				idents.push_back(firstSelector->selectorExpr.select->identifierExpr.identifier);
-				firstSelector = firstSelector->selectorExpr.on;
-			}
-			idents.push_back(firstSelector->selectorExpr.select->identifierExpr.identifier);
-
-			auto& selector = of->selectorExpr;
-			InplaceString& firstName = firstSelector->selectorExpr.on->identifierExpr.identifier->val;
-			Node* node = GetNodeForName(firstName);
-			if (!node)
-			{
-				if (selector.on->typeID == ExprID::IdentifierExpr && selector.select->typeID == ExprID::IdentifierExpr)
-				{
-					//TODO check imported types and function return types
-				}
-				else break;
-			}
-			else if (node->nodeID == NodeID::Definition)
-			{
-				Type* baseType = GetBaseType(node->definition.type);
-				switch (baseType->typeID)
-				{
-				case ExplicitType:
-				case ImportedType:
-				case NamedType:
-					type = GetInnerType(baseType, idents, idents.size() - 1);
-					break;
-				default:
-					break;
-				}
-			}
-			else if (node->nodeID == NodeID::StateStmnt)
-			{
-				type->typeID = TypeID::NamedType;
-				type->namedType.typeName = node->state.name;
-			}
-
-			return type;
-		}
-		case IndexExpr:
-		{
-			// Index expression can be used for creating an array eg. myVal: []int = int[12];
-			// Or getting a value at an index eg. myInt := myVal[4];
-			// Check if it's creating an array by checking if the indexed expression is a valid type to create
-			// an array with eg. int[expr] (primitive) MyState[expr] (state)
-			if (IsTypeExpr(of->indexExpr.of))
-			{
-				// Type expression, create array type
-				Type* type = syntax.CreateTypePtr(TypeID::ArrayType);
-				type->arrayType.type = InferType(of->indexExpr.of);
-				return type;
-			}
-			else
-			{
-				//Not a type expression, try and evaluated indexed type
-				Expr* curr = of;
-				int indexDimensions = 0;
-				while (curr->typeID == ExprID::IndexExpr)
-				{
-					curr = curr->indexExpr.of;
-					indexDimensions += 1;
-				}
-
-				Type* type = GetBaseType(InferType(curr));
-				if (type->typeID == TypeID::ArrayType)
-				{
-					for (int i = 0; i < indexDimensions; i++)
-					{
-						if (type->typeID != TypeID::ArrayType)
-						{
-							AddError(curr->start, "Index used on non-array type");
-							return syntax.CreateTypePtr(TypeID::InvalidType);
-						}
-
-						type = type->arrayType.type;
-					}
-				}
-				else if (IsStateType(type))
-				{
-					Type* indexType = GetStateOperatorType(of->start, UniqueType::Array, type);
-					if (indexType) return indexType;
-				}
-
-				return type;
-			}
-			break;
-		}
-		case FunctionCallExpr:
-		{
-			Type* type = InferType(of->functionCallExpr.function);
-			if (type->typeID == TypeID::FunctionType) return type->functionType.returnType;
-			return type;
 		}
 		case NewExpr:
 		{
