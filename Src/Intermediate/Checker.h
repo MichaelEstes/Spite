@@ -566,6 +566,7 @@ struct Checker
 		}
 		}
 
+		AddError("Checker:GetTypeFromName unable to find type for name: " + name);
 		return nullptr;
 	}
 
@@ -651,6 +652,7 @@ struct Checker
 			break;
 		}
 
+		AddError(of->start, "Checker:GetIndexType unable to create type for expression: " + ToString(of));
 		return nullptr;
 	}
 
@@ -670,6 +672,7 @@ struct Checker
 			break;
 		}
 
+		AddError(of->start, "Checker:GetFunctionCallType unable to create type for expression: " + ToString(of));
 		return nullptr;
 	}
 
@@ -691,6 +694,7 @@ struct Checker
 			break;
 		}
 
+		AddError(expr->start, "Checker:EvalType unable to create type for expression: " + ToString(expr));
 		return nullptr;
 	}
 
