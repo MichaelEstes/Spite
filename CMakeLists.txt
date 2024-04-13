@@ -15,11 +15,13 @@ include_directories (${EASTL_ROOT_DIR}/test/packages/EAThread/include)
 
 find_package(LLVM REQUIRED CONFIG)
 
-message(${LLVM_INCLUDE_DIRS})
-
 include_directories(${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+message(STATUS "Including LLVM Dirs: ${LLVM_INCLUDE_DIRS}")
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)

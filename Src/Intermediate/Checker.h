@@ -481,6 +481,7 @@ struct Checker
 		{
 			return &entry->second;
 		}
+
 		return nullptr;
 	}
 
@@ -490,6 +491,7 @@ struct Checker
 		{
 			return entry->second;
 		}
+
 		return nullptr;
 	}
 
@@ -502,6 +504,8 @@ struct Checker
 				return entry->second;
 			}
 		}
+
+		return nullptr;
 	}
 
 	Node* GetNodeForName(InplaceString& val)
@@ -511,6 +515,32 @@ struct Checker
 		StateSymbol* state = GetStateForName(val);
 		if (state) return state->state;
 		else return GetFunctionForName(val);
+	}
+
+	inline const InplaceString& GetNameFromExpr(Expr* expr, int maxDepth = 2, int depth = 0)
+	{
+		if (depth > maxDepth)
+		{
+			AddError(expr->start, "Checker:GetNameFromExpr reached max depth: " + eastl::to_string(maxDepth) + " for expression: " + ToString(expr));
+			return "";
+		}
+
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+			return expr->identifierExpr.identifier->val;
+		case SelectorExpr:
+			return GetNameFromExpr(expr->selectorExpr.select, maxDepth, depth + 1);
+		case IndexExpr:
+			return GetNameFromExpr(expr->indexExpr.of, maxDepth, depth + 1);
+		case FunctionCallExpr:
+			return GetNameFromExpr(expr->functionCallExpr.function, maxDepth, depth + 1);
+		default:
+			break;
+		}
+
+		AddError(expr->start, "Checker:GetNameFromExpr Unable to get string from expression: " + ToString(expr));
+		return "";
 	}
 
 	inline Type* FunctionToFunctionType(Node* node)
@@ -533,7 +563,7 @@ struct Checker
 		default:
 			break;
 		}
-		
+
 		return FillFunctionTypeParams(decl, type);
 	}
 
@@ -554,11 +584,11 @@ struct Checker
 
 		switch (node->nodeID)
 		{
-		case Definition:
+		case NodeID::Definition:
 			return node->definition.type;
-		case FunctionStmnt:
+		case NodeID::FunctionStmnt:
 			return FunctionToFunctionType(node);
-		case StateStmnt:
+		case NodeID::StateStmnt:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::NamedType);
 			type->namedType.typeName = node->state.name;
@@ -618,6 +648,8 @@ struct Checker
 		{
 			AddError(of->start, "Checker:GetIndexType undefined type for expression: " + ToString(of));
 		}
+		
+		const InplaceString& name = GetNameFromExpr(of);
 		auto& index = of->indexExpr;
 
 		switch (type->typeID)
