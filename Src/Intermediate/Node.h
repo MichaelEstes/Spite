@@ -80,7 +80,6 @@ struct Node
 {
 	Token* start;
 	Token* end;
-	ScopeIndex scope;
 	NodeID nodeID;
 
 	union
@@ -276,9 +275,8 @@ struct Node
 
 	Node()
 	{
-		start = 0;
-		end = 0;
-		scope = 0;
+		start = nullptr;
+		end = nullptr;
 		nodeID = NodeID::InvalidNode;
 	}
 
@@ -286,7 +284,7 @@ struct Node
 	{
 		this->nodeID = nodeID;
 		this->start = start;
-		this->scope = scope;
+		this->end = nullptr;
 	}
 
 	Node(const Node& copy)
@@ -298,7 +296,6 @@ struct Node
 	{
 		start = copy.start;
 		end = copy.end;
-		scope = copy.scope;
 		nodeID = copy.nodeID;
 
 		switch (nodeID)

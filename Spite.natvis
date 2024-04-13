@@ -8,4 +8,39 @@
 			<Item Name="[last]">*last</Item>
 		</Expand>
 	</Type>
+
+	<Type Name="Node">
+		<DisplayString 
+			Condition="nodeID == 5" 
+			Optional="true">{nodeID,en}: {definition.name->val.start,[definition.name->val.count]sb}: {*definition.type}</DisplayString>
+		<Expand>
+			<Item Name="[start]">*start</Item>
+			<Item Name="[end]" Condition="end != 0" Optional="true">*end</Item>
+		</Expand>
+	</Type>
+
+	<Type Name="Type">
+		<DisplayString
+			Condition="typeID == 3"
+			Optional="true">{namedType.typeName->val.start,[namedType.typeName->val.count]sb}</DisplayString>
+	</Type>
+
+	<Type Name="Token">
+		<DisplayString>{val.start,[val.count]s}</DisplayString>
+		<Expand>
+			<Item Name="[position]">pos</Item>
+			<Item Name="[type]">type,en</Item>
+			<Item Name="[unique type]">uniqueType,en</Item>
+		</Expand>
+	</Type>
+
+	<Type Name="Position">
+		<DisplayString Condition="file != 0" Optional="true">file:{*file,s} line:{line}"</DisplayString>
+		<Expand>
+			<Item Name="[file]" Condition="file != 0" Optional="true">*file,s</Item>
+			<Item Name="[file offset]">fileOffset</Item>
+			<Item Name="[line]">line</Item>
+			<Item Name="[column offset]">columnOffset</Item>
+		</Expand>
+	</Type>
 </AutoVisualizer>
