@@ -10,23 +10,389 @@
 	</Type>
 
 	<Type Name="Node">
-		<DisplayString 
-			Condition="nodeID == 5" 
-			Optional="true">{nodeID,en}: {definition.name->val.start,[definition.name->val.count]sb}: {*definition.type}</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::InvalidNode"
+			Optional="true">
+			{nodeID,en}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::CommentStmnt"
+			Optional="true">
+			{nodeID,en}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ExpressionStmnt"
+			Optional="true">
+			{*expressionStmnt.expression}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::UsingStmnt"
+			Optional="true">
+			using {*using_.packageName}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::UsingStmnt &amp;&amp; using_.alias != 0"
+			Optional="true">
+			as {*using_.alias}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::PackageStmnt"
+			Optional="true">
+			package {*package.name}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Definition"
+			Optional="true">
+			{*definition.name}: {*definition.type}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Definition &amp;&amp; definition.assignment != 0"
+			Optional="true">
+			{*definition.op} {*definition.assignment}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::InlineDefinition"
+			Optional="true">
+			{*inlineDefinition.type} {*inlineDefinition.op} {*inlineDefinition.assignment}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::FunctionStmnt"
+			Optional="true">
+			{*function.returnType} {*function.name}{*function.generics}{*function.decl}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::FunctionDecl"
+			Optional="true">
+			({(*functionDecl.parameters).mpEnd - (*functionDecl.parameters).mpBegin}) {functionDecl.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::StateStmnt"
+			Optional="true">
+			{*state.name}{*state.generics}[{(*state.members).mpEnd - (*state.members).mpBegin}]
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::GenericsDecl"
+			Optional="true">
+			&lt;[{(*generics.names).mpEnd - (*generics.names).mpBegin}]&gt;
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::GenericsDecl &amp;&amp; generics.whereStmnt != 0"
+			Optional="true">
+			{*generics.whereStmnt}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::WhereStmnt"
+			Optional="true">
+			{*whereStmnt.decl}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Method"
+			Optional="true">
+			{*method.returnType} {*method.stateName}::{*method.name}{*method.generics}{*method.decl}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::StateOperator"
+			Optional="true">
+			{*stateOperator.returnType} {*stateOperator.stateName}::operator{*stateOperator.generics}::{*stateOperator.op}{*stateOperator.decl}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Destructor"
+			Optional="true">
+			{*destructor.stateName}::delete {destructor.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Constructor"
+			Optional="true">
+			{*constructor.stateName}::{constructor.decl}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Conditional"
+			Optional="true">
+			({*conditional.condition}) {conditional.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::AssignmentStmnt"
+			Optional="true">
+			{*assignmentStmnt.assignTo} {*assignmentStmnt.op} {*assignmentStmnt.assignment}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::IfStmnt"
+			Optional="true">
+			if({*ifStmnt.condition}) else if[{(*ifStmnt.elifs).mpEnd - (*ifStmnt.elifs).mpBegin}] else{ifStmnt.elseCondition}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ForStmnt &amp;&amp; forStmnt.isDeclaration"
+			Optional="true">
+			for({*forStmnt.declaration} {*forStmnt.iterator} {*forStmnt.toIterate}) {forStmnt.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ForStmnt &amp;&amp; !forStmnt.isDeclaration"
+			Optional="true">
+			for({*forStmnt.identifier} {*forStmnt.iterator} {*forStmnt.toIterate}) {forStmnt.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::WhileStmnt"
+			Optional="true">
+			while{*whileStmnt.conditional}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::SwitchStmnt"
+			Optional="true">
+			switch({*switchStmnt.switchOn}) cases[{(*switchStmnt.cases).mpEnd - (*switchStmnt.cases).mpBegin}]
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::DeleteStmnt &amp;&amp; !deleteStmnt.arrDelete"
+			Optional="true">
+			delete {*deleteStmnt.primaryExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::DeleteStmnt &amp;&amp; deleteStmnt.arrDelete"
+			Optional="true">
+			delete[] {*deleteStmnt.primaryExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::DeferStmnt"
+			Optional="true">
+			defer 
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::DeferStmnt &amp;&amp; deferStmnt.deferIf"
+			Optional="true">
+			{*deferStmnt.conditional}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::DeferStmnt &amp;&amp; !deferStmnt.deferIf"
+			Optional="true">
+			{*deferStmnt.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ContinueStmnt"
+			Optional="true">
+			continue
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::BreakStmnt"
+			Optional="true">
+			break
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ReturnStmnt"
+			Optional="true">
+			return
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::ReturnStmnt &amp;&amp; !returnStmnt.voidReturn"
+			Optional="true">
+			{*returnStmnt.expr}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::CompileStmnt"
+			Optional="true">
+			#compile {*compileStmnt.compileExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::CompileDebugStmnt"
+			Optional="true">
+			#debug {*compileDebugStmnt.body}
+		</DisplayString>
+		<DisplayString
+			Condition="nodeID == NodeID::Block"
+			Optional="true">
+			block[{(*block.inner).mpEnd - (*block.inner).mpBegin}]
+		</DisplayString>
 		<Expand>
+			<Item Name="[type]">nodeID,en</Item>
 			<Item Name="[start]">*start</Item>
 			<Item Name="[end]" Condition="end != 0" Optional="true">*end</Item>
 		</Expand>
 	</Type>
 
+	<Type Name="Body">
+		<DisplayString Condition="body != 0" Optional="true">{*body}</DisplayString>
+		<Expand>
+			<Item Name="[is statement]">statement</Item>
+		</Expand>
+	</Type>
+
 	<Type Name="Type">
 		<DisplayString
-			Condition="typeID == 3"
-			Optional="true">{namedType.typeName->val.start,[namedType.typeName->val.count]sb}</DisplayString>
+			Condition="typeID == TypeID::InvalidType"
+			Optional="true">
+			Invalid
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::UnknownType"
+			Optional="true">
+			Implicit
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::PrimitiveType"
+			Optional="true">
+			{primitiveType.type,en}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::NamedType"
+			Optional="true">
+			{namedType.typeName->val.start,[namedType.typeName->val.count]sb}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::ExplicitType"
+			Optional="true">
+			{typeID,en}[{(*explicitType.declarations).mpEnd - (*explicitType.declarations).mpBegin}]
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::ImplicitType"
+			Optional="true">
+			{typeID,en}[{(*implicitType.identifiers).mpEnd - (*implicitType.identifiers).mpBegin}]
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::PointerType"
+			Optional="true">
+			*{*pointerType.type}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::ValueType"
+			Optional="true">
+			~{*valueType.type}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::ArrayType"
+			Optional="true">
+			[]{*arrayType.type}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::GenericsType"
+			Optional="true">
+			{*genericsType.generics}{*genericsType.type}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::FunctionType"
+			Optional="true">
+			::{*functionType.returnType}({(*functionType.paramTypes).mpEnd - (*functionType.paramTypes).mpBegin})
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == TypeID::ImportedType"
+			Optional="true">
+			{importedType.packageName->val.start,[importedType.packageName->val.count]sb}.{importedType.typeName->val.start,[importedType.typeName->val.count]sb}
+		</DisplayString>
+		<Expand>
+			<Item Name="[type ID]">typeID</Item>
+		</Expand>
+	</Type>
+
+	<Type Name="Expr">
+		<DisplayString
+			Condition="typeID == ExprID::InvalidExpr"
+			Optional="true">
+			Invalid
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::LiteralExpr"
+			Optional="true">
+			{literalExpr.type,en} {*literalExpr.val}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::IdentifierExpr"
+			Optional="true">
+			{*identifierExpr.identifier}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::PrimitiveExpr"
+			Optional="true">
+			{*primitiveExpr.primitive}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::SelectorExpr"
+			Optional="true">
+			{*selectorExpr.on}.{*selectorExpr.select}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::IndexExpr"
+			Optional="true">
+			{*indexExpr.of}[{*indexExpr.index}]
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::FunctionCallExpr"
+			Optional="true">
+			{*functionCallExpr.function}({(*functionCallExpr.params).mpEnd - (*functionCallExpr.params).mpBegin})
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::NewExpr"
+			Optional="true">
+			new {*newExpr.primaryExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::NewExpr &amp;&amp; newExpr.atExpr != 0"
+			Optional="true">
+			{*newExpr.atExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::FixedExpr"
+			Optional="true">
+			fixed {*fixedExpr.atExpr}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::AnonTypeExpr"
+			Optional="true">
+			Anon[{(*anonTypeExpr.values).mpEnd - (*anonTypeExpr.values).mpBegin}]
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::AsExpr"
+			Optional="true">
+			{*asExpr.of} as {*asExpr.to}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::DereferenceExpr"
+			Optional="true">
+			{*dereferenceExpr.of}{*dereferenceExpr.op}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::ReferenceExpr"
+			Optional="true">
+			{*referenceExpr.of}{*referenceExpr.op}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::BinaryExpr"
+			Optional="true">
+			{*binaryExpr.left} {*binaryExpr.op} {*binaryExpr.right}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::UnaryExpr"
+			Optional="true">
+			{*unaryExpr.op}{*unaryExpr.expr}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::GroupedExpr"
+			Optional="true">
+			({*groupedExpr.expr})
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::GenericsExpr"
+			Optional="true">
+			&lt;[{(*genericsExpr.types).mpEnd - (*genericsExpr.types).mpBegin}]&gt;{*genericsExpr.expr}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::FunctionTypeExpr"
+			Optional="true">
+			{*functionTypeExpr.functionType}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::FunctionTypeDeclExpr"
+			Optional="true">
+			{*functionTypeDeclExpr.returnType} {*functionTypeDeclExpr.functionDecl}
+		</DisplayString>
+		<DisplayString
+			Condition="typeID == ExprID::CompileExpr"
+			Optional="true">
+			{*compileExpr.returnType} {compileExpr.body}
+		</DisplayString>
+		<Expand>
+			<Item Name="[start]">*start</Item>
+		</Expand>
 	</Type>
 
 	<Type Name="Token">
-		<DisplayString>{val.start,[val.count]s}</DisplayString>
+		<DisplayString>{val.start,[val.count]sb}</DisplayString>
 		<Expand>
 			<Item Name="[position]">pos</Item>
 			<Item Name="[type]">type,en</Item>
