@@ -5,31 +5,32 @@
 #include "EASTL/memory.h"
 #include "EASTL/tuple.h"
 
+#include "../Containers/InplaceString.h"
+
 const int offset = 32;
 const int size = 128 - offset;
 
 template<typename T, typename T2, typename T3>
 class TokenTree
 {
-
 public:
-	class Node
+	class TokenNode
 	{
 	public:
 		char val;
 		T2 type;
 		T3 uniqueType;
-		Node* children[size];
+		TokenNode* children[size];
 		bool completed;
 
-		Node(char val)
+		TokenNode(char val)
 		{
 			this->val = val;
 			for (int i = 0; i < size; i++) children[i] = nullptr;
 			this->completed = false;
 		}
 
-		Node* GetChild(char c)
+		TokenNode* GetChild(char c)
 		{
 			char index = c - offset;
 			return children[index] != nullptr ? children[index] : nullptr;
@@ -44,7 +45,7 @@ public:
 
 	TokenTree(std::initializer_list<eastl::tuple<T, T2, T3>> list)
 	{
-		this->root = new Node('\0');
+		this->root = new TokenNode('\0');
 
 		for (const auto& val : list)
 		{
@@ -52,11 +53,11 @@ public:
 			T2 type = eastl::get<1>(val);
 			T3 uniqueType = eastl::get<2>(val);
 
-			Node* current = root;
+			TokenNode* current = root;
 			for (char c : key) {
 				char index = c - offset;
 				if (current->children[index] == nullptr) {
-					current->children[index] = new Node(c);
+					current->children[index] = new TokenNode(c);
 				}
 				current = current->children[index];
 			}
@@ -71,11 +72,24 @@ public:
 		delete root;
 	}
 
-	Node* GetRoot()
+	TokenNode* GetRoot()
 	{
 		return root;
 	}
 
+	TokenNode* Find(InplaceString& val)
+	{
+		TokenNode* node = root;
+		for (int i = 0; i < val.count; i++)
+		{
+			char curr = val[i];
+			node = node->GetChild(curr);
+			if (!node) return nullptr;
+		}
+
+		return node;
+	}
+
 private:
-	Node* root;
+	TokenNode* root;
 };

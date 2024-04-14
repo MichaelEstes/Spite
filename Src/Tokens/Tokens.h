@@ -167,6 +167,121 @@ enum UniqueType
 	Ternary,
 };
 
+TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
+	{ "using", TokenType::Keyword, UniqueType::Using },
+	{ "package", TokenType::Keyword, UniqueType::Package },
+	{ "state", TokenType::Keyword, UniqueType::State },
+	{ "global", TokenType::Keyword, UniqueType::Global },
+	{ "extern", TokenType::Keyword, UniqueType::Extern },
+	{ "assert", TokenType::Keyword, UniqueType::Assert },
+	{ "where", TokenType::Keyword, UniqueType::Where },
+	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
+	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
+	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
+
+	{ "public", TokenType::AccessModifier, UniqueType::Public },
+	{ "private", TokenType::AccessModifier, UniqueType::Private },
+
+	{ "void", TokenType::Primitive, UniqueType::Void },
+	{ "bool", TokenType::Primitive, UniqueType::Bool },
+	{ "byte", TokenType::Primitive, UniqueType::Byte },
+	{ "ubyte", TokenType::Primitive, UniqueType::Ubyte },
+	{ "int", TokenType::Primitive, UniqueType::Int },
+	{ "int16", TokenType::Primitive, UniqueType::Int16 },
+	{ "int32", TokenType::Primitive, UniqueType::Int32 },
+	{ "int64", TokenType::Primitive, UniqueType::Int64 },
+	{ "int128", TokenType::Primitive, UniqueType::Int128 },
+	{ "uint", TokenType::Primitive, UniqueType::Uint },
+	{ "uint16", TokenType::Primitive, UniqueType::Uint16 },
+	{ "uint32", TokenType::Primitive, UniqueType::Uint32 },
+	{ "uint64", TokenType::Primitive, UniqueType::Uint64 },
+	{ "uint128", TokenType::Primitive, UniqueType::Uint128 },
+	{ "float", TokenType::Primitive, UniqueType::Float },
+	{ "float32", TokenType::Primitive, UniqueType::Float32 },
+	{ "float64", TokenType::Primitive, UniqueType::Float64 },
+	{ "float128", TokenType::Primitive, UniqueType::Float128 },
+	{ "string", TokenType::Primitive, UniqueType::String },
+
+	{ "true", TokenType::Literal, UniqueType::TrueLiteral },
+	{ "false", TokenType::Literal, UniqueType::FalseLiteral },
+
+	{ "if", TokenType::Flow, UniqueType::If },
+	{ "else", TokenType::Flow, UniqueType::Else },
+	{ "for", TokenType::Flow, UniqueType::For },
+	{ "while", TokenType::Flow, UniqueType::While },
+	{ "do", TokenType::Flow, UniqueType::Do },
+	{ "switch", TokenType::Flow, UniqueType::Switch },
+	{ "case", TokenType::Flow, UniqueType::Case },
+	{ "default", TokenType::Flow, UniqueType::Default },
+	{ "continue", TokenType::Flow, UniqueType::Continue },
+	{ "break", TokenType::Flow, UniqueType::Break },
+	{ "return", TokenType::Flow, UniqueType::Return },
+	{ "defer", TokenType::Flow, UniqueType::Defer },
+
+	{ "new", TokenType::Decorator, UniqueType::New },
+	{ "fixed", TokenType::Decorator, UniqueType::Fixed },
+	{ "delete", TokenType::Decorator, UniqueType::Delete },
+	{ "as", TokenType::Decorator, UniqueType::As },
+	{ "at", TokenType::Decorator, UniqueType::At },
+	{ "=>", TokenType::Decorator, UniqueType::FatArrow },
+	{ "...", TokenType::Decorator, UniqueType::Ellipsis },
+	{ "~", TokenType::Decorator, UniqueType::Tilde },
+	{ "@", TokenType::Decorator, UniqueType::AtOp },
+
+	{ "+", TokenType::Operator, UniqueType::Add },
+	{ "-", TokenType::Operator, UniqueType::Subtract },
+	{ "*", TokenType::Operator, UniqueType::Multiply },
+	{ "/", TokenType::Operator, UniqueType::Divide },
+	{ "%", TokenType::Operator, UniqueType::Modulo },
+	{ "&", TokenType::Operator, UniqueType::And },
+	{ "|", TokenType::Operator, UniqueType::Or },
+	{ "^", TokenType::Operator, UniqueType::Xor },
+	{ "<<", TokenType::Operator, UniqueType::Shiftl },
+	{ ">>", TokenType::Operator, UniqueType::Shiftr },
+	{ "&^", TokenType::Operator, UniqueType::AndNot },
+	{ "+=", TokenType::Operator, UniqueType::AddAssign },
+	{ "-=", TokenType::Operator, UniqueType::SubtractAssign },
+	{ "*=", TokenType::Operator, UniqueType::MultiplyAssign },
+	{ "/=", TokenType::Operator, UniqueType::DivideAssign },
+	{ "%=", TokenType::Operator, UniqueType::ModuloAssign },
+	{ "&=", TokenType::Operator, UniqueType::AndAssign },
+	{ "|=", TokenType::Operator, UniqueType::OrAssign },
+	{ "^=", TokenType::Operator, UniqueType::XorAssign },
+	{ "<<=", TokenType::Operator, UniqueType::ShiftlAssign },
+	{ ">>=", TokenType::Operator, UniqueType::ShiftrAssign },
+	{ "&^=", TokenType::Operator, UniqueType::AndNotAssign },
+	{ "&&", TokenType::Operator, UniqueType::LogicAnd },
+	{ "||", TokenType::Operator, UniqueType::LogicOr },
+	{ "<-", TokenType::Operator, UniqueType::Arrow },
+	{ "++", TokenType::Operator, UniqueType::Increment },
+	{ "--", TokenType::Operator, UniqueType::Decrement },
+	{ "==", TokenType::Operator, UniqueType::Equal },
+	{ "<", TokenType::Operator, UniqueType::Less },
+	{ ">", TokenType::Operator, UniqueType::Greater },
+	{ "=", TokenType::Operator, UniqueType::Assign },
+	{ "!", TokenType::Operator, UniqueType::Not },
+	{ "!=", TokenType::Operator, UniqueType::NotEql },
+	{ "<=", TokenType::Operator, UniqueType::LessEqual },
+	{ ">=", TokenType::Operator, UniqueType::GreaterEqual },
+	{ ":=", TokenType::Operator, UniqueType::ImplicitAssign },
+	{ "in", TokenType::Operator, UniqueType::In },
+	{ "..", TokenType::Operator, UniqueType::To },
+	{ "[]", TokenType::Operator, UniqueType::Array },
+
+	{ "(", TokenType::Seperator, UniqueType::Lparen },
+	{ "[", TokenType::Seperator, UniqueType::Lbrack },
+	{ "{", TokenType::Seperator, UniqueType::Lbrace },
+	{ ",", TokenType::Seperator, UniqueType::Comma },
+	{ ".", TokenType::Seperator, UniqueType::Period },
+	{ ")", TokenType::Seperator, UniqueType::Rparen },
+	{ "]", TokenType::Seperator, UniqueType::Rbrack },
+	{ "}", TokenType::Seperator, UniqueType::Rbrace },
+	{ ";", TokenType::Seperator, UniqueType::Semicolon },
+	{ ":", TokenType::Seperator, UniqueType::Colon },
+	{ "::", TokenType::Seperator, UniqueType::DoubleColon },
+	{ "?", TokenType::Seperator, UniqueType::Ternary },
+};
+
 struct Token
 {
 	InplaceString val;
@@ -370,7 +485,7 @@ public:
 	struct IdentifierParser
 	{
 		InplaceString val;
-		TokenTree<eastl::string, TokenType, UniqueType>::Node* currTokenType;
+		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{
@@ -411,7 +526,7 @@ public:
 		inline void Reset(Tokens* tokens)
 		{
 			val.Clear();
-			currTokenType = tokens->tokenTypeLookup.GetRoot();
+			currTokenType = tokenTypeLookup.GetRoot();
 			tokens->ResetContext();
 		}
 	} identifierParser;
@@ -419,7 +534,7 @@ public:
 	struct OperatorParser
 	{
 		InplaceString val;
-		TokenTree<eastl::string, TokenType, UniqueType>::Node* currTokenType;
+		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{
@@ -446,7 +561,7 @@ public:
 		inline void Reset(Tokens* tokens)
 		{
 			val.Clear();
-			currTokenType = tokens->tokenTypeLookup.GetRoot();
+			currTokenType = tokenTypeLookup.GetRoot();
 			tokens->ResetContext();
 		}
 	} operatorParser;
@@ -627,120 +742,5 @@ public:
 		count += 1;
 		return &tokens.emplace_back(val, pos, type, uniqueType, count);
 	}
-
-	TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
-		{ "using", TokenType::Keyword, UniqueType::Using },
-		{ "package", TokenType::Keyword, UniqueType::Package },
-		{ "state", TokenType::Keyword, UniqueType::State },
-		{ "global", TokenType::Keyword, UniqueType::Global },
-		{ "extern", TokenType::Keyword, UniqueType::Extern },
-		{ "assert", TokenType::Keyword, UniqueType::Assert },
-		{ "where", TokenType::Keyword, UniqueType::Where },
-		{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
-		{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
-		{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
-
-		{ "public", TokenType::AccessModifier, UniqueType::Public },
-		{ "private", TokenType::AccessModifier, UniqueType::Private },
-
-		{ "void", TokenType::Primitive, UniqueType::Void },
-		{ "bool", TokenType::Primitive, UniqueType::Bool },
-		{ "byte", TokenType::Primitive, UniqueType::Byte },
-		{ "ubyte", TokenType::Primitive, UniqueType::Ubyte },
-		{ "int", TokenType::Primitive, UniqueType::Int },
-		{ "int16", TokenType::Primitive, UniqueType::Int16 },
-		{ "int32", TokenType::Primitive, UniqueType::Int32 },
-		{ "int64", TokenType::Primitive, UniqueType::Int64 },
-		{ "int128", TokenType::Primitive, UniqueType::Int128 },
-		{ "uint", TokenType::Primitive, UniqueType::Uint },
-		{ "uint16", TokenType::Primitive, UniqueType::Uint16 },
-		{ "uint32", TokenType::Primitive, UniqueType::Uint32 },
-		{ "uint64", TokenType::Primitive, UniqueType::Uint64 },
-		{ "uint128", TokenType::Primitive, UniqueType::Uint128 },
-		{ "float", TokenType::Primitive, UniqueType::Float },
-		{ "float32", TokenType::Primitive, UniqueType::Float32 },
-		{ "float64", TokenType::Primitive, UniqueType::Float64 },
-		{ "float128", TokenType::Primitive, UniqueType::Float128 },
-		{ "string", TokenType::Primitive, UniqueType::String },
-
-		{ "true", TokenType::Literal, UniqueType::TrueLiteral },
-		{ "false", TokenType::Literal, UniqueType::FalseLiteral },
-
-		{ "if", TokenType::Flow, UniqueType::If },
-		{ "else", TokenType::Flow, UniqueType::Else },
-		{ "for", TokenType::Flow, UniqueType::For },
-		{ "while", TokenType::Flow, UniqueType::While },
-		{ "do", TokenType::Flow, UniqueType::Do },
-		{ "switch", TokenType::Flow, UniqueType::Switch },
-		{ "case", TokenType::Flow, UniqueType::Case },
-		{ "default", TokenType::Flow, UniqueType::Default },
-		{ "continue", TokenType::Flow, UniqueType::Continue },
-		{ "break", TokenType::Flow, UniqueType::Break },
-		{ "return", TokenType::Flow, UniqueType::Return },
-		{ "defer", TokenType::Flow, UniqueType::Defer },
-
-		{ "new", TokenType::Decorator, UniqueType::New },
-		{ "fixed", TokenType::Decorator, UniqueType::Fixed },
-		{ "delete", TokenType::Decorator, UniqueType::Delete },
-		{ "as", TokenType::Decorator, UniqueType::As },
-		{ "at", TokenType::Decorator, UniqueType::At },
-		{ "=>", TokenType::Decorator, UniqueType::FatArrow },
-		{ "...", TokenType::Decorator, UniqueType::Ellipsis },
-		{ "~", TokenType::Decorator, UniqueType::Tilde },
-		{ "@", TokenType::Decorator, UniqueType::AtOp },
-
-		{ "+", TokenType::Operator, UniqueType::Add },
-		{ "-", TokenType::Operator, UniqueType::Subtract },
-		{ "*", TokenType::Operator, UniqueType::Multiply },
-		{ "/", TokenType::Operator, UniqueType::Divide },
-		{ "%", TokenType::Operator, UniqueType::Modulo },
-		{ "&", TokenType::Operator, UniqueType::And },
-		{ "|", TokenType::Operator, UniqueType::Or },
-		{ "^", TokenType::Operator, UniqueType::Xor },
-		{ "<<", TokenType::Operator, UniqueType::Shiftl },
-		{ ">>", TokenType::Operator, UniqueType::Shiftr },
-		{ "&^", TokenType::Operator, UniqueType::AndNot },
-		{ "+=", TokenType::Operator, UniqueType::AddAssign },
-		{ "-=", TokenType::Operator, UniqueType::SubtractAssign },
-		{ "*=", TokenType::Operator, UniqueType::MultiplyAssign },
-		{ "/=", TokenType::Operator, UniqueType::DivideAssign },
-		{ "%=", TokenType::Operator, UniqueType::ModuloAssign },
-		{ "&=", TokenType::Operator, UniqueType::AndAssign },
-		{ "|=", TokenType::Operator, UniqueType::OrAssign },
-		{ "^=", TokenType::Operator, UniqueType::XorAssign },
-		{ "<<=", TokenType::Operator, UniqueType::ShiftlAssign },
-		{ ">>=", TokenType::Operator, UniqueType::ShiftrAssign },
-		{ "&^=", TokenType::Operator, UniqueType::AndNotAssign },
-		{ "&&", TokenType::Operator, UniqueType::LogicAnd },
-		{ "||", TokenType::Operator, UniqueType::LogicOr },
-		{ "<-", TokenType::Operator, UniqueType::Arrow },
-		{ "++", TokenType::Operator, UniqueType::Increment },
-		{ "--", TokenType::Operator, UniqueType::Decrement },
-		{ "==", TokenType::Operator, UniqueType::Equal },
-		{ "<", TokenType::Operator, UniqueType::Less },
-		{ ">", TokenType::Operator, UniqueType::Greater },
-		{ "=", TokenType::Operator, UniqueType::Assign },
-		{ "!", TokenType::Operator, UniqueType::Not },
-		{ "!=", TokenType::Operator, UniqueType::NotEql },
-		{ "<=", TokenType::Operator, UniqueType::LessEqual },
-		{ ">=", TokenType::Operator, UniqueType::GreaterEqual },
-		{ ":=", TokenType::Operator, UniqueType::ImplicitAssign },
-		{ "in", TokenType::Operator, UniqueType::In },
-		{ "..", TokenType::Operator, UniqueType::To },
-		{ "[]", TokenType::Operator, UniqueType::Array },
-
-		{ "(", TokenType::Seperator, UniqueType::Lparen },
-		{ "[", TokenType::Seperator, UniqueType::Lbrack },
-		{ "{", TokenType::Seperator, UniqueType::Lbrace },
-		{ ",", TokenType::Seperator, UniqueType::Comma },
-		{ ".", TokenType::Seperator, UniqueType::Period },
-		{ ")", TokenType::Seperator, UniqueType::Rparen },
-		{ "]", TokenType::Seperator, UniqueType::Rbrack },
-		{ "}", TokenType::Seperator, UniqueType::Rbrace },
-		{ ";", TokenType::Seperator, UniqueType::Semicolon },
-		{ ":", TokenType::Seperator, UniqueType::Colon },
-		{ "::", TokenType::Seperator, UniqueType::DoubleColon },
-		{ "?", TokenType::Seperator, UniqueType::Ternary },
-	};
 };
 

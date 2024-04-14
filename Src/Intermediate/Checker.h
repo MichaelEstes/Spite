@@ -379,7 +379,7 @@ struct Checker
 				}
 				if (*definition.type != *inferredType)
 				{
-					AddError(node->start, "Expression doesn't evaluate to type " + ToString(definition.type));
+					AddError(node->start, "Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
 					return;
 				}
 			}
@@ -508,6 +508,53 @@ struct Checker
 		return nullptr;
 	}
 
+	inline bool IsNameOfPrimitive(InplaceString& name)
+	{
+		// Early out if string is longer than any primitive names
+		if (name.count > 8) return false;
+
+		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* node = tokenTypeLookup.Find(name);
+		if (!node) return false;
+		else return node->type == TokenType::Primitive;
+	}
+
+	inline bool IsNameOfType(InplaceString& name)
+	{
+		StateSymbol* state = GetStateForName(name);
+		if (state) return true;
+		else return IsNameOfPrimitive(name);
+	}
+
+	bool IsExprOfType(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+			return IsNameOfType(expr->identifierExpr.identifier->val);
+		case PrimitiveExpr:
+			return true;
+		case SelectorExpr:
+			// Check if Imported type
+			break;
+		case IndexExpr:
+			return IsExprOfType(expr->indexExpr.of);
+		case FunctionCallExpr:
+			return IsExprOfType(expr->functionCallExpr.function);
+		case GenericsExpr:
+			return IsExprOfType(expr->genericsExpr.expr);
+		case FunctionTypeExpr:
+			return true;
+		case FunctionTypeDeclExpr:
+			break;
+		case CompileExpr:
+			break;
+		default:
+			break;
+		}
+
+		return false;
+	}
+
 	Node* GetNodeForName(InplaceString& val)
 	{
 		Node* node = FindInScope(val);
@@ -515,32 +562,6 @@ struct Checker
 		StateSymbol* state = GetStateForName(val);
 		if (state) return state->state;
 		else return GetFunctionForName(val);
-	}
-
-	inline const InplaceString& GetNameFromExpr(Expr* expr, int maxDepth = 2, int depth = 0)
-	{
-		if (depth > maxDepth)
-		{
-			AddError(expr->start, "Checker:GetNameFromExpr reached max depth: " + eastl::to_string(maxDepth) + " for expression: " + ToString(expr));
-			return "";
-		}
-
-		switch (expr->typeID)
-		{
-		case IdentifierExpr:
-			return expr->identifierExpr.identifier->val;
-		case SelectorExpr:
-			return GetNameFromExpr(expr->selectorExpr.select, maxDepth, depth + 1);
-		case IndexExpr:
-			return GetNameFromExpr(expr->indexExpr.of, maxDepth, depth + 1);
-		case FunctionCallExpr:
-			return GetNameFromExpr(expr->functionCallExpr.function, maxDepth, depth + 1);
-		default:
-			break;
-		}
-
-		AddError(expr->start, "Checker:GetNameFromExpr Unable to get string from expression: " + ToString(expr));
-		return "";
 	}
 
 	inline Type* FunctionToFunctionType(Node* node)
@@ -554,16 +575,23 @@ struct Checker
 		{
 			type->functionType.returnType = node->function.returnType;
 			decl = node->function.decl;
+			break;
 		}
 		case Method:
 		{
 			type->functionType.returnType = node->method.returnType;
 			decl = node->method.decl;
+			break;
 		}
 		default:
 			break;
 		}
 
+		if (!decl)
+		{
+			AddError(node->start, "Checker:FunctionToFunctionType Unable to find function declaration for node: " + ToString(node));
+			return nullptr;
+		}
 		return FillFunctionTypeParams(decl, type);
 	}
 
@@ -578,9 +606,26 @@ struct Checker
 		return type;
 	}
 
-	inline Type* GetTypeFromName(InplaceString& name)
+	inline Type* GenericsExprToType(Expr* expr, Type* of)
+	{
+		Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
+		type->genericsType.generics = syntax.CreateExpr(expr->start, ExprID::GenericsExpr);
+		type->genericsType.generics->genericsExpr.expr = nullptr;
+		type->genericsType.generics->genericsExpr.open = expr->genericsExpr.open;
+		type->genericsType.generics->genericsExpr.close = expr->genericsExpr.close;
+		type->genericsType.generics->genericsExpr.types = expr->genericsExpr.types;
+		type->genericsType.type = of;
+		return type;
+	}
+
+	inline Type* GetTypeFromName(Expr* expr, InplaceString& name)
 	{
 		Node* node = GetNodeForName(name);
+		if (!node)
+		{
+			AddError(expr->start, "Checker:GetTypeFromName Unable to get node for name: " + name);
+			return nullptr;
+		}
 
 		switch (node->nodeID)
 		{
@@ -643,48 +688,41 @@ struct Checker
 	}
 
 	inline Type* GetIndexType(Expr* of, Type* type)
-	{
-		if (!type)
+	{		
+		if (IsExprOfType(of))
 		{
-			AddError(of->start, "Checker:GetIndexType undefined type for expression: " + ToString(of));
+			return GetIndexTypeCreateArray(of, type);
 		}
-		
-		const InplaceString& name = GetNameFromExpr(of);
-		auto& index = of->indexExpr;
+		else
+		{
+			return GetIndexTypeAccessArray(of, type);
+		}
+	}
 
+	inline Type* GetIndexTypeCreateArray(Expr* of, Type* type)
+	{
+		Type* arrType = syntax.CreateTypePtr(TypeID::ArrayType);
+		arrType->arrayType.type = type;
+		return arrType;
+	}
+
+	inline Type* GetIndexTypeAccessArray(Expr* of, Type* type)
+	{
 		switch (type->typeID)
 		{
-		case PrimitiveType:
-		{
-			Type* arrType = syntax.CreateTypePtr(TypeID::ArrayType);
-			arrType->arrayType.type = type;
-			return arrType;
-		}
 		case NamedType:
 			// Find index operator for type
-			// Check if creating an array or accessing an index of array
-			break;
-		case ExplicitType:
-			break;
-		case ImplicitType:
 			break;
 		case PointerType:
-			break;
+			// Figure out rules for indexing pointer
+			return type;
 		case ValueType:
-			break;
+			return GetIndexTypeAccessArray(of, type->valueType.type);
 		case ArrayType:
 			return type->arrayType.type;
-		case GenericsType:
-			break;
-		case FunctionType:
-			break;
-		case ImportedType:
-			break;
-		default:
-			break;
 		}
 
-		AddError(of->start, "Checker:GetIndexType unable to create type for expression: " + ToString(of));
+		AddError(of->start, "Checker:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
 		return nullptr;
 	}
 
@@ -695,11 +733,17 @@ struct Checker
 		if (!type) return nullptr;
 		switch (type->typeID)
 		{
+		case PrimitiveType:
+			return type;
 		case NamedType:
-			// Constructor
+			// Constructor, needs more validation
 			return type;
 		case FunctionType:
-			break;
+			return type->functionType.returnType;
+		case GenericsType:
+		{
+			if (of->functionCallExpr.function->typeID == ExprID::GenericsExpr) return type;
+		}
 		default:
 			break;
 		}
@@ -710,24 +754,42 @@ struct Checker
 
 	Type* EvalType(Expr* expr)
 	{
+		Type* type = nullptr;
 		switch (expr->typeID)
 		{
 		case PrimitiveExpr:
-			return syntax.CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
+			type = syntax.CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
+			break;
+		case FunctionTypeExpr:
+			type = expr->functionTypeExpr.functionType;
+			break;
+		case GenericsExpr:
+			type = GenericsExprToType(expr, EvalType(expr->genericsExpr.expr));
+			break;
 		case IdentifierExpr:
-			return GetTypeFromName(expr->identifierExpr.identifier->val);
+			type = GetTypeFromName(expr, expr->identifierExpr.identifier->val);
+			break;
 		case SelectorExpr:
-			return GetSelectorType(expr, EvalType(expr->selectorExpr.on));
+			type = GetSelectorType(expr, EvalType(expr->selectorExpr.on));
+			break;
 		case IndexExpr:
-			return GetIndexType(expr, EvalType(expr->indexExpr.of));
+			type = GetIndexType(expr, EvalType(expr->indexExpr.of));
+			break;
 		case FunctionCallExpr:
-			return GetFunctionCallType(expr, EvalType(expr->functionCallExpr.function));
+			type = GetFunctionCallType(expr, EvalType(expr->functionCallExpr.function));
+			break;
 		default:
 			break;
 		}
 
-		AddError(expr->start, "Checker:EvalType unable to create type for expression: " + ToString(expr));
-		return nullptr;
+		if (!type)
+		{
+			AddError(expr->start, "Checker:EvalType unable to create type for expression: " + ToString(expr));
+			return type;
+		}
+
+		if (type->typeID == TypeID::ValueType) type = type->valueType.type;
+		return type;
 	}
 
 	Type* GetBaseType(Type* type)
@@ -1071,6 +1133,8 @@ struct Checker
 		case SelectorExpr:
 		case IndexExpr:
 		case FunctionCallExpr:
+		case FunctionTypeExpr:
+		case GenericsExpr:
 			return EvalType(of);
 		case LiteralExpr:
 		{
@@ -1174,19 +1238,6 @@ struct Checker
 		}
 		case GroupedExpr:
 			return InferType(of->groupedExpr.expr);
-		case GenericsExpr:
-		{
-			Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
-			type->genericsType.generics = syntax.CreateExpr(of->start, ExprID::GenericsExpr);
-			type->genericsType.generics->genericsExpr.expr = nullptr;
-			type->genericsType.generics->genericsExpr.open = of->genericsExpr.open;
-			type->genericsType.generics->genericsExpr.close = of->genericsExpr.close;
-			type->genericsType.generics->genericsExpr.types = of->genericsExpr.types;
-			type->genericsType.type = InferType(of->genericsExpr.expr);
-			return type;
-		}
-		case FunctionTypeExpr:
-			return of->functionTypeExpr.functionType;
 		case FunctionTypeDeclExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
