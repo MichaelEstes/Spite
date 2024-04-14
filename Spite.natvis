@@ -388,6 +388,7 @@
 		</DisplayString>
 		<Expand>
 			<Item Name="[start]">*start</Item>
+			<Item Name="[type]">typeID</Item>
 		</Expand>
 	</Type>
 
