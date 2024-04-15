@@ -99,7 +99,7 @@ public:
 	static void AddError(Position pos, size_t tokenIndex, const eastl::string& msg)
 	{
 		if (errors.size() > 0 && errors.back().tokenIndex == tokenIndex) FatalErrorAt(msg, pos);
-		AddMessage(ERROR, pos, tokenIndex, msg);
+		AddMessage(LogLevel::ERROR, pos, tokenIndex, msg);
 	}
 
 	static bool HasErrors()
@@ -130,5 +130,4 @@ public:
 			errors.pop_back();
 		}
 	}
-
 };

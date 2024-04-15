@@ -4,9 +4,9 @@
 #include "../Tokens/Tokens.h"
 #include "../Intermediate/Syntax.h"
 #include "../Utils/Profiler.h"
-#include "../Intermediate/Checker.h"
+#include "../Checking/Checker.h"
 
-#include "../Output//LLVM/LLVMBuilder.h"
+#include "../Output/LLVM/LLVMBuilder.h"
 
 extern Config config;
 

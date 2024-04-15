@@ -1,20 +1,12 @@
 #pragma once
-#include "Syntax.h"
+#include "../Intermediate/Syntax.h"
 #include "EASTL/deque.h"
 
 struct Checker
 {
-	enum DefinitionContext
-	{
-		GlobalDef,
-		FuncDef,
-		MethodDef
-	};
-
 	Syntax& syntax;
 	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>> scopeQueue;
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash>* globalScope;
-	DefinitionContext defContext;
 	Node* currentContext = nullptr;
 
 	Checker(Syntax& syntax) : syntax(syntax) {}
@@ -23,13 +15,11 @@ struct Checker
 	{
 		AddScope();
 		globalScope = &scopeQueue.back();
-		defContext = DefinitionContext::GlobalDef;
 		for (auto& [key, value] : syntax.symbolTable->globalValMap)
 		{
 			CheckGlobalVal(value);
 		}
 
-		defContext = DefinitionContext::MethodDef;
 		for (auto& [key, value] : syntax.symbolTable->stateMap)
 		{
 			AddScope();
@@ -41,7 +31,6 @@ struct Checker
 			PopScope();
 		}
 
-		defContext = DefinitionContext::FuncDef;
 		for (auto& [key, value] : syntax.symbolTable->functionMap)
 		{
 			CheckFunction(value);
@@ -1257,5 +1246,4 @@ struct Checker
 
 		return syntax.CreateTypePtr(TypeID::InvalidType);
 	}
-
 };
