@@ -831,8 +831,8 @@ struct Syntax
 
 			if (Expect(UniqueType::Semicolon))
 			{
-				Advance();
 				node->end = curr;
+				Advance();
 			}
 			else
 			{
@@ -841,7 +841,6 @@ struct Syntax
 
 			return node;
 		}
-
 
 		node->nodeID = NodeID::InvalidNode;
 		return node;
@@ -1909,7 +1908,7 @@ struct Syntax
 		Node* node = ParseCompile();
 		if (node->nodeID != NodeID::InvalidNode)
 		{
-			expr->compileExpr.compile = ParseCompile();
+			expr->compileExpr.compile = node;
 			return expr;
 		}
 
