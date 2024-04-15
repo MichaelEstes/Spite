@@ -155,8 +155,7 @@ struct Expr
 
 		struct
 		{
-			Type* returnType;
-			Body* body;
+			Node* compile;
 		} compileExpr;
 	};
 

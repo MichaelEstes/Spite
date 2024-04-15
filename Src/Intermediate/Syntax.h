@@ -1,6 +1,7 @@
 #pragma once
 #include "EASTL/string.h"
 #include "EASTL/vector.h"
+#include "EASTL/stack.h"
 
 #include "../Tokens/Tokens.h"
 #include "../Log/Logger.h"
@@ -177,7 +178,9 @@ eastl::string ToString(Node* node)
 			(node->generics.whereStmnt ? " : " + ToString(node->generics.whereStmnt) : "") + ">";
 	}
 	case CompileStmnt:
-		return ToString(node->compileStmnt.compileExpr);
+		return node->start->ToString() + " " +
+			ToString(node->compileStmnt.returnType) + " " +
+			ToString(node->compileStmnt.body);
 	case CompileDebugStmnt:
 		return node->start->ToString() + " " + ToString(node->compileDebugStmnt.body);
 	case Block:
@@ -295,9 +298,7 @@ eastl::string ToString(Expr* expr)
 		return ToString(expr->functionTypeDeclExpr.returnType) +
 			ToString(expr->functionTypeDeclExpr.functionDecl);
 	case CompileExpr:
-		return expr->start->ToString() + " " +
-			ToString(expr->compileExpr.returnType) + " " +
-			ToString(*expr->compileExpr.body);
+		return ToString(expr->compileExpr.compile);
 	default:
 		return "";
 	}
@@ -412,22 +413,21 @@ eastl::string ToString(Type* type)
 
 struct Scope
 {
-	NodeIndex scopeOf;
-	ScopeIndex parent;
-	ScopeIndex index;
+	Node* scopeOf;
 
 	Scope()
 	{
-		scopeOf = 0;
-		parent = 0;
-		index = 0;
+		scopeOf = nullptr;
+	}
+
+	Scope(Node* scopeOf)
+	{
+		this->scopeOf = scopeOf;
 	}
 
 	Scope(const Scope& copy)
 	{
 		scopeOf = copy.scopeOf;
-		parent = copy.parent;
-		index = copy.index;
 	}
 };
 
@@ -442,7 +442,7 @@ struct Syntax
 
 	size_t nodeCount;
 	eastl::vector<Node*> nodes;
-	eastl::vector<Scope> scopes;
+	eastl::stack<Scope> scopes;
 	eastl::vector<Node*> imports;
 	Node* package;
 	Arena* arena;
@@ -452,10 +452,10 @@ struct Syntax
 		curr = nullptr;
 		nodeCount = 0;
 		nodes = eastl::vector<Node*>();
-		scopes = eastl::vector<Scope>();
+		scopes = eastl::stack<Scope>();
 		imports = eastl::vector<Node*>();
 		currScope = Scope();
-		scopes.push_back(currScope);
+		scopes.push(currScope);
 	}
 
 	~Syntax()
@@ -495,7 +495,7 @@ struct Syntax
 	inline Node* CreateNode(Token* start, NodeID nodeID)
 	{
 		nodeCount += 1;
-		return arena->Emplace<Node>(nodeID, start, currScope.index);
+		return arena->Emplace<Node>(nodeID, start, currScope.scopeOf);
 	}
 
 	inline Node* InvalidNode()
@@ -519,23 +519,25 @@ struct Syntax
 		return arena->Emplace<Expr>(exprID, start);
 	}
 
-	inline void StartScope()
+	inline void StartScope(Node* of)
 	{
-		Scope scope = Scope();
-		scope.index = scopes.size();
-		scope.parent = currScope.index;
-		scope = scopes.emplace_back(scope);
-		currScope = scope;
+		currScope = scopes.emplace(of);
 	}
 
 	inline void EndScope()
 	{
-		currScope = scopes.at(currScope.parent);
+		if (scopes.size() == 1)
+		{
+			Logger::FatalError("Syntax:EndScope reached global scope, possible compiler error");
+		}
+
+		scopes.pop();
+		currScope = scopes.top();
 	}
 
 	inline bool IsGlobalScope()
 	{
-		return currScope.index == 0 && currScope.parent == 0;
+		return currScope.scopeOf == nullptr;
 	}
 
 	inline bool IsEOF()
@@ -650,8 +652,15 @@ struct Syntax
 			ParseState();
 			return;
 		case UniqueType::OnCompile:
-			ParseCompile();
+		{
+			Node* node = ParseCompile();
+			if (node->nodeID != NodeID::InvalidNode) 
+			{
+				symbolTable->AddOnCompile(node);
+				AddNode(node);
+			}
 			return;
+		}
 		case UniqueType::OnCompileDebug:
 			ParseCompileDebug();
 			return;
@@ -809,13 +818,16 @@ struct Syntax
 		return InsetID::InvalidInset;
 	}
 
-	void ParseCompile()
+	Node* ParseCompile()
 	{
 		Node* node = CreateNode(curr, NodeID::CompileStmnt);
-		Expr* expr = ParseCompileExpr();
-		if (expr->typeID != ExprID::InvalidExpr)
+		Advance();
+		Type* type = ParseDeclarationType();
+		if (type->typeID != TypeID::InvalidType)
 		{
-			node->compileStmnt.compileExpr = expr;
+			node->compileStmnt.returnType = type;
+			if (Expect(UniqueType::FatArrow)) Advance();
+			node->compileStmnt.body = ParseBody(node);
 
 			if (Expect(UniqueType::Semicolon))
 			{
@@ -824,20 +836,22 @@ struct Syntax
 			}
 			else
 			{
-				//Scott Baio
-				node->end = node->compileStmnt.compileExpr->compileExpr.body->body->end;
+				node->end = node->compileStmnt.body.body->end;
 			}
 
-			symbolTable->AddOnCompile(node);
-			AddNode(node);
+			return node;
 		}
+
+
+		node->nodeID = NodeID::InvalidNode;
+		return node;
 	}
 
 	void ParseCompileDebug()
 	{
 		Node* node = CreateNode(curr, NodeID::CompileDebugStmnt);
 		Advance();
-		node->compileDebugStmnt.body = ParseBody();
+		node->compileDebugStmnt.body = ParseBody(node);
 		if (node->compileDebugStmnt.body)
 		{
 			node->end = node->compileDebugStmnt.body.body->end;
@@ -858,7 +872,7 @@ struct Syntax
 		if (Expect(UniqueType::Lbrace))
 		{
 			node->functionDecl.body.statement = false;
-			node->functionDecl.body.body = ParseBlock();
+			node->functionDecl.body.body = ParseBlock(node);
 			node->end = node->functionDecl.body.body->end;
 			return node;
 		}
@@ -866,7 +880,7 @@ struct Syntax
 		{
 			Advance();
 			node->functionDecl.body.statement = true;
-			node->functionDecl.body.body = ParseBlockStatment();
+			node->functionDecl.body.body = ParseBodyStmnt(node);
 			node->end = node->functionDecl.body.body->end;
 			return node;
 		}
@@ -977,7 +991,7 @@ struct Syntax
 			del->destructor.del = curr;
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
-			del->destructor.body = ParseBody();
+			del->destructor.body = ParseBody(del);
 			symbolTable->SetDestructor(del);
 			return del;
 		}
@@ -1068,34 +1082,34 @@ struct Syntax
 		return node;
 	}
 
-	Body ParseBody()
+	Body ParseBody(Node* of)
 	{
 		Body body = Body();
 
 		if (Expect(UniqueType::Lbrace))
 		{
 			body.statement = false;
-			body.body = ParseBlock();
+			body.body = ParseBlock(of);
 		}
 		else
 		{
 			body.statement = true;
-			body.body = ParseBodyStmnt();
+			body.body = ParseBodyStmnt(of);
 		}
 
 		return body;
 	}
 
-	Node* ParseBodyStmnt()
+	Node* ParseBodyStmnt(Node* of)
 	{
-		StartScope();
+		StartScope(of);
 		Node* stmnt = ParseBlockStatment();
 		EndScope();
 
 		return stmnt;
 	}
 
-	Node* ParseBlock()
+	Node* ParseBlock(Node* of)
 	{
 		Node* block = CreateNode(curr, NodeID::Block);
 		block->block.inner = CreateVectorPtr<Node*>();
@@ -1106,7 +1120,7 @@ struct Syntax
 		}
 		Advance();
 
-		StartScope();
+		StartScope(of);
 
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
@@ -1201,7 +1215,7 @@ struct Syntax
 
 		curr = start;
 		Logger::ErrorRollback();
-		return ParseBlock();
+		return ParseBlock(currScope.scopeOf);
 	}
 
 	Node* ParseExprStmnt()
@@ -1237,7 +1251,7 @@ struct Syntax
 		Node* node = CreateNode(curr, NodeID::IfStmnt);
 		Advance();
 
-		Node* conditional = ParseConditional();
+		Node* conditional = ParseConditional(node);
 		if (conditional->nodeID != NodeID::InvalidNode)
 		{
 			node->ifStmnt.condition = conditional;
@@ -1248,7 +1262,7 @@ struct Syntax
 			{
 				Advance();
 				Advance();
-				Node* elif = ParseConditional();
+				Node* elif = ParseConditional(node);
 				if (elif->nodeID != NodeID::InvalidNode) node->ifStmnt.elifs->push_back(elif);
 				else
 				{
@@ -1260,7 +1274,7 @@ struct Syntax
 			if (Expect(UniqueType::Else))
 			{
 				Advance();
-				node->ifStmnt.elseCondition = ParseBody();
+				node->ifStmnt.elseCondition = ParseBody(node);
 			}
 
 			node->end = curr;
@@ -1272,7 +1286,7 @@ struct Syntax
 		return node;
 	}
 
-	Node* ParseConditional()
+	Node* ParseConditional(Node* of)
 	{
 		Node* node = CreateNode(curr, NodeID::Conditional);
 		if (Expect(UniqueType::Lparen, "Expected conditional opening ('(')"))
@@ -1284,7 +1298,7 @@ struct Syntax
 			{
 				Advance();
 				node->conditional.condition = condition;
-				node->conditional.body = ParseBody();
+				node->conditional.body = ParseBody(of);
 				node->end = node->conditional.body.body->end;
 				return node;
 			}
@@ -1334,7 +1348,7 @@ struct Syntax
 					if (Expect(UniqueType::Rparen, "Expected 'for' statement closure (')')"))
 					{
 						Advance();
-						node->forStmnt.body = ParseBody();
+						node->forStmnt.body = ParseBody(node);
 						node->end = node->forStmnt.body.body->end;
 						return node;
 					}
@@ -1371,13 +1385,13 @@ struct Syntax
 						while (Expect(UniqueType::Case))
 						{
 							Advance();
-							node->switchStmnt.cases->push_back(ParseConditional());
+							node->switchStmnt.cases->push_back(ParseConditional(node));
 						}
 
 						if (Expect(UniqueType::Default))
 						{
 							Advance();
-							node->switchStmnt.defaultCase = ParseBody();
+							node->switchStmnt.defaultCase = ParseBody(node);
 						}
 						else node->switchStmnt.defaultCase = Body();
 
@@ -1400,7 +1414,7 @@ struct Syntax
 	{
 		Node* node = CreateNode(curr, NodeID::WhileStmnt);
 		Advance();
-		Node* conditional = ParseConditional();
+		Node* conditional = ParseConditional(node);
 		if (conditional->nodeID != NodeID::InvalidNode)
 		{
 			node->whileStmnt.conditional = conditional;
@@ -1421,7 +1435,7 @@ struct Syntax
 		{
 			node->deferStmnt.deferIf = true;
 			Advance();
-			Node* conditional = ParseConditional();
+			Node* conditional = ParseConditional(node);
 			if (conditional->nodeID != NodeID::InvalidNode)
 			{
 				node->deferStmnt.conditional = conditional;
@@ -1432,7 +1446,7 @@ struct Syntax
 		else
 		{
 			node->deferStmnt.deferIf = false;
-			node->deferStmnt.body = ParseBody();
+			node->deferStmnt.body = ParseBody(node);
 			node->end = node->deferStmnt.body.body->end;
 			return node;
 		}
@@ -1892,13 +1906,10 @@ struct Syntax
 	Expr* ParseCompileExpr()
 	{
 		Expr* expr = CreateExpr(curr, ExprID::CompileExpr);
-		Advance();
-		Type* type = ParseDeclarationType();
-		if (type->typeID != TypeID::InvalidType)
+		Node* node = ParseCompile();
+		if (node->nodeID != NodeID::InvalidNode)
 		{
-			expr->compileExpr.returnType = type;
-			if (Expect(UniqueType::FatArrow)) Advance();
-			expr->compileExpr.body = arena->Emplace<Body>(ParseBody());
+			expr->compileExpr.compile = ParseCompile();
 			return expr;
 		}
 

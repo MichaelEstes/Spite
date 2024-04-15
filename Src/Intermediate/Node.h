@@ -7,9 +7,6 @@
 #include "Type.h"
 #include "../Containers/Flags.h"
 
-typedef size_t NodeIndex;
-typedef size_t ScopeIndex;
-
 enum NodeID
 {
 	InvalidNode = 0,
@@ -81,6 +78,8 @@ struct Node
 	Token* start;
 	Token* end;
 	NodeID nodeID;
+
+	Node* scope;
 
 	union
 	{
@@ -259,7 +258,8 @@ struct Node
 
 		struct
 		{
-			Expr* compileExpr;
+			Type* returnType;
+			Body body;
 		} compileStmnt;
 
 		struct
@@ -280,11 +280,12 @@ struct Node
 		nodeID = NodeID::InvalidNode;
 	}
 
-	Node(NodeID nodeID, Token* start, ScopeIndex scope)
+	Node(NodeID nodeID, Token* start, Node* scope)
 	{
 		this->nodeID = nodeID;
 		this->start = start;
 		this->end = nullptr;
+		this->scope = scope;
 	}
 
 	Node(const Node& copy)
@@ -297,6 +298,7 @@ struct Node
 		start = copy.start;
 		end = copy.end;
 		nodeID = copy.nodeID;
+		scope = copy.scope;
 
 		switch (nodeID)
 		{

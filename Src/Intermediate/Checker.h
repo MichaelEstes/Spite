@@ -1250,7 +1250,7 @@ struct Checker
 			return type;
 		}
 		case CompileExpr:
-			return of->compileExpr.returnType;
+			return of->compileExpr.compile->compileStmnt.returnType;
 		default:
 			break;
 		}
