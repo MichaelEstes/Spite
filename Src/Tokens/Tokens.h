@@ -4,168 +4,18 @@
 #include "EASTL/vector.h"
 #include "EASTL/string.h"
 
-#include "../Parsing/Position.h"
-#include "../Log/Logger.h"
+#include "Token.h"
 #include "TokenTree.h"
+
+#include "../Parsing/Position.h"
 #include "../Utils/Utils.h"
 #include "../Containers/InplaceString.h"
 #include "../Utils/Profiler.h"
 #include "../Config/Config.h"
+#include "../Log/Logger.cpp"
+
 
 extern Config config;
-
-enum TokenType : int
-{
-	//Known predefined values
-	Keyword = ToBit(1),
-	AccessModifier = ToBit(2),
-	Primitive = ToBit(3),
-	Flow = ToBit(4),
-	Decorator = ToBit(5),
-	Operator = ToBit(6),
-	Seperator = ToBit(7),
-	Comment = ToBit(8),
-
-	//Unknown programmer defined values
-	Identifier = ToBit(9),
-	Literal = ToBit(10),
-	Invalid = ToBit(11),
-
-	EndOfFile = ToBit(12),
-
-	None = ToBit(13),
-};
-
-enum UniqueType
-{
-	Any,
-	Name,
-
-	IntLiteral,
-	FloatLiteral,
-	HexLiteral,
-	StringLiteral,
-	TrueLiteral,
-	FalseLiteral,
-
-	// TopLevelKeywords 
-	Using,
-	Package,
-	State,
-	Assert,
-	Extern,
-	Global,
-	Where,
-	OnCompile,
-	OnCompileDebug,
-	OperatorOverload,
-
-	// AccessModifierKeywords 
-	Public,
-	Private,
-
-	// PrimitiveKeywords
-	Void,
-	Bool,
-	Byte,
-	Ubyte,
-	Int,
-	Int16,
-	Int32,
-	Int64,
-	Int128,
-	Uint,
-	Uint16,
-	Uint32,
-	Uint64,
-	Uint128,
-	Float,
-	Float32,
-	Float64,
-	Float128,
-	String,
-
-	// FlowControlKeywords 
-	If,
-	Else,
-	For,
-	While,
-	Do,
-	Switch,
-	Case,
-	Default,
-	Continue,
-	Break,
-	Return,
-	Defer,
-
-	// VariableDecorationKeywords 
-	New,
-	Fixed,
-	Delete,
-	Pointer,
-	As,
-	At,
-	FatArrow,
-	Tilde,
-	AtOp,
-
-	// OperatorKeywords 
-	Add,
-	Subtract,
-	Multiply,
-	Divide,
-	Modulo,
-	And,
-	Or,
-	Xor,
-	Shiftl,
-	Shiftr,
-	AndNot,
-	AddAssign,
-	SubtractAssign,
-	MultiplyAssign,
-	DivideAssign,
-	ModuloAssign,
-	AndAssign,
-	OrAssign,
-	XorAssign,
-	ShiftlAssign,
-	ShiftrAssign,
-	AndNotAssign,
-	LogicAnd,
-	LogicOr,
-	Arrow,
-	Increment,
-	Decrement,
-	Equal,
-	Less,
-	Greater,
-	Assign,
-	Not,
-	NotEql,
-	LessEqual,
-	GreaterEqual,
-	ImplicitAssign,
-	Ellipsis,
-	In,
-	To,
-	Array,
-
-	// SEPERATORS 
-	Lparen,
-	Lbrack,
-	Lbrace,
-	Comma,
-	Period,
-	Rparen,
-	Rbrack,
-	Rbrace,
-	Semicolon,
-	Colon,
-	DoubleColon,
-	Ternary,
-};
 
 TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "using", TokenType::Keyword, UniqueType::Using },
@@ -281,57 +131,6 @@ TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "::", TokenType::Seperator, UniqueType::DoubleColon },
 	{ "?", TokenType::Seperator, UniqueType::Ternary },
 };
-
-struct Token
-{
-	InplaceString val;
-	Position pos;
-	TokenType type;
-	UniqueType uniqueType;
-	size_t index;
-
-	Token()
-	{
-		type = TokenType::None;
-		uniqueType = UniqueType::Any;
-		index = 0;
-	}
-
-	Token(InplaceString& val, Position& pos, TokenType type, UniqueType uniqueType, size_t index)
-	{
-		this->val = val;
-		this->pos = pos;
-		this->type = type;
-		this->uniqueType = uniqueType;
-		this->index = index;
-	}
-
-	Token(const char* val)
-	{
-		this->val = InplaceString(val);
-		this->pos = Position();
-		this->type = TokenType::Identifier;
-		this->uniqueType = UniqueType::Name;
-		this->index = 0;
-	}
-
-	inline bool IsCompleted()
-	{
-		return type != TokenType::None;
-	}
-
-	inline bool IsValid()
-	{
-		return type != TokenType::Invalid;
-	}
-
-	inline eastl::string ToString()
-	{
-		return val.ToString();
-	}
-};
-
-static Token thisToken = "this";
 
 class Tokens
 {
@@ -506,7 +305,7 @@ public:
 				else if (val[0] == '#')
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-					Logger::AddError(pos, token->index, "Illegal use of the '#' symbol, the '#' symbol can only be used in front of compile and debug");
+					AddError(token, "Illegal use of the '#' symbol, the '#' symbol can only be used in front of compile and debug");
 				}
 				else
 				{
@@ -518,7 +317,7 @@ public:
 			{
 				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
 				eastl::string errMsg = "Invalid character in identifer: ";
-				Logger::AddError(pos, token->index, errMsg + currVal);
+				AddError(token, errMsg + currVal);
 				Reset(tokens);
 			}
 		}
@@ -554,7 +353,7 @@ public:
 			else if (currTokenType == nullptr)
 			{
 				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-				Logger::AddError(pos, token->index, "Unknown operator");
+				AddError(token, "Unknown operator");
 			}
 		}
 
@@ -595,7 +394,7 @@ public:
 				if (seenDot)
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-					Logger::AddError(pos, token->index, "Unexpected '.' in number litteral");
+					AddError(token, "Unexpected '.' in number litteral");
 					Reset(tokens);
 					return;
 				}
@@ -619,7 +418,7 @@ public:
 					if (val == "0x" || val == "0X")
 					{
 						token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-						Logger::AddError(pos, token->index, "Incomplete hex literal");
+						AddError(token, "Incomplete hex literal");
 					}
 					else
 					{

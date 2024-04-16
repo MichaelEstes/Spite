@@ -162,4 +162,50 @@ struct SymbolTable
 	{
 		onCompiles.push_back(compile);
 	}
+
+	inline StateSymbol* GetStateForName(InplaceString& val)
+	{
+		if (auto entry = stateMap.find(val); entry != stateMap.end())
+		{
+			return &entry->second;
+		}
+
+		return nullptr;
+	}
+
+	inline Node* GetFunctionForName(InplaceString& val)
+	{
+		if (auto entry = functionMap.find(val); entry != functionMap.end())
+		{
+			return entry->second;
+		}
+
+		return nullptr;
+	}
+
+	inline Node* FindTypeMember(eastl::vector<Node*>* members, InplaceString& val)
+	{
+		for (Node* node : *members)
+		{
+			if (node->definition.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
+
+	inline Node* FindStateMember(Node* of, InplaceString& val)
+	{
+		return FindTypeMember(of->state.members, val);
+	}
+
+	inline Node* FindStateMethod(StateSymbol* of, InplaceString& val)
+	{
+		eastl::vector<Node*>& methods = of->methods;
+		for (Node* node : methods)
+		{
+			if (node->method.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
 };

@@ -4,8 +4,6 @@
 #include "EASTL/stack.h"
 
 #include "../Tokens/Tokens.h"
-#include "../Log/Logger.h"
-#include "../Utils/Utils.h"
 #include "../Containers/Arena.h"
 
 #include "Node.h"
@@ -611,11 +609,6 @@ struct Syntax
 			AddNode(node);
 			curr = tokens.Next(curr);
 		}
-	}
-
-	inline void AddError(Token* token, const eastl::string& msg)
-	{
-		Logger::AddError(token->pos, token->index, msg);
 	}
 
 	void ParsePackage(bool setInTree = true)
