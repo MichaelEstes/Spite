@@ -15,6 +15,218 @@ struct TypeChecker
 		Node*& currentContext)
 		: syntax(syntax), scopeQueue(scopeQueue), currentContext(currentContext) {}
 
+	void CheckDefinitionType(Node* node)
+	{
+		auto& definition = node->definition;
+		Type* type = definition.type;
+		if (type->typeID == TypeID::UnknownType)
+		{
+			Type* inferredType = InferType(definition.assignment);
+			if (!inferredType)
+			{
+				AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
+			}
+			definition.type = InferType(definition.assignment);
+		}
+		else if (definition.assignment)
+		{
+			if (type->typeID == TypeID::ExplicitType)
+			{
+				CheckAnonType(node->start, type, definition.assignment);
+			}
+			else
+			{
+				Type* inferredType = InferType(definition.assignment);
+				if (!inferredType)
+				{
+					AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
+				}
+				if (*definition.type != *inferredType)
+				{
+					AddError(node->start, "Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
+					return;
+				}
+			}
+		}
+	}
+
+	void CheckAnonType(Token* start, Type* type, Expr* expr)
+	{
+		if (expr->typeID != ExprID::AnonTypeExpr)
+		{
+			AddError(start, "Can only assign anonymous type expressions to inline types");
+			return;
+		}
+
+		auto& anonExpr = expr->anonTypeExpr;
+		if (type->typeID == TypeID::ImplicitType)
+		{
+			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;
+			if (anonExpr.values->size() != identifiers->size())
+			{
+				AddError(start, "Incorrect number of anonymous type expression compared to implicit type values");
+				return;
+			}
+
+			type->typeID = TypeID::ExplicitType;
+			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
+			for (int i = 0; i < identifiers->size(); i++)
+			{
+				Expr* itemExpr = anonExpr.values->at(i);
+				Token* token = identifiers->at(i);
+				Node* decl = syntax.CreateNode(token, NodeID::Definition);
+				decl->definition.assignment = nullptr;
+				decl->definition.name = token;
+				decl->definition.type = InferType(itemExpr);
+				type->explicitType.declarations->push_back(decl);
+			}
+		}
+		else if (type->typeID == TypeID::ExplicitType)
+		{
+			eastl::vector<Node*>* decls = type->explicitType.declarations;
+			if (anonExpr.values->size() != decls->size())
+			{
+				AddError(start, "Incorrect number of anonymous type expression compared to explicit type declarations");
+				return;
+			}
+
+			for (int i = 0; i < decls->size(); i++)
+			{
+				Expr* itemExpr = anonExpr.values->at(i);
+				Node* decl = decls->at(i);
+
+				Type* inferredType = InferType(itemExpr);
+				if (*decl->definition.type != *inferredType)
+				{
+					AddError(start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
+					return;
+				}
+			}
+		}
+		else
+		{
+			AddError(start, "Inline definition type can only be an implicit or explicit type");
+		}
+	}
+
+	inline void CheckAssignmentStmnt(Node* node)
+	{
+		auto& assignment = node->assignmentStmnt;
+		Type* to = InferType(assignment.assignTo);
+		Type* from = InferType(assignment.assignment);
+		if (*to != *from)
+		{
+			AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
+		}
+	}
+
+	inline void CheckConditionalType(Node* node)
+	{
+		auto& conditional = node->conditional;
+		Type* inferred = InferType(conditional.condition);
+		if (!IsBoolLike(inferred))
+		{
+			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
+		}
+	}
+
+	inline void CheckForType(Node* node)
+	{
+		auto& forStmnt = node->forStmnt;
+		if (!forStmnt.isDeclaration)
+		{
+			Token* identifier = forStmnt.iterated.identifier;
+			Node* decl = syntax.CreateNode(identifier, NodeID::Definition);
+			decl->definition.assignment = nullptr;
+			decl->definition.name = identifier;
+			Type* type = InferType(forStmnt.toIterate);
+			if (forStmnt.rangeFor)
+			{
+				if (!IsInt(type))
+					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
+			}
+			else
+			{
+				if (type->typeID == TypeID::ArrayType)
+					type = type->arrayType.type;
+			}
+
+			decl->definition.type = type;
+			forStmnt.isDeclaration = true;
+			forStmnt.iterated.declaration = decl;
+		}
+	}
+
+	inline void CheckSwitchType(Node* node)
+	{
+		auto& switchStmnt = node->switchStmnt;
+		if (!IsInt(InferType(switchStmnt.switchOn)))
+		{
+			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
+		}
+	}
+
+	inline void CheckReturnType(Node* node)
+	{
+		if (node->returnStmnt.voidReturn) return;
+
+		Type* returnType = GetOuterReturnType(node);
+		if (!returnType)
+		{
+			AddError(node->start, "TypeChecker:CheckReturnType Unable to get return type node");
+			return;
+		}
+
+		Type* inferred = InferType(node->returnStmnt.expr);
+		if (*inferred != *returnType)
+		{
+			AddError(node->start, "TypeChecker:CheckerReturnType Expected return type: " + ToString(returnType) + 
+				", return expression evaluated to: " + ToString(inferred));
+		}
+	}
+
+	inline Type* GetOuterReturnType(Node* node)
+	{
+		Node* outer = GetOuterScope(node);
+		if (outer) return GetReturnType(outer);
+		return nullptr;
+	}
+
+	inline Type* GetReturnType(Node* node)
+	{
+		switch (node->nodeID)
+		{
+		case NodeID::FunctionStmnt:
+			return node->function.returnType;
+		case NodeID::Method:
+			return node->method.returnType;
+		case NodeID::StateOperator:
+			return node->stateOperator.returnType;
+		case NodeID::AnonFunction:
+			return node->anonFunction.returnType;
+		case NodeID::CompileStmnt:
+			return node->compileStmnt.returnType;
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
+	inline bool IsOuterScope(Node* node)
+	{
+		NodeID nodeID = node->nodeID;
+		return nodeID == NodeID::FunctionStmnt || nodeID == NodeID::Method ||
+			nodeID == NodeID::StateOperator || nodeID == NodeID::AnonFunction ||
+			nodeID == NodeID::CompileStmnt;
+	}
+
+	Node* GetOuterScope(Node* node)
+	{
+		while (node && !IsOuterScope(node)) node = node->scope;
+		return node;
+	}
+
 	inline Type* GenericsExprToType(Expr* expr, Type* of)
 	{
 		Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
@@ -676,9 +888,10 @@ struct TypeChecker
 		case FunctionTypeDeclExpr:
 		{
 			Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
-			type->functionType.returnType = of->functionTypeDeclExpr.returnType;
+			auto& anonFunction = of->functionTypeDeclExpr.anonFunction->anonFunction;
+			type->functionType.returnType = anonFunction.returnType;
 			type->functionType.paramTypes = syntax.CreateVectorPtr<Type*>();
-			for (Node* param : *of->functionTypeDeclExpr.functionDecl->functionDecl.parameters)
+			for (Node* param : *anonFunction.decl->functionDecl.parameters)
 			{
 				type->functionType.paramTypes->push_back(param->definition.type);
 			}
@@ -691,99 +904,5 @@ struct TypeChecker
 		}
 
 		return syntax.CreateTypePtr(TypeID::InvalidType);
-	}
-
-	void CheckDefinitionType(Node* node)
-	{
-		auto& definition = node->definition;
-		Type* type = definition.type;
-		if (type->typeID == TypeID::UnknownType)
-		{
-			Type* inferredType = InferType(definition.assignment);
-			if (!inferredType)
-			{
-				AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
-			}
-			definition.type = InferType(definition.assignment);
-		}
-		else if (definition.assignment)
-		{
-			if (type->typeID == TypeID::ExplicitType)
-			{
-				CheckAnonType(node->start, type, definition.assignment);
-			}
-			else
-			{
-				Type* inferredType = InferType(definition.assignment);
-				if (!inferredType)
-				{
-					AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
-				}
-				if (*definition.type != *inferredType)
-				{
-					AddError(node->start, "Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
-					return;
-				}
-			}
-		}
-	}
-
-	void CheckAnonType(Token* start, Type* type, Expr* expr)
-	{
-		if (expr->typeID != ExprID::AnonTypeExpr)
-		{
-			AddError(start, "Can only assign anonymous type expressions to inline types");
-			return;
-		}
-
-		auto& anonExpr = expr->anonTypeExpr;
-		if (type->typeID == TypeID::ImplicitType)
-		{
-			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;
-			if (anonExpr.values->size() != identifiers->size())
-			{
-				AddError(start, "Incorrect number of anonymous type expression compared to implicit type values");
-				return;
-			}
-
-			type->typeID = TypeID::ExplicitType;
-			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
-			for (int i = 0; i < identifiers->size(); i++)
-			{
-				Expr* itemExpr = anonExpr.values->at(i);
-				Token* token = identifiers->at(i);
-				Node* decl = syntax.CreateNode(token, NodeID::Definition);
-				decl->definition.assignment = nullptr;
-				decl->definition.name = token;
-				decl->definition.type = InferType(itemExpr);
-				type->explicitType.declarations->push_back(decl);
-			}
-		}
-		else if (type->typeID == TypeID::ExplicitType)
-		{
-			eastl::vector<Node*>* decls = type->explicitType.declarations;
-			if (anonExpr.values->size() != decls->size())
-			{
-				AddError(start, "Incorrect number of anonymous type expression compared to explicit type declarations");
-				return;
-			}
-
-			for (int i = 0; i < decls->size(); i++)
-			{
-				Expr* itemExpr = anonExpr.values->at(i);
-				Node* decl = decls->at(i);
-
-				Type* inferredType = InferType(itemExpr);
-				if (*decl->definition.type != *inferredType)
-				{
-					AddError(start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
-					return;
-				}
-			}
-		}
-		else
-		{
-			AddError(start, "Inline definition type can only be an implicit or explicit type");
-		}
 	}
 };

@@ -165,23 +165,13 @@ struct Checker
 		case Conditional:
 		{
 			auto& conditional = node->conditional;
-			Type* inferred = typeChecker.InferType(conditional.condition);
-			if (!typeChecker.IsBoolLike(inferred))
-			{
-				AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
-			}
+			typeChecker.CheckConditionalType(node);
 			CheckBody(conditional.body, node);
 			break;
 		}
 		case AssignmentStmnt:
 		{
-			auto& assignment = node->assignmentStmnt;
-			Type* to = typeChecker.InferType(assignment.assignTo);
-			Type* from = typeChecker.InferType(assignment.assignment);
-			if (*to != *from)
-			{
-				AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
-			}
+			typeChecker.CheckAssignmentStmnt(node);
 			break;
 		}
 		case IfStmnt:
@@ -199,29 +189,7 @@ struct Checker
 		case ForStmnt:
 		{
 			auto& forStmnt = node->forStmnt;
-			if (!forStmnt.isDeclaration)
-			{
-				Token* identifier = forStmnt.iterated.identifier;
-				Node* decl = syntax.CreateNode(identifier, NodeID::Definition);
-				decl->definition.assignment = nullptr;
-				decl->definition.name = identifier;
-				Type* type = typeChecker.InferType(forStmnt.toIterate);
-				if (forStmnt.rangeFor)
-				{
-					if (!typeChecker.IsInt(type))
-						AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
-				}
-				else
-				{
-					if (type->typeID == TypeID::ArrayType)
-						type = type->arrayType.type;
-				}
-
-				decl->definition.type = type;
-				forStmnt.isDeclaration = true;
-				forStmnt.iterated.declaration = decl;
-			}
-
+			typeChecker.CheckForType(node);
 			CheckBody(forStmnt.body, node, forStmnt.iterated.declaration);
 			break;
 		}
@@ -232,12 +200,9 @@ struct Checker
 		}
 		case SwitchStmnt:
 		{
-			auto& switchStmnt = node->switchStmnt;
-			if (!typeChecker.IsInt(typeChecker.InferType(switchStmnt.switchOn)))
-			{
-				AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
-			}
+			typeChecker.CheckSwitchType(node);
 
+			auto& switchStmnt = node->switchStmnt;
 			for (Node* caseStmnt : *switchStmnt.cases) {
 				CheckNode(caseStmnt, node);
 			}
@@ -265,10 +230,7 @@ struct Checker
 			break;
 		case ReturnStmnt:
 		{
-			if (typeChecker.InferType(node->returnStmnt.expr)->typeID == TypeID::InvalidType)
-			{
-				AddError(node->start, "Return expressions doesn't evaluate to a valid type");
-			}
+			typeChecker.CheckReturnType(node);
 			break;
 		}
 		case Block:

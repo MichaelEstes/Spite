@@ -17,6 +17,7 @@ enum NodeID
 	Definition,
 	InlineDefinition,
 	FunctionStmnt,
+	AnonFunction,
 	FunctionDecl,
 	StateStmnt,
 	GenericsDecl,
@@ -121,6 +122,12 @@ struct Node
 			Node* generics;
 			Node* decl;
 		} function;
+
+		struct
+		{
+			Type* returnType;
+			Node* decl;
+		} anonFunction;
 
 		struct
 		{
@@ -322,6 +329,9 @@ struct Node
 			break;
 		case FunctionStmnt:
 			function = copy.function;
+			break;
+		case AnonFunction:
+			anonFunction = copy.anonFunction;
 			break;
 		case FunctionDecl:
 			functionDecl = copy.functionDecl;

@@ -149,8 +149,7 @@ struct Expr
 
 		struct
 		{
-			Type* returnType;
-			Node* functionDecl;
+			Node* anonFunction;
 		} functionTypeDeclExpr;
 
 		struct

@@ -204,6 +204,7 @@
 			<Item Name="[type]">nodeID,en</Item>
 			<Item Name="[start]">*start</Item>
 			<Item Name="[end]" Condition="end != 0" Optional="true">*end</Item>
+			<Item Name="[scope]" Condition="scope != 0" Optional="true">scope->nodeID,en</Item>
 		</Expand>
 	</Type>
 

@@ -48,6 +48,9 @@ eastl::string ToString(Node* node)
 			node->function.name->ToString() +
 			(node->function.generics != nullptr ? ToString(node->function.generics) : "") +
 			ToString(node->function.decl);
+	case AnonFunction:
+		return ToString(node->anonFunction.returnType) +
+			ToString(node->anonFunction.decl);
 	case Method:
 		return ToString(node->method.returnType) + " " +
 			node->method.stateName->ToString() + "::" +
@@ -293,8 +296,7 @@ eastl::string ToString(Expr* expr)
 	case FunctionTypeExpr:
 		return ToString(expr->functionTypeExpr.functionType);
 	case FunctionTypeDeclExpr:
-		return ToString(expr->functionTypeDeclExpr.returnType) +
-			ToString(expr->functionTypeDeclExpr.functionDecl);
+		return ToString(expr->functionTypeDeclExpr.anonFunction);
 	case CompileExpr:
 		return ToString(expr->compileExpr.compile);
 	default:
@@ -853,7 +855,7 @@ struct Syntax
 		}
 	}
 
-	Node* ParseFunctionDecl()
+	Node* ParseFunctionDecl(Node* of)
 	{
 		Node* node = CreateNode(curr, NodeID::FunctionDecl);
 		Advance();
@@ -864,7 +866,7 @@ struct Syntax
 		if (Expect(UniqueType::Lbrace))
 		{
 			node->functionDecl.body.statement = false;
-			node->functionDecl.body.body = ParseBlock(node);
+			node->functionDecl.body.body = ParseBlock(of);
 			node->end = node->functionDecl.body.body->end;
 			return node;
 		}
@@ -872,7 +874,7 @@ struct Syntax
 		{
 			Advance();
 			node->functionDecl.body.statement = true;
-			node->functionDecl.body.body = ParseBodyStmnt(node);
+			node->functionDecl.body.body = ParseBodyStmnt(of);
 			node->end = node->functionDecl.body.body->end;
 			return node;
 		}
@@ -904,7 +906,7 @@ struct Syntax
 				{
 					node->function.returnType = returnType;
 					node->function.name = name;
-					node->function.decl = ParseFunctionDecl();
+					node->function.decl = ParseFunctionDecl(node);
 					node->end = node->function.decl->end;
 					symbolTable->AddFunction(node);
 					return node;
@@ -941,7 +943,7 @@ struct Syntax
 			node->method.generics = ParseGenerics();
 			if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
 			{
-				node->method.decl = ParseFunctionDecl();
+				node->method.decl = ParseFunctionDecl(node);
 				node->end = node->method.decl->end;
 				AddUniformCallParam(node->method.decl->functionDecl.parameters, node->method.stateName);
 				symbolTable->AddMethod(node);
@@ -965,7 +967,7 @@ struct Syntax
 					Advance();
 					if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
 					{
-						op->stateOperator.decl = ParseFunctionDecl();
+						op->stateOperator.decl = ParseFunctionDecl(op);
 						op->end = op->stateOperator.decl->end;
 						AddUniformCallParam(op->stateOperator.decl->functionDecl.parameters, op->stateOperator.stateName);
 						symbolTable->AddOperator(op);
@@ -991,7 +993,7 @@ struct Syntax
 		{
 			Node* con = CreateNode(start, NodeID::Constructor);
 			con->constructor.stateName = name;
-			con->constructor.decl = ParseFunctionDecl();
+			con->constructor.decl = ParseFunctionDecl(con);
 			AddUniformCallParam(con->constructor.decl->functionDecl.parameters, con->constructor.stateName);
 			symbolTable->AddConstructor(con);
 			return con;
@@ -1066,7 +1068,7 @@ struct Syntax
 		Node* node = CreateNode(curr, NodeID::WhereStmnt);
 		Advance();
 
-		node->whereStmnt.decl = ParseFunctionDecl();
+		node->whereStmnt.decl = ParseFunctionDecl(node);
 
 		if (node->whereStmnt.decl->nodeID != NodeID::InvalidNode) return node;
 
@@ -2170,8 +2172,10 @@ struct Syntax
 				(Expect(UniqueType::Rparen) && (peekType == UniqueType::Lbrace || peekType == UniqueType::FatArrow)))
 			{
 				curr = lparen;
-				expr->functionTypeDeclExpr.returnType = returnType;
-				expr->functionTypeDeclExpr.functionDecl = ParseFunctionDecl();
+				Node* node = CreateNode(start, NodeID::AnonFunction);
+				node->anonFunction.returnType = returnType;
+				node->anonFunction.decl = ParseFunctionDecl(node);
+				expr->functionTypeDeclExpr.anonFunction = node;
 				return expr;
 			}
 			else
