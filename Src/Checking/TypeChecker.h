@@ -1,19 +1,17 @@
 #pragma once
 
-#include "../Intermediate/Syntax.h"
+#include "../Intermediate/SymbolTable.h"
 #include <EASTL/deque.h>
 
 
 struct TypeChecker
 {
-	Syntax& syntax;
+	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>>& scopeQueue;
-	Node*& currentContext;
 
-	TypeChecker(Syntax& syntax,
-		eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>>& scopeQueue,
-		Node*& currentContext)
-		: syntax(syntax), scopeQueue(scopeQueue), currentContext(currentContext) {}
+	TypeChecker(SymbolTable* symbolTable,
+		eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>>& scopeQueue)
+		: symbolTable(symbolTable), scopeQueue(scopeQueue) {}
 
 	void CheckDefinitionType(Node* node)
 	{
@@ -21,27 +19,27 @@ struct TypeChecker
 		Type* type = definition.type;
 		if (type->typeID == TypeID::UnknownType)
 		{
-			Type* inferredType = InferType(definition.assignment);
+			Type* inferredType = InferType(definition.assignment, node);
 			if (!inferredType)
 			{
 				AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
 			}
-			definition.type = InferType(definition.assignment);
+			definition.type = InferType(definition.assignment, node);
 		}
 		else if (definition.assignment)
 		{
 			if (type->typeID == TypeID::ExplicitType)
 			{
-				CheckAnonType(node->start, type, definition.assignment);
+				CheckAnonType(node, type, definition.assignment);
 			}
 			else
 			{
-				Type* inferredType = InferType(definition.assignment);
+				Type* inferredType = InferType(definition.assignment, node);
 				if (!inferredType)
 				{
 					AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 				}
-				if (*definition.type != *inferredType)
+				else if (*definition.type != *inferredType)
 				{
 					AddError(node->start, "Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
 					return;
@@ -50,11 +48,11 @@ struct TypeChecker
 		}
 	}
 
-	void CheckAnonType(Token* start, Type* type, Expr* expr)
+	void CheckAnonType(Node* node, Type* type, Expr* expr)
 	{
 		if (expr->typeID != ExprID::AnonTypeExpr)
 		{
-			AddError(start, "Can only assign anonymous type expressions to inline types");
+			AddError(node->start, "Can only assign anonymous type expressions to inline types");
 			return;
 		}
 
@@ -64,20 +62,20 @@ struct TypeChecker
 			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;
 			if (anonExpr.values->size() != identifiers->size())
 			{
-				AddError(start, "Incorrect number of anonymous type expression compared to implicit type values");
+				AddError(node->start, "Incorrect number of anonymous type expression compared to implicit type values");
 				return;
 			}
 
 			type->typeID = TypeID::ExplicitType;
-			type->explicitType.declarations = syntax.CreateVectorPtr<Node*>();
+			type->explicitType.declarations = symbolTable->CreateVectorPtr<Node*>();
 			for (int i = 0; i < identifiers->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
-				Node* decl = syntax.CreateNode(token, NodeID::Definition);
+				Node* decl = symbolTable->CreateNode(token, NodeID::Definition, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
-				decl->definition.type = InferType(itemExpr);
+				decl->definition.type = InferType(itemExpr, node);
 				type->explicitType.declarations->push_back(decl);
 			}
 		}
@@ -86,7 +84,7 @@ struct TypeChecker
 			eastl::vector<Node*>* decls = type->explicitType.declarations;
 			if (anonExpr.values->size() != decls->size())
 			{
-				AddError(start, "Incorrect number of anonymous type expression compared to explicit type declarations");
+				AddError(node->start, "Incorrect number of anonymous type expression compared to explicit type declarations");
 				return;
 			}
 
@@ -95,25 +93,25 @@ struct TypeChecker
 				Expr* itemExpr = anonExpr.values->at(i);
 				Node* decl = decls->at(i);
 
-				Type* inferredType = InferType(itemExpr);
+				Type* inferredType = InferType(itemExpr, node);
 				if (*decl->definition.type != *inferredType)
 				{
-					AddError(start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
+					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
 					return;
 				}
 			}
 		}
 		else
 		{
-			AddError(start, "Inline definition type can only be an implicit or explicit type");
+			AddError(node->start, "Inline definition type can only be an implicit or explicit type");
 		}
 	}
 
 	inline void CheckAssignmentStmnt(Node* node)
 	{
 		auto& assignment = node->assignmentStmnt;
-		Type* to = InferType(assignment.assignTo);
-		Type* from = InferType(assignment.assignment);
+		Type* to = InferType(assignment.assignTo, node);
+		Type* from = InferType(assignment.assignment, node);
 		if (*to != *from)
 		{
 			AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
@@ -123,7 +121,7 @@ struct TypeChecker
 	inline void CheckConditionalType(Node* node)
 	{
 		auto& conditional = node->conditional;
-		Type* inferred = InferType(conditional.condition);
+		Type* inferred = InferType(conditional.condition, node);
 		if (!IsBoolLike(inferred))
 		{
 			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
@@ -136,10 +134,10 @@ struct TypeChecker
 		if (!forStmnt.isDeclaration)
 		{
 			Token* identifier = forStmnt.iterated.identifier;
-			Node* decl = syntax.CreateNode(identifier, NodeID::Definition);
+			Node* decl = symbolTable->CreateNode(identifier, NodeID::Definition, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
-			Type* type = InferType(forStmnt.toIterate);
+			Type* type = InferType(forStmnt.toIterate, node);
 			if (forStmnt.rangeFor)
 			{
 				if (!IsInt(type))
@@ -160,7 +158,7 @@ struct TypeChecker
 	inline void CheckSwitchType(Node* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
-		if (!IsInt(InferType(switchStmnt.switchOn)))
+		if (!IsInt(InferType(switchStmnt.switchOn, node)))
 		{
 			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
 		}
@@ -177,10 +175,10 @@ struct TypeChecker
 			return;
 		}
 
-		Type* inferred = InferType(node->returnStmnt.expr);
+		Type* inferred = InferType(node->returnStmnt.expr, node);
 		if (*inferred != *returnType)
 		{
-			AddError(node->start, "TypeChecker:CheckerReturnType Expected return type: " + ToString(returnType) + 
+			AddError(node->start, "TypeChecker:CheckerReturnType Expected return type: " + ToString(returnType) +
 				", return expression evaluated to: " + ToString(inferred));
 		}
 	}
@@ -229,8 +227,8 @@ struct TypeChecker
 
 	inline Type* GenericsExprToType(Expr* expr, Type* of)
 	{
-		Type* type = syntax.CreateTypePtr(TypeID::GenericsType);
-		type->genericsType.generics = syntax.CreateExpr(expr->start, ExprID::GenericsExpr);
+		Type* type = symbolTable->CreateTypePtr(TypeID::GenericsType);
+		type->genericsType.generics = symbolTable->CreateExpr(expr->start, ExprID::GenericsExpr);
 		type->genericsType.generics->genericsExpr.expr = nullptr;
 		type->genericsType.generics->genericsExpr.open = expr->genericsExpr.open;
 		type->genericsType.generics->genericsExpr.close = expr->genericsExpr.close;
@@ -241,7 +239,7 @@ struct TypeChecker
 
 	inline Type* FunctionToFunctionType(Node* node)
 	{
-		Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
+		Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);
 		Node* decl = nullptr;
 
 		switch (node->nodeID)
@@ -272,7 +270,7 @@ struct TypeChecker
 
 	inline Type* FillFunctionTypeParams(Node* decl, Type* type)
 	{
-		type->functionType.paramTypes = syntax.CreateVectorPtr<Type*>();
+		type->functionType.paramTypes = symbolTable->CreateVectorPtr<Type*>();
 		for (Node* node : *decl->functionDecl.parameters)
 		{
 			type->functionType.paramTypes->push_back(node->definition.type);
@@ -298,9 +296,9 @@ struct TypeChecker
 	{
 		Node* node = FindInScope(val);
 		if (node) return node;
-		StateSymbol* state = syntax.symbolTable->GetStateForName(val);
+		StateSymbol* state = symbolTable->GetStateForName(val);
 		if (state) return state->state;
-		else return syntax.symbolTable->GetFunctionForName(val);
+		else return symbolTable->GetFunctionForName(val);
 	}
 
 
@@ -321,7 +319,7 @@ struct TypeChecker
 			return FunctionToFunctionType(node);
 		case NodeID::StateStmnt:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::NamedType);
+			Type* type = symbolTable->CreateTypePtr(TypeID::NamedType);
 			type->namedType.typeName = node->state.name;
 			return type;
 		}
@@ -338,7 +336,7 @@ struct TypeChecker
 
 		if (type->typeID == TypeID::ExplicitType)
 		{
-			Node* explicitMember = syntax.symbolTable->FindTypeMember(type->explicitType.declarations, name);
+			Node* explicitMember = symbolTable->FindTypeMember(type->explicitType.declarations, name);
 			return explicitMember->definition.type;
 		}
 
@@ -348,21 +346,21 @@ struct TypeChecker
 			return nullptr;
 		}
 
-		StateSymbol* stateSymbol = syntax.symbolTable->GetStateForName(type->namedType.typeName->val);
+		StateSymbol* stateSymbol = symbolTable->GetStateForName(type->namedType.typeName->val);
 		if (!stateSymbol || !stateSymbol->state)
 		{
 			AddError(of->start, "Checker:GetSelectorType No state found for named type: " + ToString(type));
 			return nullptr;
 		}
 
-		Node* member = syntax.symbolTable->FindStateMember(stateSymbol->state, name);
+		Node* member = symbolTable->FindStateMember(stateSymbol->state, name);
 		if (member)
 		{
 			return member->definition.type;
 		}
 		else
 		{
-			Node* method = syntax.symbolTable->FindStateMethod(stateSymbol, name);
+			Node* method = symbolTable->FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
 				AddError(of->start, "Unable to find member or method for type: " + ToString(type));
@@ -385,7 +383,7 @@ struct TypeChecker
 
 	inline bool IsNameOfType(InplaceString& name)
 	{
-		StateSymbol* state = syntax.symbolTable->GetStateForName(name);
+		StateSymbol* state = symbolTable->GetStateForName(name);
 		if (state) return true;
 		else return IsNameOfPrimitive(name);
 	}
@@ -434,7 +432,7 @@ struct TypeChecker
 
 	inline Type* GetIndexTypeCreateArray(Expr* of, Type* type)
 	{
-		Type* arrType = syntax.CreateTypePtr(TypeID::ArrayType);
+		Type* arrType = symbolTable->CreateTypePtr(TypeID::ArrayType);
 		arrType->arrayType.type = type;
 		return arrType;
 	}
@@ -491,7 +489,7 @@ struct TypeChecker
 		switch (expr->typeID)
 		{
 		case PrimitiveExpr:
-			type = syntax.CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
+			type = symbolTable->CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
 			break;
 		case FunctionTypeExpr:
 			type = expr->functionTypeExpr.functionType;
@@ -595,11 +593,12 @@ struct TypeChecker
 		}
 	}
 
-	bool IsGenericType(Type* namedType)
+	bool IsGenericType(Type* namedType, Node* node)
 	{
-		if (currentContext)
+		Node* outer = GetOuterScope(node);
+		if (outer)
 		{
-			Node* generics = GetGenerics(currentContext);
+			Node* generics = GetGenerics(outer);
 			if (generics)
 			{
 				InplaceString& name = namedType->namedType.typeName->val;
@@ -613,9 +612,9 @@ struct TypeChecker
 		return false;
 	}
 
-	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
+	Type* GetStateOperatorType(Node* node, Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
-		StateSymbol* state = syntax.symbolTable->GetStateForName(namedType->namedType.typeName->val);
+		StateSymbol* state = symbolTable->GetStateForName(namedType->namedType.typeName->val);
 		if (state)
 		{
 			for (Node* opNode : state->operators)
@@ -629,7 +628,7 @@ struct TypeChecker
 				}
 			}
 		}
-		else if (IsGenericType(namedType))
+		else if (IsGenericType(namedType, node))
 		{
 			return namedType;
 		}
@@ -639,7 +638,7 @@ struct TypeChecker
 		}
 
 		AddError(token, "No operator found for state");
-		return syntax.CreateTypePtr(TypeID::InvalidType);
+		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
 
@@ -694,10 +693,10 @@ struct TypeChecker
 			break;
 		}
 
-		return syntax.CreateTypePtr(TypeID::InvalidType);
+		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-	Type* GetOperatorType(Token* op, Type* left, Type* right)
+	Type* GetOperatorType(Node* node, Token* op, Type* left, Type* right)
 	{
 		switch (left->typeID)
 		{
@@ -711,7 +710,7 @@ struct TypeChecker
 			break;
 		}
 		case NamedType:
-			return GetStateOperatorType(op, op->uniqueType, left, right);
+			return GetStateOperatorType(node, op, op->uniqueType, left, right);
 		case ExplicitType:
 		case ImplicitType:
 			AddError(op, "Binary operators are not valid with explicit and implicit types");
@@ -728,7 +727,7 @@ struct TypeChecker
 		}
 		break;
 		case ValueType:
-			return GetOperatorType(op, left->valueType.type, right);
+			return GetOperatorType(node, op, left->valueType.type, right);
 		case ArrayType:
 			break;
 		case GenericsType:
@@ -743,38 +742,38 @@ struct TypeChecker
 			break;
 		}
 
-		return syntax.CreateTypePtr(TypeID::InvalidType);
+		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-	Type* GetUnaryType(Token* op, Type* type)
+	Type* GetUnaryType(Node* node, Token* op, Type* type)
 	{
 		switch (type->typeID)
 		{
 		case PrimitiveType:
-			if (op->uniqueType == UniqueType::Not) return syntax.CreatePrimitive(UniqueType::Bool);
+			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
 			return type;
 		case NamedType:
-			return GetStateOperatorType(op, op->uniqueType, type);
+			return GetStateOperatorType(node, op, op->uniqueType, type);
 		case ImportedType:
 			// TODO Support imported types
-			return syntax.CreateTypePtr(TypeID::InvalidType);
+			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		case PointerType:
-			return GetUnaryType(op, type->pointerType.type);
+			return GetUnaryType(node, op, type->pointerType.type);
 		case ValueType:
-			return GetUnaryType(op, type->valueType.type);
+			return GetUnaryType(node, op, type->valueType.type);
 		case GenericsType:
-			return GetUnaryType(op, type->genericsType.type);
+			return GetUnaryType(node, op, type->genericsType.type);
 		default:
-			return syntax.CreateTypePtr(TypeID::InvalidType);
+			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
 	}
 
-	Type* InferType(Expr* of)
+	Type* InferType(Expr* of, Node* node)
 	{
 		switch (of->typeID)
 		{
 		case InvalidExpr:
-			return syntax.CreateTypePtr(TypeID::InvalidType);
+			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		case PrimitiveExpr:
 		case IdentifierExpr:
 		case SelectorExpr:
@@ -810,22 +809,22 @@ struct TypeChecker
 				break;
 			}
 
-			return syntax.CreatePrimitive(uniqueType);
+			return symbolTable->CreatePrimitive(uniqueType);
 		}
 		case NewExpr:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
-			type->pointerType.type = InferType(of->newExpr.primaryExpr);
+			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
+			type->pointerType.type = InferType(of->newExpr.primaryExpr, node);
 			return type;
 		}
 		case FixedExpr:
 		{
-			Type* fixedType = InferType(of->fixedExpr.atExpr);
+			Type* fixedType = InferType(of->fixedExpr.atExpr, node);
 			if (fixedType->typeID == TypeID::PointerType) fixedType = fixedType->pointerType.type;
 			if (fixedType->typeID != TypeID::ArrayType)
 			{
 				// AddError, fixed types must evaluate to array types
-				return syntax.CreateTypePtr(TypeID::InvalidType);
+				return symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
 			Type* baseType = nullptr;
@@ -833,7 +832,7 @@ struct TypeChecker
 			do
 			{
 				fixedType = fixedType->arrayType.type;
-				Type* pointerType = syntax.CreateTypePtr(TypeID::PointerType);
+				Type* pointerType = symbolTable->CreateTypePtr(TypeID::PointerType);
 				if (!type)
 				{
 					type = pointerType;
@@ -856,41 +855,41 @@ struct TypeChecker
 			// anon := { 1, 2.0, 'str' }
 			// anon[0] = 1 
 			// anon[2] = 'str'
-			return syntax.CreateTypePtr(TypeID::InvalidType);
+			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
 		case AsExpr:
 			return of->asExpr.to;
 		case DereferenceExpr:
 		{
-			Type* type = InferType(of->dereferenceExpr.of);
+			Type* type = InferType(of->dereferenceExpr.of, node);
 			if (type->typeID == TypeID::PointerType) return type->pointerType.type;
 			return type;
 		}
 		case ReferenceExpr:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::PointerType);
-			type->pointerType.type = InferType(of->referenceExpr.of);
+			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
+			type->pointerType.type = InferType(of->referenceExpr.of, node);
 			return type;
 		}
 		case BinaryExpr:
 		{
-			Type* left = InferType(of->binaryExpr.left);
-			Type* right = InferType(of->binaryExpr.right);
-			return GetOperatorType(of->binaryExpr.op, left, right);
+			Type* left = InferType(of->binaryExpr.left, node);
+			Type* right = InferType(of->binaryExpr.right, node);
+			return GetOperatorType(node, of->binaryExpr.op, left, right);
 		}
 		case UnaryExpr:
 		{
-			Type* type = InferType(of->unaryExpr.expr);
-			return GetUnaryType(of->unaryExpr.op, type);
+			Type* type = InferType(of->unaryExpr.expr, node);
+			return GetUnaryType(node, of->unaryExpr.op, type);
 		}
 		case GroupedExpr:
-			return InferType(of->groupedExpr.expr);
+			return InferType(of->groupedExpr.expr, node);
 		case FunctionTypeDeclExpr:
 		{
-			Type* type = syntax.CreateTypePtr(TypeID::FunctionType);
+			Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);
 			auto& anonFunction = of->functionTypeDeclExpr.anonFunction->anonFunction;
 			type->functionType.returnType = anonFunction.returnType;
-			type->functionType.paramTypes = syntax.CreateVectorPtr<Type*>();
+			type->functionType.paramTypes = symbolTable->CreateVectorPtr<Type*>();
 			for (Node* param : *anonFunction.decl->functionDecl.parameters)
 			{
 				type->functionType.paramTypes->push_back(param->definition.type);
@@ -903,6 +902,6 @@ struct TypeChecker
 			break;
 		}
 
-		return syntax.CreateTypePtr(TypeID::InvalidType);
+		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 };

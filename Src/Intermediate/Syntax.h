@@ -11,7 +11,6 @@
 #include "Expr.h"
 #include "SymbolTable.h"
 
-extern int targetArchBitWidth;
 
 eastl::string ToString(Expr* expr);
 eastl::string ToString(Type* type);
@@ -439,28 +438,20 @@ struct Syntax
 	Scope currScope;
 	Token* curr;
 	SymbolTable* symbolTable;
-
 	size_t nodeCount;
+
 	eastl::vector<Node*> nodes;
 	eastl::stack<Scope> scopes;
-	eastl::vector<Node*> imports;
 	Node* package;
-	Arena* arena;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
-		nodeCount = 0;
 		nodes = eastl::vector<Node*>();
 		scopes = eastl::stack<Scope>();
-		imports = eastl::vector<Node*>();
 		currScope = Scope();
 		scopes.push(currScope);
-	}
-
-	~Syntax()
-	{
-		delete arena;
+		nodeCount = 0;
 	}
 
 	void Print()
@@ -472,7 +463,7 @@ struct Syntax
 			toPrint += '\n';
 		}
 
-		for (Node* node : imports)
+		for (Node* node : symbolTable->imports)
 		{
 			toPrint += ToString(node);
 			toPrint += '\n';
@@ -495,28 +486,43 @@ struct Syntax
 	inline Node* CreateNode(Token* start, NodeID nodeID)
 	{
 		nodeCount += 1;
-		return arena->Emplace<Node>(nodeID, start, currScope.scopeOf);
+		return symbolTable->CreateNode(start, nodeID, currScope.scopeOf);
 	}
 
 	inline Node* InvalidNode()
 	{
-		return arena->Emplace<Node>();
+		return symbolTable->InvalidNode();
 	}
 
 	template<typename T>
 	inline eastl::vector<T>* CreateVectorPtr()
 	{
-		return arena->Emplace<eastl::vector<T>>();
+		return symbolTable->CreateVectorPtr<T>();
 	}
 
 	inline Type* CreateTypePtr(TypeID typeID)
 	{
-		return arena->Emplace<Type>(typeID);
+		return symbolTable->CreateTypePtr(typeID);
 	}
 
 	inline Expr* CreateExpr(Token* start, ExprID exprID)
 	{
-		return arena->Emplace<Expr>(exprID, start);
+		return symbolTable->CreateExpr(start, exprID);
+	}
+
+	Type* CreateVoidType()
+	{
+		Type* type = CreateTypePtr(TypeID::PrimitiveType);
+		type->primitiveType.type = UniqueType::Void;
+		type->primitiveType.size = 0;
+		type->primitiveType.isSigned = false;
+
+		return type;
+	}
+
+	Type* CreatePrimitive(UniqueType primType)
+	{
+		return symbolTable->CreatePrimitive(primType);
 	}
 
 	inline void StartScope(Node* of)
@@ -547,8 +553,7 @@ struct Syntax
 
 	void BuildSyntax()
 	{
-		arena = new Arena((tokens.tokens.size() / 2) * sizeof(Node));
-		symbolTable = arena->Emplace<SymbolTable>();
+		symbolTable = new SymbolTable((tokens.tokens.size() / 2) * sizeof(Node));
 		curr = tokens.First();
 
 		ParseComments();
@@ -719,7 +724,7 @@ struct Syntax
 
 			if (Expect(UniqueType::Semicolon)) Advance();
 			node->end = curr;
-			if (addNode) imports.push_back(node);
+			if (addNode) symbolTable->imports.push_back(node);
 		}
 	}
 
@@ -731,7 +736,7 @@ struct Syntax
 		{
 			node->state.name = curr;
 			node->state.members = CreateVectorPtr<Node*>();
-			node->state.insetFlags = arena->Emplace<Flags<>>();
+			node->state.insetFlags = symbolTable->arena->Emplace<Flags<>>();
 			Advance();
 			node->state.generics = ParseGenerics();
 
@@ -2463,100 +2468,5 @@ struct Syntax
 		default:
 			return 0;
 		}
-	}
-
-	Type* CreateVoidType()
-	{
-		Type* type = CreateTypePtr(TypeID::PrimitiveType);
-		type->primitiveType.type = UniqueType::Void;
-		type->primitiveType.size = 0;
-		type->primitiveType.isSigned = false;
-
-		return type;
-	}
-
-	Type* CreatePrimitive(UniqueType primType)
-	{
-		Type* type = CreateTypePtr(TypeID::PrimitiveType);
-		type->primitiveType.type = primType;
-		switch (primType)
-		{
-		case UniqueType::Void:
-			type->primitiveType.size = 0;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Bool:
-			type->primitiveType.size = 1;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Byte:
-			type->primitiveType.size = 8;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Ubyte:
-			type->primitiveType.size = 8;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Int:
-			type->primitiveType.size = targetArchBitWidth;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Int16:
-			type->primitiveType.size = 16;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Int32:
-			type->primitiveType.size = 32;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Int64:
-			type->primitiveType.size = 64;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Int128:
-			type->primitiveType.size = 128;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Uint:
-			type->primitiveType.size = targetArchBitWidth;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Uint16:
-			type->primitiveType.size = 16;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Uint32:
-			type->primitiveType.size = 32;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Uint64:
-			type->primitiveType.size = 64;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Uint128:
-			type->primitiveType.size = 128;
-			type->primitiveType.isSigned = false;
-			break;
-		case UniqueType::Float:
-			type->primitiveType.size = targetArchBitWidth;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Float32:
-			type->primitiveType.size = 32;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::Float64:
-			type->primitiveType.size = 64;
-			type->primitiveType.isSigned = true;
-			break;
-		case UniqueType::String:
-			type->primitiveType.size = targetArchBitWidth * 2;
-			type->primitiveType.isSigned = false;
-			break;
-		default:
-			break;
-		}
-
-		return type;
 	}
 };

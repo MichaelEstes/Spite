@@ -4,8 +4,11 @@
 #include "EASTL/vector.h"
 
 #include "../Containers/InplaceString.h"
-#include "../Containers/Table.h"
+#include "../Containers/Arena.h"
+#include "../Config/Config.h"
 #include "Node.h"
+
+extern Config config;
 
 struct StateSymbol
 {
@@ -100,10 +103,43 @@ struct TypeHash
 struct SymbolTable
 {
 	Node* package;
+	eastl::vector<Node*> imports;
 	eastl::hash_map<InplaceString, StateSymbol, InplaceStringHash> stateMap;
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash> functionMap;
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalValMap;
 	eastl::vector<Node*> onCompiles;
+	Arena* arena;
+
+	SymbolTable(size_t initialSize)
+	{
+		arena = new Arena(initialSize);
+	}
+
+	inline Node* CreateNode(Token* start, NodeID nodeID, Node* scopeOf)
+	{
+		return arena->Emplace<Node>(nodeID, start, scopeOf);
+	}
+
+	inline Node* InvalidNode()
+	{
+		return arena->Emplace<Node>();
+	}
+
+	template<typename T>
+	inline eastl::vector<T>* CreateVectorPtr()
+	{
+		return arena->Emplace<eastl::vector<T>>();
+	}
+
+	inline Type* CreateTypePtr(TypeID typeID)
+	{
+		return arena->Emplace<Type>(typeID);
+	}
+
+	inline Expr* CreateExpr(Token* start, ExprID exprID)
+	{
+		return arena->Emplace<Expr>(exprID, start);
+	}
 
 	StateSymbol& GetOrCreateState(const InplaceString& name)
 	{
@@ -207,5 +243,90 @@ struct SymbolTable
 		}
 
 		return nullptr;
+	}
+
+	Type* CreatePrimitive(UniqueType primType)
+	{
+		Type* type = CreateTypePtr(TypeID::PrimitiveType);
+		type->primitiveType.type = primType;
+		switch (primType)
+		{
+		case UniqueType::Void:
+			type->primitiveType.size = 0;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Bool:
+			type->primitiveType.size = 1;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Byte:
+			type->primitiveType.size = 8;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Ubyte:
+			type->primitiveType.size = 8;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Int:
+			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Int16:
+			type->primitiveType.size = 16;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Int32:
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Int64:
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Int128:
+			type->primitiveType.size = 128;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Uint:
+			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Uint16:
+			type->primitiveType.size = 16;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Uint32:
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Uint64:
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Uint128:
+			type->primitiveType.size = 128;
+			type->primitiveType.isSigned = false;
+			break;
+		case UniqueType::Float:
+			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Float32:
+			type->primitiveType.size = 32;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::Float64:
+			type->primitiveType.size = 64;
+			type->primitiveType.isSigned = true;
+			break;
+		case UniqueType::String:
+			type->primitiveType.size = config.targetArchBitWidth * 2;
+			type->primitiveType.isSigned = false;
+			break;
+		default:
+			break;
+		}
+
+		return type;
 	}
 };

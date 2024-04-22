@@ -10,9 +10,10 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Verifier.h"
 
-#include "../../Intermediate/Syntax.h"
+#include "../../Intermediate/SymbolTable.h"
+#include "../../Config/Config.h"
 
-extern int targetArchBitWidth;
+extern Config config;
 
 using LType = llvm::Type;
 using LLVMContext = llvm::LLVMContext;
@@ -63,27 +64,28 @@ struct LPrimitives
 		int32Type = LType::getInt32Ty(context);
 		int64Type = LType::getInt64Ty(context);
 		int128Type = LType::getInt128Ty(context);
-		intType = targetArchBitWidth == 64 ? int64Type : int32Type;
+		intType = config.targetArchBitWidth == 64 ? int64Type : int32Type;
 
 		float32Type = LType::getFloatTy(context);
 		float64Type = LType::getDoubleTy(context);
 		float128Type = LType::getFP128Ty(context);
-		floatType = targetArchBitWidth == 64 ? float64Type : float32Type;
+		floatType = config.targetArchBitWidth == 64 ? float64Type : float32Type;
 	}
 };
 
 struct LLVMBuilder
 {
-	Syntax& syntax;
+	SymbolTable* symbolTable;
 	LLVMContext context;
 	IRBuilder* builder;
 	Module* module;
 	LPrimitives primitives;
 	eastl::hash_map<InplaceString, AllocaInst*, InplaceStringHash> localVariableMap;
 
-	LLVMBuilder(Syntax& syntax) : syntax(syntax), primitives(context)
+	LLVMBuilder(SymbolTable* symbolTable) : primitives(context)
 	{
-		module = new Module(ToStringRef(syntax.package->package.name->val), context);
+		this->symbolTable = symbolTable;
+		module = new Module(ToStringRef(symbolTable->package->package.name->val), context);
 		builder = new IRBuilder(context);
 	}
 
@@ -104,12 +106,12 @@ struct LLVMBuilder
 
 	void BuildTypes()
 	{
-		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			StructType::create(context, PackageName(key));
 		}
 
-		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			auto& state = value.state->state;
 			eastl::vector<LType*> members = eastl::vector<LType*>();
@@ -260,7 +262,7 @@ struct LLVMBuilder
 
 	void BuildFunctions()
 	{
-		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		for (auto& [key, value] : symbolTable->functionMap)
 		{
 			auto& func = value->function;
 			auto& funcDecl = func.decl->functionDecl;
@@ -270,7 +272,7 @@ struct LLVMBuilder
 			CreateFunction(func.returnType, PackageName(key), params, body);
 		}
 
-		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		for (auto& [key, value] : symbolTable->functionMap)
 		{
 			auto& func = value->function;
 			auto& funcDecl = func.decl->functionDecl;
@@ -281,7 +283,7 @@ struct LLVMBuilder
 			NodeGenerator(body.body);
 		}
 
-		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			for (Node* methodNode : value.methods)
 			{
@@ -314,7 +316,7 @@ struct LLVMBuilder
 
 	void BuildGlobals()
 	{
-		for (auto& [key, value] : syntax.symbolTable->globalValMap)
+		for (auto& [key, value] : symbolTable->globalValMap)
 		{
 			auto& decl = value->definition;
 			LType* type = TypeToLType(decl.type);
@@ -472,7 +474,7 @@ struct LLVMBuilder
 	inline StringRef MethodName(const InplaceString& stateName, const Token* nameTok)
 	{
 		const InplaceString& methodName = nameTok->val;
-		InplaceString& packageStr = syntax.package->package.name->val;
+		InplaceString& packageStr = symbolTable->package->package.name->val;
 		size_t count = packageStr.count + stateName.count + methodName.count + 2;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);
@@ -485,7 +487,7 @@ struct LLVMBuilder
 
 	inline StringRef PackageName(const InplaceString& str)
 	{
-		InplaceString& packageStr = syntax.package->package.name->val;
+		InplaceString& packageStr = symbolTable->package->package.name->val;
 		size_t count = packageStr.count + str.count + 1;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);

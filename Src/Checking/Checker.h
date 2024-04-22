@@ -1,28 +1,33 @@
 #pragma once
-#include "../Intermediate/Syntax.h"
+#include "../Intermediate/SymbolTable.h"
 #include "EASTL/deque.h"
 #include "TypeChecker.h"
+#include "ExprChecker.h"
 
 struct Checker
 {
-	Syntax& syntax;
+	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>> scopeQueue;
 	eastl::hash_map<InplaceString, Node*, InplaceStringHash>* globalScope;
 	Node* currentContext = nullptr;
 	TypeChecker typeChecker;
+	ExprChecker exprChecker;
 
-	Checker(Syntax& syntax) : syntax(syntax), typeChecker(syntax, scopeQueue, currentContext) {}
+	Checker(SymbolTable* symbolTable) 
+		: typeChecker(symbolTable, scopeQueue), exprChecker(symbolTable, scopeQueue) {
+		this->symbolTable = symbolTable;
+	}
 
 	void Check()
 	{
 		AddScope();
 		globalScope = &scopeQueue.back();
-		for (auto& [key, value] : syntax.symbolTable->globalValMap)
+		for (auto& [key, value] : symbolTable->globalValMap)
 		{
 			CheckGlobalVal(value);
 		}
 
-		for (auto& [key, value] : syntax.symbolTable->stateMap)
+		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			AddScope();
 			CheckState(key, value.state);
@@ -33,12 +38,12 @@ struct Checker
 			PopScope();
 		}
 
-		for (auto& [key, value] : syntax.symbolTable->functionMap)
+		for (auto& [key, value] : symbolTable->functionMap)
 		{
 			CheckFunction(value);
 		}
 
-		for (Node* node : syntax.symbolTable->onCompiles)
+		for (Node* node : symbolTable->onCompiles)
 		{
 
 		}
@@ -116,7 +121,7 @@ struct Checker
 	{
 		currentContext = nullptr;
 		if (!destructor) return; // Destructor not required
-		CheckBody(destructor->destructor.body, destructor);
+		CheckBody(destructor->destructor.body);
 	}
 
 	void CheckFunction(Node* function)
@@ -130,31 +135,30 @@ struct Checker
 	{
 		auto& params = functionDecl->functionDecl.parameters;
 		auto& body = functionDecl->functionDecl.body;
-		CheckBody(body, of, params);
+		CheckFuncBody(body, params);
 	}
 
-	inline void CheckBody(Body& body, Node* of, Node* param)
+	inline void CheckBody(Body& body)
 	{
 		AddScope();
-		if (param) CheckDefinition(param);
-		CheckNode(body.body, of);
+		CheckNode(body.body);
 		PopScope();
 	}
 
-	inline void CheckBody(Body& body, Node* of, eastl::vector<Node*>* params = nullptr)
+	inline void CheckFuncBody(Body& body, eastl::vector<Node*>* params = nullptr)
 	{
 		AddScope();
 		if (params) for (Node* node : *params) CheckDefinition(node);
-		CheckNode(body.body, of);
+		CheckNode(body.body);
 		PopScope();
 	}
 
-	void CheckNode(Node* node, Node* of)
+	void CheckNode(Node* node)
 	{
 		switch (node->nodeID)
 		{
 		case ExpressionStmnt:
-			CheckExpr(node->expressionStmnt.expression);
+			exprChecker.CheckExpr(node->expressionStmnt.expression, node);
 			break;
 		case Definition:
 			CheckDefinition(node);
@@ -166,36 +170,40 @@ struct Checker
 		{
 			auto& conditional = node->conditional;
 			typeChecker.CheckConditionalType(node);
-			CheckBody(conditional.body, node);
+			CheckBody(conditional.body);
 			break;
 		}
 		case AssignmentStmnt:
 		{
+			exprChecker.CheckAssignmentStmnt(node);
 			typeChecker.CheckAssignmentStmnt(node);
 			break;
 		}
 		case IfStmnt:
 		{
 			auto& ifStmnt = node->ifStmnt;
-			CheckNode(ifStmnt.condition, node);
+			CheckNode(ifStmnt.condition);
 			for (Node* elif : *ifStmnt.elifs)
 			{
-				CheckNode(elif, node);
+				CheckNode(elif);
 			}
 
-			if (ifStmnt.elseCondition) CheckBody(ifStmnt.elseCondition, node);
+			if (ifStmnt.elseCondition) CheckBody(ifStmnt.elseCondition);
 			break;
 		}
 		case ForStmnt:
 		{
 			auto& forStmnt = node->forStmnt;
 			typeChecker.CheckForType(node);
-			CheckBody(forStmnt.body, node, forStmnt.iterated.declaration);
+			AddScope();
+			CheckDefinition(forStmnt.iterated.declaration);
+			CheckBody(forStmnt.body);
+			PopScope();
 			break;
 		}
 		case WhileStmnt:
 		{
-			CheckNode(node->whileStmnt.conditional, node);
+			CheckNode(node->whileStmnt.conditional);
 			break;
 		}
 		case SwitchStmnt:
@@ -204,10 +212,10 @@ struct Checker
 
 			auto& switchStmnt = node->switchStmnt;
 			for (Node* caseStmnt : *switchStmnt.cases) {
-				CheckNode(caseStmnt, node);
+				CheckNode(caseStmnt);
 			}
 
-			if (switchStmnt.defaultCase) CheckBody(switchStmnt.defaultCase, node);
+			if (switchStmnt.defaultCase) CheckBody(switchStmnt.defaultCase);
 			break;
 		}
 		case DeleteStmnt:
@@ -218,8 +226,8 @@ struct Checker
 		case DeferStmnt:
 		{
 			auto& deferStmnt = node->deferStmnt;
-			if (deferStmnt.deferIf) CheckNode(deferStmnt.conditional, node);
-			else CheckBody(deferStmnt.body, node);
+			if (deferStmnt.deferIf) CheckNode(deferStmnt.conditional);
+			else CheckBody(deferStmnt.body);
 			break;
 		}
 		case ContinueStmnt:
@@ -230,63 +238,15 @@ struct Checker
 			break;
 		case ReturnStmnt:
 		{
+			if (!node->returnStmnt.voidReturn) exprChecker.CheckExpr(node->returnStmnt.expr, node);
 			typeChecker.CheckReturnType(node);
 			break;
 		}
 		case Block:
 		{
-			for (Node* n : *node->block.inner) CheckNode(n, of);
+			for (Node* n : *node->block.inner) CheckNode(n);
 			break;
 		}
-		default:
-			break;
-		}
-	}
-
-	void CheckExpr(Expr* expr)
-	{
-		switch (expr->typeID)
-		{
-		case InvalidExpr:
-			break;
-		case LiteralExpr:
-			break;
-		case IdentifierExpr:
-			break;
-		case PrimitiveExpr:
-			break;
-		case SelectorExpr:
-			break;
-		case IndexExpr:
-			break;
-		case FunctionCallExpr:
-			break;
-		case NewExpr:
-			break;
-		case FixedExpr:
-			break;
-		case AnonTypeExpr:
-			break;
-		case AsExpr:
-			break;
-		case DereferenceExpr:
-			break;
-		case ReferenceExpr:
-			break;
-		case BinaryExpr:
-			break;
-		case UnaryExpr:
-			break;
-		case GroupedExpr:
-			break;
-		case GenericsExpr:
-			break;
-		case FunctionTypeExpr:
-			break;
-		case FunctionTypeDeclExpr:
-			break;
-		case CompileExpr:
-			break;
 		default:
 			break;
 		}
@@ -295,6 +255,7 @@ struct Checker
 	void CheckDefinition(Node* node)
 	{
 		auto& definition = node->definition;
+		if (definition.assignment) exprChecker.CheckExpr(definition.assignment, node);
 		typeChecker.CheckDefinitionType(node);
 
 		InplaceString& name = definition.name->val;
@@ -308,7 +269,8 @@ struct Checker
 		auto& inlineDefinition = node->inlineDefinition;
 		Type* type = inlineDefinition.type;
 		Expr* expr = inlineDefinition.assignment;
-		typeChecker.CheckAnonType(node->start, type, expr);
+		exprChecker.CheckExpr(expr, node);
+		typeChecker.CheckAnonType(node, type, expr);
 
 		if (type->typeID == TypeID::ExplicitType)
 		{

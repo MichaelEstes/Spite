@@ -74,6 +74,7 @@ struct Config
 	Arch arch = Arch::X64;
 	Os os = Os::Windows;
 	bool comments = false;
+	int targetArchBitWidth;
 };
 
 inline eastl::string GetNextArg(int& index, int argc, char** argv)
@@ -120,6 +121,20 @@ inline Config ParseConfig(int argc, char** argv)
 		}
 
 		i += 1;
+	}
+
+	switch (config.arch)
+	{
+	case X64:
+		config.targetArchBitWidth = 64;
+	case X86:
+		config.targetArchBitWidth = 32;
+	case Arm32:
+		config.targetArchBitWidth = 32;
+	case Arm64:
+		config.targetArchBitWidth = 64;
+	default:
+		config.targetArchBitWidth = 64;
 	}
 
 	return config;

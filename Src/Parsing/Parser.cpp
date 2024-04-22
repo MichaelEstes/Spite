@@ -47,7 +47,9 @@ bool Parser::Parse()
 
 	profiler = Profiler();
 
-	Checker checker = Checker(syntax);
+	SymbolTable* symbolTable = syntax.symbolTable;
+
+	Checker checker = Checker(symbolTable);
 	checker.Check();
 
 	if (Logger::HasErrors())
@@ -65,7 +67,7 @@ bool Parser::Parse()
 	{
 	case Llvm:
 	{
-		LLVMBuilder builder = LLVMBuilder(syntax);
+		LLVMBuilder builder = LLVMBuilder(symbolTable);
 		builder.Build();
 		break;
 	}

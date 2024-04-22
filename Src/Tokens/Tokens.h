@@ -14,7 +14,6 @@
 #include "../Config/Config.h"
 #include "../Log/Logger.cpp"
 
-
 extern Config config;
 
 TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
