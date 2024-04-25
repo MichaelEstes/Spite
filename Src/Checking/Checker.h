@@ -7,8 +7,8 @@
 struct Checker
 {
 	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>> scopeQueue;
-	eastl::hash_map<InplaceString, Node*, InplaceStringHash>* globalScope;
+	eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>> scopeQueue;
+	eastl::hash_map<StringView, Node*, StringViewHash>* globalScope;
 	Node* currentContext = nullptr;
 	TypeChecker typeChecker;
 	ExprChecker exprChecker;
@@ -71,7 +71,7 @@ struct Checker
 		CheckDefinition(global);
 	}
 
-	void CheckState(const InplaceString& name, Node* state)
+	void CheckState(const StringView& name, Node* state)
 	{
 		if (!state)
 		{
@@ -258,8 +258,8 @@ struct Checker
 		if (definition.assignment) exprChecker.CheckExpr(definition.assignment, node);
 		typeChecker.CheckDefinitionType(node);
 
-		InplaceString& name = definition.name->val;
-		eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
+		StringView& name = definition.name->val;
+		eastl::hash_map<StringView, Node*, StringViewHash>& back = scopeQueue.back();
 		if (back.find(name) != back.end()) AddError(node->start, "Re-definition of variable name: " + name);
 		else back[name] = node;
 	}
@@ -274,11 +274,11 @@ struct Checker
 
 		if (type->typeID == TypeID::ExplicitType)
 		{
-			eastl::hash_map<InplaceString, Node*, InplaceStringHash>& back = scopeQueue.back();
+			eastl::hash_map<StringView, Node*, StringViewHash>& back = scopeQueue.back();
 			auto& explicitType = type->explicitType;
 			for (Node* decl : *explicitType.declarations)
 			{
-				InplaceString& name = decl->definition.name->val;
+				StringView& name = decl->definition.name->val;
 				if (back.find(name) != back.end()) AddError(decl->start, "Re-definition of variable name: " + name);
 				else back[name] = decl;
 			}

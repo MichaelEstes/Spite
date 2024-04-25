@@ -2,25 +2,25 @@
 #include "EASTL/string.h"
 #include "llvm/ADT/StringRef.h"
 
-struct InplaceString
+struct StringView
 {
 	const char* start;
 	const char* last;
 	int count;
 
-	InplaceString()
+	StringView()
 	{
 		Clear();
 	}
 
-	InplaceString(InplaceString const& toCopy)
+	StringView(StringView const& toCopy)
 	{
 		start = toCopy.start;
 		last = toCopy.last;
 		count = toCopy.count;
 	}
 
-	InplaceString(const char* toCopy)
+	StringView(const char* toCopy)
 	{
 		count = 0;
 		start = toCopy;
@@ -30,6 +30,7 @@ struct InplaceString
 			count += 1;
 			end += 1;
 		}
+		last = start + count;
 	}
 
 	inline void Clear()
@@ -44,7 +45,7 @@ struct InplaceString
 		return eastl::string(start, count);
 	}
 
-	inline InplaceString& operator+=(char* next)
+	inline StringView& operator+=(char* next)
 	{
 		count += 1;
 		last = next;
@@ -78,7 +79,7 @@ struct InplaceString
 	}
 };
 
-inline bool operator==(const InplaceString& l, const InplaceString& r)
+inline bool operator==(const StringView& l, const StringView& r)
 {
 	if (l.count != r.count) return false;
 
@@ -90,21 +91,21 @@ inline bool operator==(const InplaceString& l, const InplaceString& r)
 	return true;
 }
 
-inline const eastl::string operator+(const eastl::string l, const InplaceString& r)
+inline const eastl::string operator+(const eastl::string l, const StringView& r)
 {
 	return l + eastl::string(r.start, r.count);
 }
 
-inline const eastl::string operator+(const char* l, const InplaceString& r)
+inline const eastl::string operator+(const char* l, const StringView& r)
 {
 	const eastl::string str = eastl::string(l);
 
 	return str + r;
 }
 
-struct InplaceStringHash
+struct StringViewHash
 {
-	size_t operator()(const InplaceString& str) const
+	size_t operator()(const StringView& str) const
 	{
 		size_t result = 0;
 		for (int i = 0; i < str.count; i++)

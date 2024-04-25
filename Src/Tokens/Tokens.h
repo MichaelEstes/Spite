@@ -9,7 +9,6 @@
 
 #include "../Parsing/Position.h"
 #include "../Utils/Utils.h"
-#include "../Containers/InplaceString.h"
 #include "../Utils/Profiler.h"
 #include "../Config/Config.h"
 #include "../Log/Logger.cpp"
@@ -182,7 +181,7 @@ public:
 
 	void Finalize()
 	{
-		InplaceString val = InplaceString();
+		StringView val = StringView();
 		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::Any);
 
 		Logger::Info("Created " + eastl::to_string(count) + " Tokens");
@@ -282,7 +281,7 @@ public:
 
 	struct IdentifierParser
 	{
-		InplaceString val;
+		StringView val;
 		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
@@ -331,7 +330,7 @@ public:
 
 	struct OperatorParser
 	{
-		InplaceString val;
+		StringView val;
 		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
@@ -366,7 +365,7 @@ public:
 
 	struct NumberParser
 	{
-		InplaceString val;
+		StringView val;
 		// 0 is int, 1 is decimal, 2 is hex
 		int numberType;
 		bool seenDot;
@@ -443,7 +442,7 @@ public:
 
 	struct StringParser
 	{
-		InplaceString val;
+		StringView val;
 		bool escaped;
 
 		StringParser()
@@ -481,7 +480,7 @@ public:
 
 	struct CommentParser
 	{
-		InplaceString val;
+		StringView val;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{
@@ -535,7 +534,7 @@ public:
 			val == '"' || val == '\\' || val == '`' || val == '|';
 	}
 
-	inline Token* CreateToken(InplaceString& val, Position& pos, TokenType type, UniqueType uniqueType)
+	inline Token* CreateToken(StringView& val, Position& pos, TokenType type, UniqueType uniqueType)
 	{
 		count += 1;
 		return &tokens.emplace_back(val, pos, type, uniqueType, count);

@@ -432,7 +432,7 @@ struct Scope
 
 struct Syntax
 {
-	const InplaceString thisStr = "this";
+	const StringView thisStr = "this";
 
 	Tokens& tokens;
 	Scope currScope;
@@ -1061,6 +1061,8 @@ struct Syntax
 		{
 			node->end = curr;
 			Advance();
+			node->generics.count = node->generics.names->size();
+			node->generics.types = symbolTable->CreateVectorPtr<Type*>();
 			return node;
 		}
 

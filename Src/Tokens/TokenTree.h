@@ -5,8 +5,6 @@
 #include "EASTL/memory.h"
 #include "EASTL/tuple.h"
 
-#include "../Containers/InplaceString.h"
-
 const int offset = 32;
 const int size = 128 - offset;
 
@@ -77,7 +75,7 @@ public:
 		return root;
 	}
 
-	TokenNode* Find(InplaceString& val)
+	TokenNode* Find(StringView& val)
 	{
 		TokenNode* node = root;
 		for (int i = 0; i < val.count; i++)

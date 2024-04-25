@@ -1,16 +1,19 @@
 #pragma once
 
-#include "../Intermediate/SymbolTable.h"
 #include <EASTL/deque.h>
+#include "../Intermediate/SymbolTable.h"
+#include "../Intermediate/Syntax.h"
+#include "CheckerUtils.h"
 
 struct ExprChecker
 {
 	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>>& scopeQueue;
+	eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue;
+	CheckerUtils utils;
 
 	ExprChecker(SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<InplaceString, Node*, InplaceStringHash>>& scopeQueue)
-		: symbolTable(symbolTable), scopeQueue(scopeQueue) {}
+		eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue)
+		: symbolTable(symbolTable), scopeQueue(scopeQueue), utils(symbolTable, scopeQueue) {}
 
 	void CheckExpr(Expr* expr, Node* node, Expr* prev = nullptr)
 	{
@@ -86,14 +89,36 @@ struct ExprChecker
 		CheckExpr(node->assignmentStmnt.assignment, node);
 	}
 
+	void GetGenerics(Node* node)
+	{
+
+	}
+
 	void CheckGenerics(Expr* expr, Node* node, Expr* prev)
 	{
 		auto& generics = expr->genericsExpr;
+		Expr* genExpr = generics.expr;
+		if (genExpr->typeID == ExprID::IdentifierExpr)
+		{
+			Node* node = symbolTable->FindStateOrFunction(genExpr->identifierExpr.identifier->val);
+			if (!node)
+			{
+				AddError(genExpr->start, "ExprChecker:CheckerGenerics Unable to find node for generics expression");
+				return;
+			}
+			
+
+		}
+		else if (genExpr->typeID == ExprID::SelectorExpr)
+		{
+			//TODO imported type and method checking
+		}
 	}
 
 	void CheckNew(Expr* expr, Node* node, Expr* prev)
 	{
-
+		CheckExpr(expr->newExpr.primaryExpr, node, expr);
+		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
 	void CheckFixed(Expr* expr, Node* node, Expr* prev)

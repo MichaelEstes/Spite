@@ -1,8 +1,5 @@
 #pragma once
-#include "EASTL/string.h"
-#include "EASTL/vector.h"
-
-#include "../Tokens/Tokens.h"
+#include "../Tokens/Token.h"
 #include "Expr.h"
 #include "Type.h"
 #include "../Containers/Flags.h"
@@ -147,6 +144,8 @@ struct Node
 		{
 			eastl::vector<Token*>* names;
 			Node* whereStmnt;
+			size_t count;
+			eastl::vector<Type*>* types;
 		} generics;
 
 		struct

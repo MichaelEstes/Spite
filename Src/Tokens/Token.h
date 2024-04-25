@@ -2,7 +2,7 @@
 
 #include "EASTL/string.h"
 
-#include "../Containers/InplaceString.h"
+#include "../Containers/StringView.h"
 #include "../Parsing/Position.h"
 #include "../Utils/Utils.h"
 
@@ -161,7 +161,7 @@ enum UniqueType
 
 struct Token
 {
-	InplaceString val;
+	StringView val;
 	Position pos;
 	TokenType type;
 	UniqueType uniqueType;
@@ -174,7 +174,7 @@ struct Token
 		index = 0;
 	}
 
-	Token(InplaceString& val, Position& pos, TokenType type, UniqueType uniqueType, size_t index)
+	Token(StringView& val, Position& pos, TokenType type, UniqueType uniqueType, size_t index)
 	{
 		this->val = val;
 		this->pos = pos;
@@ -185,7 +185,7 @@ struct Token
 
 	Token(const char* val)
 	{
-		this->val = InplaceString(val);
+		this->val = StringView(val);
 		this->pos = Position();
 		this->type = TokenType::Identifier;
 		this->uniqueType = UniqueType::Name;

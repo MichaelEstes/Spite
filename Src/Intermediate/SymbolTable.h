@@ -3,7 +3,7 @@
 #include "EASTL/hash_map.h"
 #include "EASTL/vector.h"
 
-#include "../Containers/InplaceString.h"
+#include "../Containers/StringView.h"
 #include "../Containers/Arena.h"
 #include "../Config/Config.h"
 #include "Node.h"
@@ -22,7 +22,7 @@ struct StateSymbol
 
 struct TypeHash
 {
-	InplaceStringHash inplaceStrHasher;
+	StringViewHash inplaceStrHasher;
 
 	size_t operator()(const Type* type) const
 	{
@@ -104,15 +104,20 @@ struct SymbolTable
 {
 	Node* package;
 	eastl::vector<Node*> imports;
-	eastl::hash_map<InplaceString, StateSymbol, InplaceStringHash> stateMap;
-	eastl::hash_map<InplaceString, Node*, InplaceStringHash> functionMap;
-	eastl::hash_map<InplaceString, Node*, InplaceStringHash> globalValMap;
+	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
+	eastl::hash_map<StringView, Node*, StringViewHash> functionMap;
+	eastl::hash_map<StringView, Node*, StringViewHash> globalValMap;
 	eastl::vector<Node*> onCompiles;
 	Arena* arena;
 
 	SymbolTable(size_t initialSize)
 	{
 		arena = new Arena(initialSize);
+	}
+
+	~SymbolTable()
+	{
+		delete arena;
 	}
 
 	inline Node* CreateNode(Token* start, NodeID nodeID, Node* scopeOf)
@@ -141,7 +146,7 @@ struct SymbolTable
 		return arena->Emplace<Expr>(exprID, start);
 	}
 
-	StateSymbol& GetOrCreateState(const InplaceString& name)
+	StateSymbol& FindOrCreateState(const StringView& name)
 	{
 		if (stateMap.find(name) != stateMap.end())
 		{
@@ -156,31 +161,31 @@ struct SymbolTable
 	
 	void AddState(Node* state)
 	{
-		StateSymbol& symbol = GetOrCreateState(state->state.name->val);
+		StateSymbol& symbol = FindOrCreateState(state->state.name->val);
 		symbol.state = state;
 	}
 
 	void AddConstructor(Node* constructor)
 	{
-		StateSymbol& symbol = GetOrCreateState(constructor->constructor.stateName->val);
+		StateSymbol& symbol = FindOrCreateState(constructor->constructor.stateName->val);
 		symbol.constructors.push_back(constructor);
 	}
 
 	void AddMethod(Node* method)
 	{
-		StateSymbol& symbol = GetOrCreateState(method->method.stateName->val);
+		StateSymbol& symbol = FindOrCreateState(method->method.stateName->val);
 		symbol.methods.push_back(method);
 	}
 
 	void AddOperator(Node* stateOperator)
 	{
-		StateSymbol& symbol = GetOrCreateState(stateOperator->stateOperator.stateName->val);
+		StateSymbol& symbol = FindOrCreateState(stateOperator->stateOperator.stateName->val);
 		symbol.operators.push_back(stateOperator);
 	}
 
 	void SetDestructor(Node* destructor)
 	{
-		StateSymbol& symbol = GetOrCreateState(destructor->destructor.stateName->val);
+		StateSymbol& symbol = FindOrCreateState(destructor->destructor.stateName->val);
 		symbol.destructor = destructor;
 	}
 
@@ -199,7 +204,7 @@ struct SymbolTable
 		onCompiles.push_back(compile);
 	}
 
-	inline StateSymbol* GetStateForName(InplaceString& val)
+	inline StateSymbol* FindStateSymbol(StringView& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())
 		{
@@ -209,7 +214,24 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* GetFunctionForName(InplaceString& val)
+	inline Node* FindStateOrFunction(StringView& val)
+	{
+		Node* node = FindState(val);
+		if (!node) node = FindFunction(val);
+		return node;
+	}
+
+	inline Node* FindState(StringView& val)
+	{
+		if (auto entry = stateMap.find(val); entry != stateMap.end())
+		{
+			return entry->second.state;
+		}
+
+		return nullptr;
+	}
+
+	inline Node* FindFunction(StringView& val)
 	{
 		if (auto entry = functionMap.find(val); entry != functionMap.end())
 		{
@@ -219,7 +241,18 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindTypeMember(eastl::vector<Node*>* members, InplaceString& val)
+	inline Node* FindStateMethod(StateSymbol* of, StringView& val)
+	{
+		eastl::vector<Node*>& methods = of->methods;
+		for (Node* node : methods)
+		{
+			if (node->method.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
+
+	inline Node* FindTypeMember(eastl::vector<Node*>* members, StringView& val)
 	{
 		for (Node* node : *members)
 		{
@@ -229,20 +262,9 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindStateMember(Node* of, InplaceString& val)
+	inline Node* FindStateMember(Node* of, StringView& val)
 	{
 		return FindTypeMember(of->state.members, val);
-	}
-
-	inline Node* FindStateMethod(StateSymbol* of, InplaceString& val)
-	{
-		eastl::vector<Node*>& methods = of->methods;
-		for (Node* node : methods)
-		{
-			if (node->method.name->val == val) return node;
-		}
-
-		return nullptr;
 	}
 
 	Type* CreatePrimitive(UniqueType primType)

@@ -80,7 +80,7 @@ struct LLVMBuilder
 	IRBuilder* builder;
 	Module* module;
 	LPrimitives primitives;
-	eastl::hash_map<InplaceString, AllocaInst*, InplaceStringHash> localVariableMap;
+	eastl::hash_map<StringView, AllocaInst*, StringViewHash> localVariableMap;
 
 	LLVMBuilder(SymbolTable* symbolTable) : primitives(context)
 	{
@@ -250,7 +250,7 @@ struct LLVMBuilder
 			Argument* param = llvmFunc->getArg(i);
 			Node* defNode = parameters->at(i);
 			auto& paramDef = defNode->definition;
-			InplaceString paramName = paramDef.name->val;
+			StringView paramName = paramDef.name->val;
 			LType* type = param->getType();
 			AllocaInst* allocInst = builder->CreateAlloca(type, GetDefinitionValue(defNode), ToStringRef(paramName));
 			localVariableMap[paramName] = allocInst;
@@ -466,15 +466,15 @@ struct LLVMBuilder
 		}
 	}
 
-	inline StringRef ToStringRef(const InplaceString& str)
+	inline StringRef ToStringRef(const StringView& str)
 	{
 		return StringRef(str.start, str.count);
 	}
 
-	inline StringRef MethodName(const InplaceString& stateName, const Token* nameTok)
+	inline StringRef MethodName(const StringView& stateName, const Token* nameTok)
 	{
-		const InplaceString& methodName = nameTok->val;
-		InplaceString& packageStr = symbolTable->package->package.name->val;
+		const StringView& methodName = nameTok->val;
+		StringView& packageStr = symbolTable->package->package.name->val;
 		size_t count = packageStr.count + stateName.count + methodName.count + 2;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);
@@ -485,9 +485,9 @@ struct LLVMBuilder
 		return StringRef(concated, count);
 	}
 
-	inline StringRef PackageName(const InplaceString& str)
+	inline StringRef PackageName(const StringView& str)
 	{
-		InplaceString& packageStr = symbolTable->package->package.name->val;
+		StringView& packageStr = symbolTable->package->package.name->val;
 		size_t count = packageStr.count + str.count + 1;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);

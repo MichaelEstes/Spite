@@ -7,7 +7,7 @@
 #include "EASTL/vector.h"
 #include "EASTL/tuple.h"
 #include "../Log/Logger.h"
-#include "../Containers/InplaceString.h"
+#include "../Containers/StringView.h"
 
 enum ArgType
 {
