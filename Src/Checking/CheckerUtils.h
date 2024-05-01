@@ -64,7 +64,7 @@ struct CheckerUtils
 		type->genericsType.generics->genericsExpr.expr = nullptr;
 		type->genericsType.generics->genericsExpr.open = expr->genericsExpr.open;
 		type->genericsType.generics->genericsExpr.close = expr->genericsExpr.close;
-		type->genericsType.generics->genericsExpr.types = expr->genericsExpr.types;
+		type->genericsType.generics->genericsExpr.templates = expr->genericsExpr.templates;
 		type->genericsType.type = of;
 		return type;
 	}
@@ -237,7 +237,7 @@ struct CheckerUtils
 			return IsExprOfType(expr->functionCallExpr.function);
 		case GenericsExpr:
 			return IsExprOfType(expr->genericsExpr.expr);
-		case FunctionTypeExpr:
+		case TypeExpr:
 			return true;
 		case FunctionTypeDeclExpr:
 			break;
@@ -323,8 +323,8 @@ struct CheckerUtils
 		case PrimitiveExpr:
 			type = symbolTable->CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
 			break;
-		case FunctionTypeExpr:
-			type = expr->functionTypeExpr.functionType;
+		case TypeExpr:
+			type = expr->typeExpr.type;
 			break;
 		case GenericsExpr:
 			type = GenericsExprToType(expr, EvalType(expr->genericsExpr.expr));
@@ -611,7 +611,7 @@ struct CheckerUtils
 		case SelectorExpr:
 		case IndexExpr:
 		case FunctionCallExpr:
-		case FunctionTypeExpr:
+		case TypeExpr:
 		case GenericsExpr:
 			return EvalType(of);
 		case LiteralExpr:

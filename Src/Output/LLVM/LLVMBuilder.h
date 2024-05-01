@@ -233,8 +233,8 @@ struct LLVMBuilder
 	inline void CreateFunction(Type* returnType, const StringRef& name, const eastl::vector<LType*>& params, Body& body)
 	{
 		LType* lReturnType = TypeToLType(returnType);
-		LFunctionType* functionType = LFunctionType::get(lReturnType, ToArrayRef<LType*>(params), false);
-		Function* llvmFunc = Function::Create(functionType, Function::ExternalLinkage, name, module);
+		LFunctionType* type = LFunctionType::get(lReturnType, ToArrayRef<LType*>(params), false);
+		Function* llvmFunc = Function::Create(type, Function::ExternalLinkage, name, module);
 		if (body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
 	}
 
@@ -455,7 +455,7 @@ struct LLVMBuilder
 			break;
 		case GenericsExpr:
 			break;
-		case FunctionTypeExpr:
+		case TypeExpr:
 			break;
 		case FunctionTypeDeclExpr:
 			break;

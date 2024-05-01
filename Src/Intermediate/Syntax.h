@@ -12,404 +12,6 @@
 #include "SymbolTable.h"
 
 
-eastl::string ToString(Expr* expr);
-eastl::string ToString(Type* type);
-eastl::string ToString(Body& body);
-
-eastl::string ToString(Node* node)
-{
-	switch (node->nodeID)
-	{
-	case InvalidNode:
-		return "INVALID";
-	case CommentStmnt:
-		return node->start->ToString();
-	case ExpressionStmnt:
-		return ToString(node->expressionStmnt.expression);
-	case UsingStmnt:
-		return node->start->ToString() + " " +
-			node->using_.packageName->ToString() +
-			(node->using_.alias ? " as " + node->using_.alias->ToString() : "");
-	case PackageStmnt:
-		return node->start->ToString() + " " +
-			node->package.name->ToString();
-	case Definition:
-		return node->definition.name->ToString() + " : " +
-			ToString(node->definition.type) +
-			(node->definition.assignment != nullptr
-				? " " + node->definition.op->ToString() + " " + ToString(node->definition.assignment) : "");
-	case InlineDefinition:
-		return ToString(node->inlineDefinition.type) +
-			" " + node->inlineDefinition.op->ToString() + " " +
-			ToString(node->inlineDefinition.assignment);
-	case FunctionStmnt:
-		return ToString(node->function.returnType) + " " +
-			node->function.name->ToString() +
-			(node->function.generics != nullptr ? ToString(node->function.generics) : "") +
-			ToString(node->function.decl);
-	case AnonFunction:
-		return ToString(node->anonFunction.returnType) +
-			ToString(node->anonFunction.decl);
-	case Method:
-		return ToString(node->method.returnType) + " " +
-			node->method.stateName->ToString() + "::" +
-			node->method.name->ToString() +
-			(node->method.generics != nullptr ? ToString(node->method.generics) : "") +
-			ToString(node->method.decl);
-	case StateOperator:
-		return ToString(node->stateOperator.returnType) + " " +
-			node->stateOperator.stateName->ToString() + "::operator" +
-			(node->stateOperator.generics != nullptr ? ToString(node->stateOperator.generics) : "") + "::" +
-			node->stateOperator.op->ToString() +
-			ToString(node->stateOperator.decl);
-	case Destructor:
-		return node->destructor.stateName->ToString() + "::" +
-			node->destructor.del->ToString() +
-			ToString(node->destructor.body);
-	case Constructor:
-		return node->destructor.stateName->ToString() + "::" +
-			ToString(node->constructor.decl);
-	case FunctionDecl:
-	{
-		eastl::string params = "(";
-		if (node->functionDecl.parameters != nullptr)
-		{
-			for (Node* param : *node->functionDecl.parameters)
-			{
-				params += ToString(param) + ", ";
-			}
-		}
-		params += ")";
-		return params + ToString(node->functionDecl.body);
-	}
-	case Conditional:
-		return "(" + ToString(node->conditional.condition) + ")" +
-			ToString(node->conditional.body);
-	case AssignmentStmnt:
-		return ToString(node->assignmentStmnt.assignTo) +
-			" " + node->assignmentStmnt.op->ToString() + " " +
-			ToString(node->assignmentStmnt.assignment);
-	case IfStmnt:
-	{
-		eastl::string elseifs = "";
-		for (Node* elseif : *node->ifStmnt.elifs)
-		{
-			elseifs += "else if " + ToString(elseif);
-		}
-
-		return node->start->ToString() + " " +
-			ToString(node->ifStmnt.condition) +
-			elseifs +
-			(node->ifStmnt.elseCondition ? "else " + ToString(node->ifStmnt.elseCondition) : "");
-	}
-	case ForStmnt:
-		return node->start->ToString() + " (" +
-			(node->forStmnt.isDeclaration
-				? ToString(node->forStmnt.iterated.declaration)
-				: node->forStmnt.iterated.identifier->ToString()) +
-			" " + node->forStmnt.iterator->ToString() + " " +
-			ToString(node->forStmnt.toIterate) + ")" +
-			ToString(node->forStmnt.body);
-	case WhileStmnt:
-		return node->start->ToString() + " "
-			+ ToString(node->whileStmnt.conditional);
-	case SwitchStmnt:
-	{
-		eastl::string cases = "";
-		for (Node* node : *node->switchStmnt.cases)
-		{
-			cases += "case " + ToString(node);
-		}
-
-		return node->start->ToString() + " (" +
-			ToString(node->switchStmnt.switchOn) + " )\n" +
-			cases +
-			"default" + ToString(node->switchStmnt.defaultCase) + "\n";
-	}
-	case DeleteStmnt:
-		return node->start->ToString() +
-			(node->deleteStmnt.arrDelete ? "[]" : "") + " " +
-			ToString(node->deleteStmnt.primaryExpr);
-	case DeferStmnt:
-		return node->start->ToString() + " " +
-			(node->deferStmnt.deferIf
-				? ToString(node->deferStmnt.conditional)
-				: ToString(node->deferStmnt.body));
-	case ContinueStmnt:
-		return node->continueStmnt.token->ToString();
-	case BreakStmnt:
-		return node->breakStmnt.token->ToString();
-	case ReturnStmnt:
-		return node->start->ToString() + " " +
-			(!node->returnStmnt.voidReturn ? ToString(node->returnStmnt.expr) : "");
-	case WhereStmnt:
-	{
-		return node->start->ToString() + ToString(node->whereStmnt.decl);
-	}
-	case StateStmnt:
-	{
-		eastl::string insets = "";
-		Flags<>* flags = node->state.insetFlags;
-		if ((*flags)[SizeInset]) insets += "[size]\n";
-		if ((*flags)[SOAInset]) insets += "[soa]\n";
-		if ((*flags)[SerializedInset]) insets += "[serialized]\n";
-		if ((*flags)[NoAlignInset]) insets += "[noalign]\n";
-
-		eastl::string members = "";
-		for (Node* member : *node->state.members)
-		{
-			members += ToString(member) + ",\n";
-		}
-
-		return node->start->ToString() + " " +
-			node->state.name->ToString() +
-			(node->state.generics ? ToString(node->state.generics) : "") +
-			"\n{\n" + insets + members + "}\n";
-	}
-	case GenericsDecl:
-	{
-		eastl::string names = "";
-		for (Token* name : *node->generics.names)
-		{
-			names += name->ToString() + ", ";
-		}
-
-		return "<" + names +
-			(node->generics.whereStmnt ? " : " + ToString(node->generics.whereStmnt) : "") + ">";
-	}
-	case CompileStmnt:
-		return node->start->ToString() + " " +
-			ToString(node->compileStmnt.returnType) + " " +
-			ToString(node->compileStmnt.body);
-	case CompileDebugStmnt:
-		return node->start->ToString() + " " + ToString(node->compileDebugStmnt.body);
-	case Block:
-	{
-		eastl::string stmnts = "";
-		for (Node* stmnt : *node->block.inner)
-		{
-			stmnts += ToString(stmnt) + "\n";
-		}
-		return "\n{\n" + stmnts + "}\n";
-	}
-	default:
-		return "";
-	}
-}
-
-eastl::string ToString(Body& body)
-{
-	if (!body) return "";
-	if (body.statement) return " " + ToString(body.body) + "\n";
-	else return ToString(body.body);
-}
-
-
-eastl::string ToString(Expr* expr)
-{
-	switch (expr->typeID)
-	{
-	case LiteralExpr:
-		return expr->literalExpr.val->ToString();
-	case IdentifierExpr:
-		return expr->identifierExpr.identifier->ToString();
-	case PrimitiveExpr:
-		return expr->primitiveExpr.primitive->ToString();
-	case SelectorExpr:
-		return ToString(expr->selectorExpr.on) + "." + ToString(expr->selectorExpr.select);
-	case IndexExpr:
-		return ToString(expr->indexExpr.of) +
-			expr->indexExpr.lBrack->ToString() +
-			ToString(expr->indexExpr.index) +
-			expr->indexExpr.rBrack->ToString();
-		break;
-	case FunctionCallExpr:
-	{
-		eastl::string params = "";
-		if (expr->functionCallExpr.params != nullptr)
-		{
-			for (Expr* expr : *expr->functionCallExpr.params)
-			{
-				params += ToString(expr) + ", ";
-			}
-		}
-
-		return ToString(expr->functionCallExpr.function) +
-			expr->functionCallExpr.lParen->ToString() +
-			params +
-			expr->functionCallExpr.rParen->ToString();
-	}
-	break;
-	case NewExpr:
-		return expr->newExpr.newIndex->ToString() + " " +
-			ToString(expr->newExpr.primaryExpr) +
-			(expr->newExpr.atExpr != nullptr ? " at " + ToString(expr->newExpr.atExpr) : "");
-	case FixedExpr:
-		return expr->fixedExpr.fixed->ToString() + " " +
-			ToString(expr->fixedExpr.atExpr);
-	case AnonTypeExpr:
-	{
-		eastl::string values = "";
-		for (Expr* expr : *expr->anonTypeExpr.values)
-		{
-			values += ToString(expr) + ", ";
-		}
-
-		return "{" + values + "}";
-	}
-	case AsExpr:
-		return ToString(expr->asExpr.of) + " as " +
-			ToString(expr->asExpr.to);
-	case DereferenceExpr:
-		return ToString(expr->dereferenceExpr.of) +
-			expr->dereferenceExpr.op->ToString();
-	case ReferenceExpr:
-		return ToString(expr->referenceExpr.of) +
-			expr->referenceExpr.op->ToString();
-	case BinaryExpr:
-		return ToString(expr->binaryExpr.left) +
-			expr->binaryExpr.op->ToString() +
-			ToString(expr->binaryExpr.right);
-	case UnaryExpr:
-		return expr->unaryExpr.op->ToString() +
-			ToString(expr->unaryExpr.expr);
-	case GroupedExpr:
-		return expr->groupedExpr.lParen->ToString() +
-			ToString(expr->groupedExpr.expr) +
-			expr->groupedExpr.rParen->ToString();
-
-	case GenericsExpr:
-	{
-		eastl::string types = "";
-
-		for (Type* type : *expr->genericsExpr.types)
-		{
-			types += ToString(type) + ", ";
-		}
-
-		return (expr->genericsExpr.expr != nullptr ? ToString(expr->genericsExpr.expr) : "") +
-			expr->genericsExpr.open->ToString() +
-			types +
-			expr->genericsExpr.close->ToString();
-	}
-	case FunctionTypeExpr:
-		return ToString(expr->functionTypeExpr.functionType);
-	case FunctionTypeDeclExpr:
-		return ToString(expr->functionTypeDeclExpr.anonFunction);
-	case CompileExpr:
-		return ToString(expr->compileExpr.compile);
-	default:
-		return "";
-	}
-}
-
-eastl::string PrimitiveToString(UniqueType type)
-{
-	switch (type)
-	{
-	case UniqueType::Void:
-		return "void";
-	case UniqueType::Bool:
-		return "bool";
-	case UniqueType::Byte:
-		return "byte";
-	case UniqueType::Ubyte:
-		return "ubyte";
-	case UniqueType::Int:
-		return "int";
-	case UniqueType::Int16:
-		return "int16";
-	case UniqueType::Int32:
-		return "int32";
-	case UniqueType::Int64:
-		return "int64";
-	case UniqueType::Int128:
-		return "int128";
-	case UniqueType::Uint:
-		return "uint";
-	case UniqueType::Uint16:
-		return "uint16";
-	case UniqueType::Uint32:
-		return "uint32";
-	case UniqueType::Uint64:
-		return "uint64";
-	case UniqueType::Uint128:
-		return "uint128";
-	case UniqueType::Float:
-		return "float";
-	case UniqueType::Float32:
-		return "float32";
-	case UniqueType::Float64:
-		return "float64";
-	case UniqueType::String:
-		return "string";
-	default:
-		break;
-	}
-
-	return "INVALID";
-}
-
-eastl::string ToString(Type* type)
-{
-	switch (type->typeID)
-	{
-	case UnknownType:
-		return "implicit";
-	case PrimitiveType:
-		return PrimitiveToString(type->primitiveType.type);
-	case NamedType:
-		return type->namedType.typeName->ToString();
-	case ExplicitType:
-	{
-		eastl::string types = "";
-
-		for (Node* node : *type->explicitType.declarations)
-		{
-			types += ToString(node) + ", ";
-		}
-
-		return "{ " + types + "}";
-	}
-	case ImplicitType:
-	{
-		eastl::string types = "";
-
-		for (Token* index : *type->implicitType.identifiers)
-		{
-			types += index->ToString() + ", ";
-		}
-
-		return "{ " + types + "}";
-	}
-	case PointerType:
-		return "*" + ToString(type->pointerType.type);
-	case ValueType:
-		return "~" + ToString(type->valueType.type);
-	case ArrayType:
-		return "[]" + ToString(type->arrayType.type);
-	case GenericsType:
-		return ToString(type->genericsType.type) + ToString(type->genericsType.generics);
-	case FunctionType:
-	{
-		eastl::string params = "";
-
-		for (Type* type : *type->functionType.paramTypes)
-		{
-			params += ToString(type) + ", ";
-		}
-
-		return "::" + ToString(type->functionType.returnType) + "(" + params + ")";
-	}
-	case ImportedType:
-		return type->importedType.packageName->ToString() +
-			"." +
-			type->importedType.typeName->ToString();
-	default:
-		return "";
-	}
-}
-
 struct Scope
 {
 	Node* scopeOf;
@@ -1062,7 +664,7 @@ struct Syntax
 			node->end = curr;
 			Advance();
 			node->generics.count = node->generics.names->size();
-			node->generics.types = symbolTable->CreateVectorPtr<Type*>();
+			node->generics.templates = symbolTable->arena->Emplace<eastl::hash_map<size_t, eastl::vector<Expr*>*>>();
 			return node;
 		}
 
@@ -1853,11 +1455,11 @@ struct Syntax
 
 	Type* ParseFunctionType()
 	{
-		Type* functionType = CreateTypePtr(TypeID::FunctionType);
-		functionType->functionType.paramTypes = CreateVectorPtr<Type*>();
+		Type* type = CreateTypePtr(TypeID::FunctionType);
+		type->functionType.paramTypes = CreateVectorPtr<Type*>();
 		Advance();
 
-		functionType->functionType.returnType = Expect(UniqueType::Lparen)
+		type->functionType.returnType = Expect(UniqueType::Lparen)
 			? CreateVoidType()
 			: ParseDeclarationType();
 
@@ -1866,20 +1468,20 @@ struct Syntax
 			Advance();
 			while (!Expect(UniqueType::Rparen) && !IsEOF())
 			{
-				Type* type = ParseDeclarationType();
-				functionType->functionType.paramTypes->push_back(type);
+				Type* declType = ParseDeclarationType();
+				type->functionType.paramTypes->push_back(declType);
 				if (Expect(UniqueType::Comma)) Advance();
 			}
 
 			if (Expect(UniqueType::Rparen, "Expected function type closure (')')"))
 			{
 				Advance();
-				return functionType;
+				return type;
 			}
 		}
 
-		functionType->typeID = TypeID::InvalidType;
-		return functionType;
+		type->typeID = TypeID::InvalidType;
+		return type;
 	}
 
 	Expr* ParseAssignmentType()
@@ -2188,8 +1790,8 @@ struct Syntax
 			else
 			{
 				curr = start;
-				expr->typeID = ExprID::FunctionTypeExpr;
-				expr->functionTypeExpr.functionType = ParseFunctionType();
+				expr->typeID = ExprID::TypeExpr;
+				expr->typeExpr.type = ParseFunctionType();
 				return expr;
 			}
 		}
@@ -2279,13 +1881,30 @@ struct Syntax
 		return generics;
 	}
 
+	Expr* ParseTypeOrPrimaryExpr()
+	{
+		Token* start = curr;
+		Logger::SetErrorRollback();
+		Type* type = ParseDeclarationType(false);
+		if (type->typeID != TypeID::InvalidType)
+		{
+			Expr* expr = CreateExpr(start, ExprID::TypeExpr);
+			expr->typeExpr.type = type;
+			return expr;
+		}
+
+		curr = start;
+		Logger::ErrorRollback();
+		return ParsePrimaryExpr();
+	}
+
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
 		Expr* generics = CreateExpr(curr, ExprID::GenericsExpr);
-		eastl::vector<Type*>* genericTypes = CreateVectorPtr<Type*>();
+		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr*>();
 		generics->genericsExpr.expr = expr;
 		generics->genericsExpr.open = curr;
-		generics->genericsExpr.types = genericTypes;
+		generics->genericsExpr.templates = genericTemplates;
 
 		Advance();
 
@@ -2298,10 +1917,10 @@ struct Syntax
 
 		while (!Expect(UniqueType::Greater) && !IsEOF())
 		{
-			Type* type = ParseDeclarationType();
-			if (type->typeID != TypeID::InvalidType)
+			Expr* expr = ParseTypeOrPrimaryExpr();
+			if (expr->typeID != ExprID::InvalidExpr)
 			{
-				genericTypes->push_back(type);
+				genericTemplates->push_back(expr);
 				if (Expect(UniqueType::Comma)) Advance();
 			}
 			else

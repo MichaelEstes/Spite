@@ -33,6 +33,20 @@ struct StringView
 		last = start + count;
 	}
 
+	StringView(eastl::string& toCopy)
+	{
+		count = toCopy.size();
+		char* copy = new char[count];
+
+		for (size_t i = 0; i < count; i++)
+		{
+			copy[i] = toCopy[i];
+		}
+
+		start = copy;
+		last = start + count;
+	}
+
 	inline void Clear()
 	{
 		count = 0;
@@ -108,7 +122,7 @@ struct StringViewHash
 	size_t operator()(const StringView& str) const
 	{
 		size_t result = 0;
-		for (int i = 0; i < str.count; i++)
+		for (size_t i = 0; i < str.count; i++)
 			result += (i * 0xDEAD) ^ str[i];
 
 		return result;

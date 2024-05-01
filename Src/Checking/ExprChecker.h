@@ -72,7 +72,7 @@ struct ExprChecker
 		case GenericsExpr:
 			CheckGenerics(expr, node, prev);
 			break;
-		case FunctionTypeExpr:
+		case TypeExpr:
 			break;
 		case FunctionTypeDeclExpr:
 			break;
@@ -96,22 +96,40 @@ struct ExprChecker
 
 	void CheckGenerics(Expr* expr, Node* node, Expr* prev)
 	{
-		auto& generics = expr->genericsExpr;
-		Expr* genExpr = generics.expr;
-		if (genExpr->typeID == ExprID::IdentifierExpr)
+		auto& genericsExpr = expr->genericsExpr;
+		eastl::vector<Expr*>* templates = genericsExpr.templates;
+		Expr* ofExpr = genericsExpr.expr;
+
+		Node* genericsNode = nullptr;
+		if (ofExpr->typeID == ExprID::IdentifierExpr)
 		{
-			Node* node = symbolTable->FindStateOrFunction(genExpr->identifierExpr.identifier->val);
+			Node* node = symbolTable->FindStateOrFunction(ofExpr->identifierExpr.identifier->val);
 			if (!node)
 			{
-				AddError(genExpr->start, "ExprChecker:CheckerGenerics Unable to find node for generics expression");
+				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find node for generics expression");
 				return;
 			}
-			
-
+			genericsNode = utils.GetGenerics(node);
 		}
-		else if (genExpr->typeID == ExprID::SelectorExpr)
+		else if (ofExpr->typeID == ExprID::SelectorExpr)
 		{
 			//TODO imported type and method checking
+			auto& selectorExpr = ofExpr->selectorExpr;
+			Expr* left = selectorExpr.on;
+			Expr* right = selectorExpr.select;
+		}
+
+		if (!genericsNode)
+		{
+			AddError(expr->start, "ExprChecker:CheckGenerics Generic expression used on a type that doesn't define generics");
+			return;
+		}
+
+		auto& generics = genericsNode->generics;
+		size_t typeHash = symbolTable->CreateExprArrayHash(templates);
+		if (generics.templates->find(typeHash) == generics.templates->end())
+		{
+			generics.templates->operator[](typeHash) = templates;
 		}
 	}
 

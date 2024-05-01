@@ -20,6 +20,16 @@ struct StateSymbol
 	Node* destructor = nullptr;
 };
 
+struct ExprHash
+{
+	StringViewHash inplaceStrHasher;
+
+	size_t operator()(const Expr* expr) const
+	{
+		return 0;
+	}
+};
+
 struct TypeHash
 {
 	StringViewHash inplaceStrHasher;
@@ -64,11 +74,12 @@ struct TypeHash
 		}
 		case GenericsType:
 		{
+			ExprHash exprHasher;
 			size_t hash = 0;
 			auto& genericType = type->genericsType;
-			for (Type* genType : *genericType.generics->genericsExpr.types)
+			for (Expr* templ : *genericType.generics->genericsExpr.templates)
 			{
-				hash += this->operator()(genType);
+				hash += exprHasher(templ);
 			}
 			return hash + this->operator()(genericType.type);
 		}
@@ -267,6 +278,23 @@ struct SymbolTable
 		return FindTypeMember(of->state.members, val);
 	}
 
+	inline size_t CreateTypeArrayHash(eastl::vector<Type*>* types)
+	{
+		TypeHash typeHasher;
+		size_t hash = 0;
+		for (size_t i = 0; i < types->size(); i++)
+		{
+			Type* type = types->at(i);
+			hash += typeHasher(type) + i;
+		}
+		return hash;
+	}
+
+	inline size_t CreateExprArrayHash(eastl::vector<Expr*>* exprs)
+	{
+		return 0;
+	}
+
 	Type* CreatePrimitive(UniqueType primType)
 	{
 		Type* type = CreateTypePtr(TypeID::PrimitiveType);
@@ -350,5 +378,30 @@ struct SymbolTable
 		}
 
 		return type;
+	}
+
+	void BuildStateGeneric(Node* state, Expr* genericExpr)
+	{
+		StringView genericsStr = CreateGenericStateString(state->state.name->val, genericExpr);
+		StateSymbol* stateSymbol = FindStateSymbol(state->state.name->val);
+	}
+
+	StringView CreateGenericStateString(StringView& stateName, Expr* genericExpr)
+	{
+		auto& generics = genericExpr->genericsExpr;
+		eastl::string str = stateName.ToString();
+
+		str += generics.open->val.ToString();
+		size_t size = generics.templates->size();
+		for (int i = 0; i < size; i++)
+		{
+			Expr* expr = generics.templates->at(i);
+			str += ToString(expr);
+			if (i < size - 1) str += ",";
+		}
+		str += generics.close->val.ToString();
+
+		StringView val = StringView(str);
+		return val;
 	}
 };

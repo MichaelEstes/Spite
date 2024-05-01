@@ -27,7 +27,7 @@ enum ExprID
 	UnaryExpr,
 	GroupedExpr,
 	GenericsExpr,
-	FunctionTypeExpr,
+	TypeExpr,
 	FunctionTypeDeclExpr,
 	CompileExpr,
 };
@@ -78,6 +78,28 @@ struct Expr
 
 		struct
 		{
+			Expr* left;
+			Expr* right;
+			Token* op;
+			UniqueType opType;
+		} binaryExpr;
+
+		struct
+		{
+			Expr* expr;
+			Token* op;
+			UniqueType opType;
+		} unaryExpr;
+
+		struct
+		{
+			Expr* expr;
+			Token* lParen;
+			Token* rParen;
+		} groupedExpr;
+
+		struct
+		{
 			Token* newIndex;
 			Expr* primaryExpr;
 			Expr* atExpr;
@@ -114,38 +136,16 @@ struct Expr
 
 		struct
 		{
-			Expr* left;
-			Expr* right;
-			Token* op;
-			UniqueType opType;
-		} binaryExpr;
-
-		struct
-		{
 			Expr* expr;
-			Token* op;
-			UniqueType opType;
-		} unaryExpr;
-
-		struct
-		{
-			Expr* expr;
-			Token* lParen;
-			Token* rParen;
-		} groupedExpr;
-
-		struct
-		{
-			Expr* expr;
-			eastl::vector<Type*>* types;
+			eastl::vector<Expr*>* templates;
 			Token* open;
 			Token* close;
 		} genericsExpr;
 
 		struct
 		{
-			Type* functionType;
-		} functionTypeExpr;
+			Type* type;
+		} typeExpr;
 
 		struct
 		{
@@ -239,8 +239,8 @@ struct Expr
 		case GenericsExpr:
 			genericsExpr = copy.genericsExpr;
 			break;
-		case FunctionTypeExpr:
-			functionTypeExpr = copy.functionTypeExpr;
+		case TypeExpr:
+			typeExpr = copy.typeExpr;
 			break;
 		case FunctionTypeDeclExpr:
 			functionTypeDeclExpr = copy.functionTypeDeclExpr;
