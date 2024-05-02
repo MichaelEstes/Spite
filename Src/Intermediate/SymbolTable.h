@@ -9,6 +9,7 @@
 #include "Node.h"
 
 extern Config config;
+struct ExprHash;
 
 struct StateSymbol
 {
@@ -20,94 +21,21 @@ struct StateSymbol
 	Node* destructor = nullptr;
 };
 
-struct ExprHash
-{
-	StringViewHash inplaceStrHasher;
-
-	size_t operator()(const Expr* expr) const
-	{
-		return 0;
-	}
-};
-
 struct TypeHash
 {
 	StringViewHash inplaceStrHasher;
-
 	size_t operator()(const Type* type) const
 	{
-		switch (type->typeID)
-		{
-		case PrimitiveType:
-			return type->primitiveType.type;
-		case NamedType:
-		{
-			size_t hash = 0;
-			auto& namedType = type->namedType;
-			hash += inplaceStrHasher(namedType.typeName->val);
-			return hash;
-		}
-		case ExplicitType:
-		{
-			size_t hash = 0;
-			for (Node* node : *type->explicitType.declarations)
-			{
-				Type* defType = node->definition.type;
-				hash += this->operator()(defType);
-			}
-			return hash;
-		}
-		case PointerType:
-		{
-			size_t hash = '*';
-			return hash + this->operator()(type->pointerType.type);
-		}
-		case ValueType:
-		{
-			size_t hash = '~';
-			return hash + this->operator()(type->valueType.type);
-		}
-		case ArrayType:
-		{
-			size_t hash = '[' + ']';
-			return hash + this->operator()(type->arrayType.type);
-		}
-		case GenericsType:
-		{
-			ExprHash exprHasher;
-			size_t hash = 0;
-			auto& genericType = type->genericsType;
-			for (Expr* templ : *genericType.generics->genericsExpr.templates)
-			{
-				hash += exprHasher(templ);
-			}
-			return hash + this->operator()(genericType.type);
-		}
-		case FunctionType:
-		{
-			size_t hash = 0;
-			auto& functionType = type->functionType;
-			hash += this->operator()(functionType.returnType);
-			for (Type* param : *functionType.paramTypes)
-			{
-				hash += this->operator()(param);
-			}
-			return hash;
-		}
-		case ImportedType:
-		{
-			size_t hash = 0;
-			auto& importedType = type->importedType;
-			hash += inplaceStrHasher(importedType.packageName->val);
-			hash += inplaceStrHasher(importedType.typeName->val);
-			return hash;
-		}
-		default:
-			break;
-		}
+		return HashType(type);
+	}
+};
 
-		Logger::FatalError("SymbolTable:TypeHash Unable to create hash for Type");
-		return 0;
+struct ExprHash
+{
+	StringViewHash inplaceStrHasher;
+	size_t operator()(const Expr* expr) const
+	{
+		return HashExpr(expr);
 	}
 };
 
@@ -169,7 +97,7 @@ struct SymbolTable
 			return stateMap[name];
 		}
 	}
-	
+
 	void AddState(Node* state)
 	{
 		StateSymbol& symbol = FindOrCreateState(state->state.name->val);

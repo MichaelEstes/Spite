@@ -571,6 +571,140 @@ bool operator!=(const Expr& left, const Expr& right)
 	return !(left == right);
 }
 
+inline size_t HashType(const Type* type);
+inline size_t HashExpr(const Expr* expr);
+
+inline size_t HashType(const Type* type)
+{
+	StringViewHash inplaceStrHasher;
+	switch (type->typeID)
+	{
+	case PrimitiveType:
+		return type->primitiveType.type;
+	case NamedType:
+	{
+		size_t hash = 0;
+		auto& namedType = type->namedType;
+		hash += inplaceStrHasher(namedType.typeName->val);
+		return hash;
+	}
+	case ExplicitType:
+	{
+		size_t hash = 0;
+		for (Node* node : *type->explicitType.declarations)
+		{
+			Type* defType = node->definition.type;
+			hash += HashType(defType);
+		}
+		return hash;
+	}
+	case PointerType:
+	{
+		size_t hash = '*';
+		return hash + HashType(type->pointerType.type);
+	}
+	case ValueType:
+	{
+		size_t hash = '~';
+		return hash + HashType(type->valueType.type);
+	}
+	case ArrayType:
+	{
+		size_t hash = '[' + ']';
+		return hash + HashType(type->arrayType.type);
+	}
+	case GenericsType:
+	{
+		size_t hash = 0;
+		auto& genericType = type->genericsType;
+		for (Expr* templ : *genericType.generics->genericsExpr.templates)
+		{
+			hash += HashExpr(templ);
+		}
+		return hash + HashType(genericType.type);
+	}
+	case FunctionType:
+	{
+		size_t hash = 0;
+		auto& functionType = type->functionType;
+		hash += HashType(functionType.returnType);
+		for (Type* param : *functionType.paramTypes)
+		{
+			hash += HashType(param);
+		}
+		return hash;
+	}
+	case ImportedType:
+	{
+		size_t hash = 0;
+		auto& importedType = type->importedType;
+		hash += inplaceStrHasher(importedType.packageName->val);
+		hash += inplaceStrHasher(importedType.typeName->val);
+		return hash;
+	}
+	default:
+		break;
+	}
+
+	Logger::FatalError("SymbolTable:TypeHash Unable to create hash for Type");
+	return 0;
+}
+
+inline size_t HashExpr(const Expr* expr)
+{
+	StringViewHash inplaceStrHasher;
+	switch (expr->typeID)
+	{
+	case InvalidExpr:
+		break;
+	case LiteralExpr:
+		break;
+	case IdentifierExpr:
+		break;
+	case PrimitiveExpr:
+		break;
+	case SelectorExpr:
+		break;
+	case IndexExpr:
+		break;
+	case FunctionCallExpr:
+		break;
+	case NewExpr:
+		break;
+	case FixedExpr:
+		break;
+	case AnonTypeExpr:
+		break;
+	case AsExpr:
+		break;
+	case DereferenceExpr:
+		break;
+	case ReferenceExpr:
+		break;
+	case BinaryExpr:
+		break;
+	case UnaryExpr:
+		break;
+	case GroupedExpr:
+		break;
+	case GenericsExpr:
+		break;
+	case TypeExpr:
+	{
+		return HashType(expr->typeExpr.type);
+	}
+	case FunctionTypeDeclExpr:
+		break;
+	case CompileExpr:
+		break;
+	default:
+		break;
+	}
+
+	Logger::FatalError("SymbolTable:TypeHash Unable to create hash for Type");
+	return 0;
+}
+
 eastl::string ToString(Expr* expr);
 eastl::string ToString(Type* type);
 eastl::string ToString(Body& body);
