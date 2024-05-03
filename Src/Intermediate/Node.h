@@ -542,23 +542,38 @@ bool operator==(const Expr& left, const Expr& right)
 		return *left.asExpr.to == *right.asExpr.to &&
 			*left.asExpr.of == *right.asExpr.of;
 	case DereferenceExpr:
-		break;
+		return *left.dereferenceExpr.of == *right.dereferenceExpr.of;
 	case ReferenceExpr:
-		break;
+		return *left.referenceExpr.of == *right.referenceExpr.of;
 	case BinaryExpr:
+		return *left.binaryExpr.left == *right.binaryExpr.left &&
+			*left.binaryExpr.right == *right.binaryExpr.right &&
+			left.binaryExpr.opType == right.binaryExpr.opType;
 		break;
 	case UnaryExpr:
-		break;
+		return *left.unaryExpr.expr == *right.unaryExpr.expr &&
+			left.unaryExpr.opType == right.unaryExpr.opType;
 	case GroupedExpr:
-		break;
+		return *left.groupedExpr.expr == *right.groupedExpr.expr;
 	case GenericsExpr:
-		break;
+	{
+		auto& lGenerics = left.genericsExpr;
+		auto& rGenerics = right.genericsExpr;
+		if (*lGenerics.expr != *rGenerics.expr) return false;
+		if (lGenerics.templates->size() != rGenerics.templates->size()) return false;
+
+		for (size_t i = 0; i < lGenerics.templates->size(); i++)
+		{
+			if (*lGenerics.templates->at(i) != *rGenerics.templates->at(i)) return false;
+		}
+		return true;
+	}
 	case TypeExpr:
-		break;
+		return *left.typeExpr.type == *right.typeExpr.type;
 	case FunctionTypeDeclExpr:
-		break;
+		return false;
 	case CompileExpr:
-		break;
+		return false;
 	default:
 		break;
 	}
@@ -573,10 +588,10 @@ bool operator!=(const Expr& left, const Expr& right)
 
 inline size_t HashType(const Type* type);
 inline size_t HashExpr(const Expr* expr);
+StringViewHash inplaceStrHasher;
 
 inline size_t HashType(const Type* type)
 {
-	StringViewHash inplaceStrHasher;
 	switch (type->typeID)
 	{
 	case PrimitiveType:
@@ -652,51 +667,72 @@ inline size_t HashType(const Type* type)
 
 inline size_t HashExpr(const Expr* expr)
 {
-	StringViewHash inplaceStrHasher;
 	switch (expr->typeID)
 	{
 	case InvalidExpr:
-		break;
+		return 0;
 	case LiteralExpr:
-		break;
+		return inplaceStrHasher(expr->literalExpr.val->val);
 	case IdentifierExpr:
-		break;
+		return inplaceStrHasher(expr->identifierExpr.identifier->val);
 	case PrimitiveExpr:
-		break;
+		return inplaceStrHasher(expr->primitiveExpr.primitive->val);
 	case SelectorExpr:
-		break;
+		return HashExpr(expr->selectorExpr.on) + HashExpr(expr->selectorExpr.select);
 	case IndexExpr:
-		break;
+		return HashExpr(expr->indexExpr.of) + HashExpr(expr->indexExpr.index);
 	case FunctionCallExpr:
-		break;
-	case NewExpr:
-		break;
-	case FixedExpr:
-		break;
-	case AnonTypeExpr:
-		break;
-	case AsExpr:
-		break;
-	case DereferenceExpr:
-		break;
-	case ReferenceExpr:
-		break;
-	case BinaryExpr:
-		break;
-	case UnaryExpr:
-		break;
-	case GroupedExpr:
-		break;
-	case GenericsExpr:
-		break;
-	case TypeExpr:
 	{
-		return HashType(expr->typeExpr.type);
+		size_t hash = 0;
+		hash += HashExpr(expr->functionCallExpr.function);
+		for (Expr* param : *expr->functionCallExpr.params)
+		{
+			hash += HashExpr(param);
+		}
+		return hash;
 	}
+	case NewExpr:
+	{
+		size_t hash = HashExpr(expr->newExpr.primaryExpr) + UniqueType::New;
+		if (expr->newExpr.atExpr) hash += HashExpr(expr->newExpr.atExpr);
+		return hash;
+	}
+	case FixedExpr:
+		return HashExpr(expr->fixedExpr.atExpr) + UniqueType::Fixed;
+	case AnonTypeExpr:
+	{
+		size_t hash = 0;
+		for (Expr* param : *expr->anonTypeExpr.values)
+		{
+			hash += HashExpr(param);
+		}
+		return hash;
+	}
+	case AsExpr:
+		return HashExpr(expr->asExpr.of) + HashType(expr->asExpr.to) + UniqueType::As;
+	case DereferenceExpr:
+		return HashExpr(expr->dereferenceExpr.of) + UniqueType::Tilde;
+	case ReferenceExpr:
+		return HashExpr(expr->referenceExpr.of) + UniqueType::AtOp;
+	case BinaryExpr:
+		return HashExpr(expr->binaryExpr.left) + HashExpr(expr->binaryExpr.right) + expr->binaryExpr.opType;
+	case UnaryExpr:
+		return HashExpr(expr->unaryExpr.expr) + expr->unaryExpr.opType;
+	case GroupedExpr:
+		return HashExpr(expr->groupedExpr.expr) + UniqueType::Lparen + UniqueType::Rparen;
+	case GenericsExpr:
+	{
+		size_t hash = 0;
+		hash += HashExpr(expr->genericsExpr.expr);
+		for (Expr* templ : *expr->genericsExpr.templates) hash += HashExpr(templ);
+		return hash;
+	}
+	case TypeExpr:
+		return HashType(expr->typeExpr.type);
 	case FunctionTypeDeclExpr:
-		break;
+		return 0;
 	case CompileExpr:
-		break;
+		return 0;
 	default:
 		break;
 	}
