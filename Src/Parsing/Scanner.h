@@ -8,15 +8,12 @@
 #include "../Tokens/Tokens.h"
 #include "../Utils/Profiler.h"
 
-extern Config config;
-
 class Scanner
 {
 public:
 
-	Scanner()
+	Scanner(eastl::string& file): fileLoc(file)
 	{
-		fileLoc = config.file;
 		pos = Position(&fileLoc);
 		index = 0;
 	}

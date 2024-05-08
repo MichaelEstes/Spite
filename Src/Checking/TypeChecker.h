@@ -9,14 +9,14 @@
 struct TypeChecker
 {
 	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue;
+	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
 	CheckerUtils utils;
 
 	TypeChecker(SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue)
+		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
 		: symbolTable(symbolTable), scopeQueue(scopeQueue), utils(symbolTable, scopeQueue)  {}
 
-	void CheckDefinitionType(Node* node)
+	void CheckDefinitionType(Stmnt* node)
 	{
 		auto& definition = node->definition;
 		Type* type = definition.type;
@@ -25,7 +25,7 @@ struct TypeChecker
 			Type* inferredType = utils.InferType(definition.assignment, node);
 			if (!inferredType)
 			{
-				AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
+				AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
 			}
 			definition.type = utils.InferType(definition.assignment, node);
 		}
@@ -40,7 +40,7 @@ struct TypeChecker
 				Type* inferredType = utils.InferType(definition.assignment, node);
 				if (!inferredType)
 				{
-					AddError(definition.assignment->start, "Checker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
+					AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 				}
 				else if (*definition.type != *inferredType)
 				{
@@ -51,7 +51,7 @@ struct TypeChecker
 		}
 	}
 
-	void CheckAnonType(Node* node, Type* type, Expr* expr)
+	void CheckAnonType(Stmnt* node, Type* type, Expr* expr)
 	{
 		if (expr->typeID != ExprID::AnonTypeExpr)
 		{
@@ -70,12 +70,12 @@ struct TypeChecker
 			}
 
 			type->typeID = TypeID::ExplicitType;
-			type->explicitType.declarations = symbolTable->CreateVectorPtr<Node*>();
+			type->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt*>();
 			for (int i = 0; i < identifiers->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
-				Node* decl = symbolTable->CreateNode(token, NodeID::Definition, node);
+				Stmnt* decl = symbolTable->CreateStmnt(token, StmntID::Definition, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
 				decl->definition.type = utils.InferType(itemExpr, node);
@@ -84,7 +84,7 @@ struct TypeChecker
 		}
 		else if (type->typeID == TypeID::ExplicitType)
 		{
-			eastl::vector<Node*>* decls = type->explicitType.declarations;
+			eastl::vector<Stmnt*>* decls = type->explicitType.declarations;
 			if (anonExpr.values->size() != decls->size())
 			{
 				AddError(node->start, "Incorrect number of anonymous type expression compared to explicit type declarations");
@@ -94,7 +94,7 @@ struct TypeChecker
 			for (int i = 0; i < decls->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
-				Node* decl = decls->at(i);
+				Stmnt* decl = decls->at(i);
 
 				Type* inferredType = utils.InferType(itemExpr, node);
 				if (*decl->definition.type != *inferredType)
@@ -110,7 +110,7 @@ struct TypeChecker
 		}
 	}
 
-	inline void CheckAssignmentStmnt(Node* node)
+	inline void CheckAssignmentStmnt(Stmnt* node)
 	{
 		auto& assignment = node->assignmentStmnt;
 		Type* to = utils.InferType(assignment.assignTo, node);
@@ -121,7 +121,7 @@ struct TypeChecker
 		}
 	}
 
-	inline void CheckConditionalType(Node* node)
+	inline void CheckConditionalType(Stmnt* node)
 	{
 		auto& conditional = node->conditional;
 		Type* inferred = utils.InferType(conditional.condition, node);
@@ -131,13 +131,13 @@ struct TypeChecker
 		}
 	}
 
-	inline void CheckForType(Node* node)
+	inline void CheckForType(Stmnt* node)
 	{
 		auto& forStmnt = node->forStmnt;
 		if (!forStmnt.isDeclaration)
 		{
 			Token* identifier = forStmnt.iterated.identifier;
-			Node* decl = symbolTable->CreateNode(identifier, NodeID::Definition, node);
+			Stmnt* decl = symbolTable->CreateStmnt(identifier, StmntID::Definition, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
 			Type* type = utils.InferType(forStmnt.toIterate, node);
@@ -158,7 +158,7 @@ struct TypeChecker
 		}
 	}
 
-	inline void CheckSwitchType(Node* node)
+	inline void CheckSwitchType(Stmnt* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
 		if (!utils.IsInt(utils.InferType(switchStmnt.switchOn, node)))
@@ -167,7 +167,7 @@ struct TypeChecker
 		}
 	}
 
-	inline void CheckReturnType(Node* node)
+	inline void CheckReturnType(Stmnt* node)
 	{
 		if (node->returnStmnt.voidReturn) return;
 

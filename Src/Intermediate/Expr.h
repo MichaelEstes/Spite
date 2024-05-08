@@ -4,7 +4,7 @@
 
 #include "../Tokens/Tokens.h"
 
-struct Node;
+struct Stmnt;
 struct Body;
 struct Type;
 
@@ -137,7 +137,7 @@ struct Expr
 		struct
 		{
 			Expr* expr;
-			eastl::vector<Expr*>* templates;
+			eastl::vector<Expr*>* templateArgs;
 			Token* open;
 			Token* close;
 		} genericsExpr;
@@ -149,12 +149,12 @@ struct Expr
 
 		struct
 		{
-			Node* anonFunction;
+			Stmnt* anonFunction;
 		} functionTypeDeclExpr;
 
 		struct
 		{
-			Node* compile;
+			Stmnt* compile;
 		} compileExpr;
 	};
 

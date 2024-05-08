@@ -1,12 +1,6 @@
 ﻿// Spite_Lang.cpp : Defines the entry point for the application.
 //
 #include "Spite_Lang.h"
-#include "./Src/Config/Config.h"
-#include "./Src/Parsing/Parser.h"
-#include "./Src/Log/Logger.h"
-#include "./Src/Utils/Profiler.h"
-#include "./Src/Utils/Utils.h"
-#include "Src/Config/BuildConfig.h"
 
 typedef eastl::string string;
 
@@ -50,11 +44,60 @@ int main(int argc, char** argv)
 
 	config = ParseConfig(argc, argv);
 
-	Parser parser = Parser();
-	if (!parser.Parse())
+	// TODO Build file information
+	eastl::vector<string> files = eastl::vector<string>({ config.file });
+
+	GlobalTable* globalTable = new GlobalTable();
+
 	{
-		//return 1;
+		Parser parser = Parser();
+		for (string file : files)
+		{
+			SymbolTable* symbolTable = parser.Parse(file);
+			if (!symbolTable)
+			{
+				return 1;
+			}
+		}
 	}
+
+	{
+		Profiler checkerProfiler = Profiler();
+		Checker checker = Checker(globalTable);
+		checker.Check();
+
+		if (Logger::HasErrors())
+		{
+			Logger::PrintErrors();
+			return false;
+		}
+		size_t elapsedScanTime = checkerProfiler.End();
+		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
+	}
+
+	/*{
+		Profiler builderProfiler = Profiler();
+		switch (config.output)
+		{
+		case Llvm:
+		{
+			LLVMBuilder builder = LLVMBuilder(symbolTable);
+			builder.Build();
+			break;
+		}
+		case C:
+			break;
+		case Ir:
+			break;
+		case OutputInvalid:
+			break;
+		default:
+			break;
+		}
+
+		size_t elapsedScanTime = builderProfiler.End();
+		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output for " + config.file);
+	}*/
 
 	float elapsedCompileTime = profiler.End();
 	Logger::Info("Took " + eastl::to_string(elapsedCompileTime) + "/s to compile " + config.file);

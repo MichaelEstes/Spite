@@ -1,417 +1,4 @@
-#pragma once
-
-#include "EASTL/hash_map.h"
-
-#include "../Tokens/Token.h"
-#include "Expr.h"
-#include "Type.h"
-#include "../Containers/Flags.h"
-
-enum NodeID
-{
-	InvalidNode = 0,
-	CommentStmnt,
-	ExpressionStmnt,
-	UsingStmnt,
-	PackageStmnt,
-	Definition,
-	InlineDefinition,
-	FunctionStmnt,
-	AnonFunction,
-	FunctionDecl,
-	StateStmnt,
-	GenericsDecl,
-	WhereStmnt,
-	Method,
-	StateOperator,
-	Destructor,
-	Constructor,
-	Conditional,
-	AssignmentStmnt,
-	IfStmnt,
-	ForStmnt,
-	WhileStmnt,
-	SwitchStmnt,
-	DeleteStmnt,
-	DeferStmnt,
-	ContinueStmnt,
-	BreakStmnt,
-	ReturnStmnt,
-	CompileStmnt,
-	CompileDebugStmnt,
-	Block,
-};
-
-enum InsetID
-{
-	SizeInset,
-	SOAInset,
-	SerializedInset,
-	NoAlignInset,
-	InvalidInset
-};
-
-struct Body
-{
-	bool statement;
-	Node* body;
-
-	Body()
-	{
-		statement = false;
-		body = nullptr;
-	}
-
-	Body(const Body& copy)
-	{
-		statement = copy.statement;
-		body = copy.body;
-	}
-
-	operator void* () const
-	{
-		return (void*)body;
-	}
-};
-
-struct Node
-{
-	Token* start;
-	Token* end;
-	NodeID nodeID;
-
-	Node* scope;
-
-	union
-	{
-		struct
-		{
-			Expr* expression;
-		} expressionStmnt;
-
-		struct
-		{
-			Token* packageName;
-			Token* alias;
-		} using_;
-
-		struct
-		{
-			Token* name;
-		} package;
-
-		struct
-		{
-			Token* name;
-			Type* type;
-			Token* op;
-			Expr* assignment;
-		} definition;
-
-		struct
-		{
-			Type* type;
-			Token* op;
-			Expr* assignment;
-		} inlineDefinition;
-
-		struct
-		{
-			Type* returnType;
-			Token* name;
-			Node* generics;
-			Node* decl;
-		} function;
-
-		struct
-		{
-			Type* returnType;
-			Node* decl;
-		} anonFunction;
-
-		struct
-		{
-			eastl::vector<Node*>* parameters;
-			Body body;
-		} functionDecl;
-
-		struct
-		{
-			Token* name;
-			Node* generics;
-			eastl::vector<Node*>* members;
-			Flags<>* insetFlags;
-		} state;
-
-		struct
-		{
-			eastl::vector<Token*>* names;
-			Node* whereStmnt;
-			size_t count;
-			eastl::hash_map<size_t, eastl::vector<Expr*>*>* templates;
-		} generics;
-
-		struct
-		{
-			Node* decl;
-		} whereStmnt;
-
-		struct
-		{
-			Type* returnType;
-			Token* stateName;
-			Token* name;
-			Node* generics;
-			Node* decl;
-		} method;
-
-		struct
-		{
-			Type* returnType;
-			Token* stateName;
-			Node* generics;
-			Token* op;
-			Node* decl;
-		} stateOperator;
-
-		struct
-		{
-			Token* stateName;
-			Token* del;
-			Body body;
-		} destructor;
-
-		struct
-		{
-			Token* stateName;
-			Node* decl;
-		} constructor;
-
-		struct
-		{
-			Expr* condition;
-			Body body;
-		} conditional;
-
-		struct
-		{
-			Expr* assignTo;
-			Token* op;
-			Expr* assignment;
-		} assignmentStmnt;
-
-		struct
-		{
-			Node* condition;
-			eastl::vector<Node*>* elifs;
-			Body elseCondition;
-		} ifStmnt;
-
-		struct
-		{
-			bool rangeFor;
-			bool isDeclaration;
-			union
-			{
-				Node* declaration;
-				Token* identifier;
-			} iterated;
-			Token* iterator;
-			Expr* toIterate;
-			Body body;
-		} forStmnt;
-
-		struct
-		{
-			Node* conditional;
-		} whileStmnt;
-
-		struct
-		{
-			Expr* switchOn;
-			eastl::vector<Node*>* cases;
-			Body defaultCase;
-		} switchStmnt;
-
-		struct
-		{
-			Expr* primaryExpr;
-			bool arrDelete;
-		} deleteStmnt;
-
-		struct
-		{
-			bool deferIf;
-			union
-			{
-				Node* conditional;
-				Body body;
-			};
-		} deferStmnt;
-
-		struct
-		{
-			Token* token;
-		} continueStmnt;
-
-		struct
-		{
-			Token* token;
-		} breakStmnt;
-
-		struct
-		{
-			bool voidReturn;
-			Expr* expr;
-		} returnStmnt;
-
-		struct
-		{
-			Type* returnType;
-			Body body;
-		} compileStmnt;
-
-		struct
-		{
-			Body body;
-		} compileDebugStmnt;
-
-		struct
-		{
-			eastl::vector<Node*>* inner;
-		} block;
-	};
-
-	Node()
-	{
-		start = nullptr;
-		end = nullptr;
-		nodeID = NodeID::InvalidNode;
-	}
-
-	Node(NodeID nodeID, Token* start, Node* scope)
-	{
-		this->nodeID = nodeID;
-		this->start = start;
-		this->end = nullptr;
-		this->scope = scope;
-	}
-
-	Node(const Node& copy)
-	{
-		*this = copy;
-	}
-
-	Node& operator=(const Node& copy)
-	{
-		start = copy.start;
-		end = copy.end;
-		nodeID = copy.nodeID;
-		scope = copy.scope;
-
-		switch (nodeID)
-		{
-		case InvalidNode:
-		case CommentStmnt:
-			break;
-		case ExpressionStmnt:
-			expressionStmnt = copy.expressionStmnt;
-			break;
-		case UsingStmnt:
-			using_ = copy.using_;
-			break;
-		case PackageStmnt:
-			package = copy.package;
-			break;
-		case Definition:
-			definition = copy.definition;
-			break;
-		case InlineDefinition:
-			inlineDefinition = copy.inlineDefinition;
-			break;
-		case FunctionStmnt:
-			function = copy.function;
-			break;
-		case AnonFunction:
-			anonFunction = copy.anonFunction;
-			break;
-		case FunctionDecl:
-			functionDecl = copy.functionDecl;
-			break;
-		case StateStmnt:
-			state = copy.state;
-			break;
-		case GenericsDecl:
-			generics = copy.generics;
-			break;
-		case WhereStmnt:
-			whereStmnt = copy.whereStmnt;
-			break;
-		case Method:
-			method = copy.method;
-			break;
-		case StateOperator:
-			stateOperator = copy.stateOperator;
-			break;
-		case Destructor:
-			destructor = copy.destructor;
-			break;
-		case Constructor:
-			constructor = copy.constructor;
-			break;
-		case Conditional:
-			conditional = copy.conditional;
-			break;
-		case AssignmentStmnt:
-			assignmentStmnt = copy.assignmentStmnt;
-			break;
-		case IfStmnt:
-			ifStmnt = copy.ifStmnt;
-			break;
-		case ForStmnt:
-			forStmnt = copy.forStmnt;
-			break;
-		case WhileStmnt:
-			whileStmnt = copy.whileStmnt;
-			break;
-		case SwitchStmnt:
-			switchStmnt = copy.switchStmnt;
-			break;
-		case DeleteStmnt:
-			deleteStmnt = copy.deleteStmnt;
-			break;
-		case DeferStmnt:
-			deferStmnt = copy.deferStmnt;
-			break;
-		case ContinueStmnt:
-			continueStmnt = copy.continueStmnt;
-			break;
-		case BreakStmnt:
-			breakStmnt = copy.breakStmnt;
-			break;
-		case ReturnStmnt:
-			returnStmnt = copy.returnStmnt;
-			break;
-		case CompileStmnt:
-			compileStmnt = copy.compileStmnt;
-			break;
-		case CompileDebugStmnt:
-			compileDebugStmnt = copy.compileDebugStmnt;
-			break;
-		case Block:
-			block = copy.block;
-			break;
-		default:
-			break;
-		}
-		return *this;
-	}
-
-	~Node() {};
-};
-
-bool operator==(const Expr& left, const Expr& right);
-bool operator!=(const Expr& left, const Expr& right);
+#include "SyntaxUtils.h"
 
 bool operator==(const Type& left, const Type& right)
 {
@@ -458,8 +45,8 @@ bool operator==(const Type& left, const Type& right)
 	{
 		auto& l = left.genericsType;
 		auto& r = right.genericsType;
-		eastl::vector<Expr*>* lTempl = l.generics->genericsExpr.templates;
-		eastl::vector<Expr*>* rTempl = r.generics->genericsExpr.templates;
+		eastl::vector<Expr*>* lTempl = l.generics->genericsExpr.templateArgs;
+		eastl::vector<Expr*>* rTempl = r.generics->genericsExpr.templateArgs;
 		if (lTempl->size() != rTempl->size()) return false;
 		for (int i = 0; i < lTempl->size(); i++)
 		{
@@ -560,11 +147,11 @@ bool operator==(const Expr& left, const Expr& right)
 		auto& lGenerics = left.genericsExpr;
 		auto& rGenerics = right.genericsExpr;
 		if (*lGenerics.expr != *rGenerics.expr) return false;
-		if (lGenerics.templates->size() != rGenerics.templates->size()) return false;
+		if (lGenerics.templateArgs->size() != rGenerics.templateArgs->size()) return false;
 
-		for (size_t i = 0; i < lGenerics.templates->size(); i++)
+		for (size_t i = 0; i < lGenerics.templateArgs->size(); i++)
 		{
-			if (*lGenerics.templates->at(i) != *rGenerics.templates->at(i)) return false;
+			if (*lGenerics.templateArgs->at(i) != *rGenerics.templateArgs->at(i)) return false;
 		}
 		return true;
 	}
@@ -586,10 +173,7 @@ bool operator!=(const Expr& left, const Expr& right)
 	return !(left == right);
 }
 
-inline size_t HashType(const Type* type);
-inline size_t HashExpr(const Expr* expr);
 StringViewHash inplaceStrHasher;
-
 inline size_t HashType(const Type* type)
 {
 	switch (type->typeID)
@@ -606,7 +190,7 @@ inline size_t HashType(const Type* type)
 	case ExplicitType:
 	{
 		size_t hash = 0;
-		for (Node* node : *type->explicitType.declarations)
+		for (Stmnt* node : *type->explicitType.declarations)
 		{
 			Type* defType = node->definition.type;
 			hash += HashType(defType);
@@ -632,7 +216,7 @@ inline size_t HashType(const Type* type)
 	{
 		size_t hash = 0;
 		auto& genericType = type->genericsType;
-		for (Expr* templ : *genericType.generics->genericsExpr.templates)
+		for (Expr* templ : *genericType.generics->genericsExpr.templateArgs)
 		{
 			hash += HashExpr(templ);
 		}
@@ -724,7 +308,7 @@ inline size_t HashExpr(const Expr* expr)
 	{
 		size_t hash = 0;
 		hash += HashExpr(expr->genericsExpr.expr);
-		for (Expr* templ : *expr->genericsExpr.templates) hash += HashExpr(templ);
+		for (Expr* templ : *expr->genericsExpr.templateArgs) hash += HashExpr(templ);
 		return hash;
 	}
 	case TypeExpr:
@@ -741,15 +325,37 @@ inline size_t HashExpr(const Expr* expr)
 	return 0;
 }
 
-eastl::string ToString(Expr* expr);
-eastl::string ToString(Type* type);
-eastl::string ToString(Body& body);
+size_t TypeArrHash::operator()(const eastl::vector<Type*>* types) const
+{
+	size_t hash = 0;
+	for (size_t i = 0; i < types->size(); i++)
+	{
+		Type* type = types->at(i);
+		hash += HashType(type) + i;
+	}
+	return hash;
 
-eastl::string ToString(Node* node)
+}
+
+size_t ExprArrHash::operator()(const eastl::vector<Expr*>* exprs) const
+{
+	size_t hash = 0;
+	for (size_t i = 0; i < exprs->size(); i++)
+	{
+		Expr* expr = exprs->at(i);
+		hash += HashExpr(expr) + i;
+	}
+	return hash;
+}
+
+/*
+	ToString Functions
+*/
+eastl::string ToString(Stmnt* node)
 {
 	switch (node->nodeID)
 	{
-	case InvalidNode:
+	case InvalidStmnt:
 		return "INVALID";
 	case CommentStmnt:
 		return node->start->ToString();
@@ -803,7 +409,7 @@ eastl::string ToString(Node* node)
 		eastl::string params = "(";
 		if (node->functionDecl.parameters != nullptr)
 		{
-			for (Node* param : *node->functionDecl.parameters)
+			for (Stmnt* param : *node->functionDecl.parameters)
 			{
 				params += ToString(param) + ", ";
 			}
@@ -821,7 +427,7 @@ eastl::string ToString(Node* node)
 	case IfStmnt:
 	{
 		eastl::string elseifs = "";
-		for (Node* elseif : *node->ifStmnt.elifs)
+		for (Stmnt* elseif : *node->ifStmnt.elifs)
 		{
 			elseifs += "else if " + ToString(elseif);
 		}
@@ -845,7 +451,7 @@ eastl::string ToString(Node* node)
 	case SwitchStmnt:
 	{
 		eastl::string cases = "";
-		for (Node* node : *node->switchStmnt.cases)
+		for (Stmnt* node : *node->switchStmnt.cases)
 		{
 			cases += "case " + ToString(node);
 		}
@@ -885,7 +491,7 @@ eastl::string ToString(Node* node)
 		if ((*flags)[NoAlignInset]) insets += "[noalign]\n";
 
 		eastl::string members = "";
-		for (Node* member : *node->state.members)
+		for (Stmnt* member : *node->state.members)
 		{
 			members += ToString(member) + ",\n";
 		}
@@ -915,7 +521,7 @@ eastl::string ToString(Node* node)
 	case Block:
 	{
 		eastl::string stmnts = "";
-		for (Node* stmnt : *node->block.inner)
+		for (Stmnt* stmnt : *node->block.inner)
 		{
 			stmnts += ToString(stmnt) + "\n";
 		}
@@ -1009,16 +615,16 @@ eastl::string ToString(Expr* expr)
 
 	case GenericsExpr:
 	{
-		eastl::string templates = "";
+		eastl::string templateArgs = "";
 
-		for (Expr* templ : *expr->genericsExpr.templates)
+		for (Expr* templ : *expr->genericsExpr.templateArgs)
 		{
-			templates += ToString(templ) + ", ";
+			templateArgs += ToString(templ) + ", ";
 		}
 
 		return (expr->genericsExpr.expr != nullptr ? ToString(expr->genericsExpr.expr) : "") +
 			expr->genericsExpr.open->ToString() +
-			templates +
+			templateArgs +
 			expr->genericsExpr.close->ToString();
 	}
 	case TypeExpr:
@@ -1093,7 +699,7 @@ eastl::string ToString(Type* type)
 	{
 		eastl::string types = "";
 
-		for (Node* node : *type->explicitType.declarations)
+		for (Stmnt* node : *type->explicitType.declarations)
 		{
 			types += ToString(node) + ", ";
 		}

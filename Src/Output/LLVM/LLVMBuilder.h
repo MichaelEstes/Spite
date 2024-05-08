@@ -115,7 +115,7 @@ struct LLVMBuilder
 		{
 			auto& state = value.state->state;
 			eastl::vector<LType*> members = eastl::vector<LType*>();
-			for (Node* member : *state.members)
+			for (Stmnt* member : *state.members)
 			{
 				Type* type = member->definition.type;
 				LType* lType = TypeToLType(type);
@@ -126,7 +126,7 @@ struct LLVMBuilder
 			StructType* structType = StructType::getTypeByName(context, typeName);
 			structType->setBody(ToArrayRef<LType*>(members));
 
-			for (Node* node : value.methods)
+			for (Stmnt* node : value.methods)
 			{
 				auto& method = node->method;
 				auto& funcDecl = method.decl->functionDecl;
@@ -217,10 +217,10 @@ struct LLVMBuilder
 		}
 	}
 
-	inline eastl::vector<LType*> CreateParams(eastl::vector<Node*>* parameters)
+	inline eastl::vector<LType*> CreateParams(eastl::vector<Stmnt*>* parameters)
 	{
 		eastl::vector<LType*> params = eastl::vector<LType*>();
-		for (Node* node : *parameters)
+		for (Stmnt* node : *parameters)
 		{
 			Type* type = node->definition.type;
 			LType* lType = TypeToLType(type);
@@ -238,7 +238,7 @@ struct LLVMBuilder
 		if (body.statement) llvmFunc->addFnAttr(llvm::Attribute::AlwaysInline);
 	}
 
-	inline Function* InitFunction(const StringRef& funcName, eastl::vector<Node*>* parameters)
+	inline Function* InitFunction(const StringRef& funcName, eastl::vector<Stmnt*>* parameters)
 	{
 		Function* llvmFunc = module->getFunction(funcName);
 		BasicBlock* entryBasicBlock = BasicBlock::Create(context, "entry", llvmFunc);
@@ -248,7 +248,7 @@ struct LLVMBuilder
 		for (unsigned i = 0; i < parameters->size(); i++)
 		{
 			Argument* param = llvmFunc->getArg(i);
-			Node* defNode = parameters->at(i);
+			Stmnt* defNode = parameters->at(i);
 			auto& paramDef = defNode->definition;
 			StringView paramName = paramDef.name->val;
 			LType* type = param->getType();
@@ -285,7 +285,7 @@ struct LLVMBuilder
 
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
-			for (Node* methodNode : value.methods)
+			for (Stmnt* methodNode : value.methods)
 			{
 				auto& method = methodNode->method;
 				auto& funcDecl = method.decl->functionDecl;
@@ -303,7 +303,7 @@ struct LLVMBuilder
 		}
 	}
 
-	Value* GetDefinitionValue(Node* definitionNode)
+	Value* GetDefinitionValue(Stmnt* definitionNode)
 	{
 		auto& def = definitionNode->definition;
 		if (def.assignment)
@@ -332,7 +332,7 @@ struct LLVMBuilder
 		}
 	}
 
-	void NodeGenerator(Node* node)
+	void NodeGenerator(Stmnt* node)
 	{
 		switch (node->nodeID)
 		{
@@ -409,7 +409,7 @@ struct LLVMBuilder
 		case Block:
 		{
 			auto& block = node->block;
-			for (Node* node : *block.inner) NodeGenerator(node);
+			for (Stmnt* node : *block.inner) NodeGenerator(node);
 			break;
 		}
 		default:

@@ -4,7 +4,7 @@
 
 #include "../Tokens/Tokens.h"
 
-struct Node;
+struct Stmnt;
 struct Expr;
 
 enum TypeID
@@ -43,7 +43,7 @@ struct Type
 
 		struct
 		{
-			eastl::vector<Node*>* declarations;
+			eastl::vector<Stmnt*>* declarations;
 		} explicitType;
 
 		struct

@@ -6,47 +6,29 @@
 #include "../Containers/StringView.h"
 #include "../Containers/Arena.h"
 #include "../Config/Config.h"
-#include "Node.h"
+#include "SyntaxUtils.h"
 
 extern Config config;
 struct ExprHash;
 
 struct StateSymbol
 {
-	Node* state = nullptr;
+	Stmnt* state = nullptr;
 
-	eastl::vector<Node*> constructors;
-	eastl::vector<Node*> methods;
-	eastl::vector<Node*> operators;
-	Node* destructor = nullptr;
-};
-
-struct TypeHash
-{
-	StringViewHash inplaceStrHasher;
-	size_t operator()(const Type* type) const
-	{
-		return HashType(type);
-	}
-};
-
-struct ExprHash
-{
-	StringViewHash inplaceStrHasher;
-	size_t operator()(const Expr* expr) const
-	{
-		return HashExpr(expr);
-	}
+	eastl::vector<Stmnt*> constructors;
+	eastl::vector<Stmnt*> methods;
+	eastl::vector<Stmnt*> operators;
+	Stmnt* destructor = nullptr;
 };
 
 struct SymbolTable
 {
-	Node* package;
-	eastl::vector<Node*> imports;
+	Stmnt* package;
+	eastl::vector<Stmnt*> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
-	eastl::hash_map<StringView, Node*, StringViewHash> functionMap;
-	eastl::hash_map<StringView, Node*, StringViewHash> globalValMap;
-	eastl::vector<Node*> onCompiles;
+	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
+	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
+	eastl::vector<Stmnt*> onCompiles;
 	Arena* arena;
 
 	SymbolTable(size_t initialSize)
@@ -59,14 +41,14 @@ struct SymbolTable
 		delete arena;
 	}
 
-	inline Node* CreateNode(Token* start, NodeID nodeID, Node* scopeOf)
+	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID, Stmnt* scopeOf)
 	{
-		return arena->Emplace<Node>(nodeID, start, scopeOf);
+		return arena->Emplace<Stmnt>(nodeID, start, scopeOf);
 	}
 
-	inline Node* InvalidNode()
+	inline Stmnt* InvalidStmnt()
 	{
-		return arena->Emplace<Node>();
+		return arena->Emplace<Stmnt>();
 	}
 
 	template<typename T>
@@ -98,47 +80,47 @@ struct SymbolTable
 		}
 	}
 
-	void AddState(Node* state)
+	void AddState(Stmnt* state)
 	{
 		StateSymbol& symbol = FindOrCreateState(state->state.name->val);
 		symbol.state = state;
 	}
 
-	void AddConstructor(Node* constructor)
+	void AddConstructor(Stmnt* constructor)
 	{
 		StateSymbol& symbol = FindOrCreateState(constructor->constructor.stateName->val);
 		symbol.constructors.push_back(constructor);
 	}
 
-	void AddMethod(Node* method)
+	void AddMethod(Stmnt* method)
 	{
 		StateSymbol& symbol = FindOrCreateState(method->method.stateName->val);
 		symbol.methods.push_back(method);
 	}
 
-	void AddOperator(Node* stateOperator)
+	void AddOperator(Stmnt* stateOperator)
 	{
 		StateSymbol& symbol = FindOrCreateState(stateOperator->stateOperator.stateName->val);
 		symbol.operators.push_back(stateOperator);
 	}
 
-	void SetDestructor(Node* destructor)
+	void SetDestructor(Stmnt* destructor)
 	{
 		StateSymbol& symbol = FindOrCreateState(destructor->destructor.stateName->val);
 		symbol.destructor = destructor;
 	}
 
-	void AddFunction(Node* function)
+	void AddFunction(Stmnt* function)
 	{
 		functionMap[function->function.name->val] = function;
 	}
 
-	void AddGlobalVal(Node* globalVal)
+	void AddGlobalVal(Stmnt* globalVal)
 	{
 		globalValMap[globalVal->definition.name->val] = globalVal;
 	}
 
-	void AddOnCompile(Node* compile)
+	void AddOnCompile(Stmnt* compile)
 	{
 		onCompiles.push_back(compile);
 	}
@@ -153,14 +135,14 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindStateOrFunction(StringView& val)
+	inline Stmnt* FindStateOrFunction(StringView& val)
 	{
-		Node* node = FindState(val);
+		Stmnt* node = FindState(val);
 		if (!node) node = FindFunction(val);
 		return node;
 	}
 
-	inline Node* FindState(StringView& val)
+	inline Stmnt* FindState(StringView& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())
 		{
@@ -170,7 +152,7 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindFunction(StringView& val)
+	inline Stmnt* FindFunction(StringView& val)
 	{
 		if (auto entry = functionMap.find(val); entry != functionMap.end())
 		{
@@ -180,10 +162,10 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindStateMethod(StateSymbol* of, StringView& val)
+	inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
 	{
-		eastl::vector<Node*>& methods = of->methods;
-		for (Node* node : methods)
+		eastl::vector<Stmnt*>& methods = of->methods;
+		for (Stmnt* node : methods)
 		{
 			if (node->method.name->val == val) return node;
 		}
@@ -191,9 +173,9 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindTypeMember(eastl::vector<Node*>* members, StringView& val)
+	inline Stmnt* FindTypeMember(eastl::vector<Stmnt*>* members, StringView& val)
 	{
-		for (Node* node : *members)
+		for (Stmnt* node : *members)
 		{
 			if (node->definition.name->val == val) return node;
 		}
@@ -201,26 +183,9 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Node* FindStateMember(Node* of, StringView& val)
+	inline Stmnt* FindStateMember(Stmnt* of, StringView& val)
 	{
 		return FindTypeMember(of->state.members, val);
-	}
-
-	inline size_t CreateTypeArrayHash(eastl::vector<Type*>* types)
-	{
-		TypeHash typeHasher;
-		size_t hash = 0;
-		for (size_t i = 0; i < types->size(); i++)
-		{
-			Type* type = types->at(i);
-			hash += typeHasher(type) + i;
-		}
-		return hash;
-	}
-
-	inline size_t CreateExprArrayHash(eastl::vector<Expr*>* exprs)
-	{
-		return 0;
 	}
 
 	Type* CreatePrimitive(UniqueType primType)
@@ -308,7 +273,7 @@ struct SymbolTable
 		return type;
 	}
 
-	void BuildStateGeneric(Node* state, Expr* genericExpr)
+	void BuildStateGeneric(Stmnt* state, Expr* genericExpr)
 	{
 		StringView genericsStr = CreateGenericStateString(state->state.name->val, genericExpr);
 		StateSymbol* stateSymbol = FindStateSymbol(state->state.name->val);
@@ -320,10 +285,10 @@ struct SymbolTable
 		eastl::string str = stateName.ToString();
 
 		str += generics.open->val.ToString();
-		size_t size = generics.templates->size();
+		size_t size = generics.templateArgs->size();
 		for (int i = 0; i < size; i++)
 		{
-			Expr* expr = generics.templates->at(i);
+			Expr* expr = generics.templateArgs->at(i);
 			str += ToString(expr);
 			if (i < size - 1) str += ",";
 		}

@@ -8,14 +8,14 @@
 struct ExprChecker
 {
 	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue;
+	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
 	CheckerUtils utils;
 
 	ExprChecker(SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Node*, StringViewHash>>& scopeQueue)
+		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
 		: symbolTable(symbolTable), scopeQueue(scopeQueue), utils(symbolTable, scopeQueue) {}
 
-	void CheckExpr(Expr* expr, Node* node, Expr* prev = nullptr)
+	void CheckExpr(Expr* expr, Stmnt* node, Expr* prev = nullptr)
 	{
 		switch (expr->typeID)
 		{
@@ -83,30 +83,26 @@ struct ExprChecker
 		}
 	}
 
-	void CheckAssignmentStmnt(Node* node)
+	void CheckAssignmentStmnt(Stmnt* node)
 	{
 		CheckExpr(node->assignmentStmnt.assignTo, node);
 		CheckExpr(node->assignmentStmnt.assignment, node);
 	}
 
-	void GetGenerics(Node* node)
-	{
-
-	}
-
-	void CheckGenerics(Expr* expr, Node* node, Expr* prev)
+	void CheckGenerics(Expr* expr, Stmnt* node, Expr* prev)
 	{
 		auto& genericsExpr = expr->genericsExpr;
-		eastl::vector<Expr*>* templates = genericsExpr.templates;
+		eastl::vector<Expr*>* templateArgs = genericsExpr.templateArgs;
 		Expr* ofExpr = genericsExpr.expr;
 
-		Node* genericsNode = nullptr;
+		Stmnt* genericsNode = nullptr;
+
 		if (ofExpr->typeID == ExprID::IdentifierExpr)
 		{
-			Node* node = symbolTable->FindStateOrFunction(ofExpr->identifierExpr.identifier->val);
+			Stmnt* node = symbolTable->FindStateOrFunction(ofExpr->identifierExpr.identifier->val);
 			if (!node)
 			{
-				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find node for generics expression");
+				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
 				return;
 			}
 			genericsNode = utils.GetGenerics(node);
@@ -126,20 +122,19 @@ struct ExprChecker
 		}
 
 		auto& generics = genericsNode->generics;
-		size_t typeHash = symbolTable->CreateExprArrayHash(templates);
-		if (generics.templates->find(typeHash) == generics.templates->end())
+		if (generics.templatesToExpand->find(templateArgs) == generics.templatesToExpand->end())
 		{
-			generics.templates->operator[](typeHash) = templates;
+			generics.templatesToExpand->insert(templateArgs);
 		}
 	}
 
-	void CheckNew(Expr* expr, Node* node, Expr* prev)
+	void CheckNew(Expr* expr, Stmnt* node, Expr* prev)
 	{
 		CheckExpr(expr->newExpr.primaryExpr, node, expr);
 		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
-	void CheckFixed(Expr* expr, Node* node, Expr* prev)
+	void CheckFixed(Expr* expr, Stmnt* node, Expr* prev)
 	{
 
 	}

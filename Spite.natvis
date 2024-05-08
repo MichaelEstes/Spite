@@ -9,7 +9,7 @@
 		</Expand>
 	</Type>
 
-	<Type Name="Node">
+	<Type Name="Stmnt">
 		<DisplayString
 			Condition="nodeID == NodeID::InvalidNode"
 			Optional="true">

@@ -1,0 +1,413 @@
+#pragma once
+
+#include "EASTL/unordered_set.h"
+
+#include "../Tokens/Token.h"
+#include "Expr.h"
+#include "Type.h"
+#include "../Containers/Flags.h"
+
+struct ExprArrHash;
+
+enum StmntID
+{
+	InvalidStmnt = 0,
+	CommentStmnt,
+	ExpressionStmnt,
+	UsingStmnt,
+	PackageStmnt,
+	Definition,
+	InlineDefinition,
+	FunctionStmnt,
+	AnonFunction,
+	FunctionDecl,
+	StateStmnt,
+	GenericsDecl,
+	WhereStmnt,
+	Method,
+	StateOperator,
+	Destructor,
+	Constructor,
+	Conditional,
+	AssignmentStmnt,
+	IfStmnt,
+	ForStmnt,
+	WhileStmnt,
+	SwitchStmnt,
+	DeleteStmnt,
+	DeferStmnt,
+	ContinueStmnt,
+	BreakStmnt,
+	ReturnStmnt,
+	CompileStmnt,
+	CompileDebugStmnt,
+	Block,
+};
+
+enum InsetID
+{
+	SizeInset,
+	SOAInset,
+	SerializedInset,
+	NoAlignInset,
+	InvalidInset
+};
+
+struct Body
+{
+	bool statement;
+	Stmnt* body;
+
+	Body()
+	{
+		statement = false;
+		body = nullptr;
+	}
+
+	Body(const Body& copy)
+	{
+		statement = copy.statement;
+		body = copy.body;
+	}
+
+	operator void* () const
+	{
+		return (void*)body;
+	}
+};
+
+struct Stmnt
+{
+	Token* start;
+	Token* end;
+	StmntID nodeID;
+
+	Stmnt* scope;
+
+	union
+	{
+		struct
+		{
+			Expr* expression;
+		} expressionStmnt;
+
+		struct
+		{
+			Token* packageName;
+			Token* alias;
+		} using_;
+
+		struct
+		{
+			Token* name;
+		} package;
+
+		struct
+		{
+			Token* name;
+			Type* type;
+			Token* op;
+			Expr* assignment;
+		} definition;
+
+		struct
+		{
+			Type* type;
+			Token* op;
+			Expr* assignment;
+		} inlineDefinition;
+
+		struct
+		{
+			Type* returnType;
+			Token* name;
+			Stmnt* generics;
+			Stmnt* decl;
+		} function;
+
+		struct
+		{
+			Type* returnType;
+			Stmnt* decl;
+		} anonFunction;
+
+		struct
+		{
+			eastl::vector<Stmnt*>* parameters;
+			Body body;
+		} functionDecl;
+
+		struct
+		{
+			Token* name;
+			Stmnt* generics;
+			eastl::vector<Stmnt*>* members;
+			Flags<>* insetFlags;
+		} state;
+
+		struct
+		{
+			eastl::vector<Token*>* names;
+			Stmnt* whereStmnt;
+			size_t count;
+			eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash>* templatesToExpand;
+		} generics;
+
+		struct
+		{
+			Stmnt* decl;
+		} whereStmnt;
+
+		struct
+		{
+			Type* returnType;
+			Token* stateName;
+			Token* name;
+			Stmnt* generics;
+			Stmnt* decl;
+		} method;
+
+		struct
+		{
+			Type* returnType;
+			Token* stateName;
+			Stmnt* generics;
+			Token* op;
+			Stmnt* decl;
+		} stateOperator;
+
+		struct
+		{
+			Token* stateName;
+			Token* del;
+			Body body;
+		} destructor;
+
+		struct
+		{
+			Token* stateName;
+			Stmnt* decl;
+		} constructor;
+
+		struct
+		{
+			Expr* condition;
+			Body body;
+		} conditional;
+
+		struct
+		{
+			Expr* assignTo;
+			Token* op;
+			Expr* assignment;
+		} assignmentStmnt;
+
+		struct
+		{
+			Stmnt* condition;
+			eastl::vector<Stmnt*>* elifs;
+			Body elseCondition;
+		} ifStmnt;
+
+		struct
+		{
+			bool rangeFor;
+			bool isDeclaration;
+			union
+			{
+				Stmnt* declaration;
+				Token* identifier;
+			} iterated;
+			Token* iterator;
+			Expr* toIterate;
+			Body body;
+		} forStmnt;
+
+		struct
+		{
+			Stmnt* conditional;
+		} whileStmnt;
+
+		struct
+		{
+			Expr* switchOn;
+			eastl::vector<Stmnt*>* cases;
+			Body defaultCase;
+		} switchStmnt;
+
+		struct
+		{
+			Expr* primaryExpr;
+			bool arrDelete;
+		} deleteStmnt;
+
+		struct
+		{
+			bool deferIf;
+			union
+			{
+				Stmnt* conditional;
+				Body body;
+			};
+		} deferStmnt;
+
+		struct
+		{
+			Token* token;
+		} continueStmnt;
+
+		struct
+		{
+			Token* token;
+		} breakStmnt;
+
+		struct
+		{
+			bool voidReturn;
+			Expr* expr;
+		} returnStmnt;
+
+		struct
+		{
+			Type* returnType;
+			Body body;
+		} compileStmnt;
+
+		struct
+		{
+			Body body;
+		} compileDebugStmnt;
+
+		struct
+		{
+			eastl::vector<Stmnt*>* inner;
+		} block;
+	};
+
+	Stmnt()
+	{
+		start = nullptr;
+		end = nullptr;
+		nodeID = StmntID::InvalidStmnt;
+	}
+
+	Stmnt(StmntID nodeID, Token* start, Stmnt* scope)
+	{
+		this->nodeID = nodeID;
+		this->start = start;
+		this->end = nullptr;
+		this->scope = scope;
+	}
+
+	Stmnt(const Stmnt& copy)
+	{
+		*this = copy;
+	}
+
+	Stmnt& operator=(const Stmnt& copy)
+	{
+		start = copy.start;
+		end = copy.end;
+		nodeID = copy.nodeID;
+		scope = copy.scope;
+
+		switch (nodeID)
+		{
+		case InvalidStmnt:
+		case CommentStmnt:
+			break;
+		case ExpressionStmnt:
+			expressionStmnt = copy.expressionStmnt;
+			break;
+		case UsingStmnt:
+			using_ = copy.using_;
+			break;
+		case PackageStmnt:
+			package = copy.package;
+			break;
+		case Definition:
+			definition = copy.definition;
+			break;
+		case InlineDefinition:
+			inlineDefinition = copy.inlineDefinition;
+			break;
+		case FunctionStmnt:
+			function = copy.function;
+			break;
+		case AnonFunction:
+			anonFunction = copy.anonFunction;
+			break;
+		case FunctionDecl:
+			functionDecl = copy.functionDecl;
+			break;
+		case StateStmnt:
+			state = copy.state;
+			break;
+		case GenericsDecl:
+			generics = copy.generics;
+			break;
+		case WhereStmnt:
+			whereStmnt = copy.whereStmnt;
+			break;
+		case Method:
+			method = copy.method;
+			break;
+		case StateOperator:
+			stateOperator = copy.stateOperator;
+			break;
+		case Destructor:
+			destructor = copy.destructor;
+			break;
+		case Constructor:
+			constructor = copy.constructor;
+			break;
+		case Conditional:
+			conditional = copy.conditional;
+			break;
+		case AssignmentStmnt:
+			assignmentStmnt = copy.assignmentStmnt;
+			break;
+		case IfStmnt:
+			ifStmnt = copy.ifStmnt;
+			break;
+		case ForStmnt:
+			forStmnt = copy.forStmnt;
+			break;
+		case WhileStmnt:
+			whileStmnt = copy.whileStmnt;
+			break;
+		case SwitchStmnt:
+			switchStmnt = copy.switchStmnt;
+			break;
+		case DeleteStmnt:
+			deleteStmnt = copy.deleteStmnt;
+			break;
+		case DeferStmnt:
+			deferStmnt = copy.deferStmnt;
+			break;
+		case ContinueStmnt:
+			continueStmnt = copy.continueStmnt;
+			break;
+		case BreakStmnt:
+			breakStmnt = copy.breakStmnt;
+			break;
+		case ReturnStmnt:
+			returnStmnt = copy.returnStmnt;
+			break;
+		case CompileStmnt:
+			compileStmnt = copy.compileStmnt;
+			break;
+		case CompileDebugStmnt:
+			compileDebugStmnt = copy.compileDebugStmnt;
+			break;
+		case Block:
+			block = copy.block;
+			break;
+		default:
+			break;
+		}
+		return *this;
+	}
+
+	~Stmnt() {};
+};

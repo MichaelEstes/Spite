@@ -6,7 +6,7 @@
 #include "../Tokens/Tokens.h"
 #include "../Containers/Arena.h"
 
-#include "Node.h"
+#include "Stmnt.h"
 #include "Type.h"
 #include "Expr.h"
 #include "SymbolTable.h"
@@ -14,14 +14,14 @@
 
 struct Scope
 {
-	Node* scopeOf;
+	Stmnt* scopeOf;
 
 	Scope()
 	{
 		scopeOf = nullptr;
 	}
 
-	Scope(Node* scopeOf)
+	Scope(Stmnt* scopeOf)
 	{
 		this->scopeOf = scopeOf;
 	}
@@ -42,14 +42,14 @@ struct Syntax
 	SymbolTable* symbolTable;
 	size_t nodeCount;
 
-	eastl::vector<Node*> nodes;
+	eastl::vector<Stmnt*> nodes;
 	eastl::stack<Scope> scopes;
-	Node* package;
+	Stmnt* package;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
-		nodes = eastl::vector<Node*>();
+		nodes = eastl::vector<Stmnt*>();
 		scopes = eastl::stack<Scope>();
 		currScope = Scope();
 		scopes.push(currScope);
@@ -59,19 +59,19 @@ struct Syntax
 	void Print()
 	{
 		eastl::string toPrint = "";
-		if (package->nodeID == NodeID::PackageStmnt)
+		if (package->nodeID == StmntID::PackageStmnt)
 		{
 			toPrint += ToString(package);
 			toPrint += '\n';
 		}
 
-		for (Node* node : symbolTable->imports)
+		for (Stmnt* node : symbolTable->imports)
 		{
 			toPrint += ToString(node);
 			toPrint += '\n';
 		}
 
-		for (Node* node : nodes)
+		for (Stmnt* node : nodes)
 		{
 			toPrint += ToString(node);
 			toPrint += '\n';
@@ -80,20 +80,20 @@ struct Syntax
 		Logger::Info(toPrint);
 	}
 
-	inline void AddNode(Node* node)
+	inline void AddNode(Stmnt* node)
 	{
 		nodes.emplace_back(node);
 	}
 
-	inline Node* CreateNode(Token* start, NodeID nodeID)
+	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID)
 	{
 		nodeCount += 1;
-		return symbolTable->CreateNode(start, nodeID, currScope.scopeOf);
+		return symbolTable->CreateStmnt(start, nodeID, currScope.scopeOf);
 	}
 
-	inline Node* InvalidNode()
+	inline Stmnt* InvalidStmnt()
 	{
-		return symbolTable->InvalidNode();
+		return symbolTable->InvalidStmnt();
 	}
 
 	template<typename T>
@@ -127,7 +127,7 @@ struct Syntax
 		return symbolTable->CreatePrimitive(primType);
 	}
 
-	inline void StartScope(Node* of)
+	inline void StartScope(Stmnt* of)
 	{
 		currScope = scopes.emplace(of);
 	}
@@ -155,7 +155,7 @@ struct Syntax
 
 	void BuildSyntax()
 	{
-		symbolTable = new SymbolTable((tokens.tokens.size() / 2) * sizeof(Node));
+		symbolTable = new SymbolTable((tokens.tokens.size() / 2) * sizeof(Stmnt));
 		curr = tokens.First();
 
 		ParseComments();
@@ -214,7 +214,7 @@ struct Syntax
 	{
 		while (Expect(TokenType::Comment))
 		{
-			Node* node = CreateNode(curr, NodeID::CommentStmnt);
+			Stmnt* node = CreateStmnt(curr, StmntID::CommentStmnt);
 			AddNode(node);
 			curr = tokens.Next(curr);
 		}
@@ -226,7 +226,7 @@ struct Syntax
 		if (Expect(UniqueType::Package, "File must start with a 'package' statement") &&
 			ThenExpect(TokenType::Identifier, "Expected an identifier after package token"))
 		{
-			Node* node = CreateNode(start, NodeID::PackageStmnt);
+			Stmnt* node = CreateStmnt(start, StmntID::PackageStmnt);
 			node->package.name = curr;
 			Advance();
 			if (Expect(UniqueType::Semicolon)) Advance();
@@ -237,7 +237,6 @@ struct Syntax
 
 	void ParseNext()
 	{
-		bool advance = true;
 		switch (curr->uniqueType)
 		{
 		case UniqueType::Any:
@@ -255,8 +254,8 @@ struct Syntax
 			return;
 		case UniqueType::OnCompile:
 		{
-			Node* node = ParseCompile();
-			if (node->nodeID != NodeID::InvalidNode) 
+			Stmnt* node = ParseCompile();
+			if (node->nodeID != StmntID::InvalidStmnt) 
 			{
 				symbolTable->AddOnCompile(node);
 				AddNode(node);
@@ -268,8 +267,8 @@ struct Syntax
 			return;
 		case UniqueType::Name:
 		{
-			Node* assignment = ParseAssignmentStatement();
-			if (assignment->nodeID != NodeID::InvalidNode)
+			Stmnt* assignment = ParseAssignmentStatement();
+			if (assignment->nodeID != StmntID::InvalidStmnt)
 			{
 				AddNode(assignment);
 				symbolTable->AddGlobalVal(assignment);
@@ -291,13 +290,14 @@ struct Syntax
 			else type = ParseDeclarationType(false);
 
 			if (type->typeID == TypeID::InvalidType) break;
-			Node* func = ParseFunction(type, start);
-			if (func->nodeID != NodeID::InvalidNode) AddNode(func);
+			Stmnt* func = ParseFunction(type, start);
+			if (func->nodeID != StmntID::InvalidStmnt) AddNode(func);
 			return;
 		}
 		}
 
-		if (advance) Advance();
+		AddError(curr, "Syntax:ParseNext Unexpected token : " + curr->ToString());
+		Advance();
 	}
 
 	void ParseUsing()
@@ -309,7 +309,7 @@ struct Syntax
 		if (Expect(UniqueType::Using) &&
 			ThenExpect(TokenType::Identifier, "Expected an identifier after 'using' token"))
 		{
-			Node* node = CreateNode(start, NodeID::UsingStmnt);
+			Stmnt* node = CreateStmnt(start, StmntID::UsingStmnt);
 			node->using_.packageName = curr;
 			Advance();
 
@@ -332,12 +332,12 @@ struct Syntax
 
 	void ParseState()
 	{
-		Node* node = CreateNode(curr, NodeID::StateStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::StateStmnt);
 		Advance();
 		if (Expect(TokenType::Identifier, "Expected an identifier after 'state'"))
 		{
 			node->state.name = curr;
-			node->state.members = CreateVectorPtr<Node*>();
+			node->state.members = CreateVectorPtr<Stmnt*>();
 			node->state.insetFlags = symbolTable->arena->Emplace<Flags<>>();
 			Advance();
 			node->state.generics = ParseGenerics();
@@ -369,7 +369,7 @@ struct Syntax
 		}
 	}
 
-	void ParseStateMember(Node* state)
+	void ParseStateMember(Stmnt* state)
 	{
 		if (Expect(UniqueType::Lbrack))
 		{
@@ -378,13 +378,13 @@ struct Syntax
 			return;
 		}
 
-		Node* member = ParseDeclOrDef();
-		if (member->nodeID != NodeID::InvalidNode) state->state.members->push_back(member);
+		Stmnt* member = ParseDeclOrDef();
+		if (member->nodeID != StmntID::InvalidStmnt) state->state.members->push_back(member);
 	}
 
-	Node* ParseDeclOrDef()
+	Stmnt* ParseDeclOrDef()
 	{
-		Node* node = ParseDeclaration();
+		Stmnt* node = ParseDeclaration();
 		if (Expect(UniqueType::Assign)) ParseAssignment(node);
 
 		return node;
@@ -420,9 +420,9 @@ struct Syntax
 		return InsetID::InvalidInset;
 	}
 
-	Node* ParseCompile()
+	Stmnt* ParseCompile()
 	{
-		Node* node = CreateNode(curr, NodeID::CompileStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::CompileStmnt);
 		Advance();
 		Type* type = ParseDeclarationType();
 		if (type->typeID != TypeID::InvalidType)
@@ -444,13 +444,13 @@ struct Syntax
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
 	void ParseCompileDebug()
 	{
-		Node* node = CreateNode(curr, NodeID::CompileDebugStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::CompileDebugStmnt);
 		Advance();
 		node->compileDebugStmnt.body = ParseBody(node);
 		if (node->compileDebugStmnt.body)
@@ -462,11 +462,11 @@ struct Syntax
 		}
 	}
 
-	Node* ParseFunctionDecl(Node* of)
+	Stmnt* ParseFunctionDecl(Stmnt* of)
 	{
-		Node* node = CreateNode(curr, NodeID::FunctionDecl);
+		Stmnt* node = CreateStmnt(curr, StmntID::FunctionDecl);
 		Advance();
-		eastl::vector<Node*>* parameters = ParseParametersList();
+		eastl::vector<Stmnt*>* parameters = ParseParametersList();
 		node->functionDecl.parameters = parameters;
 		if (Expect(UniqueType::Rparen, "Expected function closure (')')")) Advance();
 
@@ -490,15 +490,15 @@ struct Syntax
 			AddError(curr, "Expected function block opening ('{') or ('=>')");
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseFunction(Type* returnType, Token* start)
+	Stmnt* ParseFunction(Type* returnType, Token* start)
 	{
 		if (Expect(TokenType::Identifier, "Expected function name identifier"))
 		{
-			Node* node = CreateNode(start, NodeID::FunctionStmnt);
+			Stmnt* node = CreateStmnt(start, StmntID::FunctionStmnt);
 			Token* name = curr;
 			Advance();
 
@@ -521,13 +521,13 @@ struct Syntax
 			}
 		}
 
-		return InvalidNode();
+		return InvalidStmnt();
 	}
 
-	void AddUniformCallParam(eastl::vector<Node*>* params, Token* stateName)
+	void AddUniformCallParam(eastl::vector<Stmnt*>* params, Token* stateName)
 	{
 		Token* thisName = &thisToken;
-		Node* param = CreateNode(thisName, NodeID::Definition);
+		Stmnt* param = CreateStmnt(thisName, StmntID::Definition);
 		param->definition.assignment = nullptr;
 		param->definition.name = thisName;
 		param->definition.type = CreateTypePtr(TypeID::NamedType);
@@ -535,14 +535,14 @@ struct Syntax
 		params->insert(params->begin(), param);
 	}
 
-	Node* ParseStateFunction(Type* returnType, Token* start, Token* name)
+	Stmnt* ParseStateFunction(Type* returnType, Token* start, Token* name)
 	{
 		Advance();
 		switch (curr->uniqueType)
 		{
 		case UniqueType::Name:
 		{
-			Node* node = CreateNode(start, NodeID::Method);
+			Stmnt* node = CreateStmnt(start, StmntID::Method);
 			node->method.returnType = returnType;
 			node->method.stateName = name;
 			node->method.name = curr;
@@ -560,7 +560,7 @@ struct Syntax
 		}
 		case UniqueType::OperatorOverload:
 		{
-			Node* op = CreateNode(start, NodeID::StateOperator);
+			Stmnt* op = CreateStmnt(start, StmntID::StateOperator);
 			op->stateOperator.returnType = returnType;
 			op->stateOperator.stateName = name;
 			Advance();
@@ -587,7 +587,7 @@ struct Syntax
 		}
 		case UniqueType::Delete:
 		{
-			Node* del = CreateNode(start, NodeID::Destructor);
+			Stmnt* del = CreateStmnt(start, StmntID::Destructor);
 			del->destructor.stateName = name;
 			del->destructor.del = curr;
 			Advance();
@@ -598,7 +598,7 @@ struct Syntax
 		}
 		case UniqueType::Lparen:
 		{
-			Node* con = CreateNode(start, NodeID::Constructor);
+			Stmnt* con = CreateStmnt(start, StmntID::Constructor);
 			con->constructor.stateName = name;
 			con->constructor.decl = ParseFunctionDecl(con);
 			AddUniformCallParam(con->constructor.decl->functionDecl.parameters, con->constructor.stateName);
@@ -609,10 +609,10 @@ struct Syntax
 			break;
 		}
 
-		return InvalidNode();
+		return InvalidStmnt();
 	}
 
-	Node* ParseGenerics()
+	Stmnt* ParseGenerics()
 	{
 		if (Expect(UniqueType::Less))
 		{
@@ -624,9 +624,9 @@ struct Syntax
 		}
 	}
 
-	Node* ParseGenericDecl()
+	Stmnt* ParseGenericDecl()
 	{
-		Node* node = CreateNode(curr, NodeID::GenericsDecl);
+		Stmnt* node = CreateStmnt(curr, StmntID::GenericsDecl);
 		node->generics.names = CreateVectorPtr<Token*>();
 		node->generics.whereStmnt = nullptr;
 		Advance();
@@ -634,7 +634,7 @@ struct Syntax
 		if (Expect(UniqueType::Greater))
 		{
 			AddError(curr, "Expected generic types not '<>'");
-			node->nodeID = NodeID::InvalidNode;
+			node->nodeID = StmntID::InvalidStmnt;
 			return node;
 		}
 
@@ -648,7 +648,7 @@ struct Syntax
 			}
 			else
 			{
-				node->nodeID = NodeID::InvalidNode;
+				node->nodeID = StmntID::InvalidStmnt;
 				return node;
 			}
 		}
@@ -664,28 +664,28 @@ struct Syntax
 			node->end = curr;
 			Advance();
 			node->generics.count = node->generics.names->size();
-			node->generics.templates = symbolTable->arena->Emplace<eastl::hash_map<size_t, eastl::vector<Expr*>*>>();
+			node->generics.templatesToExpand = symbolTable->arena->Emplace<eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash>>();
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseWhere()
+	Stmnt* ParseWhere()
 	{
-		Node* node = CreateNode(curr, NodeID::WhereStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::WhereStmnt);
 		Advance();
 
 		node->whereStmnt.decl = ParseFunctionDecl(node);
 
-		if (node->whereStmnt.decl->nodeID != NodeID::InvalidNode) return node;
+		if (node->whereStmnt.decl->nodeID != StmntID::InvalidStmnt) return node;
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Body ParseBody(Node* of)
+	Body ParseBody(Stmnt* of)
 	{
 		Body body = Body();
 
@@ -703,22 +703,22 @@ struct Syntax
 		return body;
 	}
 
-	Node* ParseBodyStmnt(Node* of)
+	Stmnt* ParseBodyStmnt(Stmnt* of)
 	{
 		StartScope(of);
-		Node* stmnt = ParseBlockStatment();
+		Stmnt* stmnt = ParseBlockStatment();
 		EndScope();
 
 		return stmnt;
 	}
 
-	Node* ParseBlock(Node* of)
+	Stmnt* ParseBlock(Stmnt* of)
 	{
-		Node* block = CreateNode(curr, NodeID::Block);
-		block->block.inner = CreateVectorPtr<Node*>();
+		Stmnt* block = CreateStmnt(curr, StmntID::Block);
+		block->block.inner = CreateVectorPtr<Stmnt*>();
 		if (!Expect(UniqueType::Lbrace, "Expected function block opening ('{') or ('=>')"))
 		{
-			block->nodeID = NodeID::InvalidNode;
+			block->nodeID = StmntID::InvalidStmnt;
 			return block;
 		}
 		Advance();
@@ -727,7 +727,7 @@ struct Syntax
 
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			Node* stmnt = ParseBlockStatment();
+			Stmnt* stmnt = ParseBlockStatment();
 			if (stmnt != nullptr) block->block.inner->push_back(stmnt);
 		}
 
@@ -742,7 +742,7 @@ struct Syntax
 		return block;
 	}
 
-	Node* ParseBlockStatment()
+	Stmnt* ParseBlockStatment()
 	{
 
 		switch (curr->uniqueType)
@@ -776,10 +776,11 @@ struct Syntax
 			break;
 		}
 
-		return CreateNode(curr, NodeID::InvalidNode);
+		//AddError(curr, "Syntax:ParseBlockStatment Unexpected token : " + curr->ToString());
+		return CreateStmnt(curr, StmntID::InvalidStmnt);
 	}
 
-	Node* ParseIdentifierStmnt()
+	Stmnt* ParseIdentifierStmnt()
 	{
 		Token* next = Peek();
 		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
@@ -790,7 +791,7 @@ struct Syntax
 		return ParseExprStmnt();
 	}
 
-	Node* ParseBlockOrInlineType()
+	Stmnt* ParseBlockOrInlineType()
 	{
 		Token* start = curr;
 
@@ -803,10 +804,10 @@ struct Syntax
 				(type->typeID == TypeID::ExplicitType && Expect(UniqueType::ImplicitAssign)))
 			{
 				AddError(curr, "Explicit types must be assigned with '=' and implicit types must be assigned with ':='");
-				return CreateNode(curr, NodeID::InvalidNode);
+				return CreateStmnt(curr, StmntID::InvalidStmnt);
 			}
 
-			Node* node = CreateNode(start, NodeID::InlineDefinition);
+			Stmnt* node = CreateStmnt(start, StmntID::InlineDefinition);
 			node->inlineDefinition.type = type;
 			node->inlineDefinition.op = curr;
 			Advance();
@@ -821,9 +822,9 @@ struct Syntax
 		return ParseBlock(currScope.scopeOf);
 	}
 
-	Node* ParseExprStmnt()
+	Stmnt* ParseExprStmnt()
 	{
-		Node* node = CreateNode(curr, NodeID::ExpressionStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::ExpressionStmnt);
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
@@ -833,7 +834,7 @@ struct Syntax
 
 			if (IsAssignableExpr(expr) && IsAssignmentOperator())
 			{
-				node->nodeID = NodeID::AssignmentStmnt;
+				node->nodeID = StmntID::AssignmentStmnt;
 				node->assignmentStmnt.assignTo = expr;
 				node->assignmentStmnt.op = curr;
 				Advance();
@@ -845,31 +846,31 @@ struct Syntax
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseIf()
+	Stmnt* ParseIf()
 	{
-		Node* node = CreateNode(curr, NodeID::IfStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::IfStmnt);
 		Advance();
 
-		Node* conditional = ParseConditional(node);
-		if (conditional->nodeID != NodeID::InvalidNode)
+		Stmnt* conditional = ParseConditional(node);
+		if (conditional->nodeID != StmntID::InvalidStmnt)
 		{
 			node->ifStmnt.condition = conditional;
-			node->ifStmnt.elifs = CreateVectorPtr<Node*>();
+			node->ifStmnt.elifs = CreateVectorPtr<Stmnt*>();
 			node->ifStmnt.elseCondition = Body();
 
 			while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
 			{
 				Advance();
 				Advance();
-				Node* elif = ParseConditional(node);
-				if (elif->nodeID != NodeID::InvalidNode) node->ifStmnt.elifs->push_back(elif);
+				Stmnt* elif = ParseConditional(node);
+				if (elif->nodeID != StmntID::InvalidStmnt) node->ifStmnt.elifs->push_back(elif);
 				else
 				{
-					node->nodeID = NodeID::InvalidNode;
+					node->nodeID = StmntID::InvalidStmnt;
 					return node;
 				}
 			}
@@ -885,13 +886,13 @@ struct Syntax
 		}
 
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseConditional(Node* of)
+	Stmnt* ParseConditional(Stmnt* of)
 	{
-		Node* node = CreateNode(curr, NodeID::Conditional);
+		Stmnt* node = CreateStmnt(curr, StmntID::Conditional);
 		if (Expect(UniqueType::Lparen, "Expected conditional opening ('(')"))
 		{
 			Advance();
@@ -907,13 +908,13 @@ struct Syntax
 			}
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseFor()
+	Stmnt* ParseFor()
 	{
-		Node* node = CreateNode(curr, NodeID::ForStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::ForStmnt);
 		Advance();
 		if (Expect(UniqueType::Lparen, "Expected 'for' statement opening ('(')"))
 		{
@@ -937,7 +938,7 @@ struct Syntax
 				else
 				{
 					AddError(curr, "Expected for iterator '..' or 'in'");
-					node->nodeID = NodeID::InvalidNode;
+					node->nodeID = StmntID::InvalidStmnt;
 					return node;
 				}
 
@@ -959,13 +960,13 @@ struct Syntax
 			}
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseSwitch()
+	Stmnt* ParseSwitch()
 	{
-		Node* node = CreateNode(curr, NodeID::SwitchStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::SwitchStmnt);
 		Advance();
 
 		if (Expect(UniqueType::Lparen, "Expected 'switch' statement opening ('(')"))
@@ -984,7 +985,7 @@ struct Syntax
 					{
 						Advance();
 
-						node->switchStmnt.cases = CreateVectorPtr<Node*>();
+						node->switchStmnt.cases = CreateVectorPtr<Stmnt*>();
 						while (Expect(UniqueType::Case))
 						{
 							Advance();
@@ -1009,37 +1010,37 @@ struct Syntax
 			}
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseWhile()
+	Stmnt* ParseWhile()
 	{
-		Node* node = CreateNode(curr, NodeID::WhileStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::WhileStmnt);
 		Advance();
-		Node* conditional = ParseConditional(node);
-		if (conditional->nodeID != NodeID::InvalidNode)
+		Stmnt* conditional = ParseConditional(node);
+		if (conditional->nodeID != StmntID::InvalidStmnt)
 		{
 			node->whileStmnt.conditional = conditional;
 			node->end = conditional->end;
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseDefer()
+	Stmnt* ParseDefer()
 	{
-		Node* node = CreateNode(curr, NodeID::DeferStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::DeferStmnt);
 		Advance();
 
 		if (Expect(UniqueType::If))
 		{
 			node->deferStmnt.deferIf = true;
 			Advance();
-			Node* conditional = ParseConditional(node);
-			if (conditional->nodeID != NodeID::InvalidNode)
+			Stmnt* conditional = ParseConditional(node);
+			if (conditional->nodeID != StmntID::InvalidStmnt)
 			{
 				node->deferStmnt.conditional = conditional;
 				node->end = conditional->end;
@@ -1054,13 +1055,13 @@ struct Syntax
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseDelete()
+	Stmnt* ParseDelete()
 	{
-		Node* node = CreateNode(curr, NodeID::DeleteStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::DeleteStmnt);
 		Advance();
 		if (Expect(UniqueType::Array))
 		{
@@ -1078,13 +1079,13 @@ struct Syntax
 			return node;
 		}
 
-		node->nodeID = NodeID::InvalidNode;
+		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
 
-	Node* ParseContinue()
+	Stmnt* ParseContinue()
 	{
-		Node* node = CreateNode(curr, NodeID::ContinueStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::ContinueStmnt);
 		node->continueStmnt.token = curr;
 		Advance();
 		if (Expect(UniqueType::Semicolon)) Advance();
@@ -1092,9 +1093,9 @@ struct Syntax
 		return node;
 	}
 
-	Node* ParseBreak()
+	Stmnt* ParseBreak()
 	{
-		Node* node = CreateNode(curr, NodeID::BreakStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::BreakStmnt);
 		node->breakStmnt.token = curr;
 		Advance();
 		if (Expect(UniqueType::Semicolon)) Advance();
@@ -1102,9 +1103,9 @@ struct Syntax
 		return node;
 	}
 
-	Node* ParseReturn()
+	Stmnt* ParseReturn()
 	{
-		Node* node = CreateNode(curr, NodeID::ReturnStmnt);
+		Stmnt* node = CreateStmnt(curr, StmntID::ReturnStmnt);
 		Advance();
 		if (Expect(UniqueType::Semicolon))
 		{
@@ -1124,17 +1125,17 @@ struct Syntax
 		}
 	}
 
-	eastl::vector<Node*>* ParseParametersList(UniqueType end = UniqueType::Rparen)
+	eastl::vector<Stmnt*>* ParseParametersList(UniqueType end = UniqueType::Rparen)
 	{
-		eastl::vector<Node*>* parameters = CreateVectorPtr<Node*>();
+		eastl::vector<Stmnt*>* parameters = CreateVectorPtr<Stmnt*>();
 
 		if (Expect(UniqueType::Rparen)) return parameters;
 
 		bool parsingDefs = false;
 		while (!Expect(end) && !IsEOF())
 		{
-			Node* decl = ParseDeclOrDef();
-			if (decl->nodeID != NodeID::InvalidNode)
+			Stmnt* decl = ParseDeclOrDef();
+			if (decl->nodeID != StmntID::InvalidStmnt)
 			{
 				if (parsingDefs && !decl->definition.assignment) 
 					AddError(decl->start, "Cannot have a parameter without a default value after having a parameter with a default value");
@@ -1149,7 +1150,7 @@ struct Syntax
 		return parameters;
 	}
 
-	Node* ParseAssignmentStatement()
+	Stmnt* ParseAssignmentStatement()
 	{
 		Token* start = curr;
 		switch (Peek()->uniqueType)
@@ -1157,15 +1158,15 @@ struct Syntax
 		case UniqueType::ImplicitAssign:
 		case UniqueType::Colon:
 		{
-			Node* def = ParseDefinition();
+			Stmnt* def = ParseDefinition();
 			return def;
 		}
 		default:
-			return InvalidNode();
+			return InvalidStmnt();
 		}
 	}
 
-	Node* ParseDefinition()
+	Stmnt* ParseDefinition()
 	{
 		Token* start = curr;
 		Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug");
@@ -1177,17 +1178,17 @@ struct Syntax
 			return ParseExplicitAssignment();
 		default:
 			AddError(start, "Expected a variable definition");
-			return InvalidNode();
+			return InvalidStmnt();
 		}
 	}
 
-	Node* ParseImplicitAssignment()
+	Stmnt* ParseImplicitAssignment()
 	{
 		Token* start = curr;
 		if (Expect(TokenType::Identifier) &&
 			ThenExpect(UniqueType::ImplicitAssign))
 		{
-			Node* node = CreateNode(start, NodeID::Definition);
+			Stmnt* node = CreateStmnt(start, StmntID::Definition);
 			node->definition.name = start;
 			node->definition.op = curr;
 
@@ -1201,19 +1202,19 @@ struct Syntax
 			return node;
 		}
 
-		return InvalidNode();
+		return InvalidStmnt();
 	}
 
-	Node* ParseExplicitAssignment()
+	Stmnt* ParseExplicitAssignment()
 	{
-		Node* node = ParseDeclaration();
+		Stmnt* node = ParseDeclaration();
 
 		if (ParseAssignment(node)) return node;
 
-		return InvalidNode();
+		return InvalidStmnt();
 	}
 
-	bool ParseAssignment(Node* decl)
+	bool ParseAssignment(Stmnt* decl)
 	{
 		if (Expect(UniqueType::Assign, "Variable declerations must have assignments"))
 		{
@@ -1230,7 +1231,7 @@ struct Syntax
 		return false;
 	}
 
-	Node* ParseDeclaration()
+	Stmnt* ParseDeclaration()
 	{
 		Token* start = curr;
 		if (Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug") &&
@@ -1238,7 +1239,7 @@ struct Syntax
 		{
 			Advance();
 			Type* type = ParseDeclarationType();
-			Node* node = CreateNode(start, NodeID::Definition);
+			Stmnt* node = CreateStmnt(start, StmntID::Definition);
 			node->definition.name = start;
 			node->definition.type = type;
 			node->definition.assignment = nullptr;
@@ -1246,7 +1247,7 @@ struct Syntax
 			return node;
 		}
 
-		return InvalidNode();
+		return InvalidStmnt();
 	}
 
 	Type* ParseDeclarationType(bool allowImplicitType = true)
@@ -1411,12 +1412,12 @@ struct Syntax
 	Type* ParseExplicitType()
 	{
 		Type* type = CreateTypePtr(TypeID::ExplicitType);
-		eastl::vector<Node*>* decls = CreateVectorPtr<Node*>();
+		eastl::vector<Stmnt*>* decls = CreateVectorPtr<Stmnt*>();
 		type->explicitType.declarations = decls;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
-			Node* node = ParseDeclaration();
-			if (node->nodeID != NodeID::InvalidNode)
+			Stmnt* node = ParseDeclaration();
+			if (node->nodeID != StmntID::InvalidStmnt)
 			{
 				decls->push_back(node);
 				if (Expect(UniqueType::Comma)) Advance();
@@ -1509,8 +1510,8 @@ struct Syntax
 	Expr* ParseCompileExpr()
 	{
 		Expr* expr = CreateExpr(curr, ExprID::CompileExpr);
-		Node* node = ParseCompile();
-		if (node->nodeID != NodeID::InvalidNode)
+		Stmnt* node = ParseCompile();
+		if (node->nodeID != StmntID::InvalidStmnt)
 		{
 			expr->compileExpr.compile = node;
 			return expr;
@@ -1525,11 +1526,11 @@ struct Syntax
 		Token* rBrace = curr;
 		Advance();
 
-		eastl::vector<Node*> params = eastl::vector<Node*>();
+		eastl::vector<Stmnt*> params = eastl::vector<Stmnt*>();
 		while (!Expect(UniqueType::Lbrace) && !IsEOF())
 		{
-			Node* def = ParseDefinition();
-			if (def->nodeID == NodeID::Definition) params.push_back(def);
+			Stmnt* def = ParseDefinition();
+			if (def->nodeID == StmntID::Definition) params.push_back(def);
 			if (Expect(UniqueType::Comma)) Advance();
 		}
 
@@ -1781,7 +1782,7 @@ struct Syntax
 				(Expect(UniqueType::Rparen) && (peekType == UniqueType::Lbrace || peekType == UniqueType::FatArrow)))
 			{
 				curr = lparen;
-				Node* node = CreateNode(start, NodeID::AnonFunction);
+				Stmnt* node = CreateStmnt(start, StmntID::AnonFunction);
 				node->anonFunction.returnType = returnType;
 				node->anonFunction.decl = ParseFunctionDecl(node);
 				expr->functionTypeDeclExpr.anonFunction = node;
@@ -1904,7 +1905,7 @@ struct Syntax
 		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr*>();
 		generics->genericsExpr.expr = expr;
 		generics->genericsExpr.open = curr;
-		generics->genericsExpr.templates = genericTemplates;
+		generics->genericsExpr.templateArgs = genericTemplates;
 
 		Advance();
 
