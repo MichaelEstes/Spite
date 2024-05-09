@@ -15,7 +15,7 @@ struct PackageChecker
 	ExprChecker exprChecker;
 
 	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable)
-		: typeChecker(symbolTable, scopeQueue), exprChecker(symbolTable, scopeQueue) 
+		: typeChecker(globalTable, symbolTable, scopeQueue), exprChecker(globalTable, symbolTable, scopeQueue)
 	{
 		this->globalTable = globalTable;
 		this->symbolTable = symbolTable;

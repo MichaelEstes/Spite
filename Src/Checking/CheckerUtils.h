@@ -3,17 +3,18 @@
 
 #include <EASTL/deque.h>
 #include "../Intermediate/Syntax.h"
-#include "../Intermediate/SymbolTable.h"
+#include "../Intermediate/GlobalTable.h"
 
 
 struct CheckerUtils
 {
+	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
 
-	CheckerUtils(SymbolTable* symbolTable,
+	CheckerUtils(GlobalTable* globalTable, SymbolTable* symbolTable,
 		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
-		: symbolTable(symbolTable), scopeQueue(scopeQueue) {}
+		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue) {}
 
 	Stmnt* GetStmntForExpr(Expr* expr, Stmnt* prev = nullptr)
 	{

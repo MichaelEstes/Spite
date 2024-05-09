@@ -7,13 +7,14 @@
 
 struct ExprChecker
 {
+	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
 	CheckerUtils utils;
 
-	ExprChecker(SymbolTable* symbolTable,
+	ExprChecker(GlobalTable* globalTable, SymbolTable* symbolTable,
 		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
-		: symbolTable(symbolTable), scopeQueue(scopeQueue), utils(symbolTable, scopeQueue) {}
+		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), utils(globalTable, symbolTable, scopeQueue) {}
 
 	void CheckExpr(Expr* expr, Stmnt* node, Expr* prev = nullptr)
 	{

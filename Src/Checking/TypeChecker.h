@@ -4,17 +4,18 @@
 
 #include "CheckerUtils.h"
 #include "../Intermediate/SymbolTable.h"
-#include "../Intermediate/Syntax.h"
+#include "../Intermediate/GlobalTable.h"
 
 struct TypeChecker
 {
+	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
 	CheckerUtils utils;
 
-	TypeChecker(SymbolTable* symbolTable,
+	TypeChecker(GlobalTable* globalTable, SymbolTable* symbolTable,
 		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
-		: symbolTable(symbolTable), scopeQueue(scopeQueue), utils(symbolTable, scopeQueue)  {}
+		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), utils(globalTable, symbolTable, scopeQueue)  {}
 
 	void CheckDefinitionType(Stmnt* node)
 	{
