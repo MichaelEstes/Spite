@@ -90,7 +90,7 @@ struct PackageChecker
 		}
 	}
 
-	void CheckConstructors(eastl::vector<Stmnt*>& constructors)
+	void CheckConstructors(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& constructors)
 	{
 		for (Stmnt* constructor : constructors)
 		{
@@ -100,7 +100,7 @@ struct PackageChecker
 		}
 	}
 
-	void CheckMethods(eastl::vector<Stmnt*>& methods)
+	void CheckMethods(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& methods)
 	{
 		for (Stmnt* method : methods)
 		{
@@ -110,7 +110,7 @@ struct PackageChecker
 		}
 	}
 
-	void CheckOperators(eastl::vector<Stmnt*>& operators)
+	void CheckOperators(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& operators)
 	{
 		for (Stmnt* op : operators)
 		{

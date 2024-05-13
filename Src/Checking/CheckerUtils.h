@@ -16,32 +16,80 @@ struct CheckerUtils
 		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
 		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue) {}
 
-	Stmnt* GetStmntForExpr(Expr* expr, Stmnt* prev = nullptr)
+	Stmnt* GetStmntForExpr(Expr* expr)
 	{
 
 		switch (expr->typeID)
 		{
 		case IdentifierExpr:
 		{
-			if (!prev)
+			StringView& ident = expr->identifierExpr.identifier->val;
+			Stmnt* stmnt = GetNodeForName(ident);
+			if (!stmnt)
 			{
-				return symbolTable->FindStateOrFunction(expr->identifierExpr.identifier->val);
+				AddError(expr->start, "CheckerUtils:GetStmntForExpr Unable to find node for identifier : " + ident);
+				return stmnt;
+			}
+
+			switch (stmnt->nodeID)
+			{
+			case Definition:
+				return GetStmntForType(stmnt->definition.type);
+			case FunctionStmnt:
+			case StateStmnt:
+				return stmnt;
+			default:
+				AddError(expr->start, "CheckerUtils:GetStmntForExpr Found invalid statement for identifier : " + ident);
+				return stmnt;
+
+			}
+		}
+		case SelectorExpr:
+		{
+			Stmnt* stmnt = GetStmntForExpr(expr->selectorExpr.on);
+			if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
+			{
+				return FindStateMemberOrMethodStmnt(stmnt, expr->selectorExpr.select->identifierExpr.identifier->val);
+			}
+			else if (expr->selectorExpr.on->typeID == ExprID::IdentifierExpr &&
+					globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val))
+			{
+					
 			}
 			else
 			{
 
 			}
-
-			break;
+			
 		}
-		case SelectorExpr:
-			break;
 		default:
 			break;
 		}
 
 		AddError(expr->start, "CheckerUtils: Cannot find statement for expression");
 		return nullptr;
+	}
+
+	Stmnt* GetStmntForType(Type* type)
+	{
+		switch (type->typeID)
+		{
+		case NamedType:
+			return symbolTable->FindState(type->namedType.typeName->val);
+		case ImportedType:
+			break;
+		case PointerType:
+			return GetStmntForType(type->pointerType.type);
+		case ValueType:
+			return GetStmntForType(type->valueType.type);
+		case ArrayType:
+			return GetStmntForType(type->arrayType.type);
+		case GenericsType:
+			return GetStmntForType(type->arrayType.type);
+		default:
+			AddError("CheckerUtils:GetStmntForType Invalid type to find statement for");
+			return nullptr;
+		}
 	}
 
 	inline Type* GetOuterReturnType(Stmnt* node)
@@ -153,7 +201,46 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	Stmnt* GetNodeForName(StringView& val)
+	inline Stmnt* FindStateMemberOrMethodStmnt(Stmnt* state, StringView& name)
+	{
+		Stmnt* stmnt = FindStateMember(state, name);
+		if (stmnt)
+		{
+			return GetStmntForType(stmnt->definition.type);
+		}
+
+		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(state->state.name->val);
+		stmnt = FindStateMethod(stateSymbol, name);
+		return stmnt;
+	}
+
+	inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
+	{
+		auto& methods = of->methods;
+		for (Stmnt* node : methods)
+		{
+			if (node->method.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindTypeMember(eastl::vector<Stmnt*>* members, StringView& val)
+	{
+		for (Stmnt* node : *members)
+		{
+			if (node->definition.name->val == val) return node;
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindStateMember(Stmnt* of, StringView& val)
+	{
+		return FindTypeMember(of->state.members, val);
+	}
+
+	inline Stmnt* GetNodeForName(StringView& val)
 	{
 		Stmnt* node = FindInScope(val);
 		if (node) return node;
@@ -197,7 +284,7 @@ struct CheckerUtils
 
 		if (type->typeID == TypeID::ExplicitType)
 		{
-			Stmnt* explicitMember = symbolTable->FindTypeMember(type->explicitType.declarations, name);
+			Stmnt* explicitMember = FindTypeMember(type->explicitType.declarations, name);
 			return explicitMember->definition.type;
 		}
 
@@ -214,14 +301,14 @@ struct CheckerUtils
 			return nullptr;
 		}
 
-		Stmnt* member = symbolTable->FindStateMember(stateSymbol->state, name);
+		Stmnt* member = FindStateMember(stateSymbol->state, name);
 		if (member)
 		{
 			return member->definition.type;
 		}
 		else
 		{
-			Stmnt* method = symbolTable->FindStateMethod(stateSymbol, name);
+			Stmnt* method = FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
 				AddError(of->start, "Unable to find member or method for type: " + ToString(type));

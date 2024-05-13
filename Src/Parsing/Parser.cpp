@@ -1,20 +1,16 @@
 #include "../Log/Logger.h"
 #include "Parser.h"
-#include "Scanner.h"
 #include "../Intermediate/Syntax.h"
 #include "../Utils/Profiler.h"
 
 SymbolTable* Parser::Parse(eastl::string& file)
 {
 	Profiler profiler = Profiler();
-	Tokens tokens = Tokens();
-	Scanner scanner = Scanner(file);
 	size_t fileSize = scanner.Init();
 	tokens.Init(fileSize);
 
 	scanner.Scan(tokens);
 
-	scanner.Finalize();
 	tokens.Finalize();
 
 	if (Logger::HasErrors())

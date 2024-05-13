@@ -1,17 +1,16 @@
 #pragma once
 #include "EASTL/string.h"
 #include "../Intermediate/SymbolTable.h"
+#include "Scanner.h"
 
-class Parser
+struct Parser
 {
+	Tokens tokens;
+	Scanner scanner;
 
-public:
-	Parser() 
+	Parser(eastl::string& file) : scanner(file)
 	{
 	}
 
 	SymbolTable* Parse(eastl::string& file);
-
-private:
-
 };

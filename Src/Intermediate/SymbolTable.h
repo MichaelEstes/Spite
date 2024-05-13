@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EASTL/hash_map.h"
+#include "EASTL/hash_set.h"
 #include "EASTL/vector.h"
 
 #include "../Containers/StringView.h"
@@ -11,20 +12,150 @@
 extern Config config;
 struct ExprHash;
 
+struct ImportHash
+{
+	StringViewHash stringHasher;
+	size_t operator()(const Stmnt* stmnt) const
+	{
+		return stringHasher(stmnt->using_.packageName->val);
+	}
+};
+
+struct ImportEqual
+{
+	bool operator()(const Stmnt* l, const Stmnt* r) const
+	{
+		return l->using_.packageName->val == r->using_.packageName->val;
+	}
+};
+
+struct MethodHash
+{
+	StringViewHash stringHasher;
+	TypeHash typeHasher;
+	size_t operator()(const Stmnt* stmnt) const
+	{
+		size_t hash = 0;
+		Stmnt* decl = nullptr;
+		Type* returnType = nullptr;
+		StringView* stateName = nullptr;
+		StringView* name = nullptr;
+		switch (stmnt->nodeID)
+		{
+		case Method:
+			decl = stmnt->method.decl;
+			returnType = stmnt->method.returnType;
+			stateName = &stmnt->method.stateName->val;
+			name = &stmnt->method.name->val;
+			break;
+		case StateOperator:
+			decl = stmnt->stateOperator.decl;
+			returnType = stmnt->stateOperator.returnType;
+			stateName = &stmnt->stateOperator.stateName->val;
+			name = &stmnt->method.name->val;
+			break;
+		case Constructor:
+			decl = stmnt->constructor.decl;
+			stateName = &stmnt->stateOperator.stateName->val;
+			break;
+		default:
+			break;
+		}
+
+		for (Stmnt* param : *decl->functionDecl.parameters)
+		{
+			hash += typeHasher(param->definition.type);
+		}
+		hash += stringHasher(*stateName);
+		if (returnType) hash += typeHasher(returnType);
+		if (name) hash += stringHasher(*name);
+
+		return hash;
+	}
+};
+
+struct MethodEqual
+{
+	StringViewHash stringHasher;
+	TypeHash typeHasher;
+	bool operator()(const Stmnt* l, const Stmnt* r) const
+	{
+		if (l->nodeID != r->nodeID) return false;
+
+		Stmnt* lDecl = nullptr;
+		Type* lReturnType = nullptr;
+		StringView* lStateName = nullptr;
+		StringView* lName = nullptr;
+
+		Stmnt* rDecl = nullptr;
+		Type* rReturnType = nullptr;
+		StringView* rStateName = nullptr;
+		StringView* rName = nullptr;
+
+		switch (l->nodeID)
+		{
+		case Method:
+			lDecl = l->method.decl;
+			lReturnType = l->method.returnType;
+			lStateName = &l->method.stateName->val;
+			lName = &l->method.name->val;
+
+			rDecl = r->method.decl;
+			rReturnType = r->method.returnType;
+			rStateName = &r->method.stateName->val;
+			rName = &r->method.name->val;
+			break;
+		case StateOperator:
+			lDecl = l->stateOperator.decl;
+			lReturnType = l->stateOperator.returnType;
+			lStateName = &l->stateOperator.stateName->val;
+			lName = &l->method.name->val;
+
+			rDecl = r->stateOperator.decl;
+			rReturnType = r->stateOperator.returnType;
+			rStateName = &r->stateOperator.stateName->val;
+			rName = &r->method.name->val;
+			break;
+		case Constructor:
+			lDecl = l->constructor.decl;
+			lStateName = &l->stateOperator.stateName->val;
+
+			rDecl = r->constructor.decl;
+			rStateName = &r->stateOperator.stateName->val;
+			break;
+		default:
+			break;
+		}
+
+		if (lDecl->functionDecl.parameters->size() != rDecl->functionDecl.parameters->size()) return false;
+		for (size_t i = 0; i < lDecl->functionDecl.parameters->size(); i++)
+		{
+			Type* lType = lDecl->functionDecl.parameters->at(i)->definition.type;
+			Type* rType = rDecl->functionDecl.parameters->at(i)->definition.type;
+			if (*lType != *rType) return false;
+		}
+		if (*lStateName != *rStateName) return false;
+
+		if (lReturnType && *lReturnType != *rReturnType) return false;
+		if (lName && *lName != *rName) return false;
+
+	}
+};
+
 struct StateSymbol
 {
 	Stmnt* state = nullptr;
 
-	eastl::vector<Stmnt*> constructors;
-	eastl::vector<Stmnt*> methods;
-	eastl::vector<Stmnt*> operators;
+	eastl::hash_set<Stmnt*, MethodHash, MethodEqual> constructors;
+	eastl::hash_set<Stmnt*, MethodHash, MethodEqual> methods;
+	eastl::hash_set<Stmnt*, MethodHash, MethodEqual> operators;
 	Stmnt* destructor = nullptr;
 };
 
 struct SymbolTable
 {
 	Stmnt* package;
-	eastl::vector<Stmnt*> imports;
+	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
@@ -39,6 +170,34 @@ struct SymbolTable
 	~SymbolTable()
 	{
 		delete arena;
+	}
+
+	inline void Merge(SymbolTable* toMerge)
+	{
+		for (Stmnt* import : toMerge->imports)
+		{
+			imports.insert(import);
+		}
+
+		for (auto& [key, value] : toMerge->stateMap)
+		{
+			AddState(value.state);
+			for (Stmnt* cons : value.constructors) AddConstructor(cons);
+			for (Stmnt* method : value.methods) AddMethod(method);
+			for (Stmnt* op : value.operators) AddMethod(op);
+		}
+
+		for (auto& [key, value] : toMerge->functionMap)
+		{
+			AddFunction(value);
+		}
+
+		for (auto& [key, value] : toMerge->globalValMap)
+		{
+			AddGlobalVal(value);
+		}
+
+		for (Stmnt* compile : toMerge->onCompiles) AddOnCompile(compile);
 	}
 
 	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID, Stmnt* scopeOf)
@@ -80,43 +239,62 @@ struct SymbolTable
 		}
 	}
 
+	void AddImport(Stmnt * import)
+	{
+		imports.insert(import);
+	}
+
 	void AddState(Stmnt* state)
 	{
 		StateSymbol& symbol = FindOrCreateState(state->state.name->val);
+		if (symbol.state) AddError(state->start, "SymbolTable:AddState State already declared");
 		symbol.state = state;
 	}
 
 	void AddConstructor(Stmnt* constructor)
 	{
 		StateSymbol& symbol = FindOrCreateState(constructor->constructor.stateName->val);
-		symbol.constructors.push_back(constructor);
+		if (symbol.constructors.find(constructor) != symbol.constructors.end()) 
+			AddError(constructor->start, "SymbolTable:AddConstructor Constructor with identical signature already declared");
+		symbol.constructors.insert(constructor);
 	}
 
 	void AddMethod(Stmnt* method)
 	{
 		StateSymbol& symbol = FindOrCreateState(method->method.stateName->val);
-		symbol.methods.push_back(method);
+		if (symbol.methods.find(method) != symbol.methods.end())
+			AddError(method->start, "SymbolTable:AddMethod Method with identical signature already declared");
+		symbol.methods.insert(method);
 	}
 
 	void AddOperator(Stmnt* stateOperator)
 	{
 		StateSymbol& symbol = FindOrCreateState(stateOperator->stateOperator.stateName->val);
-		symbol.operators.push_back(stateOperator);
+		if (symbol.operators.find(stateOperator) != symbol.operators.end())
+			AddError(stateOperator->start, "SymbolTable:AddOperator Operator with identical signature already declared");
+		symbol.operators.insert(stateOperator);
 	}
 
 	void SetDestructor(Stmnt* destructor)
 	{
 		StateSymbol& symbol = FindOrCreateState(destructor->destructor.stateName->val);
+		if(symbol.destructor) AddError(destructor->start, "SymbolTable:SetDestructor Destructor already declared");
 		symbol.destructor = destructor;
 	}
 
 	void AddFunction(Stmnt* function)
 	{
+		auto& name = function->function.name->val;
+		if (functionMap.find(name) != functionMap.end())
+			AddError(function->start, "SymbolTable:AddFunction Function name already declared");
 		functionMap[function->function.name->val] = function;
 	}
 
 	void AddGlobalVal(Stmnt* globalVal)
 	{
+		auto& name = globalVal->definition.name->val;
+		if (globalValMap.find(name) != globalValMap.end())
+			AddError(globalVal->start, "SymbolTable:AddGlobalVal Package scoped values with name already declared");
 		globalValMap[globalVal->definition.name->val] = globalVal;
 	}
 
@@ -160,32 +338,6 @@ struct SymbolTable
 		}
 
 		return nullptr;
-	}
-
-	inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
-	{
-		eastl::vector<Stmnt*>& methods = of->methods;
-		for (Stmnt* node : methods)
-		{
-			if (node->method.name->val == val) return node;
-		}
-
-		return nullptr;
-	}
-
-	inline Stmnt* FindTypeMember(eastl::vector<Stmnt*>* members, StringView& val)
-	{
-		for (Stmnt* node : *members)
-		{
-			if (node->definition.name->val == val) return node;
-		}
-
-		return nullptr;
-	}
-
-	inline Stmnt* FindStateMember(Stmnt* of, StringView& val)
-	{
-		return FindTypeMember(of->state.members, val);
 	}
 
 	Type* CreatePrimitive(UniqueType primType)
@@ -271,30 +423,5 @@ struct SymbolTable
 		}
 
 		return type;
-	}
-
-	void BuildStateGeneric(Stmnt* state, Expr* genericExpr)
-	{
-		StringView genericsStr = CreateGenericStateString(state->state.name->val, genericExpr);
-		StateSymbol* stateSymbol = FindStateSymbol(state->state.name->val);
-	}
-
-	StringView CreateGenericStateString(StringView& stateName, Expr* genericExpr)
-	{
-		auto& generics = genericExpr->genericsExpr;
-		eastl::string str = stateName.ToString();
-
-		str += generics.open->val.ToString();
-		size_t size = generics.templateArgs->size();
-		for (int i = 0; i < size; i++)
-		{
-			Expr* expr = generics.templateArgs->at(i);
-			str += ToString(expr);
-			if (i < size - 1) str += ",";
-		}
-		str += generics.close->val.ToString();
-
-		StringView val = StringView(str);
-		return val;
 	}
 };

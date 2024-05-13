@@ -130,10 +130,10 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "?", TokenType::Seperator, UniqueType::Ternary },
 };
 
-class Tokens
+struct Tokens
 {
-
-public:
+	eastl::vector<Token> tokens;
+	size_t count;
 
 	Tokens()
 	{
@@ -222,9 +222,6 @@ public:
 	{
 		return &tokens[index];
 	}
-
-	eastl::vector<Token> tokens;
-	size_t count;
 
 	enum Context
 	{

@@ -35,7 +35,7 @@ struct ExprChecker
 		case IndexExpr:
 			break;
 		case FunctionCallExpr:
-			CheckExpr(expr->functionCallExpr.function, node, expr);
+			CheckFunctionCallExpr(expr, node, prev);
 			break;
 		case NewExpr:
 			CheckNew(expr, node, prev);
@@ -96,26 +96,14 @@ struct ExprChecker
 		eastl::vector<Expr*>* templateArgs = genericsExpr.templateArgs;
 		Expr* ofExpr = genericsExpr.expr;
 
-		Stmnt* genericsNode = nullptr;
-
-		if (ofExpr->typeID == ExprID::IdentifierExpr)
+		Stmnt* stmnt = utils.GetStmntForExpr(ofExpr);
+		if (!stmnt)
 		{
-			Stmnt* node = symbolTable->FindStateOrFunction(ofExpr->identifierExpr.identifier->val);
-			if (!node)
-			{
-				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
-				return;
-			}
-			genericsNode = utils.GetGenerics(node);
-		}
-		else if (ofExpr->typeID == ExprID::SelectorExpr)
-		{
-			//TODO imported type and method checking
-			auto& selectorExpr = ofExpr->selectorExpr;
-			Expr* left = selectorExpr.on;
-			Expr* right = selectorExpr.select;
+			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
+			return;
 		}
 
+		Stmnt* genericsNode = utils.GetGenerics(stmnt);
 		if (!genericsNode)
 		{
 			AddError(expr->start, "ExprChecker:CheckGenerics Generic expression used on a type that doesn't define generics");
@@ -137,6 +125,30 @@ struct ExprChecker
 
 	void CheckFixed(Expr* expr, Stmnt* node, Expr* prev)
 	{
+
+	}
+
+	void CheckFunctionCallExpr(Expr* expr, Stmnt* node, Expr* prev)
+	{
+		auto& functionCall = expr->functionCallExpr;
+		Expr* function = functionCall.function;
+		eastl::vector<Expr*>* params = functionCall.params;
+		Stmnt* stmnt = utils.GetStmntForExpr(function);
+		if (!stmnt)
+		{
+			AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Unable to find statement for function call expression");
+			return;
+		}
+
+		// Is constructor call, check if constructor exists with params
+		if (stmnt->nodeID == StmntID::StateStmnt)
+		{
+		
+		}
+		else
+		{
+
+		}
 
 	}
 };

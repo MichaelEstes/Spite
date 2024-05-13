@@ -47,32 +47,33 @@ int main(int argc, char** argv)
 	// TODO Build file information
 	eastl::vector<string> files = eastl::vector<string>({ config.file });
 
-	GlobalTable* globalTable = new GlobalTable();
-
 	{
-		Parser parser = Parser();
-		for (string file : files)
+		GlobalTable globalTable = GlobalTable();
+		eastl::vector<Parser> parsers = eastl::vector<Parser>();
+		for (string& file : files)
 		{
+			Parser& parser = parsers.emplace_back(file);
 			SymbolTable* symbolTable = parser.Parse(file);
 			if (!symbolTable)
 			{
 				return 1;
 			}
+			globalTable.InsertTable(symbolTable);
 		}
-	}
 
-	{
-		Profiler checkerProfiler = Profiler();
-		Checker checker = Checker(globalTable);
-		checker.Check();
-
-		if (Logger::HasErrors())
 		{
-			Logger::PrintErrors();
-			return false;
+			Profiler checkerProfiler = Profiler();
+			Checker checker = Checker(&globalTable);
+			checker.Check();
+
+			if (Logger::HasErrors())
+			{
+				Logger::PrintErrors();
+				return false;
+			}
+			size_t elapsedScanTime = checkerProfiler.End();
+			Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
 		}
-		size_t elapsedScanTime = checkerProfiler.End();
-		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
 	}
 
 	/*{

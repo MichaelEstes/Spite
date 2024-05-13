@@ -13,7 +13,7 @@ struct Checker
 
 	void Check()
 	{
-		for (auto& [key, value] : globalTable->symbolTableMap)
+		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			PackageChecker packageChecker = PackageChecker(globalTable, value);
 			packageChecker.Check();

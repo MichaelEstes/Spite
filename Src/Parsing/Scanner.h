@@ -81,7 +81,7 @@ private:
 	size_t contentCount;
 	size_t index;
 	Position pos;
-	eastl::string fileLoc;
+	eastl::string& fileLoc;
 
 	inline void UpdatePosition(char last)
 	{

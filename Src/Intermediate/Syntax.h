@@ -326,7 +326,7 @@ struct Syntax
 
 			if (Expect(UniqueType::Semicolon)) Advance();
 			node->end = curr;
-			if (addNode) symbolTable->imports.push_back(node);
+			if (addNode) symbolTable->AddImport(node);
 		}
 	}
 
