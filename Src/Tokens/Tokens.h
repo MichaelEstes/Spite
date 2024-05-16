@@ -16,7 +16,7 @@
 extern Config config;
 
 static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
-	{ "using", TokenType::Keyword, UniqueType::Using },
+	{ "import", TokenType::Keyword, UniqueType::Import },
 	{ "package", TokenType::Keyword, UniqueType::Package },
 	{ "state", TokenType::Keyword, UniqueType::State },
 	{ "global", TokenType::Keyword, UniqueType::Global },

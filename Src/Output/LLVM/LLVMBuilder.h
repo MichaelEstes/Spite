@@ -85,7 +85,7 @@ struct LLVMBuilder
 	LLVMBuilder(SymbolTable* symbolTable) : primitives(context)
 	{
 		this->symbolTable = symbolTable;
-		module = new Module(ToStringRef(symbolTable->package->package.name->val), context);
+		module = new Module(ToStringRef(symbolTable->package->val), context);
 		builder = new IRBuilder(context);
 	}
 
@@ -474,7 +474,7 @@ struct LLVMBuilder
 	inline StringRef MethodName(const StringView& stateName, const Token* nameTok)
 	{
 		const StringView& methodName = nameTok->val;
-		StringView& packageStr = symbolTable->package->package.name->val;
+		StringView& packageStr = symbolTable->package->val;
 		size_t count = packageStr.count + stateName.count + methodName.count + 2;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);
@@ -487,7 +487,7 @@ struct LLVMBuilder
 
 	inline StringRef PackageName(const StringView& str)
 	{
-		StringView& packageStr = symbolTable->package->package.name->val;
+		StringView& packageStr = symbolTable->package->val;
 		size_t count = packageStr.count + str.count + 1;
 		char* concated = new char[count];
 		memcpy(concated, packageStr.start, packageStr.count);

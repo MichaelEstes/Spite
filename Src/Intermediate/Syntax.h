@@ -44,7 +44,7 @@ struct Syntax
 
 	eastl::vector<Stmnt*> nodes;
 	eastl::stack<Scope> scopes;
-	Stmnt* package;
+	Token* package;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
@@ -54,15 +54,15 @@ struct Syntax
 		currScope = Scope();
 		scopes.push(currScope);
 		nodeCount = 0;
+		package = nullptr;
 	}
 
 	void Print()
 	{
 		eastl::string toPrint = "";
-		if (package->nodeID == StmntID::PackageStmnt)
+		if (package)
 		{
-			toPrint += ToString(package);
-			toPrint += '\n';
+			toPrint += "package " + package->ToString() + '\n';
 		}
 
 		for (Stmnt* node : symbolTable->imports)
@@ -88,7 +88,7 @@ struct Syntax
 	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID)
 	{
 		nodeCount += 1;
-		return symbolTable->CreateStmnt(start, nodeID, currScope.scopeOf);
+		return symbolTable->CreateStmnt(start, nodeID, package, currScope.scopeOf);
 	}
 
 	inline Stmnt* InvalidStmnt()
@@ -226,12 +226,13 @@ struct Syntax
 		if (Expect(UniqueType::Package, "File must start with a 'package' statement") &&
 			ThenExpect(TokenType::Identifier, "Expected an identifier after package token"))
 		{
-			Stmnt* node = CreateStmnt(start, StmntID::PackageStmnt);
-			node->package.name = curr;
+			Token* currPackage = curr;
 			Advance();
 			if (Expect(UniqueType::Semicolon)) Advance();
-			node->end = curr;
-			if (setInTree) package = node;
+			if (setInTree) {
+				package = currPackage;
+				symbolTable->package = currPackage;
+			}
 		}
 	}
 
@@ -246,7 +247,7 @@ struct Syntax
 			AddError(curr, "File cannot have multiple 'package' statements");
 			ParsePackage(false);
 			return;
-		case UniqueType::Using:
+		case UniqueType::Import:
 			ParseUsing();
 			return;
 		case UniqueType::State:
@@ -306,22 +307,22 @@ struct Syntax
 		if (!addNode) AddError(curr, "Cannot import packages outside of the global scope");
 
 		Token* start = curr;
-		if (Expect(UniqueType::Using) &&
+		if (Expect(UniqueType::Import) &&
 			ThenExpect(TokenType::Identifier, "Expected an identifier after 'using' token"))
 		{
-			Stmnt* node = CreateStmnt(start, StmntID::UsingStmnt);
-			node->using_.packageName = curr;
+			Stmnt* node = CreateStmnt(start, StmntID::ImportStmnt);
+			node->importStmnt.packageName = curr;
 			Advance();
 
 			if (Expect(UniqueType::As)
 				&& ThenExpect(TokenType::Identifier, "Expected an alias identifier after 'as' in using statement"))
 			{
-				node->using_.alias = curr;
+				node->importStmnt.alias = curr;
 				Advance();
 			}
 			else
 			{
-				node->using_.alias = nullptr;
+				node->importStmnt.alias = nullptr;
 			}
 
 			if (Expect(UniqueType::Semicolon)) Advance();

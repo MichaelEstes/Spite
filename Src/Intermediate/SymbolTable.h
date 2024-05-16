@@ -17,7 +17,7 @@ struct ImportHash
 	StringViewHash stringHasher;
 	size_t operator()(const Stmnt* stmnt) const
 	{
-		return stringHasher(stmnt->using_.packageName->val);
+		return stringHasher(stmnt->importStmnt.packageName->val);
 	}
 };
 
@@ -25,7 +25,7 @@ struct ImportEqual
 {
 	bool operator()(const Stmnt* l, const Stmnt* r) const
 	{
-		return l->using_.packageName->val == r->using_.packageName->val;
+		return l->importStmnt.packageName->val == r->importStmnt.packageName->val;
 	}
 };
 
@@ -154,7 +154,7 @@ struct StateSymbol
 
 struct SymbolTable
 {
-	Stmnt* package;
+	Token* package;
 	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
@@ -200,9 +200,9 @@ struct SymbolTable
 		for (Stmnt* compile : toMerge->onCompiles) AddOnCompile(compile);
 	}
 
-	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID, Stmnt* scopeOf)
+	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID, Token* package, Stmnt* scopeOf)
 	{
-		return arena->Emplace<Stmnt>(nodeID, start, scopeOf);
+		return arena->Emplace<Stmnt>(nodeID, start, package, scopeOf);
 	}
 
 	inline Stmnt* InvalidStmnt()

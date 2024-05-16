@@ -76,7 +76,7 @@ struct TypeChecker
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
-				Stmnt* decl = symbolTable->CreateStmnt(token, StmntID::Definition, node);
+				Stmnt* decl = symbolTable->CreateStmnt(token, StmntID::Definition, node->package, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
 				decl->definition.type = utils.InferType(itemExpr, node);
@@ -138,7 +138,7 @@ struct TypeChecker
 		if (!forStmnt.isDeclaration)
 		{
 			Token* identifier = forStmnt.iterated.identifier;
-			Stmnt* decl = symbolTable->CreateStmnt(identifier, StmntID::Definition, node);
+			Stmnt* decl = symbolTable->CreateStmnt(identifier, StmntID::Definition, node->package, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
 			Type* type = utils.InferType(forStmnt.toIterate, node);

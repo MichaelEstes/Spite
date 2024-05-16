@@ -8,7 +8,7 @@ struct GlobalTable
 
 	void InsertTable(SymbolTable* symbolTable)
 	{
-		StringView& package = symbolTable->package->package.name->val;
+		StringView& package = symbolTable->package->val;
 		if (packageToSymbolTable.find(package) == packageToSymbolTable.end())
 		{
 			packageToSymbolTable[package] = symbolTable;
@@ -22,5 +22,27 @@ struct GlobalTable
 	inline bool IsPackage(StringView& package)
 	{
 		return packageToSymbolTable.find(package) != packageToSymbolTable.end();
+	}
+
+	inline StateSymbol* FindStateSymbol(StringView& package, StringView& name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package);
+		if (!symbolTable) return nullptr;
+
+		return symbolTable->FindStateSymbol(name);
+	}
+
+	inline Stmnt* FindStateOrFunction(StringView& package, StringView& name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package);
+		if (!symbolTable) return nullptr;
+
+		return symbolTable->FindStateOrFunction(name);
+	}
+
+	inline SymbolTable* FindSymbolTable(StringView& package)
+	{
+
+		return packageToSymbolTable[package];
 	}
 };

@@ -24,7 +24,7 @@ struct CheckerUtils
 		case IdentifierExpr:
 		{
 			StringView& ident = expr->identifierExpr.identifier->val;
-			Stmnt* stmnt = GetNodeForName(ident);
+			Stmnt* stmnt = FindNodeForName(ident);
 			if (!stmnt)
 			{
 				AddError(expr->start, "CheckerUtils:GetStmntForExpr Unable to find node for identifier : " + ident);
@@ -51,16 +51,16 @@ struct CheckerUtils
 			{
 				return FindStateMemberOrMethodStmnt(stmnt, expr->selectorExpr.select->identifierExpr.identifier->val);
 			}
-			else if (expr->selectorExpr.on->typeID == ExprID::IdentifierExpr &&
-					globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val))
+			else if (IsPackageExpr(expr))
 			{
-					
+				//Package is being selected, find in global table
+				stmnt = globalTable->FindStateOrFunction()
 			}
 			else
 			{
 
 			}
-			
+
 		}
 		default:
 			break;
@@ -90,6 +90,12 @@ struct CheckerUtils
 			AddError("CheckerUtils:GetStmntForType Invalid type to find statement for");
 			return nullptr;
 		}
+	}
+
+	inline bool IsPackageExpr(Expr* expr)
+	{
+		return expr->typeID == ExprID::SelectorExpr && expr->selectorExpr.on->typeID == ExprID::IdentifierExpr &&
+			globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val);
 	}
 
 	inline Type* GetOuterReturnType(Stmnt* node)
@@ -134,7 +140,7 @@ struct CheckerUtils
 		return node;
 	}
 
-	inline Type* GenericsExprToType(Expr* expr, Type* of)
+	inline Type* GetGenericsType(Expr* expr, Type* of)
 	{
 		Type* type = symbolTable->CreateTypePtr(TypeID::GenericsType);
 		type->genericsType.generics = symbolTable->CreateExpr(expr->start, ExprID::GenericsExpr);
@@ -240,23 +246,41 @@ struct CheckerUtils
 		return FindTypeMember(of->state.members, val);
 	}
 
-	inline Stmnt* GetNodeForName(StringView& val)
+	inline Stmnt* FindNodeForName(StringView& val)
 	{
 		Stmnt* node = FindInScope(val);
 		if (node) return node;
 
-		node = symbolTable->FindState(val);
+		
+		node = symbolTable->FindStateOrFunction(val);
 		if (node) return node;
-		else return symbolTable->FindFunction(val);
+
+		for (Stmnt* import : symbolTable->imports)
+		{
+			StringView& package = import->importStmnt.packageName->val;
+			node = globalTable->FindStateOrFunction(package, val);
+			if (node) return node;
+		}
+
+		return nullptr;
 	}
 
-	inline Type* GetTypeFromName(Expr* expr, StringView& name)
+	inline Type* GetIdentType(Expr* expr, StringView& name)
 	{
-		Stmnt* node = GetNodeForName(name);
+		Stmnt* node = FindNodeForName(name);
 		if (!node)
 		{
-			AddError(expr->start, "PackageChecker:GetTypeFromName Unable to get node for name: " + name);
-			return nullptr;
+			if (globalTable->IsPackage(name))
+			{
+				Type* importedType = symbolTable->CreateTypePtr(TypeID::ImportedType);
+				importedType->importedType.packageName = expr->identifierExpr.identifier;
+				return importedType;
+			}
+			else
+			{
+				AddError(expr->start, "PackageChecker:GetIdentType Unable to get node for name: " + name);
+				return nullptr;
+			}
 		}
 
 		switch (node->nodeID)
@@ -273,7 +297,7 @@ struct CheckerUtils
 		}
 		}
 
-		AddError("PackageChecker:GetTypeFromName unable to find type for name: " + name);
+		AddError("PackageChecker:GetIdentType unable to find type for name: " + name);
 		return nullptr;
 	}
 
@@ -336,6 +360,15 @@ struct CheckerUtils
 		else return IsNameOfPrimitive(name);
 	}
 
+	inline bool IsImportedType(Expr* expr)
+	{
+		auto& selector = expr->selectorExpr;
+		Expr* on = selector.on;
+		Expr* select = selector.select;
+		return on->typeID == ExprID::IdentifierExpr && select->typeID == ExprID::IdentifierExpr &&
+			globalTable->FindStateSymbol(on->identifierExpr.identifier->val, select->identifierExpr.identifier->val);
+	}
+
 	bool IsExprOfType(Expr* expr)
 	{
 		switch (expr->typeID)
@@ -345,8 +378,7 @@ struct CheckerUtils
 		case PrimitiveExpr:
 			return true;
 		case SelectorExpr:
-			// Check if Imported type
-			break;
+			return IsImportedType(expr);
 		case IndexExpr:
 			return IsExprOfType(expr->indexExpr.of);
 		case FunctionCallExpr:
@@ -443,10 +475,10 @@ struct CheckerUtils
 			type = expr->typeExpr.type;
 			break;
 		case GenericsExpr:
-			type = GenericsExprToType(expr, EvalType(expr->genericsExpr.expr));
+			type = GetGenericsType(expr, EvalType(expr->genericsExpr.expr));
 			break;
 		case IdentifierExpr:
-			type = GetTypeFromName(expr, expr->identifierExpr.identifier->val);
+			type = GetIdentType(expr, expr->identifierExpr.identifier->val);
 			break;
 		case SelectorExpr:
 			type = GetSelectorType(expr, EvalType(expr->selectorExpr.on));

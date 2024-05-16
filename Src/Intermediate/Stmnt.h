@@ -14,8 +14,7 @@ enum StmntID
 	InvalidStmnt = 0,
 	CommentStmnt,
 	ExpressionStmnt,
-	UsingStmnt,
-	PackageStmnt,
+	ImportStmnt,
 	Definition,
 	InlineDefinition,
 	FunctionStmnt,
@@ -82,6 +81,7 @@ struct Stmnt
 	Token* end;
 	StmntID nodeID;
 
+	Token* package;
 	Stmnt* scope;
 
 	union
@@ -95,12 +95,7 @@ struct Stmnt
 		{
 			Token* packageName;
 			Token* alias;
-		} using_;
-
-		struct
-		{
-			Token* name;
-		} package;
+		} importStmnt;
 
 		struct
 		{
@@ -286,16 +281,19 @@ struct Stmnt
 
 	Stmnt()
 	{
+		nodeID = StmntID::InvalidStmnt;
 		start = nullptr;
 		end = nullptr;
-		nodeID = StmntID::InvalidStmnt;
+		package = nullptr;
+		scope = nullptr;
 	}
 
-	Stmnt(StmntID nodeID, Token* start, Stmnt* scope)
+	Stmnt(StmntID nodeID, Token* start, Token* package, Stmnt* scope)
 	{
 		this->nodeID = nodeID;
 		this->start = start;
 		this->end = nullptr;
+		this->package = package;
 		this->scope = scope;
 	}
 
@@ -309,6 +307,7 @@ struct Stmnt
 		start = copy.start;
 		end = copy.end;
 		nodeID = copy.nodeID;
+		package = copy.package;
 		scope = copy.scope;
 
 		switch (nodeID)
@@ -319,11 +318,8 @@ struct Stmnt
 		case ExpressionStmnt:
 			expressionStmnt = copy.expressionStmnt;
 			break;
-		case UsingStmnt:
-			using_ = copy.using_;
-			break;
-		case PackageStmnt:
-			package = copy.package;
+		case ImportStmnt:
+			importStmnt = copy.importStmnt;
 			break;
 		case Definition:
 			definition = copy.definition;

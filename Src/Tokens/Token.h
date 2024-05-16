@@ -41,7 +41,7 @@ enum UniqueType
 	FalseLiteral,
 
 	// TopLevelKeywords 
-	Using,
+	Import,
 	Package,
 	State,
 	Assert,

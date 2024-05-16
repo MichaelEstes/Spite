@@ -361,13 +361,10 @@ eastl::string ToString(Stmnt* node)
 		return node->start->ToString();
 	case ExpressionStmnt:
 		return ToString(node->expressionStmnt.expression);
-	case UsingStmnt:
+	case ImportStmnt:
 		return node->start->ToString() + " " +
-			node->using_.packageName->ToString() +
-			(node->using_.alias ? " as " + node->using_.alias->ToString() : "");
-	case PackageStmnt:
-		return node->start->ToString() + " " +
-			node->package.name->ToString();
+			node->importStmnt.packageName->ToString() +
+			(node->importStmnt.alias ? " as " + node->importStmnt.alias->ToString() : "");
 	case Definition:
 		return node->definition.name->ToString() + " : " +
 			ToString(node->definition.type) +
