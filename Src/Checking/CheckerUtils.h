@@ -16,7 +16,7 @@ struct CheckerUtils
 		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
 		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue) {}
 
-	Stmnt* GetStmntForExpr(Expr* expr)
+	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
 	{
 
 		switch (expr->typeID)
@@ -25,42 +25,40 @@ struct CheckerUtils
 		{
 			StringView& ident = expr->identifierExpr.identifier->val;
 			Stmnt* stmnt = FindNodeForName(ident);
-			if (!stmnt)
-			{
-				AddError(expr->start, "CheckerUtils:GetStmntForExpr Unable to find node for identifier : " + ident);
-				return stmnt;
-			}
+			if (!stmnt) return stmnt;
 
 			switch (stmnt->nodeID)
 			{
 			case Definition:
-				return GetStmntForType(stmnt->definition.type);
+				return GetStmntForType(stmnt->definition.type, expr->start);
 			case FunctionStmnt:
 			case StateStmnt:
 				return stmnt;
 			default:
-				AddError(expr->start, "CheckerUtils:GetStmntForExpr Found invalid statement for identifier : " + ident);
+				AddError(expr->start, "CheckerUtils:GetDeclarationStmntForExpr Found invalid statement for identifier : " + ident);
 				return stmnt;
 
 			}
 		}
 		case SelectorExpr:
 		{
-			Stmnt* stmnt = GetStmntForExpr(expr->selectorExpr.on);
+			Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
 			if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
 			{
-				return FindStateMemberOrMethodStmnt(stmnt, expr->selectorExpr.select->identifierExpr.identifier->val);
+				return FindStateMemberOrMethodStmnt(stmnt, expr->selectorExpr.select->identifierExpr.identifier);
 			}
 			else if (IsPackageExpr(expr))
 			{
+				StringView& package = expr->selectorExpr.on->identifierExpr.identifier->val;
+				StringView& name = expr->selectorExpr.on->identifierExpr.identifier->val;
 				//Package is being selected, find in global table
-				stmnt = globalTable->FindStateOrFunction()
+				return globalTable->FindStateOrFunction(package, name);
 			}
 			else
 			{
-
+				AddError(expr->start, "CheckerUtils: No declaration found for selector expression");
+				return nullptr;
 			}
-
 		}
 		default:
 			break;
@@ -70,24 +68,24 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	Stmnt* GetStmntForType(Type* type)
+	Stmnt* GetStmntForType(Type* type, Token* start)
 	{
 		switch (type->typeID)
 		{
 		case NamedType:
 			return symbolTable->FindState(type->namedType.typeName->val);
 		case ImportedType:
-			break;
+			return globalTable->FindState(type->importedType.packageName->val, type->importedType.typeName->val);
 		case PointerType:
-			return GetStmntForType(type->pointerType.type);
+			return GetStmntForType(type->pointerType.type, start);
 		case ValueType:
-			return GetStmntForType(type->valueType.type);
+			return GetStmntForType(type->valueType.type, start);
 		case ArrayType:
-			return GetStmntForType(type->arrayType.type);
+			return GetStmntForType(type->arrayType.type, start);
 		case GenericsType:
-			return GetStmntForType(type->arrayType.type);
+			return GetStmntForType(type->arrayType.type, start);
 		default:
-			AddError("CheckerUtils:GetStmntForType Invalid type to find statement for");
+			AddError(start, "CheckerUtils:GetStmntForType Invalid type to find statement for");
 			return nullptr;
 		}
 	}
@@ -142,6 +140,53 @@ struct CheckerUtils
 
 	inline Type* GetGenericsType(Expr* expr, Type* of)
 	{
+		if (of->typeID == TypeID::FunctionType)
+		{
+			Stmnt* func = GetDeclarationStmntForExpr(expr->genericsExpr.expr);
+			if (!func)
+			{
+				AddError(expr->start, "CheckerUtils:GetGenericsType No function found for expression");
+				return nullptr;
+			}
+			Stmnt* generics = GetGenerics(func);
+			if (!generics)
+			{
+				AddError(expr->start, "CheckerUtils:GetGenericsType Template expression used on non-templated function");
+				return nullptr;
+			}
+
+			auto& funcType = of->functionType;
+
+			eastl::vector<Expr*>* templateArgs = expr->genericsExpr.templateArgs;
+			if (templateArgs->size() != generics->generics.names->size())
+			{
+				AddError(expr->start, "CheckerUtils:GetGenericsType Invalid number of template arguments for generic type");
+				return nullptr;
+			}
+			for (size_t i = 0; i < generics->generics.names->size(); i++)
+			{
+				Token* name = generics->generics.names->at(i);
+				if (funcType.returnType->typeID == TypeID::NamedType &&
+					funcType.returnType->namedType.typeName->val == name->val)
+				{
+					funcType.returnType = InferType(templateArgs->at(i));
+				}
+
+				for (size_t j = 0; j < funcType.paramTypes->size(); j++)
+				{
+					Type*& param = funcType.paramTypes->at(i);
+					if (param->typeID == TypeID::NamedType &&
+						param->namedType.typeName->val == name->val)
+					{
+						param = InferType(templateArgs->at(i));
+					}
+				}
+
+			}
+			
+			return of;
+		}
+
 		Type* type = symbolTable->CreateTypePtr(TypeID::GenericsType);
 		type->genericsType.generics = symbolTable->CreateExpr(expr->start, ExprID::GenericsExpr);
 		type->genericsType.generics->genericsExpr.expr = nullptr;
@@ -207,16 +252,16 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	inline Stmnt* FindStateMemberOrMethodStmnt(Stmnt* state, StringView& name)
+	inline Stmnt* FindStateMemberOrMethodStmnt(Stmnt* state, Token* name)
 	{
-		Stmnt* stmnt = FindStateMember(state, name);
+		Stmnt* stmnt = FindStateMember(state, name->val);
 		if (stmnt)
 		{
-			return GetStmntForType(stmnt->definition.type);
+			return GetStmntForType(stmnt->definition.type, name);
 		}
 
 		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(state->state.name->val);
-		stmnt = FindStateMethod(stateSymbol, name);
+		stmnt = FindStateMethod(stateSymbol, name->val);
 		return stmnt;
 	}
 
@@ -592,8 +637,9 @@ struct CheckerUtils
 		return false;
 	}
 
-	Type* GetStateOperatorType(Stmnt* node, Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
+	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
+		Stmnt* node = GetStmntForType(namedType, token);
 		StateSymbol* state = symbolTable->FindStateSymbol(namedType->namedType.typeName->val);
 		if (state)
 		{
@@ -676,7 +722,7 @@ struct CheckerUtils
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-	Type* GetOperatorType(Stmnt* node, Token* op, Type* left, Type* right)
+	Type* GetOperatorType(Token* op, Type* left, Type* right)
 	{
 		switch (left->typeID)
 		{
@@ -690,7 +736,7 @@ struct CheckerUtils
 			break;
 		}
 		case NamedType:
-			return GetStateOperatorType(node, op, op->uniqueType, left, right);
+			return GetStateOperatorType(op, op->uniqueType, left, right);
 		case ExplicitType:
 		case ImplicitType:
 			AddError(op, "Binary operators are not valid with explicit and implicit types");
@@ -707,7 +753,7 @@ struct CheckerUtils
 		}
 		break;
 		case ValueType:
-			return GetOperatorType(node, op, left->valueType.type, right);
+			return GetOperatorType(op, left->valueType.type, right);
 		case ArrayType:
 			break;
 		case GenericsType:
@@ -725,7 +771,7 @@ struct CheckerUtils
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-	Type* GetUnaryType(Stmnt* node, Token* op, Type* type)
+	Type* GetUnaryType(Token* op, Type* type)
 	{
 		switch (type->typeID)
 		{
@@ -733,22 +779,22 @@ struct CheckerUtils
 			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
 			return type;
 		case NamedType:
-			return GetStateOperatorType(node, op, op->uniqueType, type);
+			return GetStateOperatorType(op, op->uniqueType, type);
 		case ImportedType:
 			// TODO Support imported types
 			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		case PointerType:
-			return GetUnaryType(node, op, type->pointerType.type);
+			return GetUnaryType(op, type->pointerType.type);
 		case ValueType:
-			return GetUnaryType(node, op, type->valueType.type);
+			return GetUnaryType(op, type->valueType.type);
 		case GenericsType:
-			return GetUnaryType(node, op, type->genericsType.type);
+			return GetUnaryType(op, type->genericsType.type);
 		default:
 			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
 	}
 
-	Type* InferType(Expr* of, Stmnt* node)
+	Type* InferType(Expr* of)
 	{
 		switch (of->typeID)
 		{
@@ -794,12 +840,12 @@ struct CheckerUtils
 		case NewExpr:
 		{
 			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
-			type->pointerType.type = InferType(of->newExpr.primaryExpr, node);
+			type->pointerType.type = InferType(of->newExpr.primaryExpr);
 			return type;
 		}
 		case FixedExpr:
 		{
-			Type* fixedType = InferType(of->fixedExpr.atExpr, node);
+			Type* fixedType = InferType(of->fixedExpr.atExpr);
 			if (fixedType->typeID == TypeID::PointerType) fixedType = fixedType->pointerType.type;
 			if (fixedType->typeID != TypeID::ArrayType)
 			{
@@ -841,29 +887,29 @@ struct CheckerUtils
 			return of->asExpr.to;
 		case DereferenceExpr:
 		{
-			Type* type = InferType(of->dereferenceExpr.of, node);
+			Type* type = InferType(of->dereferenceExpr.of);
 			if (type->typeID == TypeID::PointerType) return type->pointerType.type;
 			return type;
 		}
 		case ReferenceExpr:
 		{
 			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
-			type->pointerType.type = InferType(of->referenceExpr.of, node);
+			type->pointerType.type = InferType(of->referenceExpr.of);
 			return type;
 		}
 		case BinaryExpr:
 		{
-			Type* left = InferType(of->binaryExpr.left, node);
-			Type* right = InferType(of->binaryExpr.right, node);
-			return GetOperatorType(node, of->binaryExpr.op, left, right);
+			Type* left = InferType(of->binaryExpr.left);
+			Type* right = InferType(of->binaryExpr.right);
+			return GetOperatorType(of->binaryExpr.op, left, right);
 		}
 		case UnaryExpr:
 		{
-			Type* type = InferType(of->unaryExpr.expr, node);
-			return GetUnaryType(node, of->unaryExpr.op, type);
+			Type* type = InferType(of->unaryExpr.expr);
+			return GetUnaryType(of->unaryExpr.op, type);
 		}
 		case GroupedExpr:
-			return InferType(of->groupedExpr.expr, node);
+			return InferType(of->groupedExpr.expr);
 		case FunctionTypeDeclExpr:
 		{
 			Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);

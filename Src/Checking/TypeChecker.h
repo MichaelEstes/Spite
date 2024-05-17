@@ -23,12 +23,12 @@ struct TypeChecker
 		Type* type = definition.type;
 		if (type->typeID == TypeID::UnknownType)
 		{
-			Type* inferredType = utils.InferType(definition.assignment, node);
+			Type* inferredType = utils.InferType(definition.assignment);
 			if (!inferredType)
 			{
 				AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
 			}
-			definition.type = utils.InferType(definition.assignment, node);
+			definition.type = utils.InferType(definition.assignment);
 		}
 		else if (definition.assignment)
 		{
@@ -38,14 +38,14 @@ struct TypeChecker
 			}
 			else
 			{
-				Type* inferredType = utils.InferType(definition.assignment, node);
+				Type* inferredType = utils.InferType(definition.assignment);
 				if (!inferredType)
 				{
 					AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 				}
 				else if (*definition.type != *inferredType)
 				{
-					AddError(node->start, "Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
+					AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
 					return;
 				}
 			}
@@ -79,7 +79,7 @@ struct TypeChecker
 				Stmnt* decl = symbolTable->CreateStmnt(token, StmntID::Definition, node->package, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
-				decl->definition.type = utils.InferType(itemExpr, node);
+				decl->definition.type = utils.InferType(itemExpr);
 				type->explicitType.declarations->push_back(decl);
 			}
 		}
@@ -97,7 +97,7 @@ struct TypeChecker
 				Expr* itemExpr = anonExpr.values->at(i);
 				Stmnt* decl = decls->at(i);
 
-				Type* inferredType = utils.InferType(itemExpr, node);
+				Type* inferredType = utils.InferType(itemExpr);
 				if (*decl->definition.type != *inferredType)
 				{
 					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
@@ -114,8 +114,8 @@ struct TypeChecker
 	inline void CheckAssignmentStmnt(Stmnt* node)
 	{
 		auto& assignment = node->assignmentStmnt;
-		Type* to = utils.InferType(assignment.assignTo, node);
-		Type* from = utils.InferType(assignment.assignment, node);
+		Type* to = utils.InferType(assignment.assignTo);
+		Type* from = utils.InferType(assignment.assignment);
 		if (*to != *from)
 		{
 			AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
@@ -125,7 +125,7 @@ struct TypeChecker
 	inline void CheckConditionalType(Stmnt* node)
 	{
 		auto& conditional = node->conditional;
-		Type* inferred = utils.InferType(conditional.condition, node);
+		Type* inferred = utils.InferType(conditional.condition);
 		if (!utils.IsBoolLike(inferred))
 		{
 			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
@@ -141,7 +141,7 @@ struct TypeChecker
 			Stmnt* decl = symbolTable->CreateStmnt(identifier, StmntID::Definition, node->package, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
-			Type* type = utils.InferType(forStmnt.toIterate, node);
+			Type* type = utils.InferType(forStmnt.toIterate);
 			if (forStmnt.rangeFor)
 			{
 				if (!utils.IsInt(type))
@@ -162,7 +162,7 @@ struct TypeChecker
 	inline void CheckSwitchType(Stmnt* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
-		if (!utils.IsInt(utils.InferType(switchStmnt.switchOn, node)))
+		if (!utils.IsInt(utils.InferType(switchStmnt.switchOn)))
 		{
 			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
 		}
@@ -179,7 +179,7 @@ struct TypeChecker
 			return;
 		}
 
-		Type* inferred = utils.InferType(node->returnStmnt.expr, node);
+		Type* inferred = utils.InferType(node->returnStmnt.expr);
 		if (*inferred != *returnType)
 		{
 			AddError(node->start, "TypeChecker:CheckerReturnType Expected return type: " + ToString(returnType) +

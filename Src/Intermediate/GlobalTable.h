@@ -32,6 +32,14 @@ struct GlobalTable
 		return symbolTable->FindStateSymbol(name);
 	}
 
+	inline Stmnt* FindState(StringView& package, StringView& name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package);
+		if (!symbolTable) return nullptr;
+
+		return symbolTable->FindState(name);
+	}
+
 	inline Stmnt* FindStateOrFunction(StringView& package, StringView& name)
 	{
 		SymbolTable* symbolTable = FindSymbolTable(package);

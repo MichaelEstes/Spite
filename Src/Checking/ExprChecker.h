@@ -96,7 +96,7 @@ struct ExprChecker
 		eastl::vector<Expr*>* templateArgs = genericsExpr.templateArgs;
 		Expr* ofExpr = genericsExpr.expr;
 
-		Stmnt* stmnt = utils.GetStmntForExpr(ofExpr);
+		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
 		if (!stmnt)
 		{
 			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
@@ -133,22 +133,22 @@ struct ExprChecker
 		auto& functionCall = expr->functionCallExpr;
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
-		Stmnt* stmnt = utils.GetStmntForExpr(function);
-		if (!stmnt)
-		{
-			AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Unable to find statement for function call expression");
-			return;
-		}
-
-		// Is constructor call, check if constructor exists with params
-		if (stmnt->nodeID == StmntID::StateStmnt)
-		{
+		Type* functionType = utils.InferType(function);
 		
-		}
-		else
+		switch (functionType->typeID)
 		{
-
+		// Primitive constructor called
+		case TypeID::PrimitiveType:
+			break;
+		// Constructor being called
+		case TypeID::NamedType:
+		case TypeID::GenericsType:
+			break;
+		case TypeID::FunctionType:
+			break;
+		default:
+			AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
+			break;
 		}
-
 	}
 };
