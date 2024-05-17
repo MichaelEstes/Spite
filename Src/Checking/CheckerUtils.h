@@ -35,9 +35,7 @@ struct CheckerUtils
 			case StateStmnt:
 				return stmnt;
 			default:
-				AddError(expr->start, "CheckerUtils:GetDeclarationStmntForExpr Found invalid statement for identifier : " + ident);
-				return stmnt;
-
+				return nullptr;
 			}
 		}
 		case SelectorExpr:
@@ -56,15 +54,15 @@ struct CheckerUtils
 			}
 			else
 			{
-				AddError(expr->start, "CheckerUtils: No declaration found for selector expression");
 				return nullptr;
 			}
 		}
+		case GenericsExpr:
+			return GetDeclarationStmntForExpr(expr->genericsExpr.expr);
 		default:
 			break;
 		}
 
-		AddError(expr->start, "CheckerUtils: Cannot find statement for expression");
 		return nullptr;
 	}
 
@@ -85,7 +83,6 @@ struct CheckerUtils
 		case GenericsType:
 			return GetStmntForType(type->arrayType.type, start);
 		default:
-			AddError(start, "CheckerUtils:GetStmntForType Invalid type to find statement for");
 			return nullptr;
 		}
 	}

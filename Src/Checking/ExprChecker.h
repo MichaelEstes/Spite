@@ -133,22 +133,39 @@ struct ExprChecker
 		auto& functionCall = expr->functionCallExpr;
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
-		Type* functionType = utils.InferType(function);
+		Stmnt* functionStmnt = utils.GetDeclarationStmntForExpr(function);
 		
-		switch (functionType->typeID)
+		if (functionStmnt)
 		{
-		// Primitive constructor called
-		case TypeID::PrimitiveType:
-			break;
-		// Constructor being called
-		case TypeID::NamedType:
-		case TypeID::GenericsType:
-			break;
-		case TypeID::FunctionType:
-			break;
-		default:
-			AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
-			break;
+			switch (functionStmnt->nodeID)
+			{
+		
+			// Constructor being called
+			case StmntID::StateStmnt:
+				break;
+			case StmntID::FunctionStmnt:
+				break;
+			case StmntID::Method:
+				break;
+			default:
+				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No callable statement found");
+				break;
+			}
+		}
+		else
+		{
+			Type* functionType = utils.InferType(function);
+			switch (functionType->typeID)
+			{
+			// Primitive constrtuctor
+			case TypeID::PrimitiveType:
+				break;
+			case TypeID::FunctionType:
+				break;
+			default:
+				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
+				break;
+			}
 		}
 	}
 };

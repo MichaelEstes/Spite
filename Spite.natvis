@@ -11,192 +11,192 @@
 
 	<Type Name="Stmnt">
 		<DisplayString
-			Condition="nodeID == NodeID::InvalidNode"
+			Condition="nodeID == StmntID::InvalidNode"
 			Optional="true">
 			{nodeID,en}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::CommentStmnt"
+			Condition="nodeID == StmntID::CommentStmnt"
 			Optional="true">
 			{nodeID,en}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ExpressionStmnt"
+			Condition="nodeID == StmntID::ExpressionStmnt"
 			Optional="true">
 			{*expressionStmnt.expression}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::UsingStmnt"
+			Condition="nodeID == StmntID::ImportStmnt"
 			Optional="true">
-			using {*using_.packageName}
+			import {*importStmnt.packageName}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::UsingStmnt &amp;&amp; using_.alias != 0"
+			Condition="nodeID == StmntID::ImportStmnt &amp;&amp; importStmnt.alias != 0"
 			Optional="true">
-			as {*using_.alias}
+			as {*importStmnt.alias}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::PackageStmnt"
+			Condition="nodeID == StmntID::PackageStmnt"
 			Optional="true">
 			package {*package.name}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Definition"
+			Condition="nodeID == StmntID::Definition"
 			Optional="true">
 			{*definition.name}: {*definition.type}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Definition &amp;&amp; definition.assignment != 0"
+			Condition="nodeID == StmntID::Definition &amp;&amp; definition.assignment != 0"
 			Optional="true">
 			{*definition.op} {*definition.assignment}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::InlineDefinition"
+			Condition="nodeID == StmntID::InlineDefinition"
 			Optional="true">
 			{*inlineDefinition.type} {*inlineDefinition.op} {*inlineDefinition.assignment}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::FunctionStmnt"
+			Condition="nodeID == StmntID::FunctionStmnt"
 			Optional="true">
 			{*function.returnType} {*function.name}{*function.generics}{*function.decl}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::FunctionDecl"
+			Condition="nodeID == StmntID::FunctionDecl"
 			Optional="true">
 			({(*functionDecl.parameters).mpEnd - (*functionDecl.parameters).mpBegin}) {functionDecl.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::StateStmnt"
+			Condition="nodeID == StmntID::StateStmnt"
 			Optional="true">
 			{*state.name}{*state.generics}[{(*state.members).mpEnd - (*state.members).mpBegin}]
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::GenericsDecl"
+			Condition="nodeID == StmntID::GenericsDecl"
 			Optional="true">
 			&lt;[{(*generics.names).mpEnd - (*generics.names).mpBegin}]&gt;
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::GenericsDecl &amp;&amp; generics.whereStmnt != 0"
+			Condition="nodeID == StmntID::GenericsDecl &amp;&amp; generics.whereStmnt != 0"
 			Optional="true">
 			{*generics.whereStmnt}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::WhereStmnt"
+			Condition="nodeID == StmntID::WhereStmnt"
 			Optional="true">
 			{*whereStmnt.decl}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Method"
+			Condition="nodeID == StmntID::Method"
 			Optional="true">
 			{*method.returnType} {*method.stateName}::{*method.name}{*method.generics}{*method.decl}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::StateOperator"
+			Condition="nodeID == StmntID::StateOperator"
 			Optional="true">
 			{*stateOperator.returnType} {*stateOperator.stateName}::operator{*stateOperator.generics}::{*stateOperator.op}{*stateOperator.decl}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Destructor"
+			Condition="nodeID == StmntID::Destructor"
 			Optional="true">
 			{*destructor.stateName}::delete {destructor.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Constructor"
+			Condition="nodeID == StmntID::Constructor"
 			Optional="true">
 			{*constructor.stateName}::{constructor.decl}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Conditional"
+			Condition="nodeID == StmntID::Conditional"
 			Optional="true">
 			({*conditional.condition}) {conditional.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::AssignmentStmnt"
+			Condition="nodeID == StmntID::AssignmentStmnt"
 			Optional="true">
 			{*assignmentStmnt.assignTo} {*assignmentStmnt.op} {*assignmentStmnt.assignment}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::IfStmnt"
+			Condition="nodeID == StmntID::IfStmnt"
 			Optional="true">
 			if({*ifStmnt.condition}) else if[{(*ifStmnt.elifs).mpEnd - (*ifStmnt.elifs).mpBegin}] else{ifStmnt.elseCondition}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ForStmnt &amp;&amp; forStmnt.isDeclaration"
+			Condition="nodeID == StmntID::ForStmnt &amp;&amp; forStmnt.isDeclaration"
 			Optional="true">
 			for({*forStmnt.declaration} {*forStmnt.iterator} {*forStmnt.toIterate}) {forStmnt.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ForStmnt &amp;&amp; !forStmnt.isDeclaration"
+			Condition="nodeID == StmntID::ForStmnt &amp;&amp; !forStmnt.isDeclaration"
 			Optional="true">
 			for({*forStmnt.identifier} {*forStmnt.iterator} {*forStmnt.toIterate}) {forStmnt.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::WhileStmnt"
+			Condition="nodeID == StmntID::WhileStmnt"
 			Optional="true">
 			while{*whileStmnt.conditional}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::SwitchStmnt"
+			Condition="nodeID == StmntID::SwitchStmnt"
 			Optional="true">
 			switch({*switchStmnt.switchOn}) cases[{(*switchStmnt.cases).mpEnd - (*switchStmnt.cases).mpBegin}]
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::DeleteStmnt &amp;&amp; !deleteStmnt.arrDelete"
+			Condition="nodeID == StmntID::DeleteStmnt &amp;&amp; !deleteStmnt.arrDelete"
 			Optional="true">
 			delete {*deleteStmnt.primaryExpr}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::DeleteStmnt &amp;&amp; deleteStmnt.arrDelete"
+			Condition="nodeID == StmntID::DeleteStmnt &amp;&amp; deleteStmnt.arrDelete"
 			Optional="true">
 			delete[] {*deleteStmnt.primaryExpr}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::DeferStmnt"
+			Condition="nodeID == StmntID::DeferStmnt"
 			Optional="true">
 			defer 
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::DeferStmnt &amp;&amp; deferStmnt.deferIf"
+			Condition="nodeID == StmntID::DeferStmnt &amp;&amp; deferStmnt.deferIf"
 			Optional="true">
 			{*deferStmnt.conditional}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::DeferStmnt &amp;&amp; !deferStmnt.deferIf"
+			Condition="nodeID == StmntID::DeferStmnt &amp;&amp; !deferStmnt.deferIf"
 			Optional="true">
 			{*deferStmnt.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ContinueStmnt"
+			Condition="nodeID == StmntID::ContinueStmnt"
 			Optional="true">
 			continue
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::BreakStmnt"
+			Condition="nodeID == StmntID::BreakStmnt"
 			Optional="true">
 			break
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ReturnStmnt"
+			Condition="nodeID == StmntID::ReturnStmnt"
 			Optional="true">
 			return
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::ReturnStmnt &amp;&amp; !returnStmnt.voidReturn"
+			Condition="nodeID == StmntID::ReturnStmnt &amp;&amp; !returnStmnt.voidReturn"
 			Optional="true">
 			{*returnStmnt.expr}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::CompileStmnt"
+			Condition="nodeID == StmntID::CompileStmnt"
 			Optional="true">
 			#compile {*compileStmnt.compileExpr}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::CompileDebugStmnt"
+			Condition="nodeID == StmntID::CompileDebugStmnt"
 			Optional="true">
 			#debug {*compileDebugStmnt.body}
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == NodeID::Block"
+			Condition="nodeID == StmntID::Block"
 			Optional="true">
 			block[{(*block.inner).mpEnd - (*block.inner).mpBegin}]
 		</DisplayString>
