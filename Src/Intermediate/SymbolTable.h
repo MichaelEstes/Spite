@@ -172,6 +172,72 @@ struct SymbolTable
 		delete arena;
 	}
 
+	void Print()
+	{
+		eastl::string toPrint = "";
+		if (package)
+		{
+			toPrint += "package " + package->ToString() + '\n';
+		}
+
+		for (Stmnt* node : imports)
+		{
+			toPrint += ToString(node);
+			toPrint += '\n';
+		}
+
+		for (Stmnt* node : onCompiles)
+		{
+			toPrint += ToString(node);
+			toPrint += '\n';
+		}
+
+		for (auto& [key, value] : globalValMap)
+		{
+			toPrint += ToString(value);
+			toPrint += '\n';
+		}
+
+		for (auto& [key, value] : stateMap)
+		{
+			toPrint += ToString(value.state);
+			toPrint += '\n';
+
+			for (Stmnt* node : value.constructors)
+			{
+				toPrint += ToString(node);
+				toPrint += '\n';
+			}
+
+			for (Stmnt* node : value.methods)
+			{
+				toPrint += ToString(node);
+				toPrint += '\n';
+			}
+
+			for (Stmnt* node : value.operators)
+			{
+				toPrint += ToString(node);
+				toPrint += '\n';
+			}
+
+			if (value.destructor)
+			{
+				toPrint += ToString(value.destructor);
+				toPrint += '\n';
+			}
+		}
+
+		for (auto& [key, value] : functionMap)
+		{
+			toPrint += ToString(value);
+			toPrint += '\n';
+		}
+
+		Logger::Info(toPrint);
+	}
+
+
 	inline void Merge(SymbolTable* toMerge)
 	{
 		for (Stmnt* import : toMerge->imports)
