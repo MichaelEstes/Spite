@@ -1,19 +1,19 @@
 #pragma once
 #include "EASTL/memory.h"
 
-const unsigned int bitCount = 8;
+const unsigned int bitsInByte = 8;
 
-template<const unsigned int T = bitCount>
+template<const unsigned int T = bitsInByte>
 struct Flags
 {
-	unsigned char flags[((bitCount - T % bitCount) + T) / bitCount];
+	unsigned char flags[((bitsInByte - T % bitsInByte) + T) / bitsInByte];
 	unsigned int size;
 	unsigned int count;
 
 	Flags()
 	{
 		size = T;
-		count = ((bitCount - T % bitCount) + T) / bitCount;
+		count = ((bitsInByte - T % bitsInByte) + T) / bitsInByte;
 		ClearAll();
 	}
 
@@ -38,22 +38,22 @@ struct Flags
 
 	void Set(unsigned int i)
 	{
-		int index = i / bitCount;
-		int offset = i % bitCount;
+		int index = i / bitsInByte;
+		int offset = i % bitsInByte;
 		flags[index] = flags[index] | (1 << offset);
 	}
 
 	void Clear(unsigned int i)
 	{
-		int index = i / bitCount;
-		int offset = i % bitCount;
+		int index = i / bitsInByte;
+		int offset = i % bitsInByte;
 		flags[index] = flags[index] & ~(1 << offset);
 	}
 
 	void Toggle(unsigned int i)
 	{
-		int index = i / bitCount;
-		int offset = i % bitCount;
+		int index = i / bitsInByte;
+		int offset = i % bitsInByte;
 		flags[index] = flags[index] ^ (1 << offset);
 	}
 
@@ -69,8 +69,8 @@ struct Flags
 
 	inline bool operator [](unsigned int i) const 
 	{ 
-		int index = i / bitCount;
-		int offset = i % bitCount;
+		int index = i / bitsInByte;
+		int offset = i % bitsInByte;
 		int ret = (flags[index] >> offset) & 1;
 		return ret;
 	}
@@ -82,5 +82,4 @@ struct Flags
 		for (unsigned int i = 0; i < count; i++) flags[count] = toCopy.flags[count];
 		return *this;
 	}
-
 };

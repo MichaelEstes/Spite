@@ -20,6 +20,7 @@ enum ExprID
 	NewExpr,
 	FixedExpr,
 	AnonTypeExpr,
+	ExplicitTypeExpr,
 	AsExpr,
 	DereferenceExpr,
 	ReferenceExpr,
@@ -115,6 +116,11 @@ struct Expr
 		{
 			eastl::vector<Expr*>* values;
 		} anonTypeExpr;
+
+		struct
+		{
+			eastl::vector<Stmnt*>* values;
+		} explicitTypeExpr;
 
 		struct
 		{
@@ -217,6 +223,9 @@ struct Expr
 			break;
 		case AnonTypeExpr:
 			anonTypeExpr = copy.anonTypeExpr;
+			break;
+		case ExplicitTypeExpr:
+			explicitTypeExpr = copy.explicitTypeExpr;
 			break;
 		case AsExpr:
 			asExpr = copy.asExpr;

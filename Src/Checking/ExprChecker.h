@@ -133,19 +133,34 @@ struct ExprChecker
 		auto& functionCall = expr->functionCallExpr;
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
+		size_t paramCount = params->size();
 		Stmnt* functionStmnt = utils.GetDeclarationStmntForExpr(function);
-		
+
 		if (functionStmnt)
 		{
 			switch (functionStmnt->nodeID)
 			{
-		
-			// Constructor being called
+
+				// Constructor being called
 			case StmntID::StateStmnt:
-				break;
+			{
+				// Every state has a default constructor
+				if (paramCount == 0) return;
+
+				StateSymbol* stateSymbol = globalTable->FindStateSymbolForState(functionStmnt);
+				for (Stmnt* con : stateSymbol->constructors)
+				{
+					Stmnt* conDecl = con->constructor.decl;
+					if (CheckValidFunctionCallParams(conDecl, params, function, functionStmnt->state.generics)) return;
+				}
+
+				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No constructor found with matching paramters");
+				return;
+			}
 			case StmntID::FunctionStmnt:
 				break;
 			case StmntID::Method:
+				if(!CheckValidFunctionCallParams(functionStmnt))
 				break;
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No callable statement found");
@@ -157,15 +172,89 @@ struct ExprChecker
 			Type* functionType = utils.InferType(function);
 			switch (functionType->typeID)
 			{
-			// Primitive constrtuctor
+				// Primitive constrtuctor
 			case TypeID::PrimitiveType:
+			{
+				// Default primitive constructor
+				if (paramCount == 0) return;
+				else if (paramCount == 1)
+				{
+					if (!utils.IsAssignable(functionType, utils.InferType(params->at(0))))
+					{
+						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Non primitive parameter passed into primitive constructor");
+						return;
+					}
+				}
+			}
 				break;
 			case TypeID::FunctionType:
+			{
+				auto& func = functionType->functionType;
+				if (paramCount != func.paramTypes->size())
+				{
+					AddError(expr->start,
+						"ExprChecker:CheckFunctionCallExpr Expected " +
+						eastl::to_string(func.paramTypes->size()) +
+						" parameters, " + eastl::to_string(paramCount) +
+						" parameters found");
+					return;
+				}
+
+				for (size_t i = 0; i < paramCount; i++)
+				{
+					if (!utils.IsAssignable(func.paramTypes->at(i), utils.InferType(params->at(i))))
+					{
+						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameter passed into function type");
+						return;
+					}
+				}
 				break;
+			}
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
 				break;
 			}
 		}
+	}
+
+	bool CheckValidFunctionCallParams(Stmnt* funcDecl, eastl::vector<Expr*>* params, Expr* callExpr, Stmnt* generics)
+	{
+		eastl::vector<Stmnt*>* funcParams = funcDecl->functionDecl.parameters;
+
+		size_t paramCount = params->size();
+		size_t requiredParamCount = RequiredFunctionParamCount(funcDecl);
+		if (requiredParamCount > paramCount) return false;
+
+		for (size_t i = 0; i < paramCount; i++)
+		{
+			Expr* exprParam = params->at(i);
+			Stmnt* funcParam = funcParams->at(i);
+
+			if (!utils.IsAssignable(funcParam->definition.type, utils.InferType(exprParam)))
+				return false;
+		}
+
+		return true;
+	}
+
+	eastl::vector<Type*> BuildTypeArrFromParams(eastl::vector<Stmnt*>* funcParams, Expr* callExpr, Stmnt* generics)
+	{
+		eastl::vector<Type*> types = eastl::vector<Type*>();
+
+		return types;
+	}
+
+	size_t RequiredFunctionParamCount(Stmnt* funcDecl)
+	{
+		size_t count = 0;
+		eastl::vector<Stmnt*>* params = funcDecl->functionDecl.parameters;
+
+		for (Stmnt* param : *params)
+		{
+			if (param->definition.assignment) return count;
+			count++;
+		}
+
+		return count;
 	}
 };

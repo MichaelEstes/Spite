@@ -95,7 +95,7 @@ compileTimeVal := = 13;
 // Only runs when the compiler is in run in debug mode 
 // Debug compile time statements cannot have a return type as they're not always run
 // All debug compile time statements will be run before any #compile statements
-#compileDebug {
+#debug {
 	Print("Compiling debug binary");
 }
 

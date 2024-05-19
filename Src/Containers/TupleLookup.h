@@ -7,9 +7,6 @@
 #include "EASTL/tuple.h"
 #include "EASTL/vector.h"
 
-const int offset = 32;
-const int size = 128 - offset;
-
 template<typename T, typename T2, typename T3>
 struct TupleLookup
 {
@@ -35,5 +32,4 @@ struct TupleLookup
 
 		return defaultVal;
 	}
-
 };

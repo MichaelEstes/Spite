@@ -119,12 +119,18 @@ bool operator==(const Expr& left, const Expr& right)
 		return *left.newExpr.primaryExpr == *right.newExpr.primaryExpr;
 	case FixedExpr:
 		return *left.fixedExpr.atExpr == *right.fixedExpr.atExpr;
+	//Not sure what good comparing anon or explicit types is
 	case AnonTypeExpr:
 	{
-		//Not sure what good comparing anon types is
-		if (left.anonTypeExpr.values->size() != left.anonTypeExpr.values->size()) return false;
+		if (left.anonTypeExpr.values->size() != right.anonTypeExpr.values->size()) return false;
+		for (size_t i = 0; i < left.anonTypeExpr.values->size(); i++)
+		{
+			if (!(*left.anonTypeExpr.values->at(i) == *right.anonTypeExpr.values->at(i))) return false;
+		}
 		return true;
 	}
+	case ExplicitTypeExpr:
+		return left.explicitTypeExpr.values->size() == right.explicitTypeExpr.values->size();
 	case AsExpr:
 		return *left.asExpr.to == *right.asExpr.to &&
 			*left.asExpr.of == *right.asExpr.of;
@@ -289,6 +295,15 @@ inline size_t HashExpr(const Expr* expr)
 		for (Expr* param : *expr->anonTypeExpr.values)
 		{
 			hash += HashExpr(param);
+		}
+		return hash;
+	}
+	case ExplicitTypeExpr:
+	{
+		size_t hash = 0;
+		for (Stmnt* param : *expr->explicitTypeExpr.values)
+		{
+			hash += HashType(param->definition.type);
 		}
 		return hash;
 	}
@@ -585,6 +600,16 @@ eastl::string ToString(Expr* expr)
 		for (Expr* expr : *expr->anonTypeExpr.values)
 		{
 			values += ToString(expr) + ", ";
+		}
+
+		return "{" + values + "}";
+	}
+	case ExplicitTypeExpr:
+	{
+		eastl::string values = "";
+		for (Stmnt* stmnt : *expr->explicitTypeExpr.values)
+		{
+			values += ToString(stmnt) + ", ";
 		}
 
 		return "{" + values + "}";

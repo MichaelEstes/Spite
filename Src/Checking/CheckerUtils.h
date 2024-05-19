@@ -30,7 +30,7 @@ struct CheckerUtils
 			switch (stmnt->nodeID)
 			{
 			case Definition:
-				return GetStmntForType(stmnt->definition.type, expr->start);
+				return FindStateForType(stmnt->definition.type);
 			case FunctionStmnt:
 			case StateStmnt:
 				return stmnt;
@@ -66,7 +66,7 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	Stmnt* GetStmntForType(Type* type, Token* start)
+	Stmnt* FindStateForType(Type* type)
 	{
 		switch (type->typeID)
 		{
@@ -75,13 +75,13 @@ struct CheckerUtils
 		case ImportedType:
 			return globalTable->FindState(type->importedType.packageName->val, type->importedType.typeName->val);
 		case PointerType:
-			return GetStmntForType(type->pointerType.type, start);
+			return FindStateForType(type->pointerType.type);
 		case ValueType:
-			return GetStmntForType(type->valueType.type, start);
+			return FindStateForType(type->valueType.type);
 		case ArrayType:
-			return GetStmntForType(type->arrayType.type, start);
+			return FindStateForType(type->arrayType.type);
 		case GenericsType:
-			return GetStmntForType(type->arrayType.type, start);
+			return FindStateForType(type->arrayType.type);
 		default:
 			return nullptr;
 		}
@@ -254,7 +254,7 @@ struct CheckerUtils
 		Stmnt* stmnt = FindStateMember(state, name->val);
 		if (stmnt)
 		{
-			return GetStmntForType(stmnt->definition.type, name);
+			return FindStateForType(stmnt->definition.type);
 		}
 
 		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(state->state.name->val);
@@ -580,18 +580,12 @@ struct CheckerUtils
 		}
 	}
 
-	bool IsString(Type* primitive)
+	inline bool IsString(Type* primitive)
 	{
-		switch (primitive->primitiveType.type)
-		{
-		case UniqueType::String:
-			return true;
-		default:
-			return false;
-		}
+		return primitive->primitiveType.type == UniqueType::String;
 	}
 
-	bool IsBoolLike(Type* type)
+	inline bool IsBoolLike(Type* type)
 	{
 		TypeID id = type->typeID;
 		// TODO Support bool checks on state
@@ -636,7 +630,7 @@ struct CheckerUtils
 
 	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
-		Stmnt* node = GetStmntForType(namedType, token);
+		Stmnt* node = FindStateForType(namedType);
 		StateSymbol* state = symbolTable->FindStateSymbol(namedType->namedType.typeName->val);
 		if (state)
 		{
@@ -880,6 +874,29 @@ struct CheckerUtils
 			// anon[2] = 'str'
 			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
+		case ExplicitTypeExpr:
+		{
+			Type* explicitType = symbolTable->CreateTypePtr(TypeID::ExplicitType);
+			explicitType->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt*>();
+			for (Stmnt* param : *of->explicitTypeExpr.values)
+			{
+				auto& def = param->definition;
+				Stmnt* decl = symbolTable->CreateStmnt(param->start, StmntID::Definition, param->package, param->scope);
+				decl->definition.assignment = nullptr;
+				decl->definition.name = def.name;
+				if (def.type->typeID == TypeID::UnknownType)
+				{
+					decl->definition.type = InferType(def.assignment);
+				}
+				else
+				{
+					decl->definition.type = def.type;
+				}
+
+				explicitType->explicitType.declarations->push_back(decl);
+			}
+			return explicitType;
+		}
 		case AsExpr:
 			return of->asExpr.to;
 		case DereferenceExpr:
@@ -926,5 +943,85 @@ struct CheckerUtils
 		}
 
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
+	}
+
+	bool IsAssignable(Type* left, Type* right)
+	{
+		if (*left == *right) return true;
+
+		if (left->typeID == TypeID::ValueType)
+			return IsAssignable(left->valueType.type, right);
+
+		if (right->typeID == TypeID::ValueType)
+			return IsAssignable(left, right->valueType.type);
+
+		if (left->typeID == TypeID::PrimitiveType && right->typeID == TypeID::PrimitiveType)
+		{
+			// Maybe strings shouldn't be primitives, they are not assignable to other primitives
+			bool isStringL = IsString(left);
+			bool isStringR = IsString(right);
+			if (isStringL || isStringR)
+			{
+				return isStringL && isStringR;
+			}
+
+			return true;
+		}
+
+		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
+		{
+			return IsAssignable(left->pointerType.type, right->pointerType.type);
+		}
+
+		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::ArrayType)
+		{
+			return IsAssignable(left->pointerType.type, right->pointerType.type);
+		}
+
+		if (IsComplexType(left) && IsComplexType(right))
+		{
+			eastl::vector<Type*> leftTypes = UnwrapComplexType(left);
+			eastl::vector<Type*> rightTypes = UnwrapComplexType(right);
+
+			// Can't assign to a partial type, but as long as the types are ordered the same
+			// assigning a type with more members is fine
+			if (rightTypes.size() < leftTypes.size()) return false;
+
+			for (size_t i = 0; i < leftTypes.size(); i++)
+			{
+				Type* lType = leftTypes.at(i);
+				Type* rType = rightTypes.at(i);
+				if (!IsAssignable(lType, rType)) return false;
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	inline bool IsComplexType(Type* type)
+	{
+		TypeID id = type->typeID;
+		return id == TypeID::NamedType || id == TypeID::ImportedType || id == TypeID::ExplicitType;
+	}
+
+	eastl::vector<Type*> UnwrapComplexType(Type* type)
+	{
+		eastl::vector<Type*> types = eastl::vector<Type*>();
+
+		eastl::vector<Stmnt*>* decls = nullptr;
+		if (type->typeID == TypeID::NamedType || type->typeID == TypeID::ImportedType)
+		{
+			Stmnt* state = FindStateForType(type);
+			decls = state->state.members;
+		}
+		else
+		{
+			decls = type->explicitType.declarations;
+		}
+
+		for (Stmnt* decl : *decls) types.push_back(decl->definition.type);
+		return types;
 	}
 };

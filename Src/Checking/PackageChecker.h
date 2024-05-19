@@ -178,8 +178,8 @@ struct PackageChecker
 		}
 		case AssignmentStmnt:
 		{
-			exprChecker.CheckAssignmentStmnt(node);
 			typeChecker.CheckAssignmentStmnt(node);
+			exprChecker.CheckAssignmentStmnt(node);
 			break;
 		}
 		case IfStmnt:
@@ -241,8 +241,8 @@ struct PackageChecker
 			break;
 		case ReturnStmnt:
 		{
-			if (!node->returnStmnt.voidReturn) exprChecker.CheckExpr(node->returnStmnt.expr, node);
 			typeChecker.CheckReturnType(node);
+			if (!node->returnStmnt.voidReturn) exprChecker.CheckExpr(node->returnStmnt.expr, node);
 			break;
 		}
 		case Block:
@@ -258,8 +258,8 @@ struct PackageChecker
 	void CheckDefinition(Stmnt* node)
 	{
 		auto& definition = node->definition;
-		if (definition.assignment) exprChecker.CheckExpr(definition.assignment, node);
 		typeChecker.CheckDefinitionType(node);
+		if (definition.assignment) exprChecker.CheckExpr(definition.assignment, node);
 
 		StringView& name = definition.name->val;
 		eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = scopeQueue.back();
@@ -272,8 +272,8 @@ struct PackageChecker
 		auto& inlineDefinition = node->inlineDefinition;
 		Type* type = inlineDefinition.type;
 		Expr* expr = inlineDefinition.assignment;
-		exprChecker.CheckExpr(expr, node);
 		typeChecker.CheckAnonType(node, type, expr);
+		exprChecker.CheckExpr(expr, node);
 
 		if (type->typeID == TypeID::ExplicitType)
 		{

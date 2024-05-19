@@ -24,6 +24,11 @@ struct GlobalTable
 		return packageToSymbolTable.find(package) != packageToSymbolTable.end();
 	}
 
+	inline StateSymbol* FindStateSymbolForState(Stmnt* state)
+	{
+		return FindStateSymbol(state->package->val, state->state.name->val);
+	}
+
 	inline StateSymbol* FindStateSymbol(StringView& package, StringView& name)
 	{
 		SymbolTable* symbolTable = FindSymbolTable(package);

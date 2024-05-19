@@ -385,6 +385,11 @@ struct Syntax
 
 	Stmnt* ParseDeclOrDef()
 	{
+		if (Peek()->uniqueType == UniqueType::ImplicitAssign)
+		{
+			return ParseImplicitAssignment();
+		}
+
 		Stmnt* node = ParseDeclaration();
 		if (Expect(UniqueType::Assign)) ParseAssignment(node);
 
@@ -777,7 +782,7 @@ struct Syntax
 			break;
 		}
 
-		//AddError(curr, "Syntax:ParseBlockStatment Unexpected token : " + curr->ToString());
+		AddError(curr, "Syntax:ParseBlockStatment Unexpected token : " + curr->ToString());
 		return CreateStmnt(curr, StmntID::InvalidStmnt);
 	}
 
@@ -1126,11 +1131,11 @@ struct Syntax
 		}
 	}
 
-	eastl::vector<Stmnt*>* ParseParametersList(UniqueType end = UniqueType::Rparen)
+	eastl::vector<Stmnt*>* ParseParametersList(UniqueType end = UniqueType::Rparen, bool mustAssignAfterFirst = true)
 	{
 		eastl::vector<Stmnt*>* parameters = CreateVectorPtr<Stmnt*>();
 
-		if (Expect(UniqueType::Rparen)) return parameters;
+		if (Expect(end)) return parameters;
 
 		bool parsingDefs = false;
 		while (!Expect(end) && !IsEOF())
@@ -1138,7 +1143,7 @@ struct Syntax
 			Stmnt* decl = ParseDeclOrDef();
 			if (decl->nodeID != StmntID::InvalidStmnt)
 			{
-				if (parsingDefs && !decl->definition.assignment) 
+				if (mustAssignAfterFirst && parsingDefs && !decl->definition.assignment)
 					AddError(decl->start, "Cannot have a parameter without a default value after having a parameter with a default value");
 				else if (!parsingDefs && decl->definition.assignment) parsingDefs = true;
 				parameters->push_back(decl);
@@ -1170,7 +1175,7 @@ struct Syntax
 	Stmnt* ParseDefinition()
 	{
 		Token* start = curr;
-		Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug");
+		Expect(TokenType::Identifier, "Expected an identifier");
 		switch (Peek()->uniqueType)
 		{
 		case UniqueType::ImplicitAssign:
@@ -1522,30 +1527,6 @@ struct Syntax
 		return expr;
 	}
 
-	Expr* ParseAnonymousType()
-	{
-		Token* rBrace = curr;
-		Advance();
-
-		eastl::vector<Stmnt*> params = eastl::vector<Stmnt*>();
-		while (!Expect(UniqueType::Lbrace) && !IsEOF())
-		{
-			Stmnt* def = ParseDefinition();
-			if (def->nodeID == StmntID::Definition) params.push_back(def);
-			if (Expect(UniqueType::Comma)) Advance();
-		}
-
-		if (params.size() == 0)
-		{
-			AddError(rBrace, "Cannot have an empty anonymous type");
-			return nullptr;
-		}
-
-		Expr* anonTypeExpr = CreateExpr(rBrace, ExprID::AnonTypeExpr);
-
-		return anonTypeExpr;
-	}
-
 	Expr* ParseExpr()
 	{
 		return ParseBinaryExpr();
@@ -1742,7 +1723,6 @@ struct Syntax
 	Expr* ParseAnonTypeExpr()
 	{
 		Expr* anon = CreateExpr(curr, ExprID::AnonTypeExpr);
-		anon->anonTypeExpr.values = CreateVectorPtr<Expr*>();
 		Advance();
 
 		if (Expect(UniqueType::Rbrace))
@@ -1752,6 +1732,17 @@ struct Syntax
 			return anon;
 		}
 
+		// Check if explicit anon type
+		Token* next = Peek();
+		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
+		{
+			anon->typeID = ExprID::ExplicitTypeExpr;
+			anon->explicitTypeExpr.values = ParseParametersList(UniqueType::Rbrace, false);
+			if (Expect(UniqueType::Rbrace, "Expected explicit type closure ('}')")) Advance();
+			return anon;
+		}
+		
+		anon->anonTypeExpr.values = CreateVectorPtr<Expr*>();
 		anon->anonTypeExpr.values->push_back(ParseExpr());
 
 		while (Expect(UniqueType::Comma))
@@ -1851,7 +1842,7 @@ struct Syntax
 		}
 		else
 		{
-			funcCall->functionCallExpr.params = nullptr;
+			funcCall->functionCallExpr.params = CreateVectorPtr<Expr*>();
 		}
 
 		if (Expect(UniqueType::Rparen, "Missing ')' at end of function call"))
@@ -1987,18 +1978,6 @@ struct Syntax
 		}
 
 		return exprs;
-	}
-
-	Expr* ParseFunctionParam()
-	{
-		if (curr->uniqueType == UniqueType::Rbrace)
-		{
-			return ParseAnonymousType();
-		}
-		else
-		{
-			return ParseExpr();
-		}
 	}
 
 	bool IsAssignableExpr(Expr* expr)

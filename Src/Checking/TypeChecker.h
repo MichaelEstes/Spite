@@ -24,11 +24,11 @@ struct TypeChecker
 		if (type->typeID == TypeID::UnknownType)
 		{
 			Type* inferredType = utils.InferType(definition.assignment);
-			if (!inferredType)
+			if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 			{
 				AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
 			}
-			definition.type = utils.InferType(definition.assignment);
+			definition.type = inferredType;
 		}
 		else if (definition.assignment)
 		{
@@ -39,11 +39,11 @@ struct TypeChecker
 			else
 			{
 				Type* inferredType = utils.InferType(definition.assignment);
-				if (!inferredType)
+				if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 				{
 					AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 				}
-				else if (*definition.type != *inferredType)
+				else if (!utils.IsAssignable(definition.type, inferredType))
 				{
 					AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
 					return;
