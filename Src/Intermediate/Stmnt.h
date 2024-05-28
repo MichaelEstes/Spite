@@ -8,6 +8,7 @@
 #include "../Containers/Flags.h"
 
 struct ExprArrHash;
+struct ExprArrEqual;
 
 enum StmntID
 {
@@ -145,7 +146,7 @@ struct Stmnt
 			eastl::vector<Token*>* names;
 			Stmnt* whereStmnt;
 			size_t count;
-			eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash>* templatesToExpand;
+			eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash, ExprArrEqual>* templatesToExpand;
 		} generics;
 
 		struct
@@ -166,7 +167,6 @@ struct Stmnt
 		{
 			Type* returnType;
 			Token* stateName;
-			Stmnt* generics;
 			Token* op;
 			Stmnt* decl;
 		} stateOperator;
@@ -258,7 +258,6 @@ struct Stmnt
 
 		struct
 		{
-			bool voidReturn;
 			Expr* expr;
 		} returnStmnt;
 
@@ -404,6 +403,4 @@ struct Stmnt
 		}
 		return *this;
 	}
-
-	~Stmnt() {};
 };

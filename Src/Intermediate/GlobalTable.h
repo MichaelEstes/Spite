@@ -6,6 +6,31 @@ struct GlobalTable
 {
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
 
+	GlobalTable()
+	{
+
+	}
+
+	~GlobalTable()
+	{
+		for (auto& [key, value] : packageToSymbolTable)
+		{
+			delete value;
+		}
+	}
+
+	inline size_t GetSize()
+	{
+		size_t size = 0;
+
+		for (auto& [key, value] : packageToSymbolTable)
+		{
+			size += value->GetSize();
+		}
+
+		return size;
+	}
+
 	void InsertTable(SymbolTable* symbolTable)
 	{
 		StringView& package = symbolTable->package->val;
@@ -57,5 +82,43 @@ struct GlobalTable
 	{
 
 		return packageToSymbolTable[package];
+	}
+
+	Stmnt* FindStateForType(Type* type, SymbolTable* symbolTable)
+	{
+		switch (type->typeID)
+		{
+		case NamedType:
+			return FindLocalOrImportedState(type->namedType.typeName, symbolTable);
+		case ImportedType:
+			return FindState(type->importedType.packageName->val, type->importedType.typeName->val);
+		case PointerType:
+			return FindStateForType(type->pointerType.type, symbolTable);
+		case ValueType:
+			return FindStateForType(type->valueType.type, symbolTable);
+		case ArrayType:
+			return FindStateForType(type->arrayType.type, symbolTable);
+		case GenericsType:
+			return FindStateForType(type->arrayType.type, symbolTable);
+		default:
+			return nullptr;
+		}
+	}
+
+	inline Stmnt* FindLocalOrImportedState(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& stateName = name->val;
+
+		Stmnt* state = symbolTable->FindState(stateName);
+		if (state) return state;
+
+		for (Stmnt * import : symbolTable->imports)
+		{
+			StringView & package = import->importStmnt.packageName->val;
+			state = FindState(package, stateName);
+			if (state) return state;
+		}
+
+		return nullptr;
 	}
 };

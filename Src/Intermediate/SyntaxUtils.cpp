@@ -363,6 +363,20 @@ size_t ExprArrHash::operator()(const eastl::vector<Expr*>* exprs) const
 	return hash;
 }
 
+bool ExprArrEqual::operator()(const eastl::vector<Expr*>* l, const eastl::vector<Expr*>* r) const
+{
+	if (l->size() != r->size()) return false;
+	for (size_t i = 0; i < l->size(); i++)
+	{
+		Expr* lexpr = l->at(i);
+		Expr* rexpr = r->at(i);
+		if (*lexpr != *rexpr) return false;
+	}
+
+	return true;
+}
+
+
 /*
 	ToString Functions
 */
@@ -405,8 +419,7 @@ eastl::string ToString(Stmnt* node)
 			ToString(node->method.decl);
 	case StateOperator:
 		return ToString(node->stateOperator.returnType) + " " +
-			node->stateOperator.stateName->ToString() + "::operator" +
-			(node->stateOperator.generics != nullptr ? ToString(node->stateOperator.generics) : "") + "::" +
+			node->stateOperator.stateName->ToString() + "::operator::" +
 			node->stateOperator.op->ToString() +
 			ToString(node->stateOperator.decl);
 	case Destructor:
@@ -487,8 +500,7 @@ eastl::string ToString(Stmnt* node)
 	case BreakStmnt:
 		return node->breakStmnt.token->ToString();
 	case ReturnStmnt:
-		return node->start->ToString() + " " +
-			(!node->returnStmnt.voidReturn ? ToString(node->returnStmnt.expr) : "");
+		return node->start->ToString() + " " + ToString(node->returnStmnt.expr);
 	case WhereStmnt:
 	{
 		return node->start->ToString() + ToString(node->whereStmnt.decl);
@@ -550,7 +562,6 @@ eastl::string ToString(Body& body)
 	if (body.statement) return " " + ToString(body.body) + "\n";
 	else return ToString(body.body);
 }
-
 
 eastl::string ToString(Expr* expr)
 {

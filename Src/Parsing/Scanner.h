@@ -27,7 +27,6 @@ public:
 		}
 
 		Profiler profiler = Profiler();
-		defer(Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc));
 
 		file.seekg(0, std::ios::end);
 		size_t fileSize = file.tellg();
@@ -37,6 +36,7 @@ public:
 		file.read(&contents[0], contentCount);
 		file.close();
 
+		Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc);
 		return fileSize;
 	}
 

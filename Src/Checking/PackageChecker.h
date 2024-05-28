@@ -242,7 +242,7 @@ struct PackageChecker
 		case ReturnStmnt:
 		{
 			typeChecker.CheckReturnType(node);
-			if (!node->returnStmnt.voidReturn) exprChecker.CheckExpr(node->returnStmnt.expr, node);
+			exprChecker.CheckExpr(node->returnStmnt.expr, node);
 			break;
 		}
 		case Block:

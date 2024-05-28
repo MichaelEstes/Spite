@@ -36,6 +36,10 @@ struct ExprArrHash
 	size_t operator()(const eastl::vector<Expr*>* exprs) const;
 };
 
+struct ExprArrEqual
+{
+	bool operator()(const eastl::vector<Expr*>* l, const eastl::vector<Expr*>* r) const;
+};
 
 eastl::string ToString(Expr* expr);
 eastl::string ToString(Type* type);

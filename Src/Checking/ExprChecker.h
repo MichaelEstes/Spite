@@ -29,18 +29,21 @@ struct ExprChecker
 		case PrimitiveExpr:
 			break;
 		case SelectorExpr:
-			CheckExpr(expr->selectorExpr.on, node, prev);
-			CheckExpr(expr->selectorExpr.select, node, prev);
+			CheckExpr(expr->selectorExpr.on, node, expr);
+			CheckExpr(expr->selectorExpr.select, node, expr);
 			break;
 		case IndexExpr:
 			break;
 		case FunctionCallExpr:
+			CheckExpr(expr->functionCallExpr.function, node, expr);
 			CheckFunctionCallExpr(expr, node, prev);
 			break;
 		case NewExpr:
+			CheckExpr(expr->newExpr.primaryExpr, node, expr);
 			CheckNew(expr, node, prev);
 			break;
 		case FixedExpr:
+			CheckExpr(expr->fixedExpr.atExpr, node, expr);
 			CheckFixed(expr, node, prev);
 			break;
 		case AnonTypeExpr:
@@ -60,8 +63,8 @@ struct ExprChecker
 		case BinaryExpr:
 		{
 			auto& binaryExpr = expr->binaryExpr;
-			CheckExpr(binaryExpr.left, node, prev);
-			CheckExpr(binaryExpr.right, node, prev);
+			CheckExpr(binaryExpr.left, node, expr);
+			CheckExpr(binaryExpr.right, node, expr);
 			break;
 		}
 		case UnaryExpr:
@@ -71,6 +74,7 @@ struct ExprChecker
 			CheckExpr(expr->groupedExpr.expr, node, expr);
 			break;
 		case GenericsExpr:
+			CheckExpr(expr->genericsExpr.expr, node, expr);
 			CheckGenerics(expr, node, prev);
 			break;
 		case TypeExpr:
@@ -111,15 +115,11 @@ struct ExprChecker
 		}
 
 		auto& generics = genericsNode->generics;
-		if (generics.templatesToExpand->find(templateArgs) == generics.templatesToExpand->end())
-		{
-			generics.templatesToExpand->insert(templateArgs);
-		}
+		generics.templatesToExpand->insert(templateArgs);
 	}
 
 	void CheckNew(Expr* expr, Stmnt* node, Expr* prev)
 	{
-		CheckExpr(expr->newExpr.primaryExpr, node, expr);
 		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
@@ -148,23 +148,52 @@ struct ExprChecker
 				if (paramCount == 0) return;
 
 				StateSymbol* stateSymbol = globalTable->FindStateSymbolForState(functionStmnt);
+				eastl::vector<Token*>* genericNames = functionStmnt->state.generics ? functionStmnt->state.generics->generics.names : nullptr;
 				for (Stmnt* con : stateSymbol->constructors)
 				{
 					Stmnt* conDecl = con->constructor.decl;
-					if (CheckValidFunctionCallParams(conDecl, params, function, functionStmnt->state.generics)) return;
+					if (CheckValidFunctionCallParams(conDecl, params, genericNames)) return;
 				}
 
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No constructor found with matching paramters");
 				return;
 			}
 			case StmntID::FunctionStmnt:
-				break;
+			{
+				eastl::vector<Token*>* genericNames = functionStmnt->function.generics ? functionStmnt->function.generics->generics.names : nullptr;
+				if (!CheckValidFunctionCallParams(functionStmnt->function.decl, params, genericNames))
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
+				}
+				return;
+			}
 			case StmntID::Method:
-				if(!CheckValidFunctionCallParams(functionStmnt))
-				break;
+			{
+				eastl::vector<Token*> genericNames = eastl::vector<Token*>();
+				if (functionStmnt->method.generics)
+				{
+					for (Token* name : *functionStmnt->method.generics->generics.names) genericNames.push_back(name);
+				}
+				Stmnt* state = globalTable->FindLocalOrImportedState(functionStmnt->method.stateName, symbolTable);
+				if (state && state->state.generics)
+				{
+					for (Token* name : *state->state.generics->generics.names) genericNames.push_back(name);
+				}
+
+				// Add call expression as first parameter
+				eastl::vector<Expr*> methodParams = eastl::vector<Expr*>();
+				methodParams.push_back(GetStateParamForMethodCall(function));
+				for (Expr* param : *params) methodParams.push_back(param);
+
+				if (!CheckValidFunctionCallParams(functionStmnt->method.decl, &methodParams, &genericNames))
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");
+				}
+				return;
+			}
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No callable statement found");
-				break;
+				return;
 			}
 		}
 		else
@@ -186,7 +215,7 @@ struct ExprChecker
 					}
 				}
 			}
-				break;
+			break;
 			case TypeID::FunctionType:
 			{
 				auto& func = functionType->functionType;
@@ -217,7 +246,18 @@ struct ExprChecker
 		}
 	}
 
-	bool CheckValidFunctionCallParams(Stmnt* funcDecl, eastl::vector<Expr*>* params, Expr* callExpr, Stmnt* generics)
+	Expr* GetStateParamForMethodCall(Expr* expr)
+	{
+		Expr* param = expr;
+		if (param->typeID == ExprID::GenericsExpr)
+		{
+			param = param->genericsExpr.expr;
+		}
+
+		return param->selectorExpr.on;
+	}
+
+	bool CheckValidFunctionCallParams(Stmnt* funcDecl, eastl::vector<Expr*>* params, eastl::vector<Token*>* genericNames)
 	{
 		eastl::vector<Stmnt*>* funcParams = funcDecl->functionDecl.parameters;
 
@@ -229,12 +269,24 @@ struct ExprChecker
 		{
 			Expr* exprParam = params->at(i);
 			Stmnt* funcParam = funcParams->at(i);
-
-			if (!utils.IsAssignable(funcParam->definition.type, utils.InferType(exprParam)))
+			Type* defType = funcParam->definition.type;
+			if (!IsGenericType(defType, genericNames) && !utils.IsAssignable(defType, utils.InferType(exprParam)))
 				return false;
 		}
 
 		return true;
+	}
+
+	bool IsGenericType(Type* type, eastl::vector<Token*>* genericNames)
+	{
+		if (!genericNames || type->typeID != TypeID::NamedType) return false;
+
+		for (Token* name : *genericNames)
+		{
+			if (type->namedType.typeName->val == name->val) return true;
+		}
+
+		return false;
 	}
 
 	eastl::vector<Type*> BuildTypeArrFromParams(eastl::vector<Stmnt*>* funcParams, Expr* callExpr, Stmnt* generics)

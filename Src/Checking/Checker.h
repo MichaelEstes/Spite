@@ -18,7 +18,7 @@ struct Checker
 			PackageChecker packageChecker = PackageChecker(globalTable, value);
 			packageChecker.Check();
 
-			value->Print();
+			//value->Print();
 		}
 	}
 };

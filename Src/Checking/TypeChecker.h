@@ -71,7 +71,7 @@ struct TypeChecker
 			}
 
 			type->typeID = TypeID::ExplicitType;
-			type->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt*>();
+			type->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt>();
 			for (int i = 0; i < identifiers->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
@@ -170,8 +170,6 @@ struct TypeChecker
 
 	inline void CheckReturnType(Stmnt* node)
 	{
-		if (node->returnStmnt.voidReturn) return;
-
 		Type* returnType = utils.GetOuterReturnType(node);
 		if (!returnType)
 		{

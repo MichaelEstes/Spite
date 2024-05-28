@@ -164,12 +164,19 @@ struct SymbolTable
 
 	SymbolTable(size_t initialSize)
 	{
+		package = nullptr;
 		arena = new Arena(initialSize);
 	}
 
 	~SymbolTable()
 	{
 		delete arena;
+	}
+
+	inline size_t GetSize()
+	{
+		return imports.size() + stateMap.size() + functionMap.size() 
+			+ globalValMap.size() + onCompiles.size();
 	}
 
 	void Print()
@@ -277,9 +284,9 @@ struct SymbolTable
 	}
 
 	template<typename T>
-	inline eastl::vector<T>* CreateVectorPtr()
+	inline eastl::vector<T*>* CreateVectorPtr()
 	{
-		return arena->Emplace<eastl::vector<T>>();
+		return arena->EmplaceScalar<eastl::vector<T*>>();
 	}
 
 	inline Type* CreateTypePtr(TypeID typeID)

@@ -42,14 +42,14 @@ struct Syntax
 	SymbolTable* symbolTable;
 	size_t nodeCount;
 
-	eastl::vector<Stmnt*> nodes;
+	//eastl::vector<Stmnt*> nodes;
 	eastl::stack<Scope> scopes;
 	Token* package;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
-		nodes = eastl::vector<Stmnt*>();
+		//nodes = eastl::vector<Stmnt*>();
 		scopes = eastl::stack<Scope>();
 		currScope = Scope();
 		scopes.push(currScope);
@@ -57,7 +57,7 @@ struct Syntax
 		package = nullptr;
 	}
 
-	void Print()
+	/*void Print()
 	{
 		eastl::string toPrint = "";
 		if (package)
@@ -78,11 +78,11 @@ struct Syntax
 		}
 
 		Logger::Info(toPrint);
-	}
+	}*/
 
 	inline void AddNode(Stmnt* node)
 	{
-		nodes.emplace_back(node);
+		//nodes.emplace_back(node);
 	}
 
 	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID)
@@ -97,7 +97,7 @@ struct Syntax
 	}
 
 	template<typename T>
-	inline eastl::vector<T>* CreateVectorPtr()
+	inline eastl::vector<T*>* CreateVectorPtr()
 	{
 		return symbolTable->CreateVectorPtr<T>();
 	}
@@ -338,7 +338,7 @@ struct Syntax
 		if (Expect(TokenType::Identifier, "Expected an identifier after 'state'"))
 		{
 			node->state.name = curr;
-			node->state.members = CreateVectorPtr<Stmnt*>();
+			node->state.members = CreateVectorPtr<Stmnt>();
 			node->state.insetFlags = symbolTable->arena->Emplace<Flags<>>();
 			Advance();
 			node->state.generics = ParseGenerics();
@@ -570,7 +570,6 @@ struct Syntax
 			op->stateOperator.returnType = returnType;
 			op->stateOperator.stateName = name;
 			Advance();
-			op->stateOperator.generics = ParseGenerics();
 			if (Expect(UniqueType::DoubleColon, "Missing '::' after 'operator' and before the operator to overload"))
 			{
 				Advance();
@@ -633,7 +632,7 @@ struct Syntax
 	Stmnt* ParseGenericDecl()
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::GenericsDecl);
-		node->generics.names = CreateVectorPtr<Token*>();
+		node->generics.names = CreateVectorPtr<Token>();
 		node->generics.whereStmnt = nullptr;
 		Advance();
 
@@ -670,7 +669,7 @@ struct Syntax
 			node->end = curr;
 			Advance();
 			node->generics.count = node->generics.names->size();
-			node->generics.templatesToExpand = symbolTable->arena->Emplace<eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash>>();
+			node->generics.templatesToExpand = symbolTable->arena->Emplace<eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash, ExprArrEqual>>();
 			return node;
 		}
 
@@ -721,7 +720,7 @@ struct Syntax
 	Stmnt* ParseBlock(Stmnt* of)
 	{
 		Stmnt* block = CreateStmnt(curr, StmntID::Block);
-		block->block.inner = CreateVectorPtr<Stmnt*>();
+		block->block.inner = CreateVectorPtr<Stmnt>();
 		if (!Expect(UniqueType::Lbrace, "Expected function block opening ('{') or ('=>')"))
 		{
 			block->nodeID = StmntID::InvalidStmnt;
@@ -865,7 +864,7 @@ struct Syntax
 		if (conditional->nodeID != StmntID::InvalidStmnt)
 		{
 			node->ifStmnt.condition = conditional;
-			node->ifStmnt.elifs = CreateVectorPtr<Stmnt*>();
+			node->ifStmnt.elifs = CreateVectorPtr<Stmnt>();
 			node->ifStmnt.elseCondition = Body();
 
 			while (Expect(UniqueType::Else) && Peek()->uniqueType == UniqueType::If)
@@ -991,7 +990,7 @@ struct Syntax
 					{
 						Advance();
 
-						node->switchStmnt.cases = CreateVectorPtr<Stmnt*>();
+						node->switchStmnt.cases = CreateVectorPtr<Stmnt>();
 						while (Expect(UniqueType::Case))
 						{
 							Advance();
@@ -1113,17 +1112,17 @@ struct Syntax
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::ReturnStmnt);
 		Advance();
-		if (Expect(UniqueType::Semicolon))
+		if (Expect(UniqueType::Semicolon) || Expect(UniqueType::Void))
 		{
-			node->returnStmnt.voidReturn = true;
-			node->returnStmnt.expr = nullptr;
+			node->returnStmnt.expr = CreateExpr(curr, ExprID::TypeExpr);
+			node->returnStmnt.expr->typeExpr.type = CreateVoidType();
 			node->end = curr;
 			Advance();
+			if (Expect(UniqueType::Semicolon)) Advance();
 			return node;
 		}
 		else
 		{
-			node->returnStmnt.voidReturn = false;
 			node->returnStmnt.expr = ParseExpr();
 			if (Expect(UniqueType::Semicolon)) Advance();
 			node->end = curr;
@@ -1133,7 +1132,7 @@ struct Syntax
 
 	eastl::vector<Stmnt*>* ParseParametersList(UniqueType end = UniqueType::Rparen, bool mustAssignAfterFirst = true)
 	{
-		eastl::vector<Stmnt*>* parameters = CreateVectorPtr<Stmnt*>();
+		eastl::vector<Stmnt*>* parameters = CreateVectorPtr<Stmnt>();
 
 		if (Expect(end)) return parameters;
 
@@ -1381,7 +1380,7 @@ struct Syntax
 	Type* ParseImplicitType()
 	{
 		Type* type = CreateTypePtr(TypeID::ImplicitType);
-		eastl::vector<Token*>* idents = CreateVectorPtr<Token*>();
+		eastl::vector<Token*>* idents = CreateVectorPtr<Token>();
 		type->implicitType.identifiers = idents;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
@@ -1418,7 +1417,7 @@ struct Syntax
 	Type* ParseExplicitType()
 	{
 		Type* type = CreateTypePtr(TypeID::ExplicitType);
-		eastl::vector<Stmnt*>* decls = CreateVectorPtr<Stmnt*>();
+		eastl::vector<Stmnt*>* decls = CreateVectorPtr<Stmnt>();
 		type->explicitType.declarations = decls;
 		while (!Expect(UniqueType::Rbrace) && !IsEOF())
 		{
@@ -1463,7 +1462,7 @@ struct Syntax
 	Type* ParseFunctionType()
 	{
 		Type* type = CreateTypePtr(TypeID::FunctionType);
-		type->functionType.paramTypes = CreateVectorPtr<Type*>();
+		type->functionType.paramTypes = CreateVectorPtr<Type>();
 		Advance();
 
 		type->functionType.returnType = Expect(UniqueType::Lparen)
@@ -1742,7 +1741,7 @@ struct Syntax
 			return anon;
 		}
 		
-		anon->anonTypeExpr.values = CreateVectorPtr<Expr*>();
+		anon->anonTypeExpr.values = CreateVectorPtr<Expr>();
 		anon->anonTypeExpr.values->push_back(ParseExpr());
 
 		while (Expect(UniqueType::Comma))
@@ -1842,7 +1841,7 @@ struct Syntax
 		}
 		else
 		{
-			funcCall->functionCallExpr.params = CreateVectorPtr<Expr*>();
+			funcCall->functionCallExpr.params = CreateVectorPtr<Expr>();
 		}
 
 		if (Expect(UniqueType::Rparen, "Missing ')' at end of function call"))
@@ -1894,7 +1893,7 @@ struct Syntax
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
 		Expr* generics = CreateExpr(curr, ExprID::GenericsExpr);
-		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr*>();
+		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr>();
 		generics->genericsExpr.expr = expr;
 		generics->genericsExpr.open = curr;
 		generics->genericsExpr.templateArgs = genericTemplates;
@@ -1968,7 +1967,7 @@ struct Syntax
 
 	eastl::vector<Expr*>* ParseExprList()
 	{
-		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr*>();
+		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr>();
 
 		exprs->push_back(ParseExpr());
 		while (Expect(UniqueType::Comma) && !IsEOF())

@@ -1,6 +1,8 @@
 ﻿// Spite_Lang.cpp : Defines the entry point for the application.
 //
 #include "Spite_Lang.h"
+#include "Src/Intermediate/IR.h"
+#include "Src/Intermediate/Lower.h"
 
 typedef eastl::string string;
 
@@ -47,6 +49,7 @@ int main(int argc, char** argv)
 	// TODO Build file information
 	eastl::vector<string> files = eastl::vector<string>({ config.file });
 
+	SpiteIR::IR* ir = nullptr;
 	{
 		GlobalTable globalTable = GlobalTable();
 		eastl::vector<Parser> parsers = eastl::vector<Parser>();
@@ -71,9 +74,12 @@ int main(int argc, char** argv)
 				Logger::PrintErrors();
 				return false;
 			}
-			size_t elapsedScanTime = checkerProfiler.End();
-			Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to check syntax for " + config.file);
+
+			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax for " + config.file);
 		}
+
+		Lower lower = Lower(&globalTable);
+		ir = lower.BuildIR();
 	}
 
 	/*{
@@ -100,8 +106,7 @@ int main(int argc, char** argv)
 		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output for " + config.file);
 	}*/
 
-	float elapsedCompileTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedCompileTime) + "/s to compile " + config.file);
+	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile " + config.file);
 
 	return 0;
 }
