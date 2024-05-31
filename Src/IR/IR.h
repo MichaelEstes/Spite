@@ -150,7 +150,7 @@ namespace SpiteIR
 
 	struct Constant
 	{
-		Value* parent;
+		LiteralKind kind;
 		string value;
 	};
 
@@ -158,13 +158,12 @@ namespace SpiteIR
 	{
 		Identifier,
 		Selected,
-		Literal,
 		Primitve
 	};
 
+	// Can Operand be replaced by Value?
 	struct Operand
 	{
-		Instruction* parent;
 		Position pos;
 
 		union
@@ -179,12 +178,6 @@ namespace SpiteIR
 				Operand* left;
 				Operand* right;
 			} selector;
-
-			struct
-			{
-				string* val;
-				LiteralKind kind;
-			} literal;
 
 			struct
 			{
@@ -208,7 +201,6 @@ namespace SpiteIR
 	struct Instruction
 	{
 		InstructionKind kind;
-		Value* parent;
 
 		union
 		{
@@ -226,8 +218,8 @@ namespace SpiteIR
 
 			struct
 			{
-				Operand* left;
-				Operand* right;
+				Value* left;
+				Value* right;
 				BinaryOp op;
 			} binary;
 
@@ -353,6 +345,7 @@ namespace SpiteIR
 		Function* parent;
 		Position pos;
 
+		size_t index;
 		Type* type;
 		string name;
 		Array<Value*> values;
@@ -365,7 +358,7 @@ namespace SpiteIR
 
 		string name;
 		Type* returnType;
-		Array<Argument*> arguments;
+		HashMap<string, Argument*> arguments;
 	};
 
 	struct Member
@@ -373,6 +366,7 @@ namespace SpiteIR
 		State* parent;
 		Position pos;
 
+		size_t index;
 		Type* type;
 		string name;
 		Array<Value*> values;
@@ -388,7 +382,7 @@ namespace SpiteIR
 			int flags;
 		} metadata;
 
-		Array<Member*> members;
+		HashMap<string, Member*> members;
 		string name;
 		size_t size;
 	};
@@ -467,6 +461,21 @@ namespace SpiteIR
 		inline Type* AllocateType()
 		{
 			return arena.Emplace<Type>();
+		}
+
+		inline Constant* AllocateConstant()
+		{
+			return arena.Emplace<Constant>();
+		}
+
+		inline Operand* AllocateOperand()
+		{
+			return arena.Emplace<Operand>();
+		}
+
+		inline Instruction* AllocateInstruction()
+		{
+			return arena.Emplace<Instruction>();
 		}
 
 		inline Value* AllocateValue()

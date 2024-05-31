@@ -684,6 +684,7 @@ struct CheckerUtils
 
 			break;
 		}
+		case ImportedType:
 		case NamedType:
 			return GetStateOperatorType(op, op->uniqueType, left, right);
 		case ExplicitType:
@@ -709,9 +710,6 @@ struct CheckerUtils
 			break;
 		case FunctionType:
 			AddError(op, "You can't multiply functions");
-			break;
-		case ImportedType:
-			// TODO Add imported type checking
 			break;
 		default:
 			break;
