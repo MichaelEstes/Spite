@@ -80,8 +80,12 @@ struct GlobalTable
 
 	inline SymbolTable* FindSymbolTable(StringView& package)
 	{
+		if (IsPackage(package)) 
+		{
+			return packageToSymbolTable[package];
+		}
 
-		return packageToSymbolTable[package];
+		return nullptr;
 	}
 
 	Stmnt* FindStateForType(Type* type, SymbolTable* symbolTable)
@@ -98,7 +102,7 @@ struct GlobalTable
 			return FindStateForType(type->valueType.type, symbolTable);
 		case ArrayType:
 			return FindStateForType(type->arrayType.type, symbolTable);
-		case GenericsType:
+		case TemplatedType:
 			return FindStateForType(type->arrayType.type, symbolTable);
 		default:
 			return nullptr;

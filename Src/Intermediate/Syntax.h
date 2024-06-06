@@ -1452,11 +1452,11 @@ struct Syntax
 
 	Type* ParseGenericsType(Type* type)
 	{
-		Type* genericsType = CreateTypePtr(TypeID::GenericsType);
-		genericsType->genericsType.generics = ParseGenericsExpr();
-		genericsType->genericsType.type = type;
+		Type* templatedType = CreateTypePtr(TypeID::TemplatedType);
+		templatedType->templatedType.templates = ParseGenericsExpr();
+		templatedType->templatedType.type = type;
 
-		return genericsType;
+		return templatedType;
 	}
 
 	Type* ParseFunctionType()
@@ -1892,11 +1892,11 @@ struct Syntax
 
 	Expr* ParseGenericsExpr(Expr* expr = nullptr)
 	{
-		Expr* generics = CreateExpr(curr, ExprID::GenericsExpr);
+		Expr* generics = CreateExpr(curr, ExprID::TemplateExpr);
 		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr>();
-		generics->genericsExpr.expr = expr;
-		generics->genericsExpr.open = curr;
-		generics->genericsExpr.templateArgs = genericTemplates;
+		generics->templateExpr.expr = expr;
+		generics->templateExpr.open = curr;
+		generics->templateExpr.templateArgs = genericTemplates;
 
 		Advance();
 
@@ -1924,7 +1924,7 @@ struct Syntax
 
 		if (Expect(UniqueType::Greater, "Expected generic closure ('>')"))
 		{
-			generics->genericsExpr.close = curr;
+			generics->templateExpr.close = curr;
 			Advance();
 		}
 		else

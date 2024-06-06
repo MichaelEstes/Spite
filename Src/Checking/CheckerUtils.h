@@ -11,10 +11,12 @@ struct CheckerUtils
 	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
+	Stmnt*& currentContext;
 
 	CheckerUtils(GlobalTable* globalTable, SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue) {}
+		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue,
+		Stmnt*& currentContext)
+		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext) {}
 
 	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
 	{
@@ -57,8 +59,8 @@ struct CheckerUtils
 				return nullptr;
 			}
 		}
-		case GenericsExpr:
-			return GetDeclarationStmntForExpr(expr->genericsExpr.expr);
+		case TemplateExpr:
+			return GetDeclarationStmntForExpr(expr->templateExpr.expr);
 		default:
 			break;
 		}
@@ -118,7 +120,7 @@ struct CheckerUtils
 	{
 		if (of->typeID == TypeID::FunctionType)
 		{
-			Stmnt* func = GetDeclarationStmntForExpr(expr->genericsExpr.expr);
+			Stmnt* func = GetDeclarationStmntForExpr(expr->templateExpr.expr);
 			if (!func)
 			{
 				AddError(expr->start, "CheckerUtils:GetGenericsType No function found for expression");
@@ -133,7 +135,7 @@ struct CheckerUtils
 
 			auto& funcType = of->functionType;
 
-			eastl::vector<Expr*>* templateArgs = expr->genericsExpr.templateArgs;
+			eastl::vector<Expr*>* templateArgs = expr->templateExpr.templateArgs;
 			if (templateArgs->size() != generics->generics.names->size())
 			{
 				AddError(expr->start, "CheckerUtils:GetGenericsType Invalid number of template arguments for generic type");
@@ -163,13 +165,13 @@ struct CheckerUtils
 			return of;
 		}
 
-		Type* type = symbolTable->CreateTypePtr(TypeID::GenericsType);
-		type->genericsType.generics = symbolTable->CreateExpr(expr->start, ExprID::GenericsExpr);
-		type->genericsType.generics->genericsExpr.expr = nullptr;
-		type->genericsType.generics->genericsExpr.open = expr->genericsExpr.open;
-		type->genericsType.generics->genericsExpr.close = expr->genericsExpr.close;
-		type->genericsType.generics->genericsExpr.templateArgs = expr->genericsExpr.templateArgs;
-		type->genericsType.type = of;
+		Type* type = symbolTable->CreateTypePtr(TypeID::TemplatedType);
+		type->templatedType.templates = symbolTable->CreateExpr(expr->start, ExprID::TemplateExpr);
+		type->templatedType.templates->templateExpr.expr = nullptr;
+		type->templatedType.templates->templateExpr.open = expr->templateExpr.open;
+		type->templatedType.templates->templateExpr.close = expr->templateExpr.close;
+		type->templatedType.templates->templateExpr.templateArgs = expr->templateExpr.templateArgs;
+		type->templatedType.type = of;
 		return type;
 	}
 
@@ -198,7 +200,7 @@ struct CheckerUtils
 
 		if (!decl)
 		{
-			AddError(node->start, "PackageChecker:FunctionToFunctionType Unable to find function declaration for statment: " + ToString(node));
+			AddError(node->start, "CheckerUtils:FunctionToFunctionType Unable to find function declaration for statment: " + ToString(node));
 			return nullptr;
 		}
 		return FillFunctionTypeParams(decl, type);
@@ -299,7 +301,7 @@ struct CheckerUtils
 			}
 			else
 			{
-				AddError(expr->start, "PackageChecker:GetIdentType Unable to get node for name: " + name);
+				AddError(expr->start, "CheckerUtils:GetIdentType Unable to get node for name: " + name);
 				return nullptr;
 			}
 		}
@@ -318,8 +320,37 @@ struct CheckerUtils
 		}
 		}
 
-		AddError("PackageChecker:GetIdentType unable to find type for name: " + name);
+		AddError("CheckerUtils:GetIdentType unable to find type for name: " + name);
 		return nullptr;
+	}
+
+	inline bool HasBaseTypeForSelector(TypeID typeID)
+	{
+		return typeID == TypeID::PointerType || typeID == TypeID::ValueType ||
+			typeID == TypeID::TemplatedType;
+	}
+
+	inline Type* GetBaseTypeForSelector(Type* type)
+	{
+		while (HasBaseTypeForSelector(type->typeID))
+		{
+			switch (type->typeID)
+			{
+			case PointerType:
+				type = type->pointerType.type;
+				break;
+			case ValueType:
+				type = type->valueType.type;
+				break;
+			case TemplatedType:
+				type = type->templatedType.type;
+				break;
+			default:
+				break;
+			}
+		}
+
+		return type;
 	}
 
 	inline Type* GetSelectorType(Expr* of, Type* type)
@@ -333,16 +364,18 @@ struct CheckerUtils
 			return explicitMember->definition.type;
 		}
 
+		type = GetBaseTypeForSelector(type);
+
 		if (type->typeID != TypeID::NamedType)
 		{
-			AddError(of->start, "PackageChecker:GetSelectorType Expected a named type from selector");
+			AddError(of->start, "CheckerUtils:GetSelectorType Expected a named type from selector");
 			return nullptr;
 		}
 
 		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(type->namedType.typeName->val);
 		if (!stateSymbol || !stateSymbol->state)
 		{
-			AddError(of->start, "PackageChecker:GetSelectorType No state found for named type: " + ToString(type));
+			AddError(of->start, "CheckerUtils:GetSelectorType No state found for named type: " + ToString(type));
 			return nullptr;
 		}
 
@@ -390,6 +423,53 @@ struct CheckerUtils
 			globalTable->FindStateSymbol(on->identifierExpr.identifier->val, select->identifierExpr.identifier->val);
 	}
 
+	bool IsGenericOf(Stmnt* stmnt, Type* type)
+	{
+		if (!stmnt) return IsGenericOfCurrentContext(type);
+		if (!type || type->typeID != TypeID::NamedType) return false;
+
+		Stmnt* generics = GetGenerics(stmnt);
+		if (!generics) return false;
+
+		for (Token* name : *generics->generics.names)
+		{
+			if (name->val == type->namedType.typeName->val) return true;
+		}
+
+		return false;
+	}
+
+	bool IsGenericOfCurrentContext(Type* type)
+	{
+		if (!type || !currentContext || type->typeID != TypeID::NamedType) return false;
+
+		Stmnt* generics = GetGenerics(currentContext);
+		if (!generics) return false;
+
+		for (Token* name : *generics->generics.names)
+		{
+			if (name->val == type->namedType.typeName->val) return true;
+		}
+
+		return false;
+	}
+
+	bool IsGenericOfCurrentContext(Expr* expr)
+	{
+		if (expr->typeID == ExprID::TypeExpr) return IsGenericOfCurrentContext(expr->typeExpr.type);
+		if (!currentContext || expr->typeID != ExprID::IdentifierExpr) return false;
+
+		Stmnt* generics = GetGenerics(currentContext);
+		if (!generics) return false;
+
+		for (Token* name : *generics->generics.names)
+		{
+			if (name->val == expr->identifierExpr.identifier->val) return true;
+		}
+
+		return false;
+	}
+
 	bool IsExprOfType(Expr* expr)
 	{
 		switch (expr->typeID)
@@ -404,8 +484,8 @@ struct CheckerUtils
 			return IsExprOfType(expr->indexExpr.of);
 		case FunctionCallExpr:
 			return IsExprOfType(expr->functionCallExpr.function);
-		case GenericsExpr:
-			return IsExprOfType(expr->genericsExpr.expr);
+		case TemplateExpr:
+			return IsExprOfType(expr->templateExpr.expr);
 		case TypeExpr:
 			return true;
 		case FunctionTypeDeclExpr:
@@ -454,7 +534,7 @@ struct CheckerUtils
 			return type->arrayType.type;
 		}
 
-		AddError(of->start, "PackageChecker:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
+		AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
 		return nullptr;
 	}
 
@@ -472,15 +552,15 @@ struct CheckerUtils
 			return type;
 		case FunctionType:
 			return type->functionType.returnType;
-		case GenericsType:
+		case TemplatedType:
 		{
-			if (of->functionCallExpr.function->typeID == ExprID::GenericsExpr) return type;
+			if (of->functionCallExpr.function->typeID == ExprID::TemplateExpr) return type;
 		}
 		default:
 			break;
 		}
 
-		AddError(of->start, "PackageChecker:GetFunctionCallType unable to create type for expression: " + ToString(of));
+		AddError(of->start, "CheckerUtils:GetFunctionCallType unable to create type for expression: " + ToString(of));
 		return nullptr;
 	}
 
@@ -495,8 +575,8 @@ struct CheckerUtils
 		case TypeExpr:
 			type = expr->typeExpr.type;
 			break;
-		case GenericsExpr:
-			type = GetGenericsType(expr, EvalType(expr->genericsExpr.expr));
+		case TemplateExpr:
+			type = GetGenericsType(expr, EvalType(expr->templateExpr.expr));
 			break;
 		case IdentifierExpr:
 			type = GetIdentType(expr, expr->identifierExpr.identifier->val);
@@ -516,7 +596,7 @@ struct CheckerUtils
 
 		if (!type)
 		{
-			AddError(expr->start, "PackageChecker:EvalType unable to create type for expression: " + ToString(expr));
+			AddError(expr->start, "CheckerUtils:EvalType unable to create type for expression: " + ToString(expr));
 			return type;
 		}
 
@@ -588,6 +668,11 @@ struct CheckerUtils
 
 	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
+		if (IsGenericOfCurrentContext(namedType) || IsGenericOfCurrentContext(rhs))
+		{
+			return symbolTable->CreateTypePtr(TypeID::GenericNamedType);
+		}
+		
 		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);
 		if (node)
 		{
@@ -606,11 +691,11 @@ struct CheckerUtils
 				}
 			}
 			
-			AddError(token, "PackageChecker:GetStateOperatorType No operator found for named type: " + ToString(namedType));
+			AddError(token, "CheckerUtils:GetStateOperatorType No operator found for named type: " + ToString(namedType));
 		}
 		else
 		{
-			AddError(token, "PackageChecker:GetStateOperatorType State not found for named type: " + ToString(namedType));
+			AddError(token, "CheckerUtils:GetStateOperatorType State not found for named type: " + ToString(namedType));
 		}
 
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
@@ -706,7 +791,7 @@ struct CheckerUtils
 			return GetOperatorType(op, left->valueType.type, right);
 		case ArrayType:
 			break;
-		case GenericsType:
+		case TemplatedType:
 			break;
 		case FunctionType:
 			AddError(op, "You can't multiply functions");
@@ -734,8 +819,8 @@ struct CheckerUtils
 			return GetUnaryType(op, type->pointerType.type);
 		case ValueType:
 			return GetUnaryType(op, type->valueType.type);
-		case GenericsType:
-			return GetUnaryType(op, type->genericsType.type);
+		case TemplatedType:
+			return GetUnaryType(op, type->templatedType.type);
 		default:
 			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
@@ -753,7 +838,7 @@ struct CheckerUtils
 		case IndexExpr:
 		case FunctionCallExpr:
 		case TypeExpr:
-		case GenericsExpr:
+		case TemplateExpr:
 			return EvalType(of);
 		case LiteralExpr:
 		{
@@ -901,7 +986,7 @@ struct CheckerUtils
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-	bool IsAssignable(Type* left, Type* right)
+	bool IsAssignable(Type* left, Type* right, Stmnt* context = nullptr)
 	{
 		if (*left == *right) return true;
 
@@ -934,6 +1019,8 @@ struct CheckerUtils
 			return IsAssignable(left->pointerType.type, right->pointerType.type);
 		}
 
+		if (IsGenericOf(context, left) || IsGenericOf(context, right)) return true;
+
 		if (IsComplexType(left) && IsComplexType(right))
 		{
 			eastl::vector<Type*> leftTypes = UnwrapComplexType(left);
@@ -950,6 +1037,11 @@ struct CheckerUtils
 				if (!IsAssignable(lType, rType)) return false;
 			}
 
+			return true;
+		}
+
+		if (left->typeID == TypeID::GenericNamedType || right->typeID == TypeID::GenericNamedType)
+		{
 			return true;
 		}
 

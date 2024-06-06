@@ -27,7 +27,7 @@ enum ExprID
 	BinaryExpr,
 	UnaryExpr,
 	GroupedExpr,
-	GenericsExpr,
+	TemplateExpr,
 	TypeExpr,
 	FunctionTypeDeclExpr,
 	CompileExpr,
@@ -146,7 +146,7 @@ struct Expr
 			eastl::vector<Expr*>* templateArgs;
 			Token* open;
 			Token* close;
-		} genericsExpr;
+		} templateExpr;
 
 		struct
 		{
@@ -245,8 +245,8 @@ struct Expr
 		case GroupedExpr:
 			groupedExpr = copy.groupedExpr;
 			break;
-		case GenericsExpr:
-			genericsExpr = copy.genericsExpr;
+		case TemplateExpr:
+			templateExpr = copy.templateExpr;
 			break;
 		case TypeExpr:
 			typeExpr = copy.typeExpr;

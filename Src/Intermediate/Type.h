@@ -18,9 +18,11 @@ enum TypeID
 	PointerType,
 	ValueType,
 	ArrayType,
-	GenericsType,
+	TemplatedType,
 	FunctionType,
 	ImportedType,
+	// Only for use of type checking before template expansion, essentially an 'any' type
+	GenericNamedType,
 };
 
 struct Type
@@ -71,9 +73,9 @@ struct Type
 
 		struct
 		{
-			Expr* generics;
+			Expr* templates;
 			Type* type;
-		} genericsType;
+		} templatedType;
 
 		struct
 		{
@@ -86,7 +88,6 @@ struct Type
 			Token* packageName;
 			Token* typeName;
 		} importedType;
-
 	};
 
 	Type()
@@ -131,8 +132,8 @@ struct Type
 		case ArrayType:
 			arrayType = copy.arrayType;
 			break;
-		case GenericsType:
-			genericsType = copy.genericsType;
+		case TemplatedType:
+			templatedType = copy.templatedType;
 			break;
 		case FunctionType:
 			functionType = copy.functionType;

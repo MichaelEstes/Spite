@@ -24,6 +24,7 @@ struct Lower
 		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir, packageMap, stateMap);
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
+			symbolTable = value;
 			SpiteIR::Package* package = ir->AddPackage();
 
 			package->file = *symbolTable->package->pos.file;
@@ -108,7 +109,7 @@ struct Lower
 			break;
 		case GroupedExpr:
 			break;
-		case GenericsExpr:
+		case TemplateExpr:
 			break;
 		case TypeExpr:
 			break;
@@ -165,7 +166,7 @@ struct Lower
 			break;
 		case GroupedExpr:
 			break;
-		case GenericsExpr:
+		case TemplateExpr:
 			break;
 		case TypeExpr:
 			break;

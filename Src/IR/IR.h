@@ -458,9 +458,11 @@ namespace SpiteIR
 			return arena.Emplace<CompileFunction>();
 		}
 
-		inline Type* AllocateType()
+		inline Type* AllocateType(Parent parent)
 		{
-			return arena.Emplace<Type>();
+			Type* type = arena.Emplace<Type>();
+			type->parent = parent;
+			return type;
 		}
 
 		inline Constant* AllocateConstant()

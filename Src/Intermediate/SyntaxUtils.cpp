@@ -41,12 +41,12 @@ bool operator==(const Type& left, const Type& right)
 		return false;
 	case ArrayType:
 		return *left.arrayType.type == *right.arrayType.type;
-	case GenericsType:
+	case TemplatedType:
 	{
-		auto& l = left.genericsType;
-		auto& r = right.genericsType;
-		eastl::vector<Expr*>* lTempl = l.generics->genericsExpr.templateArgs;
-		eastl::vector<Expr*>* rTempl = r.generics->genericsExpr.templateArgs;
+		auto& l = left.templatedType;
+		auto& r = right.templatedType;
+		eastl::vector<Expr*>* lTempl = l.templates->templateExpr.templateArgs;
+		eastl::vector<Expr*>* rTempl = r.templates->templateExpr.templateArgs;
 		if (lTempl->size() != rTempl->size()) return false;
 		for (int i = 0; i < lTempl->size(); i++)
 		{
@@ -148,10 +148,10 @@ bool operator==(const Expr& left, const Expr& right)
 			left.unaryExpr.opType == right.unaryExpr.opType;
 	case GroupedExpr:
 		return *left.groupedExpr.expr == *right.groupedExpr.expr;
-	case GenericsExpr:
+	case TemplateExpr:
 	{
-		auto& lGenerics = left.genericsExpr;
-		auto& rGenerics = right.genericsExpr;
+		auto& lGenerics = left.templateExpr;
+		auto& rGenerics = right.templateExpr;
 		if (*lGenerics.expr != *rGenerics.expr) return false;
 		if (lGenerics.templateArgs->size() != rGenerics.templateArgs->size()) return false;
 
@@ -218,11 +218,11 @@ inline size_t HashType(const Type* type)
 		size_t hash = '[' + ']';
 		return hash + HashType(type->arrayType.type);
 	}
-	case GenericsType:
+	case TemplatedType:
 	{
 		size_t hash = 0;
-		auto& genericType = type->genericsType;
-		for (Expr* templ : *genericType.generics->genericsExpr.templateArgs)
+		auto& genericType = type->templatedType;
+		for (Expr* templ : *genericType.templates->templateExpr.templateArgs)
 		{
 			hash += HashExpr(templ);
 		}
@@ -304,6 +304,8 @@ inline size_t HashExpr(const Expr* expr)
 		for (Stmnt* param : *expr->explicitTypeExpr.values)
 		{
 			hash += HashType(param->definition.type);
+			hash += inplaceStrHasher(param->definition.name->val);
+			if (param->definition.assignment) hash += HashExpr(param->definition.assignment);
 		}
 		return hash;
 	}
@@ -319,11 +321,11 @@ inline size_t HashExpr(const Expr* expr)
 		return HashExpr(expr->unaryExpr.expr) + expr->unaryExpr.opType;
 	case GroupedExpr:
 		return HashExpr(expr->groupedExpr.expr) + UniqueType::Lparen + UniqueType::Rparen;
-	case GenericsExpr:
+	case TemplateExpr:
 	{
 		size_t hash = 0;
-		hash += HashExpr(expr->genericsExpr.expr);
-		for (Expr* templ : *expr->genericsExpr.templateArgs) hash += HashExpr(templ);
+		hash += HashExpr(expr->templateExpr.expr);
+		for (Expr* templ : *expr->templateExpr.templateArgs) hash += HashExpr(templ);
 		return hash;
 	}
 	case TypeExpr:
@@ -645,20 +647,19 @@ eastl::string ToString(Expr* expr)
 		return expr->groupedExpr.lParen->ToString() +
 			ToString(expr->groupedExpr.expr) +
 			expr->groupedExpr.rParen->ToString();
-
-	case GenericsExpr:
+	case TemplateExpr:
 	{
 		eastl::string templateArgs = "";
 
-		for (Expr* templ : *expr->genericsExpr.templateArgs)
+		for (Expr* templ : *expr->templateExpr.templateArgs)
 		{
 			templateArgs += ToString(templ) + ", ";
 		}
 
-		return (expr->genericsExpr.expr != nullptr ? ToString(expr->genericsExpr.expr) : "") +
-			expr->genericsExpr.open->ToString() +
+		return (expr->templateExpr.expr != nullptr ? ToString(expr->templateExpr.expr) : "") +
+			expr->templateExpr.open->ToString() +
 			templateArgs +
-			expr->genericsExpr.close->ToString();
+			expr->templateExpr.close->ToString();
 	}
 	case TypeExpr:
 		return ToString(expr->typeExpr.type);
@@ -756,8 +757,8 @@ eastl::string ToString(Type* type)
 		return "~" + ToString(type->valueType.type);
 	case ArrayType:
 		return "[]" + ToString(type->arrayType.type);
-	case GenericsType:
-		return ToString(type->genericsType.type) + ToString(type->genericsType.generics);
+	case TemplatedType:
+		return ToString(type->templatedType.type) + ToString(type->templatedType.templates);
 	case FunctionType:
 	{
 		eastl::string params = "";

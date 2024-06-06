@@ -45,3 +45,5 @@ eastl::string ToString(Expr* expr);
 eastl::string ToString(Type* type);
 eastl::string ToString(Body& body);
 eastl::string ToString(Stmnt* node);
+
+eastl::string PrimitiveToString(UniqueType type);

@@ -164,7 +164,7 @@ struct LLVMBuilder
 			break;
 		case ArrayType:
 			break;
-		case GenericsType:
+		case TemplatedType:
 			break;
 		case FunctionType:
 			break;
@@ -453,7 +453,7 @@ struct LLVMBuilder
 			break;
 		case GroupedExpr:
 			break;
-		case GenericsExpr:
+		case TemplateExpr:
 			break;
 		case TypeExpr:
 			break;

@@ -61,8 +61,7 @@ struct LowerDeclarations
 		for (size_t i = 0; i < stateStmnt->state.members->size(); i++)
 		{
 			Stmnt* memberStmnt = stateStmnt->state.members->at(i);
-			BuildMemberForState(state, memberStmnt->start->pos, memberStmnt->definition.name->ToString(),
-				memberStmnt->definition.type, memberStmnt->definition.assignment, i);
+			BuildMemberForState(state, memberStmnt, i);
 		}
 
 		for (Stmnt* method : stateSymbol.methods)
@@ -93,15 +92,14 @@ struct LowerDeclarations
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
+			// Name needs built after the members so naming is package qualified
 			eastl::string name = BuildTemplatedStateName(stateStmnt, templates);
 			SpiteIR::State* state = EmplaceState(package, stateStmnt, name);
 
 			for (size_t i = 0; i < stateStmnt->state.members->size(); i++)
 			{
 				Stmnt* memberStmnt = stateStmnt->state.members->at(i);
-				Type* type = ReplaceTypeWithTemplateType(memberStmnt->definition.type, generics.names, templates);
-				BuildMemberForState(state, memberStmnt->start->pos, memberStmnt->definition.name->ToString(),
-					type, memberStmnt->definition.assignment, i);
+				BuildMemberForState(state, memberStmnt,i, generics.names, templates);
 			}
 
 			for (Stmnt* method : stateSymbol.methods)
@@ -126,40 +124,16 @@ struct LowerDeclarations
 		}
 	}
 
-	void BuildMemberForState(SpiteIR::State* state, Position& pos, const eastl::string& name, Type* type,
-		Expr* assignment, size_t index)
+	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index, 
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
 		SpiteIR::Member* member = ir->AllocateMember();
 		member->parent = state;
-		member->pos = pos;
-		member->type = TypeToIRType(ir, type, member);
-		member->name = name;
+		member->pos = memberStmnt->start->pos;
+		member->type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
+		member->name = memberStmnt->definition.name->val.ToString();
 		member->index = index;
-		state->members[name] = member;
-	}
-
-	Type* ReplaceTypeWithTemplateType(Type* type, eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
-	{
-		Type* returnType = type;
-		if (type->typeID == TypeID::NamedType)
-		{
-			for (size_t i = 0; i < generics->size(); i++)
-			{
-				Token* genericName = generics->at(i);
-				if (type->namedType.typeName->val == genericName->val)
-				{
-					Expr* templ = templates->at(i);
-					if (templ && templ->typeID == ExprID::TypeExpr)
-					{
-						returnType = templ->typeExpr.type;
-						break;
-					}
-					else AddError(genericName, "Lower:BuildGenericState Invalid expression used as type template");
-				}
-			}
-		}
-
-		return returnType;
+		state->members[member->name] = member;
 	}
 
 	SpiteIR::State* EmplaceState(SpiteIR::Package* package, Stmnt* stateStmnt, eastl::string& name)
@@ -189,12 +163,12 @@ struct LowerDeclarations
 		function->parent = package;
 		function->pos = funcStmnt->start->pos;
 		function->name = BuildFunctionName(funcStmnt);
-		function->returnType = TypeToIRType(ir, funcStmnt->function.returnType, function);
+		function->returnType = TypeToIRType(ir, funcStmnt->function.returnType, function, this);
 
 		for (size_t i = 0; i < funcDecl.parameters->size(); i++)
 		{
 			Stmnt* param = funcDecl.parameters->at(i);
-			BuildArgumentForFunction(function, param, param->definition.type, i);
+			BuildArgumentForFunction(function, param, i);
 		}
 
 		package->functions[function->name] = function;
@@ -212,27 +186,27 @@ struct LowerDeclarations
 			function->pos = funcStmnt->start->pos;
 			function->name = BuildTemplatedFunctionName(funcStmnt, templates);
 			function->returnType = TypeToIRType(ir, 
-				ReplaceTypeWithTemplateType(funcStmnt->function.returnType, generics.names, templates), 
-				function);
+				funcStmnt->function.returnType, 
+				function, this, generics.names, templates);
 
 			for (size_t i = 0; i < funcDecl.parameters->size(); i++)
 			{
 				Stmnt* param = funcDecl.parameters->at(i);
-				Type* type = ReplaceTypeWithTemplateType(param->definition.type, generics.names, templates);
-				BuildArgumentForFunction(function, param, type, i);
+				BuildArgumentForFunction(function, param, i, generics.names, templates);
 			}
 
 			package->functions[function->name] = function;
 		}
 	}
 
-	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, Type* type, size_t index)
+	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index, 
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();
 		arg->parent = function;
 		arg->pos = param->start->pos;
 		arg->index = index;
-		arg->type = TypeToIRType(ir, type, arg);
+		arg->type = TypeToIRType(ir, param->definition.type, arg, this, generics, templates);
 		arg->name = param->definition.name->val.ToString();
 		function->arguments[arg->name] = arg;
 	}
@@ -243,8 +217,8 @@ struct LowerDeclarations
 		SpiteIR::Value* globalVar = ir->AllocateValue();
 		globalVar->parent = SpiteIR::Parent(package);
 		globalVar->pos = globalVarStmnt->start->pos;
-		globalVar->name = package->name + ":" + def.name->val.ToString();
-		globalVar->type = TypeToIRType(ir, def.type, globalVar);
+		globalVar->name = BuildGlobalVariableName(globalVarStmnt);
+		globalVar->type = TypeToIRType(ir, def.type, globalVar, this);
 		package->globalVariables[globalVar->name] = globalVar;
 	}
 

@@ -11,11 +11,14 @@ struct TypeChecker
 	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
+	Stmnt*& currentContext;
 	CheckerUtils utils;
 
 	TypeChecker(GlobalTable* globalTable, SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), utils(globalTable, symbolTable, scopeQueue)  {}
+		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue,
+		Stmnt*& currentContext)
+		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext),
+		utils(globalTable, symbolTable, scopeQueue, currentContext)  {}
 
 	void CheckDefinitionType(Stmnt* node)
 	{
@@ -26,7 +29,7 @@ struct TypeChecker
 			Type* inferredType = utils.InferType(definition.assignment);
 			if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 			{
-				AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
+				AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
 			}
 			definition.type = inferredType;
 		}
@@ -41,7 +44,7 @@ struct TypeChecker
 				Type* inferredType = utils.InferType(definition.assignment);
 				if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 				{
-					AddError(definition.assignment->start, "PackageChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
+					AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 				}
 				else if (!utils.IsAssignable(definition.type, inferredType))
 				{
@@ -178,9 +181,9 @@ struct TypeChecker
 		}
 
 		Type* inferred = utils.InferType(node->returnStmnt.expr);
-		if (*inferred != *returnType)
+		if (!utils.IsAssignable(inferred, returnType))
 		{
-			AddError(node->start, "TypeChecker:CheckerReturnType Expected return type: " + ToString(returnType) +
+			AddError(node->start, "TypeChecker:CheckReturnType Expected return type: " + ToString(returnType) +
 				", return expression evaluated to: " + ToString(inferred));
 		}
 	}

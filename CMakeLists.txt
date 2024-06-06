@@ -39,7 +39,7 @@ add_executable (Spite_Lang
 "Src/Config/BuildConfig.h"  "Src/Config/Config.h" "Src/Containers/Table.h" "Src/Output/LLVM/LLVMBuilder.h" 
 "Src/Checking/PackageChecker.h" "Src/Containers/TupleLookup.h" "Src/Tokens/Token.h" "Src/Checking/TypeChecker.h" 
 "Src/Checking/ExprChecker.h"  "Src/Checking/CheckerUtils.h"  "Src/Intermediate/GlobalTable.h" "Src/Checking/Checker.h" 
-"Src/Intermediate/SyntaxUtils.h" "Src/Intermediate/SyntaxUtils.cpp" "Src/IR/IR.h" "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" "Src/Lower/LowerUtils.h")
+"Src/Intermediate/SyntaxUtils.h" "Src/Intermediate/SyntaxUtils.cpp" "Src/IR/IR.h" "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" "Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)

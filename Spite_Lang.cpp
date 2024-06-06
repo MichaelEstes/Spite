@@ -1,8 +1,8 @@
 ﻿// Spite_Lang.cpp : Defines the entry point for the application.
 //
 #include "Spite_Lang.h"
-#include "Src/Intermediate/IR.h"
-#include "Src/Intermediate/Lower.h"
+#include "Src/IR/IR.h"
+#include "Src/Lower/Lower.h"
 
 typedef eastl::string string;
 

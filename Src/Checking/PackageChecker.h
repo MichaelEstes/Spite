@@ -3,19 +3,23 @@
 #include "EASTL/deque.h"
 #include "TypeChecker.h"
 #include "ExprChecker.h"
+#include "DeferredChecker.h"
 
 struct PackageChecker
 {
 	GlobalTable* globalTable;
 	SymbolTable* symbolTable;
+	DeferredContainer& deferred;
 	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>> scopeQueue;
-	eastl::hash_map<StringView, Stmnt*, StringViewHash>* globalScope;
+	eastl::hash_set<StringView, StringViewHash> scopedGenerics;
+
 	Stmnt* currentContext = nullptr;
 	TypeChecker typeChecker;
 	ExprChecker exprChecker;
 
-	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable)
-		: typeChecker(globalTable, symbolTable, scopeQueue), exprChecker(globalTable, symbolTable, scopeQueue)
+	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable, DeferredContainer& deferred)
+		: typeChecker(globalTable, symbolTable, scopeQueue, currentContext),
+		exprChecker(globalTable, symbolTable, scopeQueue, currentContext, deferred), deferred(deferred)
 	{
 		this->globalTable = globalTable;
 		this->symbolTable = symbolTable;
@@ -24,7 +28,6 @@ struct PackageChecker
 	void Check()
 	{
 		AddScope();
-		globalScope = &scopeQueue.back();
 		for (auto& [key, value] : symbolTable->globalValMap)
 		{
 			CheckGlobalVal(value);

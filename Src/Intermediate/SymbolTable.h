@@ -156,6 +156,7 @@ struct SymbolTable
 {
 	Token* package;
 	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
+	// These need to be arrays with maps that point to their index instead, order matters
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
