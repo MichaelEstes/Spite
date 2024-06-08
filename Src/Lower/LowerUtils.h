@@ -6,9 +6,9 @@
 
 eastl::string BuildExprString(Expr* expr);
 
-eastl::string OperatorToString(UniqueType op)
+eastl::string OperatorToString(Token* op)
 {
-	switch (op)
+	switch (op->uniqueType)
 	{
 	case UniqueType::Add:
 		return "add";
@@ -85,11 +85,12 @@ eastl::string OperatorToString(UniqueType op)
 	case UniqueType::To:
 		return "to";
 	case UniqueType::Array:
-		return "array";
+		return "index";
 	default:
 		break;
 	}
 
+	AddError(op, "LowerUtils:OperatorToString Invalid operator");
 	return "";
 }
 
@@ -225,10 +226,10 @@ eastl::string BuildExprString(Expr* expr)
 	case ReferenceExpr:
 		return "ref_" + BuildExprString(expr->referenceExpr.of);
 	case BinaryExpr:
-		return BuildExprString(expr->binaryExpr.left) + '_' + OperatorToString(expr->binaryExpr.opType) + '_' +
+		return BuildExprString(expr->binaryExpr.left) + '_' + OperatorToString(expr->binaryExpr.op) + '_' +
 			BuildExprString(expr->binaryExpr.right);
 	case UnaryExpr:
-		return OperatorToString(expr->unaryExpr.opType) + '_' + BuildExprString(expr->unaryExpr.expr);
+		return OperatorToString(expr->unaryExpr.op) + '_' + BuildExprString(expr->unaryExpr.expr);
 	case GroupedExpr:
 		return "group_" + BuildExprString(expr->groupedExpr.expr);
 	case TemplateExpr:
@@ -282,15 +283,14 @@ inline eastl::string BuildTemplatedFunctionName(Stmnt* func, eastl::vector<Expr*
 	return BuildFunctionName(func) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildMethodName(Stmnt* method)
+inline eastl::string BuildMethodName(SpiteIR::State* state, Stmnt* method)
 {
-	return BuildPackageName(method->package) + '_' + method->method.stateName->val.ToString() + '_' +
-		method->method.name->val.ToString();
+	return state->name + '_' + method->method.name->val.ToString();
 }
 
-inline eastl::string BuildTemplatedMethodName(Stmnt* method, eastl::vector<Expr*>* templates)
+inline eastl::string BuildTemplatedMethodName(SpiteIR::State* state, Stmnt* method, eastl::vector<Expr*>* templates)
 {
-	return BuildMethodName(method) + BuildTemplatedString(templates);
+	return BuildMethodName(state, method) + BuildTemplatedString(templates);
 }
 
 inline eastl::string BuildOperatorName(Stmnt* op)
@@ -347,6 +347,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 		case Float64:
 		case Float128:
 			prim.kind = SpiteIR::PrimitiveKind::Float;
+			break;
 		case String:
 			prim.kind = SpiteIR::PrimitiveKind::String;
 			break;
@@ -373,12 +374,15 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 				}
 			}
 		}
+		
+		AddError("Lower:ReplaceTypeWithTemplateType Named types should have been qualified by now");
+		return nullptr;
 	}
 	case ImportedType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::NamedType;
-		Stmnt* state = lower->globalTable->FindStateForType(type, lower->symbolTable);
+		Stmnt* state = lower->globalTable->FindState(type->importedType.packageName->val, type->importedType.typeName->val);
 		irType->namedType.name = ir->AllocateString();
 		*irType->namedType.name = BuildStateName(state);
 		return irType;

@@ -19,8 +19,6 @@ struct Checker
 		{
 			PackageChecker packageChecker = PackageChecker(globalTable, value, deferred);
 			packageChecker.Check();
-
-			//value->Print();
 		}
 
 		CheckDeferred();

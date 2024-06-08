@@ -21,86 +21,6 @@ struct ExprChecker
 		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext),
 		utils(globalTable, symbolTable, scopeQueue, currentContext), deferred(deferred) {}
 
-	void CheckExpr(Expr* expr, Stmnt* node, Expr* prev = nullptr)
-	{
-		switch (expr->typeID)
-		{
-		case InvalidExpr:
-			break;
-		case LiteralExpr:
-			break;
-		case IdentifierExpr:
-			break;
-		case PrimitiveExpr:
-			break;
-		case SelectorExpr:
-			CheckExpr(expr->selectorExpr.on, node, expr);
-			CheckExpr(expr->selectorExpr.select, node, expr);
-			break;
-		case IndexExpr:
-			break;
-		case FunctionCallExpr:
-			CheckExpr(expr->functionCallExpr.function, node, expr);
-			CheckFunctionCallExpr(expr, node, prev);
-			break;
-		case NewExpr:
-			CheckExpr(expr->newExpr.primaryExpr, node, expr);
-			CheckNew(expr, node, prev);
-			break;
-		case FixedExpr:
-			CheckExpr(expr->fixedExpr.atExpr, node, expr);
-			CheckFixed(expr, node, prev);
-			break;
-		case AnonTypeExpr:
-		{
-			for (Expr* e : *expr->anonTypeExpr.values) CheckExpr(e, node, expr);
-			break;
-		}
-		case AsExpr:
-			CheckExpr(expr->asExpr.of, node, expr);
-			break;
-		case DereferenceExpr:
-			CheckExpr(expr->dereferenceExpr.of, node, expr);
-			break;
-		case ReferenceExpr:
-			CheckExpr(expr->referenceExpr.of, node, expr);
-			break;
-		case BinaryExpr:
-		{
-			auto& binaryExpr = expr->binaryExpr;
-			CheckExpr(binaryExpr.left, node, expr);
-			CheckExpr(binaryExpr.right, node, expr);
-			break;
-		}
-		case UnaryExpr:
-			CheckExpr(expr->unaryExpr.expr, node, expr);
-			break;
-		case GroupedExpr:
-			CheckExpr(expr->groupedExpr.expr, node, expr);
-			break;
-		case TemplateExpr:
-		{
-			CheckExpr(expr->templateExpr.expr, node, expr);
-			for (Expr* templArg : *expr->templateExpr.templateArgs) CheckExpr(templArg, node, expr);
-			CheckGenerics(expr, node, prev);
-			break;
-		}
-		case TypeExpr:
-			break;
-		case FunctionTypeDeclExpr:
-			break;
-		case CompileExpr:
-			break;
-		default:
-			break;
-		}
-	}
-
-	void CheckAssignmentStmnt(Stmnt* node)
-	{
-		CheckExpr(node->assignmentStmnt.assignTo, node);
-		CheckExpr(node->assignmentStmnt.assignment, node);
-	}
 
 	bool TemplateIsForwardedGeneric(eastl::vector<Expr*>* templates)
 	{
@@ -112,7 +32,7 @@ struct ExprChecker
 		return false;
 	}
 
-	void CheckGenerics(Expr* expr, Stmnt* node, Expr* prev)
+	void CheckGenerics(Expr* expr)
 	{
 		auto& templateExpr = expr->templateExpr;
 		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
@@ -153,17 +73,17 @@ struct ExprChecker
 		generics.templatesToExpand->insert(templateArgs);
 	}
 
-	void CheckNew(Expr* expr, Stmnt* node, Expr* prev)
+	void CheckNew(Expr* expr)
 	{
 		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
-	void CheckFixed(Expr* expr, Stmnt* node, Expr* prev)
+	void CheckFixed(Expr* expr)
 	{
 
 	}
 
-	void CheckFunctionCallExpr(Expr* expr, Stmnt* node, Expr* prev)
+	void CheckFunctionCallExpr(Expr* expr)
 	{
 		auto& functionCall = expr->functionCallExpr;
 		Expr* function = functionCall.function;
@@ -182,15 +102,17 @@ struct ExprChecker
 				if (paramCount == 0) return;
 
 				StateSymbol* stateSymbol = globalTable->FindStateSymbolForState(functionStmnt);
-
-				// Treat state 'this' param as an any variable becuase of generic states
-				// Will be checked lowering
-				Type anyThis = Type(TypeID::GenericNamedType);
-				Expr thisIdent = Expr(ExprID::TypeExpr, stateSymbol->state->state.name);
-				thisIdent.typeExpr.type = &anyThis;
-				
 				eastl::vector<Expr*> conParams = eastl::vector<Expr*>();
+
+				Type thisType = Type(TypeID::NamedType);
+				Expr thisIdent = Expr(ExprID::TypeExpr, stateSymbol->state->state.name);
+				thisIdent.typeExpr.type = &thisType;
+
+				if (stateSymbol->state->state.generics) thisType.typeID = TypeID::GenericNamedType;
+				else thisType.namedType.typeName = stateSymbol->state->state.name;
+
 				conParams.push_back(&thisIdent);
+
 				for (Expr* param : *params) conParams.push_back(param);
 
 				for (Stmnt* con : stateSymbol->constructors)
@@ -212,9 +134,16 @@ struct ExprChecker
 			}
 			case StmntID::Method:
 			{
-				// Add call expression as first parameter
+				Stmnt* state = globalTable->FindState(functionStmnt->package->val, functionStmnt->method.stateName->val);
 				eastl::vector<Expr*> methodParams = eastl::vector<Expr*>();
-				methodParams.push_back(GetStateParamForMethodCall(function));
+
+				Type thisType = Type(TypeID::GenericNamedType);
+				Expr thisIdent = Expr(ExprID::TypeExpr, functionStmnt->method.stateName);
+				thisIdent.typeExpr.type = &thisType;
+
+				if (state->state.generics) methodParams.push_back(&thisIdent);
+				else methodParams.push_back(GetStateParamForMethodCall(function));
+
 				for (Expr* param : *params) methodParams.push_back(param);
 
 				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl, &methodParams))
@@ -321,10 +250,5 @@ struct ExprChecker
 		}
 
 		return count;
-	}
-
-	void Finalize()
-	{
-
 	}
 };

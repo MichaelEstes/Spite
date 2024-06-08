@@ -278,9 +278,9 @@ struct CheckerUtils
 		node = symbolTable->FindStateOrFunction(val);
 		if (node) return node;
 
-		for (Stmnt* import : symbolTable->imports)
+		for (Stmnt * import : symbolTable->imports)
 		{
-			StringView& package = import->importStmnt.packageName->val;
+			StringView & package = import->importStmnt.packageName->val;
 			node = globalTable->FindStateOrFunction(package, val);
 			if (node) return node;
 		}
@@ -324,33 +324,25 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	inline bool HasBaseTypeForSelector(TypeID typeID)
+	inline bool ValidTypeForSelector(Type* type)
 	{
-		return typeID == TypeID::PointerType || typeID == TypeID::ValueType ||
-			typeID == TypeID::TemplatedType;
-	}
-
-	inline Type* GetBaseTypeForSelector(Type* type)
-	{
-		while (HasBaseTypeForSelector(type->typeID))
+		switch (type->typeID)
 		{
-			switch (type->typeID)
-			{
-			case PointerType:
-				type = type->pointerType.type;
-				break;
-			case ValueType:
-				type = type->valueType.type;
-				break;
-			case TemplatedType:
-				type = type->templatedType.type;
-				break;
-			default:
-				break;
-			}
+		case NamedType:
+		case ImportedType:
+			return true;
+		case PointerType:
+			return ValidTypeForSelector(type->pointerType.type);
+		case ValueType:
+			return ValidTypeForSelector(type->valueType.type);
+			break;
+		case TemplatedType:
+			return ValidTypeForSelector(type->templatedType.type);
+		default:
+			break;
 		}
 
-		return type;
+		return false;
 	}
 
 	inline Type* GetSelectorType(Expr* of, Type* type)
@@ -364,28 +356,27 @@ struct CheckerUtils
 			return explicitMember->definition.type;
 		}
 
-		type = GetBaseTypeForSelector(type);
-
-		if (type->typeID != TypeID::NamedType)
+		if (!ValidTypeForSelector(type))
 		{
-			AddError(of->start, "CheckerUtils:GetSelectorType Expected a named type from selector");
+			AddError(of->start, "CheckerUtils:GetSelectorType Invalid type for selector: " + ToString(type));
 			return nullptr;
 		}
 
-		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(type->namedType.typeName->val);
-		if (!stateSymbol || !stateSymbol->state)
+		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
+		if (!state)
 		{
-			AddError(of->start, "CheckerUtils:GetSelectorType No state found for named type: " + ToString(type));
+			AddError(of->start, "CheckerUtils:GetSelectorType No state found for type: " + ToString(type));
 			return nullptr;
 		}
 
-		Stmnt* member = FindStateMember(stateSymbol->state, name);
+		Stmnt* member = FindStateMember(state, name);
 		if (member)
 		{
 			return member->definition.type;
 		}
 		else
 		{
+			StateSymbol* stateSymbol = globalTable->FindStateSymbol(state->package->val, state->state.name->val);
 			Stmnt* method = FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
@@ -522,6 +513,7 @@ struct CheckerUtils
 	{
 		switch (type->typeID)
 		{
+		case ImportedType:
 		case NamedType:
 			// Find index operator for type
 			break;
@@ -547,6 +539,7 @@ struct CheckerUtils
 		{
 		case PrimitiveType:
 			return type;
+		case ImportedType:
 		case NamedType:
 			// Constructor, needs more validation
 			return type;
@@ -672,7 +665,7 @@ struct CheckerUtils
 		{
 			return symbolTable->CreateTypePtr(TypeID::GenericNamedType);
 		}
-		
+
 		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);
 		if (node)
 		{
@@ -690,7 +683,7 @@ struct CheckerUtils
 					}
 				}
 			}
-			
+
 			AddError(token, "CheckerUtils:GetStateOperatorType No operator found for named type: " + ToString(namedType));
 		}
 		else
@@ -810,11 +803,9 @@ struct CheckerUtils
 		case PrimitiveType:
 			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
 			return type;
+		case ImportedType:
 		case NamedType:
 			return GetStateOperatorType(op, op->uniqueType, type);
-		case ImportedType:
-			// TODO Support imported types
-			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		case PointerType:
 			return GetUnaryType(op, type->pointerType.type);
 		case ValueType:

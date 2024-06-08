@@ -78,6 +78,8 @@ int main(int argc, char** argv)
 			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax for " + config.file);
 		}
 
+		globalTable.Print();
+
 		Lower lower = Lower(&globalTable);
 		ir = lower.BuildIR();
 	}

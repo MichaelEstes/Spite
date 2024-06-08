@@ -20,6 +20,22 @@ struct TypeChecker
 		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext),
 		utils(globalTable, symbolTable, scopeQueue, currentContext)  {}
 
+	void CheckNamedType(Type* type)
+	{
+		Token* name = type->namedType.typeName;
+		Stmnt* state = globalTable->FindLocalOrImportedState(name, symbolTable);
+		if (state)
+		{
+			type->typeID = TypeID::ImportedType;
+			type->importedType.packageName = state->package;
+			type->importedType.typeName = name;
+		}
+		else if (!utils.IsGenericOfCurrentContext(type))
+		{
+			AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
+		}
+	}
+
 	void CheckDefinitionType(Stmnt* node)
 	{
 		auto& definition = node->definition;

@@ -19,6 +19,14 @@ struct GlobalTable
 		}
 	}
 
+	void Print()
+	{
+		for (auto& [key, value] : packageToSymbolTable)
+		{
+			value->Print();
+		}
+	}
+
 	inline size_t GetSize()
 	{
 		size_t size = 0;

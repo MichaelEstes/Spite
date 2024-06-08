@@ -368,9 +368,9 @@
 			({*groupedExpr.expr})
 		</DisplayString>
 		<DisplayString
-			Condition="typeID == ExprID::GenericsExpr"
+			Condition="typeID == ExprID::TemplateExpr"
 			Optional="true">
-			&lt;[{(*genericsExpr.types).mpEnd - (*genericsExpr.types).mpBegin}]&gt;{*genericsExpr.expr}
+			&lt;[{(*templateExpr.templateArgs).mpEnd - (*templateExpr.templateArgs).mpBegin}]&gt;{*templateExpr.expr}
 		</DisplayString>
 		<DisplayString
 			Condition="typeID == ExprID::FunctionTypeExpr"

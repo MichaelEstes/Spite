@@ -383,6 +383,7 @@ namespace SpiteIR
 		} metadata;
 
 		HashMap<string, Member*> members;
+		Array<Function*> methods;
 		string name;
 		size_t size;
 	};

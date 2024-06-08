@@ -536,8 +536,9 @@ struct Syntax
 		Stmnt* param = CreateStmnt(thisName, StmntID::Definition);
 		param->definition.assignment = nullptr;
 		param->definition.name = thisName;
-		param->definition.type = CreateTypePtr(TypeID::NamedType);
-		param->definition.type->namedType.typeName = stateName;
+		param->definition.type = CreateTypePtr(TypeID::ImportedType);
+		param->definition.type->importedType.packageName = package;
+		param->definition.type->importedType.typeName = stateName;
 		params->insert(params->begin(), param);
 	}
 
