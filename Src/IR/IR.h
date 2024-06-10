@@ -384,6 +384,9 @@ namespace SpiteIR
 
 		HashMap<string, Member*> members;
 		Array<Function*> methods;
+		Array<Function*> operators;
+		Array<Function*> constructors;
+		Function* destructor = nullptr;
 		string name;
 		size_t size;
 	};

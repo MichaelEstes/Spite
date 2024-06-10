@@ -4,19 +4,14 @@
 #include <EASTL/deque.h>
 #include "../Intermediate/Syntax.h"
 #include "../Intermediate/GlobalTable.h"
+#include "CheckerContext.h"
 
 
 struct CheckerUtils
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
-	Stmnt*& currentContext;
+	CheckerContext& context;
 
-	CheckerUtils(GlobalTable* globalTable, SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue,
-		Stmnt*& currentContext)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext) {}
+	CheckerUtils(CheckerContext& context) : context(context) {}
 
 	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
 	{
@@ -32,7 +27,7 @@ struct CheckerUtils
 			switch (stmnt->nodeID)
 			{
 			case Definition:
-				return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
+				return context.globalTable->FindStateForType(stmnt->definition.type, context.symbolTable);
 			case FunctionStmnt:
 			case StateStmnt:
 				return stmnt;
@@ -52,7 +47,7 @@ struct CheckerUtils
 				StringView& package = expr->selectorExpr.on->identifierExpr.identifier->val;
 				StringView& name = expr->selectorExpr.on->identifierExpr.identifier->val;
 				//Package is being selected, find in global table
-				return globalTable->FindStateOrFunction(package, name);
+				return context.globalTable->FindStateOrFunction(package, name);
 			}
 			else
 			{
@@ -71,7 +66,7 @@ struct CheckerUtils
 	inline bool IsPackageExpr(Expr* expr)
 	{
 		return expr->typeID == ExprID::SelectorExpr && expr->selectorExpr.on->typeID == ExprID::IdentifierExpr &&
-			globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val);
+			context.globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val);
 	}
 
 	inline Type* GetOuterReturnType(Stmnt* node)
@@ -165,8 +160,8 @@ struct CheckerUtils
 			return of;
 		}
 
-		Type* type = symbolTable->CreateTypePtr(TypeID::TemplatedType);
-		type->templatedType.templates = symbolTable->CreateExpr(expr->start, ExprID::TemplateExpr);
+		Type* type = context.symbolTable->CreateTypePtr(TypeID::TemplatedType);
+		type->templatedType.templates = context.symbolTable->CreateExpr(expr->start, ExprID::TemplateExpr);
 		type->templatedType.templates->templateExpr.expr = nullptr;
 		type->templatedType.templates->templateExpr.open = expr->templateExpr.open;
 		type->templatedType.templates->templateExpr.close = expr->templateExpr.close;
@@ -177,7 +172,7 @@ struct CheckerUtils
 
 	inline Type* FunctionToFunctionType(Stmnt* node)
 	{
-		Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);
+		Type* type = context.symbolTable->CreateTypePtr(TypeID::FunctionType);
 		Stmnt* decl = nullptr;
 
 		switch (node->nodeID)
@@ -208,7 +203,7 @@ struct CheckerUtils
 
 	inline Type* FillFunctionTypeParams(Stmnt* decl, Type* type)
 	{
-		type->functionType.paramTypes = symbolTable->CreateVectorPtr<Type>();
+		type->functionType.paramTypes = context.symbolTable->CreateVectorPtr<Type>();
 		for (Stmnt* node : *decl->functionDecl.parameters)
 		{
 			type->functionType.paramTypes->push_back(node->definition.type);
@@ -219,7 +214,7 @@ struct CheckerUtils
 
 	inline Stmnt* FindInScope(StringView& val)
 	{
-		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)
+		for (auto it = context.scopeQueue.rbegin(); it != context.scopeQueue.rend(); it++)
 		{
 			if (auto entry = it->find(val); entry != it->end())
 			{
@@ -235,10 +230,10 @@ struct CheckerUtils
 		Stmnt* stmnt = FindStateMember(state, name->val);
 		if (stmnt)
 		{
-			return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
+			return context.globalTable->FindStateForType(stmnt->definition.type, context.symbolTable);
 		}
 
-		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(state->state.name->val);
+		StateSymbol* stateSymbol = context.symbolTable->FindStateSymbol(state->state.name->val);
 		stmnt = FindStateMethod(stateSymbol, name->val);
 		return stmnt;
 	}
@@ -275,13 +270,13 @@ struct CheckerUtils
 		if (node) return node;
 
 
-		node = symbolTable->FindStateOrFunction(val);
+		node = context.symbolTable->FindStateOrFunction(val);
 		if (node) return node;
 
-		for (Stmnt * import : symbolTable->imports)
+		for (Stmnt * import : context.symbolTable->imports)
 		{
 			StringView & package = import->importStmnt.packageName->val;
-			node = globalTable->FindStateOrFunction(package, val);
+			node = context.globalTable->FindStateOrFunction(package, val);
 			if (node) return node;
 		}
 
@@ -293,9 +288,9 @@ struct CheckerUtils
 		Stmnt* node = FindNodeForName(name);
 		if (!node)
 		{
-			if (globalTable->IsPackage(name))
+			if (context.globalTable->IsPackage(name))
 			{
-				Type* importedType = symbolTable->CreateTypePtr(TypeID::ImportedType);
+				Type* importedType = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
 				importedType->importedType.packageName = expr->identifierExpr.identifier;
 				return importedType;
 			}
@@ -314,7 +309,7 @@ struct CheckerUtils
 			return FunctionToFunctionType(node);
 		case StmntID::StateStmnt:
 		{
-			Type* type = symbolTable->CreateTypePtr(TypeID::NamedType);
+			Type* type = context.symbolTable->CreateTypePtr(TypeID::NamedType);
 			type->namedType.typeName = node->state.name;
 			return type;
 		}
@@ -362,7 +357,7 @@ struct CheckerUtils
 			return nullptr;
 		}
 
-		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
+		Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
 		if (!state)
 		{
 			AddError(of->start, "CheckerUtils:GetSelectorType No state found for type: " + ToString(type));
@@ -376,7 +371,7 @@ struct CheckerUtils
 		}
 		else
 		{
-			StateSymbol* stateSymbol = globalTable->FindStateSymbol(state->package->val, state->state.name->val);
+			StateSymbol* stateSymbol = context.globalTable->FindStateSymbol(state->package->val, state->state.name->val);
 			Stmnt* method = FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
@@ -400,7 +395,7 @@ struct CheckerUtils
 
 	inline bool IsNameOfType(StringView& name)
 	{
-		StateSymbol* state = symbolTable->FindStateSymbol(name);
+		StateSymbol* state = context.symbolTable->FindStateSymbol(name);
 		if (state) return true;
 		else return IsNameOfPrimitive(name);
 	}
@@ -411,7 +406,20 @@ struct CheckerUtils
 		Expr* on = selector.on;
 		Expr* select = selector.select;
 		return on->typeID == ExprID::IdentifierExpr && select->typeID == ExprID::IdentifierExpr &&
-			globalTable->FindStateSymbol(on->identifierExpr.identifier->val, select->identifierExpr.identifier->val);
+			context.globalTable->FindStateSymbol(on->identifierExpr.identifier->val, select->identifierExpr.identifier->val);
+	}
+
+	bool IsGeneric(Token* ident, Stmnt* stmnt)
+	{
+		Stmnt* generics = GetGenerics(stmnt);
+		if (!generics) return false;
+
+		for (Token* gen : *generics->generics.names)
+		{
+			if (ident->val == gen->val) return true;
+		}
+
+		return false;
 	}
 
 	bool IsGenericOf(Stmnt* stmnt, Type* type)
@@ -419,46 +427,26 @@ struct CheckerUtils
 		if (!stmnt) return IsGenericOfCurrentContext(type);
 		if (!type || type->typeID != TypeID::NamedType) return false;
 
-		Stmnt* generics = GetGenerics(stmnt);
-		if (!generics) return false;
-
-		for (Token* name : *generics->generics.names)
-		{
-			if (name->val == type->namedType.typeName->val) return true;
-		}
-
-		return false;
-	}
-
-	bool IsGenericOfCurrentContext(Type* type)
-	{
-		if (!type || !currentContext || type->typeID != TypeID::NamedType) return false;
-
-		Stmnt* generics = GetGenerics(currentContext);
-		if (!generics) return false;
-
-		for (Token* name : *generics->generics.names)
-		{
-			if (name->val == type->namedType.typeName->val) return true;
-		}
-
-		return false;
+		return IsGeneric(type->namedType.typeName, stmnt);
 	}
 
 	bool IsGenericOfCurrentContext(Expr* expr)
 	{
 		if (expr->typeID == ExprID::TypeExpr) return IsGenericOfCurrentContext(expr->typeExpr.type);
-		if (!currentContext || expr->typeID != ExprID::IdentifierExpr) return false;
+		if (!context.currentContext || expr->typeID != ExprID::IdentifierExpr) return false;
 
-		Stmnt* generics = GetGenerics(currentContext);
-		if (!generics) return false;
+		Token* ident = expr->identifierExpr.identifier;
+		if (context.currentContext && IsGeneric(ident, context.currentContext)) return true;
+		else return context.currentStateContext && IsGeneric(ident, context.currentStateContext);
+	}
 
-		for (Token* name : *generics->generics.names)
-		{
-			if (name->val == expr->identifierExpr.identifier->val) return true;
-		}
+	bool IsGenericOfCurrentContext(Type* type)
+	{
+		if (!type || !context.currentContext || type->typeID != TypeID::NamedType) return false;
 
-		return false;
+		Token* ident = type->namedType.typeName;
+		if (context.currentContext && IsGeneric(ident, context.currentContext)) return true;
+		else return context.currentStateContext && IsGeneric(ident, context.currentStateContext);
 	}
 
 	bool IsExprOfType(Expr* expr)
@@ -504,7 +492,7 @@ struct CheckerUtils
 
 	inline Type* GetIndexTypeCreateArray(Expr* of, Type* type)
 	{
-		Type* arrType = symbolTable->CreateTypePtr(TypeID::ArrayType);
+		Type* arrType = context.symbolTable->CreateTypePtr(TypeID::ArrayType);
 		arrType->arrayType.type = type;
 		return arrType;
 	}
@@ -563,7 +551,7 @@ struct CheckerUtils
 		switch (expr->typeID)
 		{
 		case PrimitiveExpr:
-			type = symbolTable->CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
+			type = context.symbolTable->CreatePrimitive(expr->primitiveExpr.primitive->uniqueType);
 			break;
 		case TypeExpr:
 			type = expr->typeExpr.type;
@@ -663,13 +651,13 @@ struct CheckerUtils
 	{
 		if (IsGenericOfCurrentContext(namedType) || IsGenericOfCurrentContext(rhs))
 		{
-			return symbolTable->CreateTypePtr(TypeID::GenericNamedType);
+			return context.symbolTable->CreateTypePtr(TypeID::GenericNamedType);
 		}
 
-		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);
+		Stmnt* node = context.globalTable->FindStateForType(namedType, context.symbolTable);
 		if (node)
 		{
-			StateSymbol* state = globalTable->FindStateSymbolForState(node);
+			StateSymbol* state = context.globalTable->FindStateSymbolForState(node);
 			if (state)
 			{
 				for (Stmnt* opNode : state->operators)
@@ -691,7 +679,7 @@ struct CheckerUtils
 			AddError(token, "CheckerUtils:GetStateOperatorType State not found for named type: " + ToString(namedType));
 		}
 
-		return symbolTable->CreateTypePtr(TypeID::InvalidType);
+		return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
 
@@ -746,7 +734,7 @@ struct CheckerUtils
 			break;
 		}
 
-		return symbolTable->CreateTypePtr(TypeID::InvalidType);
+		return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Type* GetOperatorType(Token* op, Type* left, Type* right)
@@ -793,7 +781,7 @@ struct CheckerUtils
 			break;
 		}
 
-		return symbolTable->CreateTypePtr(TypeID::InvalidType);
+		return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Type* GetUnaryType(Token* op, Type* type)
@@ -801,7 +789,7 @@ struct CheckerUtils
 		switch (type->typeID)
 		{
 		case PrimitiveType:
-			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
+			if (op->uniqueType == UniqueType::Not) return context.symbolTable->CreatePrimitive(UniqueType::Bool);
 			return type;
 		case ImportedType:
 		case NamedType:
@@ -813,7 +801,7 @@ struct CheckerUtils
 		case TemplatedType:
 			return GetUnaryType(op, type->templatedType.type);
 		default:
-			return symbolTable->CreateTypePtr(TypeID::InvalidType);
+			return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
 	}
 
@@ -822,7 +810,7 @@ struct CheckerUtils
 		switch (of->typeID)
 		{
 		case InvalidExpr:
-			return symbolTable->CreateTypePtr(TypeID::InvalidType);
+			return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 		case PrimitiveExpr:
 		case IdentifierExpr:
 		case SelectorExpr:
@@ -858,11 +846,11 @@ struct CheckerUtils
 				break;
 			}
 
-			return symbolTable->CreatePrimitive(uniqueType);
+			return context.symbolTable->CreatePrimitive(uniqueType);
 		}
 		case NewExpr:
 		{
-			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
+			Type* type = context.symbolTable->CreateTypePtr(TypeID::PointerType);
 			type->pointerType.type = InferType(of->newExpr.primaryExpr);
 			return type;
 		}
@@ -873,7 +861,7 @@ struct CheckerUtils
 			if (fixedType->typeID != TypeID::ArrayType)
 			{
 				// AddError, fixed types must evaluate to array types
-				return symbolTable->CreateTypePtr(TypeID::InvalidType);
+				return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
 			Type* baseType = nullptr;
@@ -881,7 +869,7 @@ struct CheckerUtils
 			do
 			{
 				fixedType = fixedType->arrayType.type;
-				Type* pointerType = symbolTable->CreateTypePtr(TypeID::PointerType);
+				Type* pointerType = context.symbolTable->CreateTypePtr(TypeID::PointerType);
 				if (!type)
 				{
 					type = pointerType;
@@ -899,21 +887,24 @@ struct CheckerUtils
 		}
 		case AnonTypeExpr:
 		{
-			// AddError AnonType can not be implicitly assigned, loss of member handle name
-			// Maybe in the future
-			// anon := { 1, 2.0, 'str' }
-			// anon[0] = 1 
-			// anon[2] = 'str'
-			return symbolTable->CreateTypePtr(TypeID::InvalidType);
+			Type* anonType = context.symbolTable->CreateTypePtr(TypeID::AnonymousType);
+			anonType->anonType.types = context.symbolTable->CreateVectorPtr<Type>();
+
+			for (Expr* value : *of->anonTypeExpr.values)
+			{
+				anonType->anonType.types->push_back(InferType(value));
+			}
+			
+			return anonType;
 		}
 		case ExplicitTypeExpr:
 		{
-			Type* explicitType = symbolTable->CreateTypePtr(TypeID::ExplicitType);
-			explicitType->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt>();
+			Type* explicitType = context.symbolTable->CreateTypePtr(TypeID::ExplicitType);
+			explicitType->explicitType.declarations = context.symbolTable->CreateVectorPtr<Stmnt>();
 			for (Stmnt* param : *of->explicitTypeExpr.values)
 			{
 				auto& def = param->definition;
-				Stmnt* decl = symbolTable->CreateStmnt(param->start, StmntID::Definition, param->package, param->scope);
+				Stmnt* decl = context.symbolTable->CreateStmnt(param->start, StmntID::Definition, param->package, param->scope);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = def.name;
 				if (def.type->typeID == TypeID::UnknownType)
@@ -939,7 +930,7 @@ struct CheckerUtils
 		}
 		case ReferenceExpr:
 		{
-			Type* type = symbolTable->CreateTypePtr(TypeID::PointerType);
+			Type* type = context.symbolTable->CreateTypePtr(TypeID::PointerType);
 			type->pointerType.type = InferType(of->referenceExpr.of);
 			return type;
 		}
@@ -958,10 +949,10 @@ struct CheckerUtils
 			return InferType(of->groupedExpr.expr);
 		case FunctionTypeDeclExpr:
 		{
-			Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);
+			Type* type = context.symbolTable->CreateTypePtr(TypeID::FunctionType);
 			auto& anonFunction = of->functionTypeDeclExpr.anonFunction->anonFunction;
 			type->functionType.returnType = anonFunction.returnType;
-			type->functionType.paramTypes = symbolTable->CreateVectorPtr<Type>();
+			type->functionType.paramTypes = context.symbolTable->CreateVectorPtr<Type>();
 			for (Stmnt* param : *anonFunction.decl->functionDecl.parameters)
 			{
 				type->functionType.paramTypes->push_back(param->definition.type);
@@ -974,7 +965,7 @@ struct CheckerUtils
 			break;
 		}
 
-		return symbolTable->CreateTypePtr(TypeID::InvalidType);
+		return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
 	bool IsAssignable(Type* left, Type* right, Stmnt* context = nullptr)
@@ -1042,17 +1033,19 @@ struct CheckerUtils
 	inline bool IsComplexType(Type* type)
 	{
 		TypeID id = type->typeID;
-		return id == TypeID::NamedType || id == TypeID::ImportedType || id == TypeID::ExplicitType;
+		return id == TypeID::NamedType || id == TypeID::ImportedType || id == TypeID::ExplicitType || 
+			id == TypeID::AnonymousType;
 	}
 
 	eastl::vector<Type*> UnwrapComplexType(Type* type)
 	{
+		if (type->typeID == TypeID::AnonymousType) return *type->anonType.types;
 		eastl::vector<Type*> types = eastl::vector<Type*>();
 
 		eastl::vector<Stmnt*>* decls = nullptr;
 		if (type->typeID == TypeID::NamedType || type->typeID == TypeID::ImportedType)
 		{
-			Stmnt* state = globalTable->FindStateForType(type, symbolTable);
+			Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
 			decls = state->state.members;
 		}
 		else

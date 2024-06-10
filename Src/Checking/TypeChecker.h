@@ -8,22 +8,15 @@
 
 struct TypeChecker
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
-	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
-	Stmnt*& currentContext;
+	CheckerContext& context;
 	CheckerUtils utils;
 
-	TypeChecker(GlobalTable* globalTable, SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue,
-		Stmnt*& currentContext)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext),
-		utils(globalTable, symbolTable, scopeQueue, currentContext)  {}
+	TypeChecker(CheckerContext& context): context(context), utils(context) {}
 
 	void CheckNamedType(Type* type)
 	{
 		Token* name = type->namedType.typeName;
-		Stmnt* state = globalTable->FindLocalOrImportedState(name, symbolTable);
+		Stmnt* state = context.globalTable->FindLocalOrImportedState(name, context.symbolTable);
 		if (state)
 		{
 			type->typeID = TypeID::ImportedType;
@@ -90,12 +83,12 @@ struct TypeChecker
 			}
 
 			type->typeID = TypeID::ExplicitType;
-			type->explicitType.declarations = symbolTable->CreateVectorPtr<Stmnt>();
+			type->explicitType.declarations = context.symbolTable->CreateVectorPtr<Stmnt>();
 			for (int i = 0; i < identifiers->size(); i++)
 			{
 				Expr* itemExpr = anonExpr.values->at(i);
 				Token* token = identifiers->at(i);
-				Stmnt* decl = symbolTable->CreateStmnt(token, StmntID::Definition, node->package, node);
+				Stmnt* decl = context.symbolTable->CreateStmnt(token, StmntID::Definition, node->package, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
 				decl->definition.type = utils.InferType(itemExpr);
@@ -157,7 +150,7 @@ struct TypeChecker
 		if (!forStmnt.isDeclaration)
 		{
 			Token* identifier = forStmnt.iterated.identifier;
-			Stmnt* decl = symbolTable->CreateStmnt(identifier, StmntID::Definition, node->package, node);
+			Stmnt* decl = context.symbolTable->CreateStmnt(identifier, StmntID::Definition, node->package, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
 			Type* type = utils.InferType(forStmnt.toIterate);

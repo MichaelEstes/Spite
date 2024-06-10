@@ -6,7 +6,7 @@
 
 eastl::string BuildExprString(Expr* expr);
 
-eastl::string OperatorToString(Token* op)
+inline eastl::string OperatorToString(Token* op)
 {
 	switch (op->uniqueType)
 	{
@@ -147,7 +147,8 @@ eastl::string BuildTypeString(Type* type)
 		return funcTypeStr;
 	}
 	case ImportedType:
-		return type->importedType.packageName->val.ToString() + type->importedType.typeName->val.ToString();
+		return type->importedType.packageName->val.ToString() + '_' + 
+			type->importedType.typeName->val.ToString();
 	default:
 		break;
 	}
@@ -258,6 +259,37 @@ eastl::string BuildExprString(Expr* expr)
 	return "";
 }
 
+inline eastl::string BuildConOpParamsTypeString(Stmnt* funcDecl, 
+	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+{
+	eastl::string paramTypes = "";
+	
+	// Skip 'this' parameters, get the type directly from state
+	for (size_t i = 1; i < funcDecl->functionDecl.parameters->size(); i++)
+	{
+		Stmnt* def = funcDecl->functionDecl.parameters->at(i);
+		if (generics && def->definition.type->typeID == TypeID::NamedType)
+		{
+			for (size_t i = 0; i < generics->size(); i++)
+			{
+				Expr* templ = templates->at(i);
+				if (templ->typeID == ExprID::TypeExpr)
+				{
+					if (generics->at(i)->val == def->definition.type->namedType.typeName->val)
+					{
+						paramTypes += BuildTypeString(templ->typeExpr.type) + '_';
+						goto genericFound;
+					}
+				}
+			}
+		}
+		paramTypes += BuildTypeString(def->definition.type) + '_';
+		genericFound:;
+	}
+
+	return paramTypes;
+}
+
 inline eastl::string BuildPackageName(Token* package)
 {
 	return package->val.ToString();
@@ -293,11 +325,24 @@ inline eastl::string BuildTemplatedMethodName(SpiteIR::State* state, Stmnt* meth
 	return BuildMethodName(state, method) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildOperatorName(Stmnt* op)
+inline eastl::string BuildConstructorName(SpiteIR::State* state, Stmnt* con, 
+	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return BuildPackageName(op->package) + '_' + op->stateOperator.stateName->val.ToString() + '_' +
-		op->stateOperator.op->val.ToString();
+	return "con_" + state->name + '_' + BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
+
+inline eastl::string BuildOperatorMethodName(SpiteIR::State* state, Stmnt* op, 
+	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
+{
+	return OperatorToString(op->stateOperator.op) + state->name + '_' + 
+		BuildConOpParamsTypeString(op->stateOperator.decl);
+}
+
+inline eastl::string BuildDestructorName(SpiteIR::State* state)
+{
+	return "dest_" + state->name;
+}
+
 
 inline eastl::string BuildGlobalVariableName(Stmnt* global)
 {
@@ -382,9 +427,8 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::NamedType;
-		Stmnt* state = lower->globalTable->FindState(type->importedType.packageName->val, type->importedType.typeName->val);
 		irType->namedType.name = ir->AllocateString();
-		*irType->namedType.name = BuildStateName(state);
+		*irType->namedType.name = BuildTypeString(type);
 		return irType;
 	}
 	case ExplicitType:
@@ -427,7 +471,14 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 		return irType;
 	}
 	case TemplatedType:
-		break;
+	{
+		SpiteIR::Type* irType = ir->AllocateType(parent);
+		irType->kind = SpiteIR::TypeKind::NamedType;
+		irType->namedType.name = ir->AllocateString();
+		*irType->namedType.name = BuildTypeString(type->templatedType.type) + 
+			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
+		return irType;
+	}
 	case FunctionType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);

@@ -4,38 +4,32 @@
 #include "TypeChecker.h"
 #include "ExprChecker.h"
 #include "DeferredChecker.h"
+#include "CheckerContext.h"
+
 
 struct PackageChecker
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
-	DeferredContainer& deferred;
-	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>> scopeQueue;
-	eastl::hash_set<StringView, StringViewHash> scopedGenerics;
+	CheckerContext context;
 
-	Stmnt* currentContext = nullptr;
 	TypeChecker typeChecker;
 	ExprChecker exprChecker;
 
 	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable, DeferredContainer& deferred)
-		: typeChecker(globalTable, symbolTable, scopeQueue, currentContext),
-		exprChecker(globalTable, symbolTable, scopeQueue, currentContext, deferred), deferred(deferred)
-	{
-		this->globalTable = globalTable;
-		this->symbolTable = symbolTable;
-	}
+		: context(globalTable, symbolTable, deferred), typeChecker(context), exprChecker(context) {}
 
 	void Check()
 	{
 		AddScope();
-		for (auto& [key, value] : symbolTable->globalValMap)
+		for (auto& [key, value] : context.symbolTable->globalValMap)
 		{
 			CheckGlobalVal(value);
 		}
 
-		for (auto& [key, value] : symbolTable->stateMap)
+		for (auto& [key, value] : context.symbolTable->stateMap)
 		{
 			AddScope();
+			// Keep in state in context for method checking
+			context.currentStateContext = value.state;
 			CheckState(key, value.state);
 			CheckConstructors(value.constructors);
 			CheckMethods(value.methods);
@@ -43,30 +37,31 @@ struct PackageChecker
 			CheckDestructor(value.destructor);
 			PopScope();
 		}
+		context.currentStateContext = nullptr;
 
-		for (auto& [key, value] : symbolTable->functionMap)
+		for (auto& [key, value] : context.symbolTable->functionMap)
 		{
 			CheckFunction(value);
 		}
 
-		for (Stmnt* node : symbolTable->onCompiles)
+		for (Stmnt* node : context.symbolTable->onCompiles)
 		{
 
 		}
 
-		scopeQueue.pop_back();
-		if (scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
+		context.scopeQueue.pop_back();
+		if (context.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
 	}
 
 	void AddScope()
 	{
-		scopeQueue.emplace_back();
+		context.scopeQueue.emplace_back();
 	}
 
 	void PopScope()
 	{
-		scopeQueue.pop_back();
-		if (scopeQueue.size() == 0)
+		context.scopeQueue.pop_back();
+		if (context.scopeQueue.size() == 0)
 		{
 			Logger::FatalError("PackageChecker::PopScope Global scope removed, possible compiler error");
 		}
@@ -85,7 +80,7 @@ struct PackageChecker
 			return;
 		}
 
-		currentContext = state;
+		context.currentContext = state;
 		auto& stateRef = state->state;
 		for (Stmnt* member : *stateRef.members)
 		{
@@ -98,7 +93,7 @@ struct PackageChecker
 	{
 		for (Stmnt* constructor : constructors)
 		{
-			currentContext = constructor;
+			context.currentContext = constructor;
 			auto& decl = constructor->constructor.decl;
 			CheckFunctionDecl(decl, constructor);
 		}
@@ -108,7 +103,7 @@ struct PackageChecker
 	{
 		for (Stmnt* method : methods)
 		{
-			currentContext = method;
+			context.currentContext = method;
 			auto& decl = method->method.decl;
 			CheckFunctionDecl(decl, method);
 			CheckType(method->method.returnType, method->start);
@@ -119,7 +114,7 @@ struct PackageChecker
 	{
 		for (Stmnt* op : operators)
 		{
-			currentContext = op;
+			context.currentContext = op;
 			auto& decl = op->stateOperator.decl;
 			CheckFunctionDecl(decl, op);
 			CheckType(op->stateOperator.returnType, op->start);
@@ -128,14 +123,14 @@ struct PackageChecker
 
 	void CheckDestructor(Stmnt* destructor)
 	{
-		currentContext = nullptr;
+		context.currentContext = nullptr;
 		if (!destructor) return; // Destructor not required
 		CheckBody(destructor->destructor.body);
 	}
 
 	void CheckFunction(Stmnt* function)
 	{
-		currentContext = function;
+		context.currentContext = function;
 		auto& decl = function->function.decl;
 		CheckFunctionDecl(decl, function);
 		CheckType(function->function.returnType, function->start);
@@ -419,7 +414,7 @@ struct PackageChecker
 		if (scopeDefinition)
 		{
 			StringView& name = definition.name->val;
-			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = scopeQueue.back();
+			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = context.scopeQueue.back();
 			if (back.find(name) != back.end()) AddError(node->start, "Re-definition of variable name: " + name);
 			else back[name] = node;
 		}
@@ -435,7 +430,7 @@ struct PackageChecker
 
 		if (type->typeID == TypeID::ExplicitType)
 		{
-			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = scopeQueue.back();
+			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = context.scopeQueue.back();
 			auto& explicitType = type->explicitType;
 			for (Stmnt* decl : *explicitType.declarations)
 			{

@@ -181,7 +181,7 @@
 			return
 		</DisplayString>
 		<DisplayString
-			Condition="nodeID == StmntID::ReturnStmnt &amp;&amp; !returnStmnt.voidReturn"
+			Condition="nodeID == StmntID::ReturnStmnt"
 			Optional="true">
 			{*returnStmnt.expr}
 		</DisplayString>

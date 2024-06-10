@@ -8,19 +8,11 @@
 
 struct ExprChecker
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
-	DeferredContainer& deferred;
-	eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue;
-	Stmnt*& currentContext;
+	CheckerContext& context;
+
 	CheckerUtils utils;
 
-	ExprChecker(GlobalTable* globalTable, SymbolTable* symbolTable,
-		eastl::deque<eastl::hash_map<StringView, Stmnt*, StringViewHash>>& scopeQueue,
-		Stmnt*& currentContext, DeferredContainer& deferred)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeQueue(scopeQueue), currentContext(currentContext),
-		utils(globalTable, symbolTable, scopeQueue, currentContext), deferred(deferred) {}
-
+	ExprChecker(CheckerContext& context): context(context), utils(context) {}
 
 	bool TemplateIsForwardedGeneric(eastl::vector<Expr*>* templates)
 	{
@@ -65,7 +57,7 @@ struct ExprChecker
 			DeferredTemplateInstantiation toDefer = DeferredTemplateInstantiation();
 			toDefer.forwardTo = genericsNode;
 			toDefer.templatesToForward = templateArgs;
-			deferred.deferredTemplates[utils.GetGenerics(currentContext)].push_back(toDefer);
+			context.deferred.deferredTemplates[utils.GetGenerics(context.currentContext)].push_back(toDefer);
 			return;
 		}
 
@@ -101,7 +93,7 @@ struct ExprChecker
 				// Every state has a default constructor
 				if (paramCount == 0) return;
 
-				StateSymbol* stateSymbol = globalTable->FindStateSymbolForState(functionStmnt);
+				StateSymbol* stateSymbol = context.globalTable->FindStateSymbolForState(functionStmnt);
 				eastl::vector<Expr*> conParams = eastl::vector<Expr*>();
 
 				Type thisType = Type(TypeID::NamedType);
@@ -134,7 +126,7 @@ struct ExprChecker
 			}
 			case StmntID::Method:
 			{
-				Stmnt* state = globalTable->FindState(functionStmnt->package->val, functionStmnt->method.stateName->val);
+				Stmnt* state = context.globalTable->FindState(functionStmnt->package->val, functionStmnt->method.stateName->val);
 				eastl::vector<Expr*> methodParams = eastl::vector<Expr*>();
 
 				Type thisType = Type(TypeID::GenericNamedType);

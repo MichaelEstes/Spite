@@ -63,25 +63,7 @@ struct LowerDeclarations
 			BuildMemberForState(state, memberStmnt, i);
 		}
 
-		for (Stmnt* method : stateSymbol.methods)
-		{
-			BuildMethod(package, state, method);
-		}
-
-		for (Stmnt* con : stateSymbol.constructors)
-		{
-
-		}
-
-		for (Stmnt* op : stateSymbol.operators)
-		{
-
-		}
-
-		if (stateSymbol.destructor)
-		{
-
-		}
+		BuildMethodsForState(package, stateSymbol, state);
 	}
 
 	void BuildGenericState(SpiteIR::Package* package, StateSymbol& stateSymbol)
@@ -100,69 +82,8 @@ struct LowerDeclarations
 				BuildMemberForState(state, memberStmnt,i, genericNames, templates);
 			}
 
-			for (Stmnt* method : stateSymbol.methods)
-			{
-				BuildMethod(package, state, method);
-			}
-
-			for (Stmnt* con : stateSymbol.constructors)
-			{
-
-			}
-
-			for (Stmnt* op : stateSymbol.operators)
-			{
-
-			}
-
-			if (stateSymbol.destructor)
-			{
-
-			}
+			BuildMethodsForState(package, stateSymbol, state, genericNames, templates);
 		}
-	}
-
-	void BuildMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt)
-	{
-		if (methodStmnt->method.generics)
-		{
-			for (eastl::vector<Expr*>* templates : *methodStmnt->method.generics->generics.templatesToExpand)
-			{
-				BuildGenericMethod(package, state, methodStmnt,
-					methodStmnt->method.generics->generics.names, templates);
-			}
-
-			return;
-		}
-
-		SpiteIR::Function* method = BuildFunction(package, methodStmnt, methodStmnt->method.returnType,
-			methodStmnt->method.decl, BuildMethodName(state, methodStmnt));
-
-		state->methods.push_back(method);
-		package->functions[method->name] = method;
-	}
-
-	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt,
-		eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
-	{
-		SpiteIR::Function* method = BuildFunction(package, methodStmnt, methodStmnt->method.returnType,
-			methodStmnt->method.decl, BuildTemplatedMethodName(state, methodStmnt, templates),
-			generics, templates);
-
-		state->methods.push_back(method);
-		package->functions[method->name] = method;
-	}
-
-	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index, 
-		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
-	{
-		SpiteIR::Member* member = ir->AllocateMember();
-		member->parent = state;
-		member->pos = memberStmnt->start->pos;
-		member->type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
-		member->name = memberStmnt->definition.name->val.ToString();
-		member->index = index;
-		state->members[member->name] = member;
 	}
 
 	SpiteIR::State* EmplaceState(SpiteIR::Package* package, Stmnt* stateStmnt, const eastl::string& name)
@@ -178,55 +99,204 @@ struct LowerDeclarations
 		return state;
 	}
 
-	SpiteIR::Function* BuildFunction(SpiteIR::Package* package, Stmnt* funcLike, Type* returnType,
-		Stmnt* funcDecl, const eastl::string& name,
+	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* function = ir->AllocateFunction();
-		function->parent = package;
-		function->pos = funcLike->start->pos;
-		function->name = name;
-		function->returnType = TypeToIRType(ir, returnType, function, this, generics, templates);
+		SpiteIR::Member* member = ir->AllocateMember();
+		member->parent = state;
+		member->pos = memberStmnt->start->pos;
+		member->type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
+		member->name = memberStmnt->definition.name->val.ToString();
+		member->index = index;
+		state->members[member->name] = member;
+	}
 
-		for (size_t i = 0; i < funcDecl->functionDecl.parameters->size(); i++)
+	void BuildMethodsForState(SpiteIR::Package* package, StateSymbol& stateSymbol, SpiteIR::State* state,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+	{
+		for (Stmnt* con : stateSymbol.constructors)
 		{
-			Stmnt* param = funcDecl->functionDecl.parameters->at(i);
-			BuildArgumentForFunction(function, param, i, generics, templates);
+			BuildConstructorDeclaration(package, state, con, generics, templates);
 		}
 
-		return function;
+		for (Stmnt* method : stateSymbol.methods)
+		{
+			BuildMethodDeclaration(package, state, method);
+		}
+
+		for (Stmnt* op : stateSymbol.operators)
+		{
+			BuildOperatorDeclaration(package, state, op, generics, templates);
+		}
+
+		if (stateSymbol.destructor)
+		{
+			BuildDestructor(package, state, stateSymbol.destructor);
+		}
+	}
+
+	void BuildConstructorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* conStmnt,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+	{
+		SpiteIR::Function* con = ir->AllocateFunction();
+		con->parent = package;
+		con->pos = conStmnt->start->pos;
+		con->name = BuildConstructorName(state, conStmnt, generics, templates);
+		con->returnType = ir->AllocateType(con);
+		con->returnType->kind = SpiteIR::TypeKind::NamedType;
+		con->returnType->namedType.name = ir->AllocateString();
+		*con->returnType->namedType.name = state->name;
+
+
+		// First argument is this argument
+		BuildMethodThisArgument(state, con, conStmnt);
+		for (size_t i = 1; i < conStmnt->constructor.decl->functionDecl.parameters->size(); i++)
+		{
+			Stmnt* param = conStmnt->constructor.decl->functionDecl.parameters->at(i);
+			BuildArgumentForFunction(con, param, i, generics, templates);
+		}
+
+		state->methods.push_back(con);
+		package->functions[con->name] = con;
+	}
+
+	void BuildOperatorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* opStmnt,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+	{
+		SpiteIR::Function* op = ir->AllocateFunction();
+		op->parent = package;
+		op->pos = opStmnt->start->pos;
+		op->name = BuildOperatorMethodName(state, opStmnt, generics, templates);
+		op->returnType = TypeToIRType(ir, opStmnt->stateOperator.returnType, op, this);
+
+		// First argument is this argument
+		BuildMethodThisArgument(state, op, opStmnt);
+		for (size_t i = 1; i < opStmnt->stateOperator.decl->functionDecl.parameters->size(); i++)
+		{
+			Stmnt* param = opStmnt->stateOperator.decl->functionDecl.parameters->at(i);
+			BuildArgumentForFunction(op, param, i, generics, templates);
+		}
+
+		state->methods.push_back(op);
+		package->functions[op->name] = op;
+	}
+
+	void BuildMethodDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt)
+	{
+		if (methodStmnt->method.generics)
+		{
+			BuildGenericMethod(package, state, methodStmnt);
+			return;
+		}
+
+		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl, 
+			BuildMethodName(state, methodStmnt));
+	}
+
+	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt)
+	{
+		auto& generics = methodStmnt->method.generics->generics;
+
+		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
+		{
+			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
+				BuildTemplatedMethodName(state, methodStmnt, templates), generics.names, templates);
+		}
+	}
+
+	void BuildMethod(SpiteIR::Package* package, SpiteIR::State* state, 
+		Stmnt* methodStmnt, Stmnt* methodDeclStmnt, const eastl::string& name,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+	{
+		SpiteIR::Function* method = ir->AllocateFunction();
+		method->parent = package;
+		method->pos = methodStmnt->start->pos;
+		method->name = name;
+		method->returnType = TypeToIRType(ir, methodStmnt->method.returnType, method, this, generics, templates);
+
+		// First argument is this argument
+		BuildMethodThisArgument(state, method, methodStmnt);
+		for (size_t i = 1; i < methodStmnt->method.decl->functionDecl.parameters->size(); i++)
+		{
+			Stmnt* param = methodStmnt->method.decl->functionDecl.parameters->at(i);
+			BuildArgumentForFunction(method, param, i, generics, templates);
+		}
+
+		state->methods.push_back(method);
+		package->functions[method->name] = method;
+	}
+
+	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, Stmnt* methodStmnt)
+	{
+		SpiteIR::Argument* arg = ir->AllocateArgument();
+		arg->parent = method;
+		arg->pos = methodStmnt->start->pos;
+		arg->index = 0;
+		arg->name = "this";
+
+		SpiteIR::Type* thisType = ir->AllocateType(method);
+		thisType->kind = SpiteIR::TypeKind::NamedType;
+		thisType->namedType.name = ir->AllocateString();
+		*thisType->namedType.name = state->name;
+		arg->type = thisType;
+
+		method->arguments[arg->name] = arg;
+	}
+
+	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt)
+	{
+		SpiteIR::Function* destructor = ir->AllocateFunction();
+		destructor->parent = package;
+		destructor->pos = destructorStmnt->start->pos;
+		destructor->name = BuildDestructorName(state);
+		destructor->returnType = ir->AllocateType(destructor);
+		destructor->returnType->kind = SpiteIR::TypeKind::PrimitiveType;
+		destructor->returnType->primitive.kind = SpiteIR::PrimitiveKind::Void;
+		destructor->returnType->primitive.size = 0;
+		destructor->returnType->primitive.isSigned = false;
+
+		state->methods.push_back(destructor);
+		package->functions[destructor->name] = destructor;
 	}
 
 	void BuildFunctionDeclaration(SpiteIR::Package* package, Stmnt* funcStmnt)
 	{
-
 		if (funcStmnt->function.generics)
 		{
 			BuildGenericFunction(package, funcStmnt);
 			return;
 		}
 
-
-		SpiteIR::Function* function = BuildFunction(package, funcStmnt, funcStmnt->function.returnType,
-			funcStmnt->function.decl, BuildFunctionName(funcStmnt));
-
-		package->functions[function->name] = function;
+		BuildFunction(package, funcStmnt, BuildFunctionName(funcStmnt));
 	}
 
 	void BuildGenericFunction(SpiteIR::Package* package, Stmnt* funcStmnt)
 	{
 		auto& generics = funcStmnt->function.generics->generics;
-		auto& funcDecl = funcStmnt->function.decl->functionDecl;
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
-			
-			SpiteIR::Function* function = BuildFunction(package, funcStmnt, funcStmnt->function.returnType,
-				funcStmnt->function.decl, BuildTemplatedFunctionName(funcStmnt, templates),
+			BuildFunction(package, funcStmnt, BuildTemplatedFunctionName(funcStmnt, templates), 
 				generics.names, templates);
-
-			package->functions[function->name] = function;
 		}
+	}
+
+	void BuildFunction(SpiteIR::Package* package, Stmnt* funcStmnt, const eastl::string& name,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+	{
+		SpiteIR::Function* function = ir->AllocateFunction();
+		function->parent = package;
+		function->pos = funcStmnt->start->pos;
+		function->name = name;
+		function->returnType = TypeToIRType(ir, funcStmnt->function.returnType, function, this, generics, templates);
+
+		for (size_t i = 0; i < funcStmnt->function.decl->functionDecl.parameters->size(); i++)
+		{
+			Stmnt* param = funcStmnt->function.decl->functionDecl.parameters->at(i);
+			BuildArgumentForFunction(function, param, i, generics, templates);
+		}
+
+		package->functions[function->name] = function;
 	}
 
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index, 

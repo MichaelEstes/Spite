@@ -23,6 +23,8 @@ enum TypeID
 	ImportedType,
 	// Only for use of type checking before template expansion, essentially an 'any' type
 	GenericNamedType,
+	// Type container for use inferring anonymous type expressions in non assignment cases
+	AnonymousType,
 };
 
 struct Type
@@ -88,6 +90,11 @@ struct Type
 			Token* packageName;
 			Token* typeName;
 		} importedType;
+
+		struct
+		{
+			eastl::vector<Type*>* types;
+		} anonType;
 	};
 
 	Type()
