@@ -121,7 +121,7 @@ struct LowerDeclarations
 
 		for (Stmnt* method : stateSymbol.methods)
 		{
-			BuildMethodDeclaration(package, state, method);
+			BuildMethodDeclaration(package, state, method, generics, templates);
 		}
 
 		for (Stmnt* op : stateSymbol.operators)
@@ -181,26 +181,37 @@ struct LowerDeclarations
 		package->functions[op->name] = op;
 	}
 
-	void BuildMethodDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt)
+	void BuildMethodDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt,
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
 		if (methodStmnt->method.generics)
 		{
-			BuildGenericMethod(package, state, methodStmnt);
+			BuildGenericMethod(package, state, methodStmnt, generics, templates);
 			return;
 		}
 
 		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl, 
-			BuildMethodName(state, methodStmnt));
+			BuildMethodName(state, methodStmnt), generics, templates);
 	}
 
-	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt)
+	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt,
+		eastl::vector<Token*>* stateGenerics = nullptr, eastl::vector<Expr*>* stateTemplates = nullptr)
 	{
 		auto& generics = methodStmnt->method.generics->generics;
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
+			eastl::vector<Token*> stateAndMethodGenerics = eastl::vector<Token*>();
+			if (stateGenerics) for (Token* stateGeneric : *stateGenerics) stateAndMethodGenerics.push_back(stateGeneric);
+			for (Token* methodGeneric : *generics.names) stateAndMethodGenerics.push_back(methodGeneric);
+
+			eastl::vector<Expr*> stateAndMethodTemplates = eastl::vector<Expr*>();
+			if (stateTemplates) for (Expr* stateTemplate : *stateTemplates) stateAndMethodTemplates.push_back(stateTemplate);
+			for (Expr* methodTemplate : *templates) stateAndMethodTemplates.push_back(methodTemplate);
+
 			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-				BuildTemplatedMethodName(state, methodStmnt, templates), generics.names, templates);
+				BuildTemplatedMethodName(state, methodStmnt, templates), 
+				&stateAndMethodGenerics, &stateAndMethodTemplates);
 		}
 	}
 

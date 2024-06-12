@@ -107,6 +107,14 @@ struct Type
 		this->typeID = typeID;
 	}
 
+	Type(size_t size, UniqueType type, bool isSigned)
+	{
+		typeID = TypeID::PrimitiveType;
+		primitiveType.size = size;
+		primitiveType.type = type;
+		primitiveType.isSigned = isSigned;
+	}
+
 	Type(const Type& copy)
 	{
 		*this = copy;

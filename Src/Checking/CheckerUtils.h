@@ -6,6 +6,7 @@
 #include "../Intermediate/GlobalTable.h"
 #include "CheckerContext.h"
 
+static Type boolType = Type(1, UniqueType::Bool, false);
 
 struct CheckerUtils
 {
@@ -585,7 +586,7 @@ struct CheckerUtils
 		return type;
 	}
 
-	bool IsFloat(Type* primitive)
+	inline bool IsFloat(Type* primitive)
 	{
 		switch (primitive->primitiveType.type)
 		{
@@ -598,10 +599,11 @@ struct CheckerUtils
 		}
 	}
 
-	bool IsInt(Type* primitive)
+	inline bool IsInt(Type* primitive)
 	{
 		switch (primitive->primitiveType.type)
 		{
+		case UniqueType::Bool:
 		case UniqueType::Byte:
 		case UniqueType::Int:
 		case UniqueType::Int16:
@@ -619,17 +621,23 @@ struct CheckerUtils
 			return false;
 		}
 	}
+	
+	inline bool IsIntLike(Type* type)
+	{
+		if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
+		else if (type->typeID == TypeID::PointerType) return true;
+		else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
+	}
+
+	inline bool IsComparableToZero(Type* type)
+	{
+		return (type->typeID == TypeID::PrimitiveType && (IsInt(type) || IsFloat(type))) 
+			|| IsIntLike(type);
+	}
 
 	inline bool IsString(Type* primitive)
 	{
 		return primitive->primitiveType.type == UniqueType::String;
-	}
-
-	inline bool IsBoolLike(Type* type)
-	{
-		TypeID id = type->typeID;
-		// TODO Support bool checks on state
-		return id == TypeID::PrimitiveType || id == TypeID::PointerType;
 	}
 
 	inline Stmnt* GetGenerics(Stmnt* node)
@@ -682,9 +690,27 @@ struct CheckerUtils
 		return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 	}
 
-
-	inline Type* GetPrimitiveOperatorType(Type* left, Type* right)
+	inline bool IsBooleanOperator(Token* op)
 	{
+		switch (op->uniqueType) {
+		case UniqueType::LogicOr:
+		case UniqueType::LogicAnd:
+		case UniqueType::Equal:
+		case UniqueType::NotEql:
+		case UniqueType::Less:
+		case UniqueType::Greater:
+		case UniqueType::LessEqual:
+		case UniqueType::GreaterEqual:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	inline Type* GetPrimitiveOperatorType(Token* op, Type* left, Type* right)
+	{
+		if (IsBooleanOperator(op)) return &boolType;	
+
 		auto& lPrim = left->primitiveType;
 		auto& rPrim = right->primitiveType;
 		switch (lPrim.type)
@@ -739,14 +765,19 @@ struct CheckerUtils
 
 	Type* GetOperatorType(Token* op, Type* left, Type* right)
 	{
+		if (left->typeID == TypeID::ValueType)
+			return GetOperatorType(op, left->valueType.type, right);
+
+		if (right->typeID == TypeID::ValueType)
+			return GetOperatorType(op, left, right->valueType.type);
+
 		switch (left->typeID)
 		{
 		case PrimitiveType:
 		{
-			if (right->typeID == TypeID::PrimitiveType)
-			{
-				return GetPrimitiveOperatorType(left, right);
-			}
+			if (right->typeID == TypeID::PrimitiveType) return GetPrimitiveOperatorType(op, left, right);
+			else if (IsIntLike(right)) return right;
+			else AddError(op, "CheckerUtils:GetOperatorType Expected right hand side to be a primitive for operator");
 
 			break;
 		}
@@ -759,10 +790,18 @@ struct CheckerUtils
 			break;
 		case PointerType:
 		{
+			bool booleanOp = IsBooleanOperator(op);
 			if (IsInt(right))
 			{
-				return left;
+				if (booleanOp) return &boolType;
+				else return left;
 			}
+			else if (IsIntLike(right))
+			{
+				if (booleanOp) return &boolType;
+				else return left;
+			}
+
 			// AddError pointers are ints, can't operate with anything other than ints
 			// To think about, if both operands are pointer should it treat them as the underlying types?
 			break;

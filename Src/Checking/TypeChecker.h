@@ -128,7 +128,7 @@ struct TypeChecker
 		auto& assignment = node->assignmentStmnt;
 		Type* to = utils.InferType(assignment.assignTo);
 		Type* from = utils.InferType(assignment.assignment);
-		if (*to != *from)
+		if (!utils.IsAssignable(to, from))
 		{
 			AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
 		}
@@ -138,7 +138,7 @@ struct TypeChecker
 	{
 		auto& conditional = node->conditional;
 		Type* inferred = utils.InferType(conditional.condition);
-		if (!utils.IsBoolLike(inferred))
+		if (!utils.IsComparableToZero(inferred))
 		{
 			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
 		}
