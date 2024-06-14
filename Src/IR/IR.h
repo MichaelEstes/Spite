@@ -398,7 +398,7 @@ namespace SpiteIR
 
 		Function compileFunc;
 		// Node to replace with the node to insert return value into
-		void* node;
+		Parent node;
 	};
 
 	struct Package
@@ -410,6 +410,7 @@ namespace SpiteIR
 		HashMap<string, Value*> globalVariables;
 		HashMap<string, State*> states;
 		HashMap<string, Function*> functions;
+		Array<CompileFunction*> debugFunctions;
 		Array<CompileFunction*> compileFunctions;
 	};
 

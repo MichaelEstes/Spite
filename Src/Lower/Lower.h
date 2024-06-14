@@ -6,22 +6,20 @@
 struct Lower
 {
 	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
+	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
 
 	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
-	eastl::hash_map<eastl::string, SpiteIR::Package*> stateMap;
 
 	Lower(GlobalTable* globalTable)
 	{
 		this->globalTable = globalTable;
 		this->ir = new SpiteIR::IR(globalTable->GetSize());
-		symbolTable = nullptr;
 	}
 
 	SpiteIR::IR* BuildIR()
 	{
-		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir, packageMap, stateMap);
+		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir);
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			symbolTable = value;
@@ -31,19 +29,75 @@ struct Lower
 			package->name = BuildPackageName(symbolTable->package);
 			package->parent = ir;
 
-			packageMap[package->file] = package;
-
-			symbolTable = value;
-			lowerDecl.BuildDeclarations(package, value);
+			packageMap[package->name] = package;
+			lowerDecl.BuildDeclarations(package, symbolTable);
 		}
 
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			symbolTable = value;
-			//BuildPackage(value);
+			SpiteIR::Package* package = packageMap[BuildPackageName(symbolTable->package)];
+			BuildPackage(package);
 		}
 
 		return ir;
+	}
+
+	void BuildPackage(SpiteIR::Package* package)
+	{
+		for (auto& [key, value] : symbolTable->globalValMap)
+		{
+
+		}
+
+		for (auto& [key, value] : symbolTable->stateMap)
+		{
+			BuildState(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->functionMap)
+		{
+
+		}
+	}
+
+	void BuildGlobalVar(SpiteIR::Value* globalVar, Stmnt* globalVarStmnt)
+	{
+		
+	}
+
+	void BuildState(SpiteIR::Package* package, StateSymbol& stateSymbol)
+	{
+		Stmnt* stateStmnt = stateSymbol.state;
+		if(stateStmnt->state.generics)
+		{
+			auto& generics = stateStmnt->state.generics->generics;
+			eastl::vector<Token*>* genericNames = generics.names;
+
+			for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
+			{
+				SpiteIR::State* state = package->states[BuildTemplatedStateName(stateStmnt, templates)];
+				if (!state) return;
+			}
+		}
+	}
+
+	void BuildMemberValues(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* stateStmnt, )
+	{
+		for (auto& [key, value] : state->globalValMap)
+		{
+
+		}
+	}
+
+	void BuildGenericState(SpiteIR::State* state, StateSymbol* stateSymbol)
+	{
+
+	}
+
+	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
+	{
+
 	}
 
 	void FillValueFromExpr(SpiteIR::Value* value, Expr* expr)
@@ -267,5 +321,10 @@ struct Lower
 	void BuildWhereFunction(SpiteIR::Package* package, Stmnt* generics, eastl::string& name)
 	{
 
+	}
+
+	void BuildOnCompileDeclaration(SpiteIR::Package* package, Stmnt* compileStmnt)
+	{
+		StmntID id = compileStmnt->nodeID;
 	}
 };

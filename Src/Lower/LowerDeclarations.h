@@ -2,28 +2,26 @@
 #include "../Intermediate/GlobalTable.h"
 #include "../IR/IR.h"
 #include "LowerUtils.h"
+#include "LowerDefinitions.h"
 
 struct LowerDeclarations
 {
 	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
+	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
 
-	eastl::hash_map<eastl::string, SpiteIR::Package*>& packageMap;
-	eastl::hash_map<eastl::string, SpiteIR::Package*>& stateMap;
+	LowerDefinitions lowerDef;
 
-	LowerDeclarations(GlobalTable* globalTable, SpiteIR::IR* ir, 
-		eastl::hash_map<eastl::string, SpiteIR::Package*>& packageMap,
-		eastl::hash_map<eastl::string, SpiteIR::Package*>& stateMap): packageMap(packageMap), stateMap(stateMap)
+	LowerDeclarations(GlobalTable* globalTable, SpiteIR::IR* ir) : lowerDef(globalTable)
 	{
 		this->globalTable = globalTable;
 		this->ir = ir;
-		symbolTable = nullptr;
 	}
 
 	void BuildDeclarations(SpiteIR::Package* package, SymbolTable* symbolTable)
 	{
 		this->symbolTable = symbolTable;
+		lowerDef.symbolTable = symbolTable;
 
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
@@ -55,7 +53,7 @@ struct LowerDeclarations
 	void BuildState(SpiteIR::Package* package, StateSymbol& stateSymbol)
 	{
 		Stmnt* stateStmnt = stateSymbol.state;
-		SpiteIR::State* state = EmplaceState(package, stateStmnt, BuildStateName(stateStmnt));
+		SpiteIR::State* state = EmplaceState(package, stateSymbol, stateStmnt, BuildStateName(stateStmnt));
 
 		for (size_t i = 0; i < stateStmnt->state.members->size(); i++)
 		{
@@ -74,7 +72,8 @@ struct LowerDeclarations
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
-			SpiteIR::State* state = EmplaceState(package, stateStmnt, BuildTemplatedStateName(stateStmnt, templates));
+			SpiteIR::State* state = EmplaceState(package, stateSymbol, stateStmnt, 
+				BuildTemplatedStateName(stateStmnt, templates));
 
 			for (size_t i = 0; i < stateStmnt->state.members->size(); i++)
 			{
@@ -86,7 +85,8 @@ struct LowerDeclarations
 		}
 	}
 
-	SpiteIR::State* EmplaceState(SpiteIR::Package* package, Stmnt* stateStmnt, const eastl::string& name)
+	SpiteIR::State* EmplaceState(SpiteIR::Package* package, StateSymbol& stateSymbol, 
+		Stmnt* stateStmnt, const eastl::string& name)
 	{
 		SpiteIR::State* state = ir->AllocateState();
 
@@ -109,6 +109,7 @@ struct LowerDeclarations
 		member->name = memberStmnt->definition.name->val.ToString();
 		member->index = index;
 		state->members[member->name] = member;
+		lowerDef.BuildMemberDefinition(state, member, memberStmnt, generics, templates);
 	}
 
 	void BuildMethodsForState(SpiteIR::Package* package, StateSymbol& stateSymbol, SpiteIR::State* state,
@@ -156,7 +157,7 @@ struct LowerDeclarations
 			BuildArgumentForFunction(con, param, i, generics, templates);
 		}
 
-		state->methods.push_back(con);
+		state->constructors.push_back(con);
 		package->functions[con->name] = con;
 	}
 
@@ -177,7 +178,7 @@ struct LowerDeclarations
 			BuildArgumentForFunction(op, param, i, generics, templates);
 		}
 
-		state->methods.push_back(op);
+		state->operators.push_back(op);
 		package->functions[op->name] = op;
 	}
 
@@ -266,7 +267,10 @@ struct LowerDeclarations
 		destructor->returnType->primitive.size = 0;
 		destructor->returnType->primitive.isSigned = false;
 
-		state->methods.push_back(destructor);
+		// First argument is this argument
+		BuildMethodThisArgument(state, destructor, destructorStmnt);
+
+		state->destructor = destructor;
 		package->functions[destructor->name] = destructor;
 	}
 
@@ -332,5 +336,4 @@ struct LowerDeclarations
 		globalVar->type = TypeToIRType(ir, def.type, globalVar, this);
 		package->globalVariables[globalVar->name] = globalVar;
 	}
-
 };
