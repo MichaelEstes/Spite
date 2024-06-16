@@ -434,18 +434,15 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 	case ExplicitType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
-		irType->kind = SpiteIR::TypeKind::AnonymousType;
-		irType->anonymousType.members = ir->AllocateArray<SpiteIR::AnonymousTypeMember*>();
+		irType->kind = SpiteIR::TypeKind::StructureType;
+		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
+		irType->structureType.names = ir->AllocateArray<eastl::string>();
 		for (size_t i = 0; i < type->explicitType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
-			SpiteIR::AnonymousTypeMember* member = ir->AllocateAnonymousTypeMember();
-			member->parent = irType;
-			member->pos = stmnt->start->pos;
-			member->name = def.name->val.ToString();
-			member->type = TypeToIRType(ir, def.type, member, lower, generics, templates);
-			irType->anonymousType.members->push_back(member);
+			irType->structureType.types->push_back(TypeToIRType(ir, def.type, member, lower, generics, templates));
+			irType->structureType.names->push_back(def.name->val.ToString());
 		}
 		return irType;
 	}

@@ -146,6 +146,9 @@ namespace SpiteIR
 	{
 		Function* parent;
 		Position pos;
+
+		string name;
+		Array<Value> values;
 	};
 
 	struct Constant
@@ -157,14 +160,18 @@ namespace SpiteIR
 	enum class OperandKind
 	{
 		Identifier,
-		Selected,
-		Primitve
+		Literal,
+		StructLiteral,
+		Label,
+
 	};
 
-	// Can Operand be replaced by Value?
 	struct Operand
 	{
 		Position pos;
+		Type* type;
+
+		OperandKind kind;
 
 		union
 		{
@@ -175,100 +182,118 @@ namespace SpiteIR
 
 			struct
 			{
-				Operand* left;
-				Operand* right;
-			} selector;
+				string* value;
+			} literal;
 
 			struct
 			{
-				string* primitive;
-				PrimitiveType type;
-			} primitive;
-		};
+				Array<Operand*>* members;
+			} structLiteral;
 
+			struct
+			{
+				Block* block;
+			} label;
+		};
+	};
+
+	
+
+	struct Result
+	{
+		Type* type = nullptr;
+		string name;
 	};
 
 	enum class InstructionKind
 	{
-		Index,
+		Return,
+		Compare,
+		Branch,
 		Call,
-		Binary,
-		Unary,
-		Grouped,
-		Select,
+		Initialize,
+		Allocate,
+		Load,
+		Cast,
+		Switch,
+	};
+
+	struct Return
+	{
+		Operand value;
+	};
+
+	struct Compare
+	{
+		Operand left;
+		Operand right;
+	};
+
+	struct Branch
+	{
+		Compare* compare;
+		Block* label;
+	};
+
+	struct Call
+	{
+		Function* call;
+		Array<Operand>* params;
+	};
+
+	struct Load
+	{
+		Operand value;
+	};
+
+	struct Store
+	{
+		Operand value;
+	};
+
+	struct Cast
+	{
+		Operand from;
+		Type* to;
+	};
+
+	struct Switch
+	{
+
 	};
 
 	struct Instruction
 	{
 		InstructionKind kind;
 
-		union
+		union 
 		{
-			struct
-			{
-				Operand* left;
-				Operand* index;
-			} index;
-
-			struct
-			{
-				Operand* function;
-				Array<Operand*>* params;
-			} call;
-
-			struct
-			{
-				Value* left;
-				Value* right;
-				BinaryOp op;
-			} binary;
-
-			struct
-			{
-				Operand* expr;
-				UnaryOp op;
-			} unary;
-
-			struct
-			{
-				Operand* expr;
-			} grouped;
-
-			struct
-			{
-				Operand* selector;
-			} select;
+			Return return_;
+			Compare compare;
+			Branch branch;
+			Call call;
+			Load load; // x := y~ or x := y[2]
+			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
+			Cast cast;
+			Switch switch_;
 		};
-	};
 
-	enum class ValueKind
-	{
-		None,
-		Constant,
-		Instruction,
 	};
 
 	struct Value
 	{
 		Parent parent;
 		Position pos;
-		ValueKind kind;
 
-		Type* type;
-		string name;
-
-		union
-		{
-			Constant* constant;
-			Instruction* instruction;
-		};
+		Result result;
+		Instruction instruction;
 	};
 
 	enum class TypeKind
 	{
 		PrimitiveType,
 		NamedType,
-		AnonymousType,
+		StructureType,
 		PointerType,
 		ValueType,
 		ArrayType,
@@ -314,8 +339,9 @@ namespace SpiteIR
 
 			struct
 			{
-				Array<AnonymousTypeMember*>* members;
-			} anonymousType;
+				Array<Type*>* types;
+				Array<string>* names;
+			} structureType;
 
 			struct
 			{
