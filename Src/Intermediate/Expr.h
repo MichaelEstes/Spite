@@ -31,6 +31,9 @@ enum ExprID
 	TypeExpr,
 	FunctionTypeDeclExpr,
 	CompileExpr,
+
+	// For evalulated constant int expressions
+	ConstantIntExpr
 };
 
 struct Expr
@@ -162,6 +165,11 @@ struct Expr
 		{
 			Stmnt* compile;
 		} compileExpr;
+
+		struct
+		{
+			int value;
+		} constantIntExpr;
 	};
 
 	Expr(ExprID typeID, Token* start)

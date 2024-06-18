@@ -6,7 +6,7 @@ struct StringView
 {
 	const char* start;
 	const char* last;
-	int count;
+	size_t count;
 
 	StringView()
 	{

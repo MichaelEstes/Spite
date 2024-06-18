@@ -441,7 +441,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
-			irType->structureType.types->push_back(TypeToIRType(ir, def.type, member, lower, generics, templates));
+			irType->structureType.types->push_back(TypeToIRType(ir, def.type, irType, lower, generics, templates));
 			irType->structureType.names->push_back(def.name->val.ToString());
 		}
 		return irType;

@@ -72,7 +72,80 @@ struct ExprChecker
 
 	void CheckFixed(Expr* expr)
 	{
+		auto& fixed = expr->fixedExpr;
+		Expr* atExpr = fixed.atExpr;
+		if (atExpr->typeID != ExprID::IndexExpr)
+		{
+			AddError(atExpr->start, "'fixed' must be followed by an array instantiation");
+			return;
+		}
 
+		Expr* indexExpr = atExpr;
+		while (indexExpr->typeID == ExprID::IndexExpr)
+		{
+			if (!utils.IsConstantIntExpr(indexExpr->indexExpr.index))
+			{
+				AddError(indexExpr->start, "'fixed' array size expression must evaluate to a constant value");
+				return;
+			}
+
+			indexExpr = indexExpr->indexExpr.of;
+		}
+	}
+
+	bool IsConstantExpr(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case InvalidExpr:
+			return false;
+		case LiteralExpr:
+			return true;
+		case IdentifierExpr:
+		{
+			Stmnt* def = utils.FindInScope(expr->identifierExpr.identifier->val);
+			if (!def) return false;
+			return IsConstantExpr(def->definition.assignment);
+		}
+		case PrimitiveExpr:
+			break;
+		case SelectorExpr:
+			break;
+		case IndexExpr:
+			break;
+		case FunctionCallExpr:
+			break;
+		case NewExpr:
+			break;
+		case FixedExpr:
+			break;
+		case AnonTypeExpr:
+			break;
+		case ExplicitTypeExpr:
+			break;
+		case AsExpr:
+			break;
+		case DereferenceExpr:
+			break;
+		case ReferenceExpr:
+			break;
+		case BinaryExpr:
+			break;
+		case UnaryExpr:
+			break;
+		case GroupedExpr:
+			break;
+		case TemplateExpr:
+			break;
+		case TypeExpr:
+			break;
+		case FunctionTypeDeclExpr:
+			break;
+		case CompileExpr:
+			break;
+		default:
+			break;
+		}
 	}
 
 	void CheckFunctionCallExpr(Expr* expr)

@@ -1,5 +1,4 @@
 #pragma once
-#include "memory"
 #include "EASTL/string.h"
 
 struct Position

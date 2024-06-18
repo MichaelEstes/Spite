@@ -160,14 +160,14 @@ void Main()
 	// arr2 is a pointer to a static array, no size representation is stored
 	arr2 := fixed int[3];
 	arr2: *int = fixed int[3];
-	// Can be a raw pointer
+	// Can be a value pointer
 	arr2: ~*int = fixed int[3];
-	//Invalid code, treat static arrays as just pointers, this should also make C interop easier
+	//Invalid code, treat fixed sized arrays as just pointers
 	arr2: []int = fixed int[3];
 
-	callback := void() { Print("Here"); }
-	callback: void() = void() { Print("Here"); };
-	callback: int(int, int) = int(l: int, r: int) { return l + r; };
+	callback := ::() { Print("Here"); }
+	callback: ::() = ::() { Print("Here"); };
+	callback: ::int(int, int) = ::int(l: int, r: int) { return l + r; };
 
 	str := "Hello world";
 	str2: String = "Hello world";
@@ -184,7 +184,7 @@ void Main()
 	}
 
 	// 0 to 10
-	for(index: int .. 10)
+	for(index: byte .. 10)
 	{
 	
 	}

@@ -21,10 +21,14 @@ enum TypeID
 	TemplatedType,
 	FunctionType,
 	ImportedType,
+
+	// For type checking/inference
 	// Only for use of type checking before template expansion, essentially an 'any' type
 	GenericNamedType,
 	// Type container for use inferring anonymous type expressions in non assignment cases
 	AnonymousType,
+	// Fixed array, returned as pointer, no count field
+	FixedArrayType,
 };
 
 struct Type
@@ -71,6 +75,7 @@ struct Type
 		{
 			Token* arr;
 			Type* type;
+			Expr* size;
 		} arrayType;
 
 		struct
@@ -95,6 +100,12 @@ struct Type
 		{
 			eastl::vector<Type*>* types;
 		} anonType;
+
+		struct
+		{
+			Type* type;
+			Expr* size;
+		} fixedArrayType;
 	};
 
 	Type()
@@ -113,52 +124,5 @@ struct Type
 		primitiveType.size = size;
 		primitiveType.type = type;
 		primitiveType.isSigned = isSigned;
-	}
-
-	Type(const Type& copy)
-	{
-		*this = copy;
-	}
-
-	Type& operator=(const Type& copy)
-	{
-		typeID = copy.typeID;
-
-		switch (typeID)
-		{
-		case PrimitiveType:
-			primitiveType = copy.primitiveType;
-			break;
-		case NamedType:
-			namedType = copy.namedType;
-			break;
-		case ExplicitType:
-			explicitType = copy.explicitType;
-			break;
-		case ImplicitType:
-			implicitType = copy.implicitType;
-			break;
-		case PointerType:
-			pointerType = copy.pointerType;
-			break;
-		case ValueType:
-			valueType = copy.valueType;
-			break;
-		case ArrayType:
-			arrayType = copy.arrayType;
-			break;
-		case TemplatedType:
-			templatedType = copy.templatedType;
-			break;
-		case FunctionType:
-			functionType = copy.functionType;
-			break;
-		case ImportedType:
-			importedType = copy.importedType;
-			break;
-		default:
-			break;
-		}
-		return *this;
 	}
 };

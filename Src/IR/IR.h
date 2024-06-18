@@ -89,30 +89,7 @@ namespace SpiteIR
 		BoolLiteral,
 	};
 
-	enum class PrimitiveType
-	{
-		Void,
-		Bool,
-		Byte,
-		Ubyte,
-		Int,
-		Int16,
-		Int32,
-		Int64,
-		Int128,
-		Uint,
-		Uint16,
-		Uint32,
-		Uint64,
-		Uint128,
-		Float,
-		Float32,
-		Float64,
-		Float128,
-		String,
-	};
-
-	enum class BinaryOp
+	enum class BinaryOpKind
 	{
 		Add,
 		Subtract,
@@ -135,7 +112,7 @@ namespace SpiteIR
 		GreaterEqual,
 	};
 
-	enum class UnaryOp
+	enum class UnaryOpKind
 	{
 		Subtract,
 		Not,
@@ -163,14 +140,11 @@ namespace SpiteIR
 		Literal,
 		StructLiteral,
 		Label,
-
 	};
 
 	struct Operand
 	{
-		Position pos;
 		Type* type;
-
 		OperandKind kind;
 
 		union
@@ -187,7 +161,7 @@ namespace SpiteIR
 
 			struct
 			{
-				Array<Operand*>* members;
+				Array<Operand>* members;
 			} structLiteral;
 
 			struct
@@ -197,16 +171,9 @@ namespace SpiteIR
 		};
 	};
 
-	
-
-	struct Result
-	{
-		Type* type = nullptr;
-		string name;
-	};
-
 	enum class InstructionKind
 	{
+		None,
 		Return,
 		Compare,
 		Branch,
@@ -220,7 +187,7 @@ namespace SpiteIR
 
 	struct Return
 	{
-		Operand value;
+		Operand operand;
 	};
 
 	struct Compare
@@ -231,7 +198,7 @@ namespace SpiteIR
 
 	struct Branch
 	{
-		Compare* compare;
+		Compare compare;
 		Block* label;
 	};
 
@@ -243,12 +210,12 @@ namespace SpiteIR
 
 	struct Load
 	{
-		Operand value;
+		Operand operand;
 	};
 
 	struct Store
 	{
-		Operand value;
+		Operand operand;
 	};
 
 	struct Cast
@@ -259,12 +226,36 @@ namespace SpiteIR
 
 	struct Switch
 	{
+		Operand on;
+	};
 
+	struct BinaryOp
+	{
+		BinaryOpKind kind;
+		Operand left;
+		Operand right;
+	};
+
+	struct UnaryOp
+	{
+		UnaryOpKind kind;
+		Operand operand;
+	};
+
+	struct SimpleOp
+	{
+		bool binary;
+
+		union 
+		{
+			BinaryOp binaryOp;
+			UnaryOp unaryOp;
+		};
 	};
 
 	struct Instruction
 	{
-		InstructionKind kind;
+		InstructionKind kind = InstructionKind::None;
 
 		union 
 		{
@@ -276,8 +267,8 @@ namespace SpiteIR
 			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
 			Cast cast;
 			Switch switch_;
+			SimpleOp op;
 		};
-
 	};
 
 	struct Value
@@ -285,8 +276,9 @@ namespace SpiteIR
 		Parent parent;
 		Position pos;
 
-		Result result;
-		Instruction instruction;
+		Type* type = nullptr;
+		string name;
+		Instruction* instruction;
 	};
 
 	enum class TypeKind
@@ -306,15 +298,6 @@ namespace SpiteIR
 		Int,
 		Float,
 		String
-	};
-
-	struct AnonymousTypeMember
-	{
-		Type* parent;
-		Position pos;
-
-		string name;
-		Type* type;
 	};
 
 	struct Type
@@ -360,6 +343,12 @@ namespace SpiteIR
 
 			struct
 			{
+				size_t count;
+				Type* type;
+			} fixedArray;
+
+			struct
+			{
 				Type* returnType;
 				Array<Type*>* params;
 			} function;
@@ -372,9 +361,7 @@ namespace SpiteIR
 		Position pos;
 
 		size_t index;
-		Type* type;
-		string name;
-		Array<Value*> values;
+		Value value;
 	};
 
 	struct Function
@@ -385,6 +372,7 @@ namespace SpiteIR
 		string name;
 		Type* returnType;
 		HashMap<string, Argument*> arguments;
+		Array<Block> blocks;
 	};
 
 	struct Member
@@ -393,9 +381,7 @@ namespace SpiteIR
 		Position pos;
 
 		size_t index;
-		Type* type;
-		string name;
-		Array<Value*> values;
+		Value value;
 	};
 
 	struct State
@@ -467,11 +453,6 @@ namespace SpiteIR
 		inline Member* AllocateMember()
 		{
 			return arena.Emplace<Member>();
-		}
-
-		inline AnonymousTypeMember* AllocateAnonymousTypeMember()
-		{
-			return arena.Emplace<AnonymousTypeMember>();
 		}
 
 		inline Function* AllocateFunction()

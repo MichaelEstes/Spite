@@ -410,7 +410,6 @@ struct PackageChecker
 		typeChecker.CheckDefinitionType(node);
 		if (definition.assignment) CheckExpr(definition.assignment);
 		CheckType(node->definition.type, node->start);
-
 		if (scopeDefinition)
 		{
 			StringView& name = definition.name->val;

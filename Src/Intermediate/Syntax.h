@@ -286,9 +286,9 @@ struct Syntax
 				if (next == UniqueType::DoubleColon ||
 					next == UniqueType::Lparen ||
 					next == UniqueType::Less) type = CreateVoidType();
-				else type = ParseDeclarationType(false);
+				else type = ParseType(false);
 			}
-			else type = ParseDeclarationType(false);
+			else type = ParseType(false);
 
 			if (type->typeID == TypeID::InvalidType) break;
 			Stmnt* func = ParseFunction(type, start);
@@ -430,7 +430,7 @@ struct Syntax
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::CompileStmnt);
 		Advance();
-		Type* type = ParseDeclarationType();
+		Type* type = ParseType();
 		if (type->typeID != TypeID::InvalidType)
 		{
 			node->compileStmnt.returnType = type;
@@ -1244,7 +1244,7 @@ struct Syntax
 			ThenExpect(UniqueType::Colon, "Expected a colon (':') after identifier in explicit definition"))
 		{
 			Advance();
-			Type* type = ParseDeclarationType();
+			Type* type = ParseType();
 			Stmnt* node = CreateStmnt(start, StmntID::Definition);
 			node->definition.name = start;
 			node->definition.type = type;
@@ -1256,7 +1256,7 @@ struct Syntax
 		return InvalidStmnt();
 	}
 
-	Type* ParseDeclarationType(bool allowImplicitType = true)
+	Type* ParseType(bool allowImplicitType = true)
 	{
 		Type* type = CreateTypePtr(TypeID::InvalidType);
 
@@ -1309,6 +1309,10 @@ struct Syntax
 				type = ParseArrayType();
 				break;
 
+			case UniqueType::Lbrack:
+				type = ParseSizedArrayType();
+				break;
+
 			case UniqueType::DoubleColon:
 				type = ParseFunctionType();
 				break;
@@ -1333,7 +1337,7 @@ struct Syntax
 		Type* ptrType = CreateTypePtr(TypeID::PointerType);
 		ptrType->pointerType.ptr = curr;
 		Advance();
-		ptrType->pointerType.type = ParseDeclarationType();
+		ptrType->pointerType.type = ParseType();
 		return ptrType;
 	}
 
@@ -1342,7 +1346,7 @@ struct Syntax
 		Type* valueType = CreateTypePtr(TypeID::ValueType);
 		valueType->valueType.valueOp = curr;
 		Advance();
-		Type* type = ParseDeclarationType();
+		Type* type = ParseType();
 		if (type->typeID == TypeID::ValueType)
 			AddError(curr, "Cannot have a value type of a value type (ie. ~~MyType)");
 		valueType->valueType.type = type;
@@ -1354,7 +1358,25 @@ struct Syntax
 		Type* arrType = CreateTypePtr(TypeID::ArrayType);
 		arrType->arrayType.arr = curr;
 		Advance();
-		arrType->arrayType.type = ParseDeclarationType();
+		arrType->arrayType.type = ParseType();
+		arrType->arrayType.size = nullptr;
+		return arrType;
+	}
+
+	Type* ParseSizedArrayType()
+	{
+		Type* arrType = CreateTypePtr(TypeID::ArrayType);
+		arrType->arrayType.arr = curr;
+		Advance();
+		arrType->arrayType.size = ParseExpr();
+		if (Expect(UniqueType::Rbrack, "Expected closing bracket for sized array"))
+		{
+			Advance();
+			arrType->arrayType.type = ParseType();
+			return arrType;
+		}
+		
+		arrType->typeID = TypeID::InvalidType;
 		return arrType;
 	}
 
@@ -1468,14 +1490,14 @@ struct Syntax
 
 		type->functionType.returnType = Expect(UniqueType::Lparen)
 			? CreateVoidType()
-			: ParseDeclarationType();
+			: ParseType();
 
 		if (Expect(UniqueType::Lparen, "Expected function type opening ('(')"))
 		{
 			Advance();
 			while (!Expect(UniqueType::Rparen) && !IsEOF())
 			{
-				Type* declType = ParseDeclarationType();
+				Type* declType = ParseType();
 				type->functionType.paramTypes->push_back(declType);
 				if (Expect(UniqueType::Comma)) Advance();
 			}
@@ -1763,7 +1785,7 @@ struct Syntax
 		Advance();
 		Type* returnType = Expect(UniqueType::Lparen)
 			? CreateVoidType()
-			: ParseDeclarationType();
+			: ParseType();
 
 		if (Expect(UniqueType::Lparen, "Expected function type opening ('(')"))
 		{
@@ -1878,7 +1900,7 @@ struct Syntax
 	{
 		Token* start = curr;
 		Logger::SetErrorRollback();
-		Type* type = ParseDeclarationType(false);
+		Type* type = ParseType(false);
 		if (type->typeID != TypeID::InvalidType)
 		{
 			Expr* expr = CreateExpr(start, ExprID::TypeExpr);
@@ -1941,7 +1963,7 @@ struct Syntax
 		Expr* asExpr = CreateExpr(of->start, ExprID::AsExpr);
 		asExpr->asExpr.of = of;
 		Advance();
-		asExpr->asExpr.to = ParseDeclarationType();
+		asExpr->asExpr.to = ParseType();
 
 		return asExpr;
 	}

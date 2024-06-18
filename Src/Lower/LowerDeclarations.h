@@ -105,10 +105,10 @@ struct LowerDeclarations
 		SpiteIR::Member* member = ir->AllocateMember();
 		member->parent = state;
 		member->pos = memberStmnt->start->pos;
-		member->type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
-		member->name = memberStmnt->definition.name->val.ToString();
+		member->value.type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
+		member->value.name = memberStmnt->definition.name->val.ToString();
 		member->index = index;
-		state->members[member->name] = member;
+		state->members[member->value.name] = member;
 		lowerDef.BuildMemberDefinition(state, member, memberStmnt, generics, templates);
 	}
 
@@ -244,15 +244,15 @@ struct LowerDeclarations
 		arg->parent = method;
 		arg->pos = methodStmnt->start->pos;
 		arg->index = 0;
-		arg->name = "this";
+		arg->value.name = "this";
 
 		SpiteIR::Type* thisType = ir->AllocateType(method);
 		thisType->kind = SpiteIR::TypeKind::NamedType;
 		thisType->namedType.name = ir->AllocateString();
 		*thisType->namedType.name = state->name;
-		arg->type = thisType;
+		arg->value.type = thisType;
 
-		method->arguments[arg->name] = arg;
+		method->arguments[arg->value.name] = arg;
 	}
 
 	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt)
@@ -321,9 +321,9 @@ struct LowerDeclarations
 		arg->parent = function;
 		arg->pos = param->start->pos;
 		arg->index = index;
-		arg->type = TypeToIRType(ir, param->definition.type, arg, this, generics, templates);
-		arg->name = param->definition.name->val.ToString();
-		function->arguments[arg->name] = arg;
+		arg->value.type = TypeToIRType(ir, param->definition.type, arg, this, generics, templates);
+		arg->value.name = param->definition.name->val.ToString();
+		function->arguments[arg->value.name] = arg;
 	}
 
 	void BuildGlobalVariableDeclaration(SpiteIR::Package* package, Stmnt* globalVarStmnt)

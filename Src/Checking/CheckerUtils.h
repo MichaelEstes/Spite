@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 
 #include <EASTL/deque.h>
 #include "../Intermediate/Syntax.h"
@@ -13,6 +12,148 @@ struct CheckerUtils
 	CheckerContext& context;
 
 	CheckerUtils(CheckerContext& context) : context(context) {}
+
+	bool IsConstantIntExpr(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case LiteralExpr:
+			return expr->literalExpr.type == UniqueType::IntLiteral || 
+				expr->literalExpr.type == UniqueType::HexLiteral;
+		case IdentifierExpr:
+		{
+			Stmnt* def = FindInScope(expr->identifierExpr.identifier->val);
+			if (!def || !def->definition.assignment) return false;
+			return IsConstantIntExpr(def->definition.assignment);
+		}
+		case BinaryExpr:
+			return IsConstantIntExpr(expr->binaryExpr.left) && IsConstantIntExpr(expr->binaryExpr.right);
+		case UnaryExpr:
+			return IsConstantIntExpr(expr->unaryExpr.expr);
+		case GroupedExpr:
+			return IsConstantIntExpr(expr->groupedExpr.expr);
+		default:
+			break;
+		}
+
+		return false;
+	}
+
+	inline int IntLiteralStringToInt(StringView& str)
+	{
+		size_t count = str.count;
+		const char* start = str.start;
+		int i = 0;
+		
+		while (count--)
+		{
+			i = i * 10 + (*start++ - '0');
+		}
+
+		return i;
+	}
+
+	int EvaluateConstantIntExpr(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case LiteralExpr:
+		{
+			StringView& str = expr->literalExpr.val->val;
+			if (expr->literalExpr.type == UniqueType::IntLiteral)
+			{
+				return IntLiteralStringToInt(str);
+			}
+			else if (expr->literalExpr.type == UniqueType::HexLiteral)
+			{
+				return std::stoi(str.ToString().c_str());
+			}
+
+			break;
+		}
+		case IdentifierExpr:
+		{
+			Stmnt* def = FindInScope(expr->identifierExpr.identifier->val);
+			if (def && def->definition.assignment)
+			{
+				return EvaluateConstantIntExpr(def->definition.assignment);
+			}
+		}
+		case BinaryExpr:
+		{
+			int left = EvaluateConstantIntExpr(expr->binaryExpr.left);
+			int right = EvaluateConstantIntExpr(expr->binaryExpr.right);
+			switch (expr->binaryExpr.opType)
+			{
+			case UniqueType::Add:
+				return left + right;
+			case UniqueType::Subtract:
+				return left - right;
+			case UniqueType::Multiply:
+				return left * right;
+			case UniqueType::Divide:
+				return left / right;
+			case UniqueType::Modulo:
+				return left % right;
+			case UniqueType::And:
+				return left & right;
+			case UniqueType::Or:
+				return left | right;
+			case UniqueType::Xor:
+				return left ^ right;
+			case UniqueType::Shiftl:
+				return left << right;
+			case UniqueType::Shiftr:
+				return left >> right;
+			case UniqueType::AndNot:
+				return left & ~right;
+			case UniqueType::LogicAnd:
+				return left && right;
+			case UniqueType::LogicOr:
+				return left || right;
+			case UniqueType::Equal:
+				return left == right;
+			case UniqueType::Less:
+				return left < right;
+			case UniqueType::Greater:
+				return left > right;
+			case UniqueType::NotEql:
+				return left != right;
+			case UniqueType::LessEqual:
+				return left <= right;
+			case UniqueType::GreaterEqual:
+				return left >= right;
+			default:
+				break;
+			}
+
+			break;
+		}
+		case UnaryExpr:
+		{
+			int value = EvaluateConstantIntExpr(expr->unaryExpr.expr);
+			switch (expr->unaryExpr.opType)
+			{
+				case UniqueType::Subtract:
+					return -value;
+				case UniqueType::Not:
+					return !value;
+				case UniqueType::Xor:
+					return ~value;
+			default:
+				break;
+			}
+
+			break;
+		}
+		case GroupedExpr:
+			return EvaluateConstantIntExpr(expr->groupedExpr.expr);
+		default:
+			break;
+		}
+
+		return 0;
+	}
 
 	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
 	{
