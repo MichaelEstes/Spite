@@ -104,7 +104,7 @@ struct Type
 		struct
 		{
 			Type* type;
-			Expr* size;
+			int size;
 		} fixedArrayType;
 	};
 

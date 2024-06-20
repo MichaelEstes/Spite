@@ -55,7 +55,8 @@ public:
 		while ((out == nullptr || !out->IsCompleted()) && index < contentCount)
 		{
 			char* curr = &contents[index];
-			tokens.Tokenize(out, curr, Peek(), start);
+			char* next = &contents[index + 1];
+			tokens.Tokenize(out, curr, next, start);
 			UpdatePosition(*curr);
 			index += 1;
 		}
@@ -69,11 +70,6 @@ public:
 	inline void Finalize()
 	{
 		contents.clear();
-	}
-
-	inline char* Peek()
-	{
-		return &contents[index + 1];
 	}
 
 private:

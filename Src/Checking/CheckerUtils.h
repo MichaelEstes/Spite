@@ -427,6 +427,11 @@ struct CheckerUtils
 
 	inline Type* GetIdentType(Expr* expr, StringView& name)
 	{
+		if (IsGenericOfCurrentContext(expr))
+		{
+			return context.symbolTable->CreateTypePtr(TypeID::GenericNamedType);
+		}
+
 		Stmnt* node = FindNodeForName(name);
 		if (!node)
 		{
@@ -451,8 +456,9 @@ struct CheckerUtils
 			return FunctionToFunctionType(node);
 		case StmntID::StateStmnt:
 		{
-			Type* type = context.symbolTable->CreateTypePtr(TypeID::NamedType);
-			type->namedType.typeName = node->state.name;
+			Type* type = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
+			type->importedType.packageName = node->package;
+			type->importedType.typeName = node->state.name;
 			return type;
 		}
 		}
@@ -645,15 +651,19 @@ struct CheckerUtils
 		{
 		case ImportedType:
 		case NamedType:
-			// Find index operator for type
-			break;
+		{
+			Type* typeOfIndex = InferType(of->indexExpr.index);
+			Type* indexType = GetStateOperatorType(of->start, UniqueType::Array, type, typeOfIndex);
+			return indexType;
+		}
 		case PointerType:
-			// Figure out rules for indexing pointer
 			return type;
 		case ValueType:
 			return GetIndexTypeAccessArray(of, type->valueType.type);
 		case ArrayType:
 			return type->arrayType.type;
+		case FixedArrayType:
+			return type->fixedArrayType.type;
 		}
 
 		AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
@@ -671,7 +681,6 @@ struct CheckerUtils
 			return type;
 		case ImportedType:
 		case NamedType:
-			// Constructor, needs more validation
 			return type;
 		case FunctionType:
 			return type->functionType.returnType;
@@ -679,6 +688,8 @@ struct CheckerUtils
 		{
 			if (of->functionCallExpr.function->typeID == ExprID::TemplateExpr) return type;
 		}
+		case GenericNamedType:
+			return type;
 		default:
 			break;
 		}
@@ -815,7 +826,8 @@ struct CheckerUtils
 					if (stateOp.op->uniqueType == op)
 					{
 						if (!rhs) return stateOp.returnType;
-						else if (*stateOp.decl->functionDecl.parameters->at(0)->definition.type == *rhs)
+						else if (stateOp.decl->functionDecl.parameters->size() > 0 &&
+							*stateOp.decl->functionDecl.parameters->at(1)->definition.type == *rhs)
 							return stateOp.returnType;
 					}
 				}
@@ -1036,34 +1048,23 @@ struct CheckerUtils
 		}
 		case FixedExpr:
 		{
-			Type* fixedType = InferType(of->fixedExpr.atExpr);
-			if (fixedType->typeID == TypeID::PointerType) fixedType = fixedType->pointerType.type;
-			if (fixedType->typeID != TypeID::ArrayType)
+			Type* fixedArrType = InferType(of->fixedExpr.atExpr);
+			if (fixedArrType->typeID != TypeID::ArrayType)
 			{
-				// AddError, fixed types must evaluate to array types
+				AddError(of->start, "CheckerUtils:InferType fixed expressions must evaluate to array types");
 				return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
-			Type* baseType = nullptr;
-			Type* type = nullptr;
-			do
+			if (fixedArrType->arrayType.type->typeID == TypeID::ArrayType)
 			{
-				fixedType = fixedType->arrayType.type;
-				Type* pointerType = context.symbolTable->CreateTypePtr(TypeID::PointerType);
-				if (!type)
-				{
-					type = pointerType;
-					baseType = type;
-				}
-				else
-				{
-					type->pointerType.type = pointerType;
-					type = type->pointerType.type;
-				}
-			} while (fixedType->typeID == TypeID::ArrayType);
+				AddError(of->start, "CheckerUtils:InferType fixed expression cannot be used to create multidimensional arrays");
+				return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
+			}
 
-			type->pointerType.type = fixedType;
-			return baseType;
+			Type* fixedType = fixedArrType->arrayType.type;
+			fixedArrType->typeID = TypeID::PointerType;
+			fixedArrType->pointerType.type = fixedType;
+			return fixedArrType;
 		}
 		case AnonTypeExpr:
 		{
@@ -1178,7 +1179,12 @@ struct CheckerUtils
 
 		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::ArrayType)
 		{
-			return IsAssignable(left->pointerType.type, right->pointerType.type);
+			return IsAssignable(left->arrayType.type, right->arrayType.type);
+		}
+
+		if (left->typeID == TypeID::FixedArrayType && right->typeID == TypeID::ArrayType)
+		{
+			return IsAssignable(left->fixedArrayType.type, right->arrayType.type);
 		}
 
 		if (IsGenericOf(context, left) || IsGenericOf(context, right)) return true;

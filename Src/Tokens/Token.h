@@ -208,4 +208,5 @@ struct Token
 	}
 };
 
+static Token emptyToken = "";
 static Token thisToken = "this";

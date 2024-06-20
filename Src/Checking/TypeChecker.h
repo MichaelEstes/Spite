@@ -29,20 +29,49 @@ struct TypeChecker
 		}
 	}
 
+	void InferUnknownType(Type* type, Expr* assignment)
+	{
+		Type* inferredType = utils.InferType(assignment);
+		if (!inferredType || inferredType->typeID == TypeID::InvalidType)
+		{
+			AddError(assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: " 
+				+ ToString(assignment));
+		}
+		*type = *inferredType;
+	}
+
+	void CheckArrayType(Type* type)
+	{
+		auto& arr = type->arrayType;
+		if (arr.size)
+		{
+			if (utils.IsConstantIntExpr(arr.size))
+			{
+				int size = utils.EvaluateConstantIntExpr(arr.size);
+				if (size)
+				{
+					Type* arrType = arr.type;
+					type->typeID = TypeID::FixedArrayType;
+					type->fixedArrayType.size = size;
+					type->fixedArrayType.type = arrType;
+				}
+				else
+				{
+					AddError(arr.arr, "TypeChecker:CheckArrayType Array size expression must evaluate to a positive number");
+				}
+			}
+			else
+			{
+				AddError(arr.arr, "TypeChecker:CheckArrayType Array size expression must be a constant value");
+			}
+		}
+	}
+
 	void CheckDefinitionType(Stmnt* node)
 	{
 		auto& definition = node->definition;
 		Type* type = definition.type;
-		if (type->typeID == TypeID::UnknownType)
-		{
-			Type* inferredType = utils.InferType(definition.assignment);
-			if (!inferredType || inferredType->typeID == TypeID::InvalidType)
-			{
-				AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: " + ToString(definition.assignment));
-			}
-			definition.type = inferredType;
-		}
-		else if (definition.assignment)
+		if (definition.assignment)
 		{
 			if (type->typeID == TypeID::ExplicitType)
 			{
@@ -110,7 +139,7 @@ struct TypeChecker
 				Stmnt* decl = decls->at(i);
 
 				Type* inferredType = utils.InferType(itemExpr);
-				if (*decl->definition.type != *inferredType)
+				if (!utils.IsAssignable(decl->definition.type, inferredType))
 				{
 					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
 					return;

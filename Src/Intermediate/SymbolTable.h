@@ -56,7 +56,7 @@ struct MethodHash
 			break;
 		case Constructor:
 			decl = stmnt->constructor.decl;
-			stateName = &stmnt->stateOperator.stateName->val;
+			stateName = &stmnt->constructor.stateName->val;
 			break;
 		default:
 			break;
@@ -109,19 +109,19 @@ struct MethodEqual
 			lDecl = l->stateOperator.decl;
 			lReturnType = l->stateOperator.returnType;
 			lStateName = &l->stateOperator.stateName->val;
-			lName = &l->method.name->val;
+			lName = &l->stateOperator.op->val;
 
 			rDecl = r->stateOperator.decl;
 			rReturnType = r->stateOperator.returnType;
 			rStateName = &r->stateOperator.stateName->val;
-			rName = &r->method.name->val;
+			rName = &r->stateOperator.op->val;
 			break;
 		case Constructor:
 			lDecl = l->constructor.decl;
-			lStateName = &l->stateOperator.stateName->val;
+			lStateName = &l->constructor.stateName->val;
 
 			rDecl = r->constructor.decl;
-			rStateName = &r->stateOperator.stateName->val;
+			rStateName = &r->constructor.stateName->val;
 			break;
 		default:
 			break;

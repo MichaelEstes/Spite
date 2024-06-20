@@ -85,7 +85,6 @@ struct PackageChecker
 		for (Stmnt* member : *stateRef.members)
 		{
 			CheckDefinition(member);
-			CheckType(member->definition.type, member->start);
 		}
 	}
 
@@ -158,7 +157,6 @@ struct PackageChecker
 			for (Stmnt* node : *params)
 			{
 				CheckDefinition(node);
-				CheckType(node->definition.type, node->start);
 			}
 		}
 		CheckStmnt(body.body);
@@ -349,14 +347,16 @@ struct PackageChecker
 		}
 	}
 
-	void CheckType(Type* type, Token* start)
+	void CheckType(Type* type, Token* start, Expr* assignment = nullptr)
 	{
 		switch (type->typeID)
 		{
 		case InvalidType:
-		case UnknownType:
 		case ImplicitType:
 			AddError(start, "Invalid type found");
+			break;
+		case UnknownType:
+			typeChecker.InferUnknownType(type, assignment);
 			break;
 		case NamedType:
 		{
@@ -378,8 +378,11 @@ struct PackageChecker
 			CheckType(type->valueType.type, type->valueType.valueOp);
 			break;
 		case ArrayType:
+		{
 			CheckType(type->arrayType.type, type->arrayType.arr);
+			typeChecker.CheckArrayType(type);
 			break;
+		}
 		case TemplatedType:
 		{
 			CheckType(type->templatedType.type, start);
@@ -407,9 +410,9 @@ struct PackageChecker
 	void CheckDefinition(Stmnt* node, bool scopeDefinition = true)
 	{
 		auto& definition = node->definition;
-		typeChecker.CheckDefinitionType(node);
+		CheckType(node->definition.type, node->start, definition.assignment);
 		if (definition.assignment) CheckExpr(definition.assignment);
-		CheckType(node->definition.type, node->start);
+		typeChecker.CheckDefinitionType(node);
 		if (scopeDefinition)
 		{
 			StringView& name = definition.name->val;

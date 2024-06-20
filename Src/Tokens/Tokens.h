@@ -491,9 +491,7 @@ struct Tokens
 				}
 				else
 				{
-					pos.columnOffset = 0;
-					pos.line += 1;
-					pos.fileOffset += val.count;
+					token = &emptyToken;
 				}
 				Reset(tokens);
 			}

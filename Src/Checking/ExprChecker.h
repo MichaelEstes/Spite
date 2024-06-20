@@ -85,7 +85,7 @@ struct ExprChecker
 		{
 			if (!utils.IsConstantIntExpr(indexExpr->indexExpr.index))
 			{
-				AddError(indexExpr->start, "'fixed' array size expression must evaluate to a constant value");
+				AddError(indexExpr->start, "'fixed' array size expressions must evaluate to a constant value");
 				return;
 			}
 
@@ -265,6 +265,8 @@ struct ExprChecker
 				}
 				break;
 			}
+			case TypeID::GenericNamedType:
+				return;
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
 				break;
