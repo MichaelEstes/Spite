@@ -1,4 +1,6 @@
 #pragma once
+#include "EASTL/tuple.h"
+
 #include "../Intermediate/GlobalTable.h"
 #include "../IR/IR.h"
 #include "LowerUtils.h"
@@ -12,6 +14,8 @@ struct LowerDeclarations
 
 	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
 	eastl::hash_map<eastl::string, SpiteIR::State*> stateMap;
+
+	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 
 	LowerDefinitions lowerDef;
 
@@ -44,9 +48,17 @@ struct LowerDeclarations
 		this->symbolTable = symbolTable;
 		lowerDef.symbolTable = symbolTable;
 
+		toResolve.clear();
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			BuildStateDeclarations(package, value);
+		}
+
+		for (auto& val : toResolve)
+		{
+			eastl::string& typeName = eastl::get<0>(val);
+			SpiteIR::Type* type = eastl::get<1>(val);
+			type->stateType.state = FindState(this, typeName);
 		}
 
 		for (auto& [key, value] : symbolTable->functionMap)

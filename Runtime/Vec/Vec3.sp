@@ -1,4 +1,4 @@
-package Vec3;
+package Vec;
 
 import Math
 

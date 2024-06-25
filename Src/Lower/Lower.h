@@ -16,13 +16,16 @@ struct Lower
 		this->ir = new SpiteIR::IR(globalTable->GetSize());
 	}
 
-	SpiteIR::IR* BuildIR()
+	SpiteIR::IR* BuildIR(SymbolTable* entry)
 	{
 		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir);
-		for (auto& [key, value] : globalTable->packageToSymbolTable)
+
+		lowerDecl.BuildDeclarations(entry);
+
+		/*for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			lowerDecl.BuildDeclarations(value);
-		}
+		}*/
 
 		return ir;
 	}

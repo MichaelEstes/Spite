@@ -350,7 +350,7 @@ inline eastl::string BuildGlobalVariableName(Stmnt* global)
 }
 
 template<typename Low>
-SpiteIR::State* FindState(Low* lower, eastl::string val)
+SpiteIR::State* FindState(Low* lower, const eastl::string& val)
 {
 	if (auto entry = lower->stateMap.find(val); entry != lower->stateMap.end())
 	{
@@ -358,6 +358,12 @@ SpiteIR::State* FindState(Low* lower, eastl::string val)
 	}
 
 	return nullptr;
+}
+
+template<typename Low>
+void AddStateToResolve(Low* lower, const eastl::string& val, SpiteIR::Type* type)
+{
+	lower->toResolve.push_back({ val, type });
 }
 
 template<typename Parent, typename Low>
@@ -438,7 +444,9 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::StateType;
-		irType->stateType.state = FindState(lower, BuildTypeString(type));
+		eastl::string typeName = BuildTypeString(type);
+		irType->stateType.state = FindState(lower, typeName);
+		if (!irType->stateType.state) AddStateToResolve(lower, typeName, irType);
 		return irType;
 	}
 	case ExplicitType:
@@ -489,8 +497,10 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::StateType;
-		irType->stateType.state = FindState(lower, BuildTypeString(type->templatedType.type) +
-			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs));
+		eastl::string typeName = BuildTypeString(type->templatedType.type) +
+			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
+		irType->stateType.state = FindState(lower, typeName);
+		if (!irType->stateType.state) AddStateToResolve(lower, typeName, irType);
 		return irType;
 	}
 	case FunctionType:

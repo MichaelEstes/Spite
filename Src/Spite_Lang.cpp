@@ -1,8 +1,8 @@
 ﻿// Spite_Lang.cpp : Defines the entry point for the application.
 //
 #include "Spite_Lang.h"
-#include "Src/IR/IR.h"
-#include "Src/Lower/Lower.h"
+#include "IR/IR.h"
+#include "Lower/Lower.h"
 
 typedef eastl::string string;
 
@@ -37,16 +37,21 @@ namespace EA::StdC
 
 Config config;
 
+void CheckEntryFunction(SymbolTable* symbolTable)
+{
+	StringView entryFuncName = StringView(config.entry.c_str());
+	if (!symbolTable->FindFunction(entryFuncName))
+	{
+		AddError("CheckEntryFunction: No entry function named " + config.entry + " found in file " + config.dir);
+	}
+}
+
 int main(int argc, char** argv)
 {
 	Profiler profiler = Profiler();
 
-	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
-		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
-
 	config = ParseConfig(argc, argv);
 
-	// TODO Build file information
 	eastl::hash_set<string> files = eastl::hash_set<string>();
 	
 	if (config.dir.length() > 0)
@@ -60,9 +65,13 @@ int main(int argc, char** argv)
 			}
 		}
 	}
+
+	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
+		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
+
 	
 	string entry(std::filesystem::canonical(config.file.c_str()).string().c_str());
-	files.insert(entry);
+	files.erase(entry);
 
 	SpiteIR::IR* ir = nullptr;
 	{
@@ -79,7 +88,16 @@ int main(int argc, char** argv)
 			globalTable.InsertTable(symbolTable);
 		}
 
+		Parser& parser = parsers.emplace_back(entry);
+		SymbolTable* entryTable = parser.Parse();
+		if (!entryTable)
 		{
+			return 1;
+		}
+		globalTable.InsertTable(entryTable);
+
+		{
+			CheckEntryFunction(entryTable);
 			Profiler checkerProfiler = Profiler();
 			Checker checker = Checker(&globalTable);
 			checker.Check();
@@ -93,10 +111,10 @@ int main(int argc, char** argv)
 			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax for " + config.file);
 		}
 
-		globalTable.Print();
+		//globalTable.Print();
 
 		Lower lower = Lower(&globalTable);
-		ir = lower.BuildIR();
+		ir = lower.BuildIR(entryTable);
 	}
 
 	/*{
