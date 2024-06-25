@@ -162,7 +162,7 @@ struct CheckerUtils
 		{
 		case IdentifierExpr:
 		{
-			StringView& ident = expr->identifierExpr.identifier->val;
+			Token* ident = expr->identifierExpr.identifier;
 			Stmnt* stmnt = FindNodeForName(ident);
 			if (!stmnt) return stmnt;
 
@@ -186,10 +186,8 @@ struct CheckerUtils
 			}
 			else if (IsPackageExpr(expr))
 			{
-				StringView& package = expr->selectorExpr.on->identifierExpr.identifier->val;
-				StringView& name = expr->selectorExpr.on->identifierExpr.identifier->val;
-				//Package is being selected, find in global table
-				return context.globalTable->FindStateOrFunction(package, name);
+				//Package is being selected, keep walking
+				return GetDeclarationStmntForExpr(expr->selectorExpr.select);
 			}
 			else
 			{
@@ -375,7 +373,7 @@ struct CheckerUtils
 			return context.globalTable->FindStateForType(stmnt->definition.type, context.symbolTable);
 		}
 
-		StateSymbol* stateSymbol = context.symbolTable->FindStateSymbol(state->state.name->val);
+		StateSymbol* stateSymbol = context.globalTable->FindScopedStateSymbol(state->state.name, context.symbolTable);
 		stmnt = FindStateMethod(stateSymbol, name->val);
 		return stmnt;
 	}
@@ -406,26 +404,15 @@ struct CheckerUtils
 		return FindTypeMember(of->state.members, val);
 	}
 
-	inline Stmnt* FindNodeForName(StringView& val)
+	inline Stmnt* FindNodeForName(Token* name)
 	{
-		Stmnt* node = FindInScope(val);
+		Stmnt* node = FindInScope(name->val);
 		if (node) return node;
 
-
-		node = context.symbolTable->FindStateOrFunction(val);
-		if (node) return node;
-
-		for (Stmnt * import : context.symbolTable->imports)
-		{
-			StringView & package = import->importStmnt.packageName->val;
-			node = context.globalTable->FindStateOrFunction(package, val);
-			if (node) return node;
-		}
-
-		return nullptr;
+		return context.globalTable->FindScopedValue(name, context.symbolTable);
 	}
 
-	inline Type* GetIdentType(Expr* expr, StringView& name)
+	inline Type* GetIdentType(Expr* expr, Token* name)
 	{
 		if (IsGenericOfCurrentContext(expr))
 		{
@@ -435,7 +422,7 @@ struct CheckerUtils
 		Stmnt* node = FindNodeForName(name);
 		if (!node)
 		{
-			if (context.globalTable->IsPackage(name))
+			if (context.globalTable->IsPackage(name->val))
 			{
 				Type* importedType = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
 				importedType->importedType.packageName = expr->identifierExpr.identifier;
@@ -443,7 +430,7 @@ struct CheckerUtils
 			}
 			else
 			{
-				AddError(expr->start, "CheckerUtils:GetIdentType Unable to get node for name: " + name);
+				AddError(expr->start, "CheckerUtils:GetIdentType Unable to get node for name: " + name->val);
 				return nullptr;
 			}
 		}
@@ -463,7 +450,7 @@ struct CheckerUtils
 		}
 		}
 
-		AddError("CheckerUtils:GetIdentType unable to find type for name: " + name);
+		AddError("CheckerUtils:GetIdentType unable to find type for name: " + name->val);
 		return nullptr;
 	}
 
@@ -519,7 +506,7 @@ struct CheckerUtils
 		}
 		else
 		{
-			StateSymbol* stateSymbol = context.globalTable->FindStateSymbol(state->package->val, state->state.name->val);
+			StateSymbol* stateSymbol = context.globalTable->FindScopedStateSymbol(state->state.name, context.symbolTable);
 			Stmnt* method = FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
@@ -541,11 +528,11 @@ struct CheckerUtils
 		else return node->type == TokenType::Primitive;
 	}
 
-	inline bool IsNameOfType(StringView& name)
+	inline bool IsNameOfType(Token* name)
 	{
-		StateSymbol* state = context.symbolTable->FindStateSymbol(name);
+		StateSymbol* state = context.globalTable->FindScopedStateSymbol(name, context.symbolTable);
 		if (state) return true;
-		else return IsNameOfPrimitive(name);
+		else return IsNameOfPrimitive(name->val);
 	}
 
 	inline bool IsImportedType(Expr* expr)
@@ -554,7 +541,7 @@ struct CheckerUtils
 		Expr* on = selector.on;
 		Expr* select = selector.select;
 		return on->typeID == ExprID::IdentifierExpr && select->typeID == ExprID::IdentifierExpr &&
-			context.globalTable->FindStateSymbol(on->identifierExpr.identifier->val, select->identifierExpr.identifier->val);
+			context.globalTable->FindScopedStateSymbol(select->identifierExpr.identifier, context.symbolTable);
 	}
 
 	bool IsGeneric(Token* ident, Stmnt* stmnt)
@@ -602,7 +589,7 @@ struct CheckerUtils
 		switch (expr->typeID)
 		{
 		case IdentifierExpr:
-			return IsNameOfType(expr->identifierExpr.identifier->val);
+			return IsNameOfType(expr->identifierExpr.identifier);
 		case PrimitiveExpr:
 			return true;
 		case SelectorExpr:
@@ -664,6 +651,8 @@ struct CheckerUtils
 			return type->arrayType.type;
 		case FixedArrayType:
 			return type->fixedArrayType.type;
+		case GenericNamedType:
+			return type;
 		}
 
 		AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
@@ -713,7 +702,7 @@ struct CheckerUtils
 			type = GetGenericsType(expr, EvalType(expr->templateExpr.expr));
 			break;
 		case IdentifierExpr:
-			type = GetIdentType(expr, expr->identifierExpr.identifier->val);
+			type = GetIdentType(expr, expr->identifierExpr.identifier);
 			break;
 		case SelectorExpr:
 			type = GetSelectorType(expr, EvalType(expr->selectorExpr.on));
@@ -817,7 +806,7 @@ struct CheckerUtils
 		Stmnt* node = context.globalTable->FindStateForType(namedType, context.symbolTable);
 		if (node)
 		{
-			StateSymbol* state = context.globalTable->FindStateSymbolForState(node);
+			StateSymbol* state = context.globalTable->FindScopedStateSymbol(node->state.name, context.symbolTable);
 			if (state)
 			{
 				for (Stmnt* opNode : state->operators)
@@ -869,9 +858,9 @@ struct CheckerUtils
 		switch (lPrim.type)
 		{
 		case UniqueType::Void:
-			break;
+			return left;
 		case UniqueType::Bool:
-			break;
+			return left;
 		case UniqueType::Byte:
 		case UniqueType::Int:
 		case UniqueType::Int16:

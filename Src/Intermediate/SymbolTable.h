@@ -387,13 +387,6 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	inline Stmnt* FindStateOrFunction(StringView& val)
-	{
-		Stmnt* node = FindState(val);
-		if (!node) node = FindFunction(val);
-		return node;
-	}
-
 	inline Stmnt* FindState(StringView& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())
@@ -407,6 +400,16 @@ struct SymbolTable
 	inline Stmnt* FindFunction(StringView& val)
 	{
 		if (auto entry = functionMap.find(val); entry != functionMap.end())
+		{
+			return entry->second;
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindGlobalVariable(StringView& val)
+	{
+		if (auto entry = globalValMap.find(val); entry != globalValMap.end())
 		{
 			return entry->second;
 		}

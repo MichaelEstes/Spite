@@ -5,12 +5,13 @@
 
 struct Parser
 {
+	const eastl::string& file;
 	Tokens tokens;
 	Scanner scanner;
 
-	Parser(eastl::string& file) : scanner(file)
+	Parser(const eastl::string& file) : file(file), scanner(file)
 	{
 	}
 
-	SymbolTable* Parse(eastl::string& file);
+	SymbolTable* Parse();
 };

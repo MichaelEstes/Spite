@@ -3,7 +3,7 @@
 #include "../Intermediate/Syntax.h"
 #include "../Utils/Profiler.h"
 
-SymbolTable* Parser::Parse(eastl::string& file)
+SymbolTable* Parser::Parse()
 {
 	Profiler profiler = Profiler();
 	size_t fileSize = scanner.Init();

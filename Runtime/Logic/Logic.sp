@@ -1,6 +1,5 @@
 package Logic
 
-
 bool Not(val: bool)
 {
 	return (val - 1) * -1;

@@ -3,7 +3,7 @@
 
 struct Position
 {
-	eastl::string* file;
+	const eastl::string* file;
 	size_t fileOffset;
 	size_t line;
 	size_t columnOffset;
@@ -16,12 +16,17 @@ struct Position
 		columnOffset = 0;
 	}
 
-	Position(eastl::string* file)
+	Position(const eastl::string* file)
 	{
 		this->file = file;
 		fileOffset = 0;
 		line = 1;
 		columnOffset = 0;
+	}
+
+	Position(const Position& other)
+	{
+		*this = other;
 	}
 
 	Position& operator=(const Position& copy)

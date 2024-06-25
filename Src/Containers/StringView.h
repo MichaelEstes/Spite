@@ -60,7 +60,7 @@ struct StringView
 		{
 			if (comp[i] != *(start + i)) return false;
 		}
-
+		
 		return true;
 	}
 

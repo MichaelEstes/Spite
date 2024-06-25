@@ -1,6 +1,6 @@
 package Std
 
-state<T> Array
+state Array<T>
 {
 	start: *T,
 	count: int
@@ -9,7 +9,7 @@ state<T> Array
 Array::(count: int)
 {
 	this.count = count;
-	this.start = new fixed T[count];
+	this.start = new T[count];
 }
 
 Array::delete 

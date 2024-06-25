@@ -10,6 +10,9 @@ struct LowerDeclarations
 	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
 
+	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
+	eastl::hash_map<eastl::string, SpiteIR::State*> stateMap;
+
 	LowerDefinitions lowerDef;
 
 	LowerDeclarations(GlobalTable* globalTable, SpiteIR::IR* ir) : lowerDef(globalTable)
@@ -18,8 +21,26 @@ struct LowerDeclarations
 		this->ir = ir;
 	}
 
-	void BuildDeclarations(SpiteIR::Package* package, SymbolTable* symbolTable)
+	SpiteIR::Package* BuildDeclarations(SymbolTable* symbolTable)
 	{
+		SpiteIR::Package* package = ir->AddPackage();
+
+		package->file = *symbolTable->package->pos.file;
+		package->name = BuildPackageName(symbolTable->package);
+		package->parent = ir;
+
+		packageMap[package->name] = package;
+
+		for (Stmnt* key : symbolTable->imports)
+		{
+			if (packageMap.find(key->importStmnt.packageName->ToString()) == packageMap.end())
+			{
+				SymbolTable* symbolTable = globalTable->FindSymbolTable(key->importStmnt.packageName->val);
+				SpiteIR::Package* imported = BuildDeclarations(symbolTable);
+				package->imports.push_back(imported);
+			}
+		}
+
 		this->symbolTable = symbolTable;
 		lowerDef.symbolTable = symbolTable;
 
@@ -37,6 +58,8 @@ struct LowerDeclarations
 		{
 			BuildGlobalVariableDeclaration(package, value);
 		}
+
+		return package;
 	}
 
 	void BuildStateDeclarations(SpiteIR::Package* package, StateSymbol& stateSymbol)
@@ -72,20 +95,20 @@ struct LowerDeclarations
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
-			SpiteIR::State* state = EmplaceState(package, stateSymbol, stateStmnt, 
+			SpiteIR::State* state = EmplaceState(package, stateSymbol, stateStmnt,
 				BuildTemplatedStateName(stateStmnt, templates));
 
 			for (size_t i = 0; i < stateStmnt->state.members->size(); i++)
 			{
 				Stmnt* memberStmnt = stateStmnt->state.members->at(i);
-				BuildMemberForState(state, memberStmnt,i, genericNames, templates);
+				BuildMemberForState(state, memberStmnt, i, genericNames, templates);
 			}
 
 			BuildMethodsForState(package, stateSymbol, state, genericNames, templates);
 		}
 	}
 
-	SpiteIR::State* EmplaceState(SpiteIR::Package* package, StateSymbol& stateSymbol, 
+	SpiteIR::State* EmplaceState(SpiteIR::Package* package, StateSymbol& stateSymbol,
 		Stmnt* stateStmnt, const eastl::string& name)
 	{
 		SpiteIR::State* state = ir->AllocateState();
@@ -96,6 +119,7 @@ struct LowerDeclarations
 		state->metadata.flags = (int)*stateStmnt->state.insetFlags->flags;
 
 		package->states[state->name] = state;
+		stateMap[state->name] = state;
 		return state;
 	}
 
@@ -144,10 +168,8 @@ struct LowerDeclarations
 		con->pos = conStmnt->start->pos;
 		con->name = BuildConstructorName(state, conStmnt, generics, templates);
 		con->returnType = ir->AllocateType(con);
-		con->returnType->kind = SpiteIR::TypeKind::NamedType;
-		con->returnType->namedType.name = ir->AllocateString();
-		*con->returnType->namedType.name = state->name;
-
+		con->returnType->kind = SpiteIR::TypeKind::StateType;
+		con->returnType->stateType.state = state;
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, con, conStmnt);
@@ -191,7 +213,7 @@ struct LowerDeclarations
 			return;
 		}
 
-		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl, 
+		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
 			BuildMethodName(state, methodStmnt), generics, templates);
 	}
 
@@ -211,12 +233,12 @@ struct LowerDeclarations
 			for (Expr* methodTemplate : *templates) stateAndMethodTemplates.push_back(methodTemplate);
 
 			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-				BuildTemplatedMethodName(state, methodStmnt, templates), 
+				BuildTemplatedMethodName(state, methodStmnt, templates),
 				&stateAndMethodGenerics, &stateAndMethodTemplates);
 		}
 	}
 
-	void BuildMethod(SpiteIR::Package* package, SpiteIR::State* state, 
+	void BuildMethod(SpiteIR::Package* package, SpiteIR::State* state,
 		Stmnt* methodStmnt, Stmnt* methodDeclStmnt, const eastl::string& name,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
@@ -247,9 +269,8 @@ struct LowerDeclarations
 		arg->value.name = "this";
 
 		SpiteIR::Type* thisType = ir->AllocateType(method);
-		thisType->kind = SpiteIR::TypeKind::NamedType;
-		thisType->namedType.name = ir->AllocateString();
-		*thisType->namedType.name = state->name;
+		thisType->kind = SpiteIR::TypeKind::StateType;
+		thisType->stateType.state = state;
 		arg->value.type = thisType;
 
 		method->arguments[arg->value.name] = arg;
@@ -291,7 +312,7 @@ struct LowerDeclarations
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
-			BuildFunction(package, funcStmnt, BuildTemplatedFunctionName(funcStmnt, templates), 
+			BuildFunction(package, funcStmnt, BuildTemplatedFunctionName(funcStmnt, templates),
 				generics.names, templates);
 		}
 	}
@@ -314,7 +335,7 @@ struct LowerDeclarations
 		package->functions[function->name] = function;
 	}
 
-	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index, 
+	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();

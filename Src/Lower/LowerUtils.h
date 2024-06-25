@@ -349,8 +349,19 @@ inline eastl::string BuildGlobalVariableName(Stmnt* global)
 	return BuildPackageName(global->package) + '_' + global->definition.name->val.ToString();
 }
 
-template<typename P, typename Low>
-SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
+template<typename Low>
+SpiteIR::State* FindState(Low* lower, eastl::string val)
+{
+	if (auto entry = lower->stateMap.find(val); entry != lower->stateMap.end())
+	{
+		return entry->second;
+	}
+
+	return nullptr;
+}
+
+template<typename Parent, typename Low>
+SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lower,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 {
 	switch (type->typeID)
@@ -426,9 +437,8 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 	case ImportedType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
-		irType->kind = SpiteIR::TypeKind::NamedType;
-		irType->namedType.name = ir->AllocateString();
-		*irType->namedType.name = BuildTypeString(type);
+		irType->kind = SpiteIR::TypeKind::StateType;
+		irType->stateType.state = FindState(lower, BuildTypeString(type));
 		return irType;
 	}
 	case ExplicitType:
@@ -463,17 +473,24 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, P* parent, Low* lower,
 	case ArrayType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
-		irType->kind = SpiteIR::TypeKind::ArrayType;
-		irType->array.type = TypeToIRType(ir, type->arrayType.type, irType, lower, generics, templates);
+		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
+		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, irType, lower, generics, templates);
+		return irType;
+	}
+	case FixedArrayType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType(parent);
+		irType->kind = SpiteIR::TypeKind::FixedArrayType;
+		irType->fixedArray.count = type->fixedArrayType.size;
+		irType->fixedArray.type = TypeToIRType(ir, type->fixedArrayType.type, irType, lower, generics, templates);
 		return irType;
 	}
 	case TemplatedType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
-		irType->kind = SpiteIR::TypeKind::NamedType;
-		irType->namedType.name = ir->AllocateString();
-		*irType->namedType.name = BuildTypeString(type->templatedType.type) + 
-			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
+		irType->kind = SpiteIR::TypeKind::StateType;
+		irType->stateType.state = FindState(lower, BuildTypeString(type->templatedType.type) +
+			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs));
 		return irType;
 	}
 	case FunctionType:

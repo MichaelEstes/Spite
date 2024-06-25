@@ -34,17 +34,16 @@ struct Scope
 
 struct Syntax
 {
-	const StringView thisStr = "this";
-
 	Tokens& tokens;
+
 	Scope currScope;
 	Token* curr;
 	SymbolTable* symbolTable;
 	size_t nodeCount;
-
+	Token* package;
+	
 	//eastl::vector<Stmnt*> nodes;
 	eastl::stack<Scope> scopes;
-	Token* package;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{

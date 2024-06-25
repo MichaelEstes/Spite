@@ -68,6 +68,7 @@ struct ArgInfo
 
 struct Config
 {
+	eastl::string dir;
 	eastl::string file;
 	eastl::string entry = "Main";
 	Output output = Output::Llvm;
@@ -90,7 +91,7 @@ inline eastl::string GetNextArg(int& index, int argc, char** argv)
 inline Config ParseConfig(int argc, char** argv)
 {
 	Config config = Config();
-	eastl::vector<ArgInfo> argInfos = { {"-file", "File path of the file to compile", true, {}}, {"-entry", "Name of the function in the file to run first, defaults to Main", false, {}}, {"-output", "Sets the compiler output format, defaults to llvm", false, {"llvm", "c", "ir"}}, {"-arch", "Sets the target architecture to build the binary for", false, {"x64", "x86", "arm32", "arm64"}}, {"-os", "Sets the target os to build the binary for, defaults to windows", false, {"windows", "linux", "mac", "android", "ios"}}, {"-comments", "If present comments will be retained", false, {}} };
+	eastl::vector<ArgInfo> argInfos = { {"-file", "File path of the file to compile", true, {}}, {"-dir", "Directory to compile all .sp files in", false, {}}, {"-entry", "Name of the function in the file to run first, defaults to Main", false, {}}, {"-output", "Sets the compiler output format, defaults to llvm", false, {"llvm", "c", "ir"}}, {"-arch", "Sets the target architecture to build the binary for", false, {"x64", "x86", "arm32", "arm64"}}, {"-os", "Sets the target os to build the binary for, defaults to windows", false, {"windows", "linux", "mac", "android", "ios"}}, {"-comments", "If present comments will be retained", false, {}} };
 	int i = 0;
 	while (i < argc)
 	{
@@ -98,6 +99,10 @@ inline Config ParseConfig(int argc, char** argv)
 		if (arg == "-file")
 		{
 			config.file = GetNextArg(i, argc, argv);
+		}
+		else if (arg == "-dir")
+		{
+			config.dir = GetNextArg(i, argc, argv);
 		}
 		else if (arg == "-entry")
 		{

@@ -93,61 +93,6 @@ struct ExprChecker
 		}
 	}
 
-	bool IsConstantExpr(Expr* expr)
-	{
-		switch (expr->typeID)
-		{
-		case InvalidExpr:
-			return false;
-		case LiteralExpr:
-			return true;
-		case IdentifierExpr:
-		{
-			Stmnt* def = utils.FindInScope(expr->identifierExpr.identifier->val);
-			if (!def) return false;
-			return IsConstantExpr(def->definition.assignment);
-		}
-		case PrimitiveExpr:
-			break;
-		case SelectorExpr:
-			break;
-		case IndexExpr:
-			break;
-		case FunctionCallExpr:
-			break;
-		case NewExpr:
-			break;
-		case FixedExpr:
-			break;
-		case AnonTypeExpr:
-			break;
-		case ExplicitTypeExpr:
-			break;
-		case AsExpr:
-			break;
-		case DereferenceExpr:
-			break;
-		case ReferenceExpr:
-			break;
-		case BinaryExpr:
-			break;
-		case UnaryExpr:
-			break;
-		case GroupedExpr:
-			break;
-		case TemplateExpr:
-			break;
-		case TypeExpr:
-			break;
-		case FunctionTypeDeclExpr:
-			break;
-		case CompileExpr:
-			break;
-		default:
-			break;
-		}
-	}
-
 	void CheckFunctionCallExpr(Expr* expr)
 	{
 		auto& functionCall = expr->functionCallExpr;
@@ -166,7 +111,7 @@ struct ExprChecker
 				// Every state has a default constructor
 				if (paramCount == 0) return;
 
-				StateSymbol* stateSymbol = context.globalTable->FindStateSymbolForState(functionStmnt);
+				StateSymbol* stateSymbol = context.globalTable->FindScopedStateSymbol(functionStmnt->state.name, context.symbolTable);
 				eastl::vector<Expr*> conParams = eastl::vector<Expr*>();
 
 				Type thisType = Type(TypeID::NamedType);
@@ -199,7 +144,7 @@ struct ExprChecker
 			}
 			case StmntID::Method:
 			{
-				Stmnt* state = context.globalTable->FindState(functionStmnt->package->val, functionStmnt->method.stateName->val);
+				Stmnt* state = context.globalTable->FindScopedState(functionStmnt->method.stateName, context.symbolTable);
 				eastl::vector<Expr*> methodParams = eastl::vector<Expr*>();
 
 				Type thisType = Type(TypeID::GenericNamedType);

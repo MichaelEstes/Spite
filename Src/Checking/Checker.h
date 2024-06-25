@@ -73,7 +73,7 @@ struct Checker
 	{
 		eastl::vector<Expr*>* copyArgs = CopyTemplateArgs(templatesToReplace, to->package);
 		eastl::vector<Token*>* names = from->generics.names;
-
+		
 		for (size_t i = 0; i < names->size(); i++)
 		{
 			Token* name = names->at(i);

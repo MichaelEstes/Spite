@@ -47,16 +47,31 @@ int main(int argc, char** argv)
 	config = ParseConfig(argc, argv);
 
 	// TODO Build file information
-	eastl::vector<string> files = eastl::vector<string>({ config.file });
+	eastl::hash_set<string> files = eastl::hash_set<string>();
+	
+	if (config.dir.length() > 0)
+	{
+		for (auto& entry : std::filesystem::recursive_directory_iterator(config.dir.c_str()))
+		{
+			if (!entry.is_directory() && entry.path().extension() == ".sp")
+			{
+				string path(entry.path().string().c_str());
+				files.insert(path);
+			}
+		}
+	}
+	
+	string entry(std::filesystem::canonical(config.file.c_str()).string().c_str());
+	files.insert(entry);
 
 	SpiteIR::IR* ir = nullptr;
 	{
 		GlobalTable globalTable = GlobalTable();
 		eastl::vector<Parser> parsers = eastl::vector<Parser>();
-		for (string& file : files)
+		for (const string& file : files)
 		{
 			Parser& parser = parsers.emplace_back(file);
-			SymbolTable* symbolTable = parser.Parse(file);
+			SymbolTable* symbolTable = parser.Parse();
 			if (!symbolTable)
 			{
 				return 1;

@@ -12,7 +12,7 @@ class Scanner
 {
 public:
 
-	Scanner(eastl::string& file): fileLoc(file)
+	Scanner(const eastl::string& file): fileLoc(file)
 	{
 		pos = Position(&fileLoc);
 		index = 0;
@@ -77,7 +77,7 @@ private:
 	size_t contentCount;
 	size_t index;
 	Position pos;
-	eastl::string& fileLoc;
+	const eastl::string& fileLoc;
 
 	inline void UpdatePosition(char last)
 	{

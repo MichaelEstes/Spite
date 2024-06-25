@@ -56,35 +56,6 @@ struct GlobalTable
 		return packageToSymbolTable.find(package) != packageToSymbolTable.end();
 	}
 
-	inline StateSymbol* FindStateSymbolForState(Stmnt* state)
-	{
-		return FindStateSymbol(state->package->val, state->state.name->val);
-	}
-
-	inline StateSymbol* FindStateSymbol(StringView& package, StringView& name)
-	{
-		SymbolTable* symbolTable = FindSymbolTable(package);
-		if (!symbolTable) return nullptr;
-
-		return symbolTable->FindStateSymbol(name);
-	}
-
-	inline Stmnt* FindState(StringView& package, StringView& name)
-	{
-		SymbolTable* symbolTable = FindSymbolTable(package);
-		if (!symbolTable) return nullptr;
-
-		return symbolTable->FindState(name);
-	}
-
-	inline Stmnt* FindStateOrFunction(StringView& package, StringView& name)
-	{
-		SymbolTable* symbolTable = FindSymbolTable(package);
-		if (!symbolTable) return nullptr;
-
-		return symbolTable->FindStateOrFunction(name);
-	}
-
 	inline SymbolTable* FindSymbolTable(StringView& package)
 	{
 		if (IsPackage(package)) 
@@ -100,9 +71,9 @@ struct GlobalTable
 		switch (type->typeID)
 		{
 		case NamedType:
-			return FindLocalOrImportedState(type->namedType.typeName, symbolTable);
+			return FindScopedState(type->namedType.typeName, symbolTable);
 		case ImportedType:
-			return FindState(type->importedType.packageName->val, type->importedType.typeName->val);
+			return FindScopedState(type->importedType.typeName, symbolTable);
 		case PointerType:
 			return FindStateForType(type->pointerType.type, symbolTable);
 		case ValueType:
@@ -111,25 +82,86 @@ struct GlobalTable
 			return FindStateForType(type->arrayType.type, symbolTable);
 		case TemplatedType:
 			return FindStateForType(type->arrayType.type, symbolTable);
+		case FixedArrayType:
+			return FindStateForType(type->fixedArrayType.type, symbolTable);
 		default:
 			return nullptr;
 		}
 	}
 
-	inline Stmnt* FindLocalOrImportedState(Token* name, SymbolTable* symbolTable)
+	inline Stmnt* FindScopedState(Token* name, SymbolTable* symbolTable)
 	{
 		StringView& stateName = name->val;
 
 		Stmnt* state = symbolTable->FindState(stateName);
 		if (state) return state;
 
-		for (Stmnt * import : symbolTable->imports)
+		for (Stmnt* import : symbolTable->imports)
 		{
-			StringView & package = import->importStmnt.packageName->val;
-			state = FindState(package, stateName);
-			if (state) return state;
+			StringView& package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (symbolTable) return symbolTable->FindState(stateName);
 		}
 
 		return nullptr;
+	}
+
+	inline StateSymbol* FindScopedStateSymbol(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& stateName = name->val;
+
+		StateSymbol* state = symbolTable->FindStateSymbol(stateName);
+		if (state) return state;
+
+		for (Stmnt* import : symbolTable->imports)
+		{
+			StringView& package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (symbolTable) return symbolTable->FindStateSymbol(stateName);
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindScopedFunction(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& functionName = name->val;
+
+		Stmnt* stmnt = symbolTable->FindFunction(functionName);
+		if (stmnt) return stmnt;
+
+		for (Stmnt * import : symbolTable->imports)
+		{
+			StringView & package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (symbolTable) return symbolTable->FindFunction(functionName);
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindScopedGlobalVar(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& globalVarName = name->val;
+
+		Stmnt* stmnt = symbolTable->FindGlobalVariable(globalVarName);
+		if (stmnt) return stmnt;
+
+		for (Stmnt * import : symbolTable->imports)
+		{
+			StringView & package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (symbolTable) return symbolTable->FindGlobalVariable(globalVarName);
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindScopedValue(Token* name, SymbolTable* symbolTable)
+	{
+		Stmnt* found = FindScopedState(name, symbolTable);
+		if (!found) found = FindScopedFunction(name, symbolTable);
+		if (!found) found = FindScopedGlobalVar(name, symbolTable);
+		return found;
 	}
 };

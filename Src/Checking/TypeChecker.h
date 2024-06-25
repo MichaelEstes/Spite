@@ -16,7 +16,7 @@ struct TypeChecker
 	void CheckNamedType(Type* type)
 	{
 		Token* name = type->namedType.typeName;
-		Stmnt* state = context.globalTable->FindLocalOrImportedState(name, context.symbolTable);
+		Stmnt* state = context.globalTable->FindScopedState(name, context.symbolTable);
 		if (state)
 		{
 			type->typeID = TypeID::ImportedType;

@@ -3,6 +3,10 @@ description File path of the file to compile
 required
 type string
 
+-dir
+description Directory to compile all .sp files in
+type string
+
 -entry
 description Name of the function in the file to run first, defaults to Main
 default Main

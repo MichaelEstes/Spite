@@ -136,6 +136,7 @@ namespace SpiteIR
 
 	enum class OperandKind
 	{
+		None,
 		Identifier,
 		Literal,
 		StructLiteral,
@@ -144,6 +145,8 @@ namespace SpiteIR
 
 	struct Operand
 	{
+		//Figure out why Position is deleting the constructor
+		//Position pos;
 		Type* type;
 		OperandKind kind;
 
@@ -208,6 +211,13 @@ namespace SpiteIR
 		Array<Operand>* params;
 	};
 
+	struct Allocate
+	{
+		Type* type;
+		size_t allignment;
+		size_t count;
+	};
+
 	struct Load
 	{
 		Operand operand;
@@ -263,6 +273,7 @@ namespace SpiteIR
 			Compare compare;
 			Branch branch;
 			Call call;
+			Allocate allocate;
 			Load load; // x := y~ or x := y[2]
 			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
 			Cast cast;
@@ -284,11 +295,12 @@ namespace SpiteIR
 	enum class TypeKind
 	{
 		PrimitiveType,
-		NamedType,
+		StateType,
 		StructureType,
 		PointerType,
 		ValueType,
-		ArrayType,
+		DynamicArrayType,
+		FixedArrayType,
 		FunctionType
 	};
 
@@ -317,8 +329,8 @@ namespace SpiteIR
 
 			struct
 			{
-				string* name;
-			} namedType;
+				State* state;
+			} stateType;
 
 			struct
 			{
@@ -339,7 +351,7 @@ namespace SpiteIR
 			struct
 			{
 				Type* type;
-			} array;
+			} dynamicArray;
 
 			struct
 			{

@@ -9,7 +9,6 @@ struct Lower
 	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
 
-	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
 
 	Lower(GlobalTable* globalTable)
 	{
@@ -22,15 +21,7 @@ struct Lower
 		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir);
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
-			symbolTable = value;
-			SpiteIR::Package* package = ir->AddPackage();
-
-			package->file = *symbolTable->package->pos.file;
-			package->name = BuildPackageName(symbolTable->package);
-			package->parent = ir;
-
-			packageMap[package->name] = package;
-			lowerDecl.BuildDeclarations(package, symbolTable);
+			lowerDecl.BuildDeclarations(value);
 		}
 
 		return ir;

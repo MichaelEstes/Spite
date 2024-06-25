@@ -19,6 +19,11 @@ struct PackageChecker
 
 	void Check()
 	{
+		for (Stmnt* key : context.symbolTable->imports)
+		{
+			CheckImport(key);
+		}
+
 		AddScope();
 		for (auto& [key, value] : context.symbolTable->globalValMap)
 		{
@@ -51,6 +56,16 @@ struct PackageChecker
 
 		context.scopeQueue.pop_back();
 		if (context.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
+	}
+
+	void CheckImport(Stmnt* imported)
+	{
+		Token* packageName = imported->importStmnt.packageName;
+		SymbolTable* table = context.globalTable->FindSymbolTable(packageName->val);
+		if (!table)
+		{
+			AddError(packageName, "PackageChecker:CheckImport No package found with name: " + packageName->ToString());
+		}
 	}
 
 	void AddScope()
