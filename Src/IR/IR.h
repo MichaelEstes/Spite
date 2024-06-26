@@ -298,7 +298,6 @@ namespace SpiteIR
 		StateType,
 		StructureType,
 		PointerType,
-		ValueType,
 		DynamicArrayType,
 		FixedArrayType,
 		FunctionType
@@ -315,14 +314,14 @@ namespace SpiteIR
 	struct Type
 	{
 		Parent parent;
-		size_t size;
+		size_t size = 0;
 		TypeKind kind;
+		bool byValue = false;
 
 		union
 		{
 			struct
 			{
-				size_t size;
 				bool isSigned;
 				PrimitiveKind kind;
 			} primitive;
@@ -342,11 +341,6 @@ namespace SpiteIR
 			{
 				Type* type;
 			} pointer;
-
-			struct
-			{
-				Type* type;
-			} value;
 
 			struct
 			{
@@ -400,6 +394,7 @@ namespace SpiteIR
 	{
 		Package* parent;
 		Position pos;
+		size_t size = 0;
 
 		struct
 		{
@@ -412,7 +407,6 @@ namespace SpiteIR
 		Array<Function*> constructors;
 		Function* destructor = nullptr;
 		string name;
-		size_t size;
 	};
 
 	struct CompileFunction

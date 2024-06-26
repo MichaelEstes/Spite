@@ -69,7 +69,6 @@ int main(int argc, char** argv)
 	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
 		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
 
-	
 	string entry(std::filesystem::canonical(config.file.c_str()).string().c_str());
 	files.erase(entry);
 

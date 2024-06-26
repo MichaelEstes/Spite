@@ -3,6 +3,7 @@
 #include "../Intermediate/SyntaxUtils.h"
 #include "../IR/IR.h"
 
+extern Config config;
 
 eastl::string BuildExprString(Expr* expr);
 
@@ -381,13 +382,12 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
-		auto& prim = irType->primitive;
-		prim.size = type->primitiveType.size;
-		prim.isSigned = type->primitiveType.isSigned;
+		irType->size = type->primitiveType.size;
+		irType->primitive.isSigned = type->primitiveType.isSigned;
 		switch (type->primitiveType.type)
 		{
 		case Void:
-			prim.kind = SpiteIR::PrimitiveKind::Void;
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Void;
 			break;
 		case Bool:
 		case Byte:
@@ -402,16 +402,16 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 		case Uint32:
 		case Uint64:
 		case Uint128:
-			prim.kind = SpiteIR::PrimitiveKind::Int;
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Int;
 			break;
 		case Float:
 		case Float32:
 		case Float64:
 		case Float128:
-			prim.kind = SpiteIR::PrimitiveKind::Float;
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Float;
 			break;
 		case String:
-			prim.kind = SpiteIR::PrimitiveKind::String;
+			irType->primitive.kind = SpiteIR::PrimitiveKind::String;
 			break;
 		default:
 			break;
@@ -468,20 +468,21 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::PointerType;
+		irType->size = config.targetArchBitWidth;
 		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, irType, lower, generics, templates);
 		return irType;
 	}
 	case ValueType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
-		irType->kind = SpiteIR::TypeKind::ValueType;
-		irType->value.type = TypeToIRType(ir, type->valueType.type, irType, lower, generics, templates);
+		SpiteIR::Type* irType = TypeToIRType(ir, type->valueType.type, irType, lower, generics, templates);
+		irType->byValue = true;
 		return irType;
 	}
 	case ArrayType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
+		irType->size = config.targetArchBitWidth * 2;
 		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, irType, lower, generics, templates);
 		return irType;
 	}
@@ -507,6 +508,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 	{
 		SpiteIR::Type* irType = ir->AllocateType(parent);
 		irType->kind = SpiteIR::TypeKind::FunctionType;
+		irType->size = config.targetArchBitWidth;
 		irType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, irType, lower, generics, templates);
 		for (Type* param : *type->functionType.paramTypes)

@@ -11,7 +11,7 @@ struct TypeChecker
 	CheckerContext& context;
 	CheckerUtils utils;
 
-	TypeChecker(CheckerContext& context): context(context), utils(context) {}
+	TypeChecker(CheckerContext& context) : context(context), utils(context) {}
 
 	void CheckNamedType(Type* type)
 	{
@@ -34,7 +34,7 @@ struct TypeChecker
 		Type* inferredType = utils.InferType(assignment);
 		if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 		{
-			AddError(assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: " 
+			AddError(assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: "
 				+ ToString(assignment));
 		}
 		*type = *inferredType;
@@ -73,22 +73,15 @@ struct TypeChecker
 		Type* type = definition.type;
 		if (definition.assignment)
 		{
-			if (type->typeID == TypeID::ExplicitType)
+			Type* inferredType = utils.InferType(definition.assignment);
+			if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 			{
-				CheckAnonType(node, type, definition.assignment);
+				AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 			}
-			else
+			else if (!utils.IsAssignable(definition.type, inferredType))
 			{
-				Type* inferredType = utils.InferType(definition.assignment);
-				if (!inferredType || inferredType->typeID == TypeID::InvalidType)
-				{
-					AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
-				}
-				else if (!utils.IsAssignable(definition.type, inferredType))
-				{
-					AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
-					return;
-				}
+				AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
+				return;
 			}
 		}
 	}
