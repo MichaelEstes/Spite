@@ -63,7 +63,7 @@ struct LowerDeclarations
 
 		for (auto& [key, state] : package->states)
 		{
-			BuildStateSize(state);
+			BuildStateSize(state, state);
 		}
 
 		for (auto& [key, value] : symbolTable->functionMap)
@@ -79,34 +79,40 @@ struct LowerDeclarations
 		return package;
 	}
 
-	void BuildStateSize(SpiteIR::State* state)
+	void BuildStateSize(SpiteIR::State* state, SpiteIR::State* outer)
 	{
 		if (state->size) return;
 
 		size_t size = 0;
 		for (auto& [key, member] : state->members)
 		{
-			size += GetSizeForType(member->value.type);
+			size += GetSizeForType(member->value.type, outer);
 		}
 
 		state->size = size;
 	}
 
-	size_t GetSizeForType(SpiteIR::Type* type)
+	size_t GetSizeForType(SpiteIR::Type* type, SpiteIR::State* state)
 	{
 		switch (type->kind)
 		{
 		case SpiteIR::TypeKind::PrimitiveType:
 			return type->size;
 		case SpiteIR::TypeKind::StateType:
-			BuildStateSize(type->stateType.state);
+			if (type->stateType.state == state)
+			{
+				Logger::FatalErrorAt("LowerDeclarrations:GetSizeForType Unable to get size for state: " 
+					+ state->name + ", it is self-referencing", state->pos);
+				return 0;
+			}
+			BuildStateSize(type->stateType.state, state);
 			return type->stateType.state->size;
 		case SpiteIR::TypeKind::StructureType:
 		{
 			size_t size = 0;
 			for (SpiteIR::Type* innerType : *type->structureType.types)
 			{
-				size += GetSizeForType(innerType);
+				size += GetSizeForType(innerType, state);
 			}
 			return size;
 		}
@@ -115,7 +121,7 @@ struct LowerDeclarations
 		case SpiteIR::TypeKind::DynamicArrayType:
 			return type->size;
 		case SpiteIR::TypeKind::FixedArrayType:
-			return type->fixedArray.count * GetSizeForType(type->fixedArray.type);
+			return type->fixedArray.count * GetSizeForType(type->fixedArray.type, state);
 		case SpiteIR::TypeKind::FunctionType:
 			return type->size;
 		default:

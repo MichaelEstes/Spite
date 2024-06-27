@@ -781,7 +781,7 @@ struct Syntax
 			break;
 		}
 
-		AddError(curr, "Syntax:ParseBlockStatment Unexpected token : " + curr->ToString());
+		AddError(curr, "Syntax:ParseBlockStatment Unexpected token: '" + curr->ToString() + "'");
 		return CreateStmnt(curr, StmntID::InvalidStmnt);
 	}
 

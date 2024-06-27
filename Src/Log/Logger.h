@@ -54,7 +54,7 @@ public:
 
 	static void ErrorAt(const eastl::string& msg, Position pos)
 	{
-		std::cout << "ERROR: " << msg << " :: found at position " + pos.ToString() << '\n';
+		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n';
 	}
 
 	static void FatalError(const eastl::string& msg, int errorCode = 1)
@@ -66,7 +66,7 @@ public:
 	static void FatalErrorAt(const eastl::string& msg, Position& pos, int errorCode = 1)
 	{
 		PrintErrors();
-		std::cout << "ERROR: " << msg << " :: found at position " + pos.ToString() << '\n';
+		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n';
 		std::exit(errorCode);
 	}
 
