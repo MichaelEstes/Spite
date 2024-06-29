@@ -183,9 +183,6 @@ struct Tokens
 	{
 		StringView val = StringView();
 		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::Any);
-
-		Logger::Info("Created " + eastl::to_string(count) + " Tokens");
-
 		//PrintTokens();
 	}
 

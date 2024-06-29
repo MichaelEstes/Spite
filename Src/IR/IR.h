@@ -179,6 +179,7 @@ namespace SpiteIR
 		None,
 		Return,
 		Compare,
+		Jump,
 		Branch,
 		Call,
 		Initialize,
@@ -193,16 +194,32 @@ namespace SpiteIR
 		Operand operand;
 	};
 
+	enum class CompareKind
+	{
+		Equal,
+		NotEqual,
+		LessThan,
+		GreaterThan,
+		LessThanEqual,
+		GreaterThanEqual,
+	};
+
 	struct Compare
 	{
 		Operand left;
 		Operand right;
+		CompareKind kind;
+	};
+
+	struct Jump
+	{
+		Block* label;
 	};
 
 	struct Branch
 	{
 		Compare compare;
-		Block* label;
+		Jump jump;
 	};
 
 	struct Call
@@ -211,19 +228,24 @@ namespace SpiteIR
 		Array<Operand>* params;
 	};
 
-	struct Allocate
-	{
-		Type* type;
-		size_t allignment;
-		size_t count;
-	};
-
 	struct Load
 	{
 		Operand operand;
 	};
 
 	struct Store
+	{
+		Operand operand;
+	};
+
+	struct Allocate
+	{
+		Operand operand;
+		size_t allignment;
+		size_t count;
+	};
+
+	struct Free
 	{
 		Operand operand;
 	};
@@ -271,11 +293,14 @@ namespace SpiteIR
 		{
 			Return return_;
 			Compare compare;
+			Jump jump;
 			Branch branch;
 			Call call;
 			Allocate allocate;
 			Load load; // x := y~ or x := y[2]
 			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
+			Allocate allocate;
+			Free free;
 			Cast cast;
 			Switch switch_;
 			SimpleOp op;
@@ -287,9 +312,9 @@ namespace SpiteIR
 		Parent parent;
 		Position pos;
 
-		Type* type = nullptr;
 		string name;
-		Instruction* instruction;
+		Type* type = nullptr;
+		Instruction* instruction = nullptr;
 	};
 
 	enum class TypeKind

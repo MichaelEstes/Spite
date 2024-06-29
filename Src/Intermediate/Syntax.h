@@ -42,46 +42,16 @@ struct Syntax
 	size_t nodeCount;
 	Token* package;
 	
-	//eastl::vector<Stmnt*> nodes;
 	eastl::stack<Scope> scopes;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
 	{
 		curr = nullptr;
-		//nodes = eastl::vector<Stmnt*>();
 		scopes = eastl::stack<Scope>();
 		currScope = Scope();
 		scopes.push(currScope);
 		nodeCount = 0;
 		package = nullptr;
-	}
-
-	/*void Print()
-	{
-		eastl::string toPrint = "";
-		if (package)
-		{
-			toPrint += "package " + package->ToString() + '\n';
-		}
-
-		for (Stmnt* node : symbolTable->imports)
-		{
-			toPrint += ToString(node);
-			toPrint += '\n';
-		}
-
-		for (Stmnt* node : nodes)
-		{
-			toPrint += ToString(node);
-			toPrint += '\n';
-		}
-
-		Logger::Info(toPrint);
-	}*/
-
-	inline void AddNode(Stmnt* node)
-	{
-		//nodes.emplace_back(node);
 	}
 
 	inline Stmnt* CreateStmnt(Token* start, StmntID nodeID)
@@ -165,8 +135,6 @@ struct Syntax
 		{
 			ParseNext();
 		}
-
-		Logger::Info("Created " + eastl::to_string(nodeCount) + " Nodes");
 	}
 
 	inline bool Expect(UniqueType type, const eastl::string& errMsg = "")
@@ -214,7 +182,6 @@ struct Syntax
 		while (Expect(TokenType::Comment))
 		{
 			Stmnt* node = CreateStmnt(curr, StmntID::CommentStmnt);
-			AddNode(node);
 			curr = tokens.Next(curr);
 		}
 	}
@@ -258,7 +225,6 @@ struct Syntax
 			if (node->nodeID != StmntID::InvalidStmnt) 
 			{
 				symbolTable->AddOnCompile(node);
-				AddNode(node);
 			}
 			return;
 		}
@@ -270,7 +236,6 @@ struct Syntax
 			Stmnt* assignment = ParseAssignmentStatement();
 			if (assignment->nodeID != StmntID::InvalidStmnt)
 			{
-				AddNode(assignment);
 				symbolTable->AddGlobalVal(assignment);
 				return;
 			}
@@ -290,8 +255,7 @@ struct Syntax
 			else type = ParseType(false);
 
 			if (type->typeID == TypeID::InvalidType) break;
-			Stmnt* func = ParseFunction(type, start);
-			if (func->nodeID != StmntID::InvalidStmnt) AddNode(func);
+			ParseFunction(type, start);
 			return;
 		}
 		}
@@ -362,7 +326,6 @@ struct Syntax
 				{
 					node->end = curr;
 					Advance();
-					AddNode(node);
 					symbolTable->AddState(node);
 				}
 			}
@@ -463,7 +426,6 @@ struct Syntax
 			node->end = node->compileDebugStmnt.body.body->end;
 
 			symbolTable->AddOnCompile(node);
-			AddNode(node);
 		}
 	}
 

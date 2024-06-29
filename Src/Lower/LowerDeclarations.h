@@ -200,7 +200,6 @@ struct LowerDeclarations
 		member->value.name = memberStmnt->definition.name->val.ToString();
 		member->index = index;
 		state->members[member->value.name] = member;
-		lowerDef.BuildMemberDefinition(state, member, memberStmnt, generics, templates);
 	}
 
 	void BuildMethodsForState(SpiteIR::Package* package, StateSymbol& stateSymbol, SpiteIR::State* state,
