@@ -122,7 +122,7 @@ eastl::string BuildTypeString(Type* type)
 		eastl::string explTypeStr = "expl_";
 		for (Stmnt* stmnt : *type->explicitType.declarations)
 		{
-			explTypeStr += BuildTypeString(stmnt->definition.type) + '_' 
+			explTypeStr += BuildTypeString(stmnt->definition.type) + '_'
 				+ stmnt->definition.name->val.ToString() + '_';
 		}
 		return explTypeStr;
@@ -148,7 +148,7 @@ eastl::string BuildTypeString(Type* type)
 		return funcTypeStr;
 	}
 	case ImportedType:
-		return type->importedType.packageName->val.ToString() + '_' + 
+		return type->importedType.packageName->val.ToString() + '_' +
 			type->importedType.typeName->val.ToString();
 	default:
 		break;
@@ -181,7 +181,7 @@ eastl::string BuildExprString(Expr* expr)
 			Expr* param = expr->functionCallExpr.params->at(i);
 			funcCallStr += BuildExprString(param) + '_';
 		}
-		if (size > 0) 
+		if (size > 0)
 			funcCallStr += '_';
 		else funcCallStr += "__";
 
@@ -260,11 +260,11 @@ eastl::string BuildExprString(Expr* expr)
 	return "";
 }
 
-inline eastl::string BuildConOpParamsTypeString(Stmnt* funcDecl, 
+inline eastl::string BuildConOpParamsTypeString(Stmnt* funcDecl,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 {
 	eastl::string paramTypes = "";
-	
+
 	// Skip 'this' parameters, get the type directly from state
 	for (size_t i = 1; i < funcDecl->functionDecl.parameters->size(); i++)
 	{
@@ -285,7 +285,7 @@ inline eastl::string BuildConOpParamsTypeString(Stmnt* funcDecl,
 			}
 		}
 		paramTypes += BuildTypeString(def->definition.type) + '_';
-		genericFound:;
+	genericFound:;
 	}
 
 	return paramTypes;
@@ -326,16 +326,16 @@ inline eastl::string BuildTemplatedMethodName(SpiteIR::State* state, Stmnt* meth
 	return BuildMethodName(state, method) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildConstructorName(SpiteIR::State* state, Stmnt* con, 
+inline eastl::string BuildConstructorName(SpiteIR::State* state, Stmnt* con,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
 	return "con_" + state->name + '_' + BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
 
-inline eastl::string BuildOperatorMethodName(SpiteIR::State* state, Stmnt* op, 
+inline eastl::string BuildOperatorMethodName(SpiteIR::State* state, Stmnt* op,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return OperatorToString(op->stateOperator.op) + state->name + '_' + 
+	return OperatorToString(op->stateOperator.op) + state->name + '_' +
 		BuildConOpParamsTypeString(op->stateOperator.decl);
 }
 
@@ -351,24 +351,15 @@ inline eastl::string BuildGlobalVariableName(Stmnt* global)
 }
 
 template<typename Low>
-SpiteIR::State* FindState(Low* lower, const eastl::string& val)
+SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
 {
-	if (auto entry = lower->stateMap.find(val); entry != lower->stateMap.end())
-	{
-		return entry->second;
-	}
-
-	return nullptr;
+	SpiteIR::State* state = lower->context.FindState(val);
+	if (!state) lower->toResolve.push_back({ val, type });
+	return state;
 }
 
 template<typename Low>
-void AddStateToResolve(Low* lower, const eastl::string& val, SpiteIR::Type* type)
-{
-	lower->toResolve.push_back({ val, type });
-}
-
-template<typename Parent, typename Low>
-SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lower,
+SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 {
 	switch (type->typeID)
@@ -380,7 +371,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 		break;
 	case PrimitiveType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->size = type->primitiveType.size;
 		irType->primitive.isSigned = type->primitiveType.isSigned;
@@ -430,28 +421,27 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 					Expr* templ = templates->at(i);
 					if (templ && templ->typeID == ExprID::TypeExpr)
 					{
-						return TypeToIRType(ir, templ->typeExpr.type, parent, lower, generics, templates);
+						return TypeToIRType(ir, templ->typeExpr.type, lower, generics, templates);
 					}
 					else AddError(genericName, "Lower:ReplaceTypeWithTemplateType Invalid expression used as type template");
 				}
 			}
 		}
-		
+
 		AddError("Lower:ReplaceTypeWithTemplateType Named types should have been qualified by now");
 		return nullptr;
 	}
 	case ImportedType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StateType;
 		eastl::string typeName = BuildTypeString(type);
-		irType->stateType.state = FindState(lower, typeName);
-		if (!irType->stateType.state) AddStateToResolve(lower, typeName, irType);
+		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;
 	}
 	case ExplicitType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StructureType;
 		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
 		irType->structureType.names = ir->AllocateArray<eastl::string>();
@@ -459,61 +449,60 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Parent* parent, Low* lo
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
-			irType->structureType.types->push_back(TypeToIRType(ir, def.type, irType, lower, generics, templates));
+			irType->structureType.types->push_back(TypeToIRType(ir, def.type, lower, generics, templates));
 			irType->structureType.names->push_back(def.name->val.ToString());
 		}
 		return irType;
 	}
 	case PointerType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PointerType;
 		irType->size = config.targetArchBitWidth;
-		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, irType, lower, generics, templates);
+		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, lower, generics, templates);
 		return irType;
 	}
 	case ValueType:
 	{
-		SpiteIR::Type* irType = TypeToIRType(ir, type->valueType.type, irType, lower, generics, templates);
+		SpiteIR::Type* irType = TypeToIRType(ir, type->valueType.type, lower, generics, templates);
 		irType->byValue = true;
 		return irType;
 	}
 	case ArrayType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
 		irType->size = config.targetArchBitWidth * 2;
-		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, irType, lower, generics, templates);
+		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, lower, generics, templates);
 		return irType;
 	}
 	case FixedArrayType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::FixedArrayType;
 		irType->fixedArray.count = type->fixedArrayType.size;
-		irType->fixedArray.type = TypeToIRType(ir, type->fixedArrayType.type, irType, lower, generics, templates);
+		irType->fixedArray.type = TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates);
 		return irType;
 	}
 	case TemplatedType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StateType;
 		eastl::string typeName = BuildTypeString(type->templatedType.type) +
 			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
-		irType->stateType.state = FindState(lower, typeName);
-		if (!irType->stateType.state) AddStateToResolve(lower, typeName, irType);
+		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;
 	}
 	case FunctionType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType(parent);
+		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::FunctionType;
 		irType->size = config.targetArchBitWidth;
 		irType->function.params = ir->AllocateArray<SpiteIR::Type*>();
-		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, irType, lower, generics, templates);
+		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, lower, generics, templates);
 		for (Type* param : *type->functionType.paramTypes)
 		{
-			irType->function.params->push_back(TypeToIRType(ir, param, irType, lower, generics, templates));
+			irType->function.params->push_back(TypeToIRType(ir, param, lower, generics, templates));
 		}
 		return irType;
 	}

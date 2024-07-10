@@ -5,60 +5,50 @@
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerDefinitions.h"
+#include "LowerContext.h"
 
 struct LowerDeclarations
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable = nullptr;
-	SpiteIR::IR* ir;
-
-	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
-	eastl::hash_map<eastl::string, SpiteIR::State*> stateMap;
-
+	LowerContext& context;
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 
-	LowerDefinitions lowerDef;
-
-	LowerDeclarations(GlobalTable* globalTable, SpiteIR::IR* ir) : lowerDef(globalTable)
-	{
-		this->globalTable = globalTable;
-		this->ir = ir;
-	}
+	LowerDeclarations(LowerContext& context) : context(context)
+	{}
 
 	SpiteIR::Package* BuildDeclarations(SymbolTable* symbolTable)
 	{
-		SpiteIR::Package* package = ir->AddPackage();
+		SpiteIR::Package* package = context.ir->AddPackage();
 
 		package->file = *symbolTable->package->pos.file;
 		package->name = BuildPackageName(symbolTable->package);
-		package->parent = ir;
+		package->parent = context.ir;
 
-		packageMap[package->name] = package;
+		context.packageMap[package->name] = package;
 
 		for (Stmnt* key : symbolTable->imports)
 		{
-			if (packageMap.find(key->importStmnt.packageName->ToString()) == packageMap.end())
+			if (context.packageMap.find(key->importStmnt.packageName->ToString()) == context.packageMap.end())
 			{
-				SymbolTable* symbolTable = globalTable->FindSymbolTable(key->importStmnt.packageName->val);
+				SymbolTable* symbolTable = context.globalTable->FindSymbolTable(key->importStmnt.packageName->val);
 				SpiteIR::Package* imported = BuildDeclarations(symbolTable);
 				package->imports.push_back(imported);
 			}
 		}
 
-		this->symbolTable = symbolTable;
-		lowerDef.symbolTable = symbolTable;
+		context.symbolTable = symbolTable;
 
-		toResolve.clear();
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			BuildStateDeclarations(package, value);
 		}
 
-		for (auto& val : toResolve)
+		while (toResolve.size() > 0)
 		{
+			eastl::tuple<eastl::string, SpiteIR::Type*> val = toResolve.back();
 			eastl::string& typeName = eastl::get<0>(val);
 			SpiteIR::Type* type = eastl::get<1>(val);
-			type->stateType.state = FindState(this, typeName);
+			type->stateType.state = FindState(this, typeName, nullptr);
+			toResolve.pop_back();
 		}
 
 		for (auto& [key, state] : package->states)
@@ -86,7 +76,7 @@ struct LowerDeclarations
 		size_t size = 0;
 		for (auto& [key, member] : state->members)
 		{
-			size += GetSizeForType(member->value.type, outer);
+			size += GetSizeForType(member->value->type, outer);
 		}
 
 		state->size = size;
@@ -101,8 +91,8 @@ struct LowerDeclarations
 		case SpiteIR::TypeKind::StateType:
 			if (type->stateType.state == state)
 			{
-				Logger::FatalErrorAt("LowerDeclarrations:GetSizeForType Unable to get size for state: " 
-					+ state->name + ", it is self-referencing", state->pos);
+				Logger::FatalError("LowerDeclarrations:GetSizeForType Unable to get size for state: " 
+					+ state->name + ", it is self-referencing");
 				return 0;
 			}
 			BuildStateSize(type->stateType.state, state);
@@ -151,6 +141,7 @@ struct LowerDeclarations
 			BuildMemberForState(state, memberStmnt, i);
 		}
 
+		context.stateASTMap[state] = { stateStmnt, nullptr };
 		BuildMethodsForState(package, stateSymbol, state);
 	}
 
@@ -170,7 +161,8 @@ struct LowerDeclarations
 				Stmnt* memberStmnt = stateStmnt->state.members->at(i);
 				BuildMemberForState(state, memberStmnt, i, genericNames, templates);
 			}
-
+			
+			context.stateASTMap[state] = { stateStmnt, templates };
 			BuildMethodsForState(package, stateSymbol, state, genericNames, templates);
 		}
 	}
@@ -178,28 +170,28 @@ struct LowerDeclarations
 	SpiteIR::State* EmplaceState(SpiteIR::Package* package, StateSymbol& stateSymbol,
 		Stmnt* stateStmnt, const eastl::string& name)
 	{
-		SpiteIR::State* state = ir->AllocateState();
+		SpiteIR::State* state = context.ir->AllocateState();
 
 		state->parent = package;
-		state->pos = stateStmnt->start->pos;
 		state->name = name;
 		state->metadata.flags = (int)*stateStmnt->state.insetFlags->flags;
 
 		package->states[state->name] = state;
-		stateMap[state->name] = state;
+		context.stateMap[state->name] = state;
 		return state;
 	}
 
 	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Member* member = ir->AllocateMember();
+		SpiteIR::Member* member = context.ir->AllocateMember();
+		member->value = context.ir->AllocateValue();
 		member->parent = state;
-		member->pos = memberStmnt->start->pos;
-		member->value.type = TypeToIRType(ir, memberStmnt->definition.type, state, this, generics, templates);
-		member->value.name = memberStmnt->definition.name->val.ToString();
+		member->value->parent = SpiteIR::Parent(member);
+		member->value->type = TypeToIRType(context.ir, memberStmnt->definition.type, this, generics, templates);
+		member->value->name = memberStmnt->definition.name->val.ToString();
 		member->index = index;
-		state->members[member->value.name] = member;
+		state->members[member->value->name] = member;
 	}
 
 	void BuildMethodsForState(SpiteIR::Package* package, StateSymbol& stateSymbol, SpiteIR::State* state,
@@ -222,18 +214,17 @@ struct LowerDeclarations
 
 		if (stateSymbol.destructor)
 		{
-			BuildDestructor(package, state, stateSymbol.destructor);
+			BuildDestructor(package, state, stateSymbol.destructor, templates);
 		}
 	}
 
 	void BuildConstructorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* conStmnt,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* con = ir->AllocateFunction();
+		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
-		con->pos = conStmnt->start->pos;
 		con->name = BuildConstructorName(state, conStmnt, generics, templates);
-		con->returnType = ir->AllocateType(con);
+		con->returnType = context.ir->AllocateType();
 		con->returnType->kind = SpiteIR::TypeKind::StateType;
 		con->returnType->stateType.state = state;
 
@@ -246,17 +237,19 @@ struct LowerDeclarations
 		}
 
 		state->constructors.push_back(con);
+		context.functionMap[con->name] = con;
+		context.functionASTMap[con] = { conStmnt, templates };
 		package->functions[con->name] = con;
 	}
 
 	void BuildOperatorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* opStmnt,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* op = ir->AllocateFunction();
+		SpiteIR::Function* op = context.ir->AllocateFunction();
 		op->parent = package;
-		op->pos = opStmnt->start->pos;
 		op->name = BuildOperatorMethodName(state, opStmnt, generics, templates);
-		op->returnType = TypeToIRType(ir, opStmnt->stateOperator.returnType, op, this);
+		op->returnType = TypeToIRType(context.ir, opStmnt->stateOperator.returnType, this,
+			generics, templates);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, op, opStmnt);
@@ -267,6 +260,8 @@ struct LowerDeclarations
 		}
 
 		state->operators.push_back(op);
+		context.functionMap[op->name] = op;
+		context.functionASTMap[op] = { opStmnt, templates };
 		package->functions[op->name] = op;
 	}
 
@@ -308,11 +303,10 @@ struct LowerDeclarations
 		Stmnt* methodStmnt, Stmnt* methodDeclStmnt, const eastl::string& name,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* method = ir->AllocateFunction();
+		SpiteIR::Function* method = context.ir->AllocateFunction();
 		method->parent = package;
-		method->pos = methodStmnt->start->pos;
 		method->name = name;
-		method->returnType = TypeToIRType(ir, methodStmnt->method.returnType, method, this, generics, templates);
+		method->returnType = TypeToIRType(context.ir, methodStmnt->method.returnType, this, generics, templates);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, method, methodStmnt);
@@ -323,32 +317,35 @@ struct LowerDeclarations
 		}
 
 		state->methods.push_back(method);
+		context.functionMap[method->name] = method;
+		context.functionASTMap[method] = { methodStmnt, templates };
 		package->functions[method->name] = method;
 	}
 
 	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, Stmnt* methodStmnt)
 	{
-		SpiteIR::Argument* arg = ir->AllocateArgument();
+		SpiteIR::Argument* arg = context.ir->AllocateArgument();
+		arg->value = context.ir->AllocateValue();
+		arg->value->parent = SpiteIR::Parent(state);
+		arg->value->name = "this";
 		arg->parent = method;
-		arg->pos = methodStmnt->start->pos;
 		arg->index = 0;
-		arg->value.name = "this";
 
-		SpiteIR::Type* thisType = ir->AllocateType(method);
+		SpiteIR::Type* thisType = context.ir->AllocateType();
 		thisType->kind = SpiteIR::TypeKind::StateType;
 		thisType->stateType.state = state;
-		arg->value.type = thisType;
+		arg->value->type = thisType;
 
-		method->arguments[arg->value.name] = arg;
+		method->arguments[arg->value->name] = arg;
 	}
 
-	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt)
+	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt,
+		eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* destructor = ir->AllocateFunction();
+		SpiteIR::Function* destructor = context.ir->AllocateFunction();
 		destructor->parent = package;
-		destructor->pos = destructorStmnt->start->pos;
 		destructor->name = BuildDestructorName(state);
-		destructor->returnType = ir->AllocateType(destructor);
+		destructor->returnType = context.ir->AllocateType();
 		destructor->returnType->kind = SpiteIR::TypeKind::PrimitiveType;
 		destructor->returnType->primitive.kind = SpiteIR::PrimitiveKind::Void;
 		destructor->returnType->size = 0;
@@ -358,6 +355,8 @@ struct LowerDeclarations
 		BuildMethodThisArgument(state, destructor, destructorStmnt);
 
 		state->destructor = destructor;
+		context.functionMap[destructor->name] = destructor;
+		context.functionASTMap[destructor] = { destructorStmnt, templates };
 		package->functions[destructor->name] = destructor;
 	}
 
@@ -386,11 +385,10 @@ struct LowerDeclarations
 	void BuildFunction(SpiteIR::Package* package, Stmnt* funcStmnt, const eastl::string& name,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* function = ir->AllocateFunction();
+		SpiteIR::Function* function = context.ir->AllocateFunction();
 		function->parent = package;
-		function->pos = funcStmnt->start->pos;
 		function->name = name;
-		function->returnType = TypeToIRType(ir, funcStmnt->function.returnType, function, this, generics, templates);
+		function->returnType = TypeToIRType(context.ir, funcStmnt->function.returnType, this, generics, templates);
 
 		for (size_t i = 0; i < funcStmnt->function.decl->functionDecl.parameters->size(); i++)
 		{
@@ -398,29 +396,31 @@ struct LowerDeclarations
 			BuildArgumentForFunction(function, param, i, generics, templates);
 		}
 
+		context.functionMap[function->name] = function;
+		context.functionASTMap[function] = { funcStmnt, templates };
 		package->functions[function->name] = function;
 	}
 
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Argument* arg = ir->AllocateArgument();
+		SpiteIR::Argument* arg = context.ir->AllocateArgument();
+		arg->value = context.ir->AllocateValue();
+		arg->value->parent = SpiteIR::Parent(arg);
+		arg->value->type = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
+		arg->value->name = param->definition.name->val.ToString();
 		arg->parent = function;
-		arg->pos = param->start->pos;
 		arg->index = index;
-		arg->value.type = TypeToIRType(ir, param->definition.type, arg, this, generics, templates);
-		arg->value.name = param->definition.name->val.ToString();
-		function->arguments[arg->value.name] = arg;
+		function->arguments[arg->value->name] = arg;
 	}
 
 	void BuildGlobalVariableDeclaration(SpiteIR::Package* package, Stmnt* globalVarStmnt)
 	{
 		auto& def = globalVarStmnt->definition;
-		SpiteIR::Value* globalVar = ir->AllocateValue();
+		SpiteIR::Value* globalVar = context.ir->AllocateValue();
 		globalVar->parent = SpiteIR::Parent(package);
-		globalVar->pos = globalVarStmnt->start->pos;
 		globalVar->name = BuildGlobalVariableName(globalVarStmnt);
-		globalVar->type = TypeToIRType(ir, def.type, globalVar, this);
+		globalVar->type = TypeToIRType(context.ir, def.type, this);
 		package->globalVariables[globalVar->name] = globalVar;
 	}
 };

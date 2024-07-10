@@ -3,14 +3,12 @@
 #include "EASTL/string.h"
 #include "EASTL/hash_map.h"
 
-#include "../Parsing/Position.h"
 #include "../Containers/Arena.h"
 
 namespace SpiteIR
 {
 	struct Block;
 	struct Instruction;
-	struct Value;
 	struct Type;
 	struct Argument;
 	struct Function;
@@ -50,7 +48,6 @@ namespace SpiteIR
 		{
 			Block* blockParent;
 			Instruction* instructionParent;
-			Value* valueParent;
 			Type* typeParent;
 			Argument* argumentParent;
 			Function* functionParent;
@@ -69,7 +66,6 @@ namespace SpiteIR
 
 		Parent(Block* blockParent) { this->kind = ParentKind::Block; this->blockParent = blockParent; }
 		Parent(Instruction* instructionParent) { this->kind = ParentKind::Instruction; this->instructionParent = instructionParent; }
-		Parent(Value* valueParent) { this->kind = ParentKind::Value; this->valueParent = valueParent; }
 		Parent(Type* typeParent) { this->kind = ParentKind::Type; this->typeParent = typeParent; }
 		Parent(Argument* argumentParent) { this->kind = ParentKind::Argument; this->argumentParent = argumentParent; }
 		Parent(Function* functionParent) { this->kind = ParentKind::Function; this->functionParent = functionParent; }
@@ -121,11 +117,9 @@ namespace SpiteIR
 
 	struct Block
 	{
-		Function* parent;
-		Position pos;
-
+		Parent parent;
 		string name;
-		Array<Value> values;
+		Array<Instruction> values;
 	};
 
 	struct Constant
@@ -137,7 +131,7 @@ namespace SpiteIR
 	enum class OperandKind
 	{
 		None,
-		Identifier,
+		Register,
 		Literal,
 		StructLiteral,
 		Label,
@@ -145,8 +139,6 @@ namespace SpiteIR
 
 	struct Operand
 	{
-		//Figure out why Position is deleting the constructor
-		//Position pos;
 		Type* type;
 		OperandKind kind;
 
@@ -154,8 +146,8 @@ namespace SpiteIR
 		{
 			struct
 			{
-				string* ident;
-			} identifier;
+				size_t reg;
+			} register_;
 
 			struct
 			{
@@ -184,6 +176,7 @@ namespace SpiteIR
 		Call,
 		Initialize,
 		Allocate,
+		HeapAllocate,
 		Load,
 		Cast,
 		Switch,
@@ -228,21 +221,21 @@ namespace SpiteIR
 		Array<Operand>* params;
 	};
 
-	struct Load
+	struct Allocate
 	{
 		Operand operand;
+	};
+
+	struct Load
+	{
+		Operand dst;
+		Operand src;
 	};
 
 	struct Store
 	{
-		Operand operand;
-	};
-
-	struct Allocate
-	{
-		Operand operand;
-		size_t allignment;
-		size_t count;
+		Operand dst;
+		Operand src;
 	};
 
 	struct Free
@@ -258,7 +251,8 @@ namespace SpiteIR
 
 	struct Switch
 	{
-		Operand on;
+		Compare compare;
+		HashMap<int, Block*>* cases;
 	};
 
 	struct BinaryOp
@@ -299,22 +293,11 @@ namespace SpiteIR
 			Allocate allocate;
 			Load load; // x := y~ or x := y[2]
 			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
-			Allocate allocate;
 			Free free;
 			Cast cast;
 			Switch switch_;
 			SimpleOp op;
 		};
-	};
-
-	struct Value
-	{
-		Parent parent;
-		Position pos;
-
-		string name;
-		Type* type = nullptr;
-		Instruction* instruction = nullptr;
 	};
 
 	enum class TypeKind
@@ -338,7 +321,6 @@ namespace SpiteIR
 
 	struct Type
 	{
-		Parent parent;
 		size_t size = 0;
 		TypeKind kind;
 		bool byValue = false;
@@ -386,19 +368,34 @@ namespace SpiteIR
 		};
 	};
 
+	struct Value
+	{
+		Parent parent;
+		Type* type;
+		Block* block = nullptr;
+		string name;
+	};
+
 	struct Argument
 	{
 		Function* parent;
-		Position pos;
-
 		size_t index;
-		Value value;
+		Value* value;
+	}; 
+
+	enum FunctionFlags : int
+	{
+		Inline = ToBit(1),
 	};
 
 	struct Function
 	{
 		Package* parent;
-		Position pos;
+
+		struct
+		{
+			int flags;
+		} metadata;
 
 		string name;
 		Type* returnType;
@@ -409,16 +406,21 @@ namespace SpiteIR
 	struct Member
 	{
 		State* parent;
-		Position pos;
-
 		size_t index;
-		Value value;
+		Value* value;
+	};
+
+	enum StateFlags: int
+	{
+		Size = ToBit(1),
+		SOA = ToBit(2),
+		Serialized = ToBit(3),
+		NoAlign = ToBit(4),
 	};
 
 	struct State
 	{
 		Package* parent;
-		Position pos;
 		size_t size = 0;
 
 		struct
@@ -437,8 +439,6 @@ namespace SpiteIR
 	struct CompileFunction
 	{
 		Package* parent;
-		Position pos;
-
 		Function compileFunc;
 		// Node to replace with the node to insert return value into
 		Parent node;
@@ -496,21 +496,19 @@ namespace SpiteIR
 			return arena.Emplace<Argument>();
 		}
 
+		inline Value* AllocateValue()
+		{
+			return arena.Emplace<Value>();
+		}
+
 		inline CompileFunction* AllocateCompileFunction()
 		{
 			return arena.Emplace<CompileFunction>();
 		}
 
-		inline Type* AllocateType(Parent parent)
+		inline Type* AllocateType()
 		{
-			Type* type = arena.Emplace<Type>();
-			type->parent = parent;
-			return type;
-		}
-
-		inline Constant* AllocateConstant()
-		{
-			return arena.Emplace<Constant>();
+			return arena.Emplace<Type>();
 		}
 
 		inline Operand* AllocateOperand()
@@ -521,11 +519,6 @@ namespace SpiteIR
 		inline Instruction* AllocateInstruction()
 		{
 			return arena.Emplace<Instruction>();
-		}
-
-		inline Value* AllocateValue()
-		{
-			return arena.Emplace<Value>();
 		}
 
 		template<typename T>

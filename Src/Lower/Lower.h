@@ -5,27 +5,29 @@
 
 struct Lower
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
+	LowerContext context;
 
 
 	Lower(GlobalTable* globalTable)
 	{
-		this->globalTable = globalTable;
+		context.globalTable = globalTable;
 		this->ir = new SpiteIR::IR(globalTable->GetSize());
+		context.ir = this->ir;
 	}
 
 	SpiteIR::IR* BuildIR(SymbolTable* entry)
 	{
-		LowerDeclarations lowerDecl = LowerDeclarations(globalTable, ir);
+		LowerDeclarations lowerDecl = LowerDeclarations(context);
+		//lowerDecl.BuildDeclarations(entry);
 
-		lowerDecl.BuildDeclarations(entry);
-
-		/*for (auto& [key, value] : globalTable->packageToSymbolTable)
+		for (auto& [key, value] : context.globalTable->packageToSymbolTable)
 		{
 			lowerDecl.BuildDeclarations(value);
-		}*/
+		}
+
+		LowerDefinitions lowerDef = LowerDefinitions(context);
+		lowerDef.BuildDefinitions();
 
 		return ir;
 	}

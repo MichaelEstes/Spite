@@ -160,6 +160,15 @@ struct PackageChecker
 	inline void CheckBody(Body& body)
 	{
 		AddScope();
+
+		// If single statement inline function make statement a return
+		if (body.statement && body.body->nodeID == StmntID::ExpressionStmnt)
+		{
+			Expr* expr = body.body->expressionStmnt.expression;
+			body.body->nodeID = StmntID::ReturnStmnt;
+			body.body->returnStmnt.expr = expr;
+		}
+
 		CheckStmnt(body.body);
 		PopScope();
 	}
