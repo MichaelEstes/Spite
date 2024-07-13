@@ -330,6 +330,7 @@ struct PackageChecker
 		}
 		case AsExpr:
 			CheckExpr(expr->asExpr.of);
+			CheckType(expr->asExpr.to, expr->start);
 			break;
 		case DereferenceExpr:
 			CheckExpr(expr->dereferenceExpr.of);
@@ -381,6 +382,7 @@ struct PackageChecker
 			break;
 		case UnknownType:
 			typeChecker.InferUnknownType(type, assignment);
+			CheckType(type, start);
 			break;
 		case NamedType:
 		{

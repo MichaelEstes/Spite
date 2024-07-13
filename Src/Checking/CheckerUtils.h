@@ -615,7 +615,7 @@ struct CheckerUtils
 
 	inline Type* GetIndexType(Expr* of, Type* type)
 	{
-		if (IsExprOfType(of))
+		if (of->indexExpr.forward)
 		{
 			return GetIndexTypeCreateArray(of, type);
 		}
@@ -627,13 +627,29 @@ struct CheckerUtils
 
 	inline Type* GetIndexTypeCreateArray(Expr* of, Type* type)
 	{
+		// Has index expression
+		if (of->indexExpr.index && IsConstantIntExpr(of->indexExpr.index))
+		{
+			Type* arrType = context.symbolTable->CreateTypePtr(TypeID::FixedArrayType);
+			arrType->fixedArrayType.size = EvaluateConstantIntExpr(of->indexExpr.index);
+			arrType->fixedArrayType.type = type;
+			return arrType;
+		}
+
 		Type* arrType = context.symbolTable->CreateTypePtr(TypeID::ArrayType);
 		arrType->arrayType.type = type;
+		arrType->arrayType.size = of->indexExpr.index;
 		return arrType;
 	}
 
 	inline Type* GetIndexTypeAccessArray(Expr* of, Type* type)
 	{
+		if (!of->indexExpr.index)
+		{
+			AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray No expression for indexing array");
+			return type;
+		}
+
 		switch (type->typeID)
 		{
 		case ImportedType:
@@ -1038,19 +1054,20 @@ struct CheckerUtils
 		case FixedExpr:
 		{
 			Type* fixedArrType = InferType(of->fixedExpr.atExpr);
-			if (fixedArrType->typeID != TypeID::ArrayType)
+			if (fixedArrType->typeID != TypeID::FixedArrayType)
 			{
-				AddError(of->start, "CheckerUtils:InferType fixed expressions must evaluate to array types");
+				AddError(of->start, "CheckerUtils:InferType fixed expressions must evaluate to a fixed sized array types");
 				return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
-			if (fixedArrType->arrayType.type->typeID == TypeID::ArrayType)
+			if (fixedArrType->fixedArrayType.type->typeID == TypeID::ArrayType || 
+				fixedArrType->fixedArrayType.type->typeID == TypeID::FixedArrayType)
 			{
 				AddError(of->start, "CheckerUtils:InferType fixed expression cannot be used to create multidimensional arrays");
 				return context.symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
-			Type* fixedType = fixedArrType->arrayType.type;
+			Type* fixedType = fixedArrType->fixedArrayType.type;
 			fixedArrType->typeID = TypeID::PointerType;
 			fixedArrType->pointerType.type = fixedType;
 			return fixedArrType;
@@ -1174,6 +1191,11 @@ struct CheckerUtils
 		if (left->typeID == TypeID::FixedArrayType && right->typeID == TypeID::ArrayType)
 		{
 			return IsAssignable(left->fixedArrayType.type, right->arrayType.type);
+		}
+
+		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::FixedArrayType)
+		{
+			return IsAssignable(left->arrayType.type, right->fixedArrayType.type);
 		}
 
 		if (IsGenericOf(context, left) || IsGenericOf(context, right)) return true;

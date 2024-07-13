@@ -1575,6 +1575,7 @@ struct Syntax
 				expr = ParseSelector(expr);
 				break;
 
+			case UniqueType::Array:
 			case UniqueType::Lbrack:
 				expr = ParseIndex(expr);
 				break;
@@ -1634,6 +1635,10 @@ struct Syntax
 
 		case UniqueType::New:
 			return ParseNewExpr();
+
+		case UniqueType::Array:
+		case UniqueType::Lbrack:
+			return ParseForwardIndex();
 
 		case UniqueType::OnCompile:
 			return ParseCompileExpr();
@@ -1786,29 +1791,51 @@ struct Syntax
 		return selector;
 	}
 
+	Expr* ParseForwardIndex()
+	{
+		return ParseIndex(nullptr);
+	}
+
 	Expr* ParseIndex(Expr* of)
 	{
-		Token* lBrack = curr;
-		Expr* indexExpr = CreateExpr(lBrack, ExprID::IndexExpr);
-		indexExpr->indexExpr.of = of;
-		indexExpr->indexExpr.lBrack = lBrack;
-		Advance();
-		if (curr->uniqueType == UniqueType::Rbrack)
+		Token* currToken = curr;
+		Expr* indexExpr = CreateExpr(currToken, ExprID::IndexExpr);
+		indexExpr->indexExpr.lBrack = currToken;
+		indexExpr->indexExpr.forward = false;
+
+		if (currToken->uniqueType == UniqueType::Array)
 		{
-			indexExpr->indexExpr.rBrack = curr;
-			AddError(curr, "Unexpected empty index ('[]') in expression");
+			Advance();
+			indexExpr->indexExpr.index = nullptr;
+			indexExpr->indexExpr.rBrack = currToken;
 		}
 		else
 		{
-			Expr* expr = ParseExpr();
-			indexExpr->indexExpr.index = expr;
-			if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
+			Advance();
+			if (curr->uniqueType == UniqueType::Rbrack)
 			{
 				indexExpr->indexExpr.rBrack = curr;
-				Advance();
+				AddError(curr, "Unexpected empty index ('[]') in expression");
+			}
+			else
+			{
+				Expr* expr = ParseExpr();
+				indexExpr->indexExpr.index = expr;
+				if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
+				{
+					indexExpr->indexExpr.rBrack = curr;
+					Advance();
+				}
 			}
 		}
 
+		if (!of)
+		{
+			of = ParseOperand();
+			indexExpr->indexExpr.forward = true;
+		}
+
+		indexExpr->indexExpr.of = of;
 		return indexExpr;
 	}
 

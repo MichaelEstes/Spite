@@ -70,6 +70,7 @@ struct Expr
 			Expr* index;
 			Token* lBrack;
 			Token* rBrack;
+			bool forward;
 		} indexExpr;
 
 		struct
