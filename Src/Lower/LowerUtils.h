@@ -192,14 +192,14 @@ eastl::string BuildExprString(Expr* expr)
 			(expr->newExpr.atExpr ? '_' + BuildExprString(expr->newExpr.atExpr) : "");
 	case FixedExpr:
 		return "fixed_" + BuildExprString(expr->fixedExpr.atExpr);
-	case AnonTypeExpr:
+	case TypeLiteralExpr:
 	{
 		eastl::string anonTypeStr = "anon_";
 
-		size_t size = expr->anonTypeExpr.values->size();
+		size_t size = expr->typeLiteralExpr.values->size();
 		for (size_t i = 0; i < size; i++)
 		{
-			Expr* val = expr->anonTypeExpr.values->at(i);
+			Expr* val = expr->typeLiteralExpr.values->at(i);
 			anonTypeStr += BuildExprString(val);
 			if (i < size - 1) anonTypeStr += '_';
 		}

@@ -19,7 +19,7 @@ enum ExprID
 	FunctionCallExpr,
 	NewExpr,
 	FixedExpr,
-	AnonTypeExpr,
+	TypeLiteralExpr,
 	ExplicitTypeExpr,
 	AsExpr,
 	DereferenceExpr,
@@ -118,8 +118,9 @@ struct Expr
 
 		struct
 		{
+			bool array;
 			eastl::vector<Expr*>* values;
-		} anonTypeExpr;
+		} typeLiteralExpr;
 
 		struct
 		{
@@ -230,8 +231,8 @@ struct Expr
 		case FixedExpr:
 			fixedExpr = copy.fixedExpr;
 			break;
-		case AnonTypeExpr:
-			anonTypeExpr = copy.anonTypeExpr;
+		case TypeLiteralExpr:
+			typeLiteralExpr = copy.typeLiteralExpr;
 			break;
 		case ExplicitTypeExpr:
 			explicitTypeExpr = copy.explicitTypeExpr;
@@ -271,6 +272,4 @@ struct Expr
 		}
 		return *this;
 	}
-
-	~Expr() {};
 };

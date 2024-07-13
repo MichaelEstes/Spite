@@ -1628,7 +1628,7 @@ struct Syntax
 			return ParseFixedExpr();
 
 		case UniqueType::Lbrace:
-			return ParseAnonTypeExpr();
+			return ParseTypeLiteralExpr();
 
 		case UniqueType::DoubleColon:
 			return ParseFunctionTypeExpr();
@@ -1708,38 +1708,34 @@ struct Syntax
 		return fixed;
 	}
 
-	Expr* ParseAnonTypeExpr()
+	Expr* ParseTypeLiteralExpr(UniqueType closure = UniqueType::Rbrace, bool array = false)
 	{
-		Expr* anon = CreateExpr(curr, ExprID::AnonTypeExpr);
+		Expr* anon = CreateExpr(curr, ExprID::TypeLiteralExpr);
 		Advance();
 
-		if (Expect(UniqueType::Rbrace))
+		if (Expect(closure))
 		{
-			AddError(curr, "Empty inline type not allowed ('{}')");
+			AddError(curr, "Empty type literals not allowed ('{}')");
 			Advance();
 			return anon;
 		}
 
-		// Check if explicit anon type
-		Token* next = Peek();
-		if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
+		if(!array) 
 		{
-			anon->typeID = ExprID::ExplicitTypeExpr;
-			anon->explicitTypeExpr.values = ParseParametersList(UniqueType::Rbrace, false);
-			if (Expect(UniqueType::Rbrace, "Expected explicit type closure ('}')")) Advance();
-			return anon;
+			// Check if explicit type literal
+			Token* next = Peek();
+			if (next->uniqueType == UniqueType::Colon || next->uniqueType == UniqueType::ImplicitAssign)
+			{
+				anon->typeID = ExprID::ExplicitTypeExpr;
+				anon->explicitTypeExpr.values = ParseParametersList(closure, false);
+				if (Expect(closure, "Expected explicit type closure ('}')")) Advance();
+				return anon;
+			}
 		}
 		
-		anon->anonTypeExpr.values = CreateVectorPtr<Expr>();
-		anon->anonTypeExpr.values->push_back(ParseExpr());
-
-		while (Expect(UniqueType::Comma))
-		{
-			Advance();
-			anon->anonTypeExpr.values->push_back(ParseExpr());
-		}
-
-		if (Expect(UniqueType::Rbrace, "Missing closure for inline type '}'")) Advance();
+		anon->typeLiteralExpr.values = ParseExprList(closure);
+		anon->typeLiteralExpr.array = array;
+		if (Expect(closure, "Missing closure for type literal (']' or '}')")) Advance();
 
 		return anon;
 	}
@@ -1793,7 +1789,18 @@ struct Syntax
 
 	Expr* ParseForwardIndex()
 	{
-		return ParseIndex(nullptr);
+		Token* currToken = curr;
+		Logger::SetErrorRollback();
+		Expr* forwardIndex = ParseIndex(nullptr);
+		if (Logger::HasErrorsToRollback())
+		{
+			Logger::ErrorRollback();
+			curr = currToken;
+			forwardIndex = ParseTypeLiteralExpr(UniqueType::Rbrack, true);
+			
+		}
+
+		return forwardIndex;
 	}
 
 	Expr* ParseIndex(Expr* of)
@@ -1816,6 +1823,8 @@ struct Syntax
 			{
 				indexExpr->indexExpr.rBrack = curr;
 				AddError(curr, "Unexpected empty index ('[]') in expression");
+				indexExpr->typeID = ExprID::InvalidExpr;
+				return indexExpr;
 			}
 			else
 			{
@@ -1825,6 +1834,11 @@ struct Syntax
 				{
 					indexExpr->indexExpr.rBrack = curr;
 					Advance();
+				}
+				else
+				{
+					indexExpr->typeID = ExprID::InvalidExpr;
+					return indexExpr;
 				}
 			}
 		}
@@ -1846,14 +1860,7 @@ struct Syntax
 		funcCall->functionCallExpr.function = CopyExpr(of);
 		funcCall->functionCallExpr.lParen = lParen;
 		Advance();
-		if (!Expect(UniqueType::Rparen))
-		{
-			funcCall->functionCallExpr.params = ParseExprList();
-		}
-		else
-		{
-			funcCall->functionCallExpr.params = CreateVectorPtr<Expr>();
-		}
+		funcCall->functionCallExpr.params = ParseExprList();
 
 		if (Expect(UniqueType::Rparen, "Missing ')' at end of function call"))
 		{
@@ -1976,15 +1983,14 @@ struct Syntax
 		return expr;
 	}
 
-	eastl::vector<Expr*>* ParseExprList()
+	eastl::vector<Expr*>* ParseExprList(UniqueType end = UniqueType::Rparen)
 	{
 		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr>();
 
-		exprs->push_back(ParseExpr());
-		while (Expect(UniqueType::Comma) && !IsEOF())
+		while (!Expect(end) && !IsEOF())
 		{
-			Advance();
 			exprs->push_back(ParseExpr());
+			if (Expect(UniqueType::Comma)) Advance();
 		}
 
 		return exprs;

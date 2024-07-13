@@ -439,7 +439,7 @@ struct LLVMBuilder
 			break;
 		case FixedExpr:
 			break;
-		case AnonTypeExpr:
+		case TypeLiteralExpr:
 			break;
 		case AsExpr:
 			break;

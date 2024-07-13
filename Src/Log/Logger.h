@@ -130,4 +130,9 @@ public:
 			errors.pop_back();
 		}
 	}
+
+	static bool HasErrorsToRollback()
+	{
+		return errors.size() != errorRollback;
+	}
 };

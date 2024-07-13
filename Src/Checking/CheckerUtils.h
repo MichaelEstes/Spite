@@ -1072,17 +1072,33 @@ struct CheckerUtils
 			fixedArrType->pointerType.type = fixedType;
 			return fixedArrType;
 		}
-		case AnonTypeExpr:
+		case TypeLiteralExpr:
 		{
-			Type* anonType = context.symbolTable->CreateTypePtr(TypeID::AnonymousType);
-			anonType->anonType.types = context.symbolTable->CreateVectorPtr<Type>();
-
-			for (Expr* value : *of->anonTypeExpr.values)
+			if (!of->typeLiteralExpr.array)
 			{
-				anonType->anonType.types->push_back(InferType(value));
-			}
+				Type* anonType = context.symbolTable->CreateTypePtr(TypeID::AnonymousType);
+				anonType->anonType.types = context.symbolTable->CreateVectorPtr<Type>();
+
+				for (Expr* value : *of->typeLiteralExpr.values)
+				{
+					anonType->anonType.types->push_back(InferType(value));
+				}
 			
-			return anonType;
+				return anonType;
+			}
+			else
+			{
+				size_t size = of->typeLiteralExpr.values->size();
+				if (size > 0)
+				{
+					Type* arrType = context.symbolTable->CreateTypePtr(TypeID::FixedArrayType);
+					arrType->fixedArrayType.size = of->typeLiteralExpr.values->size();
+					arrType->fixedArrayType.type = InferType(of->typeLiteralExpr.values->at(0));
+					return arrType;
+				}
+			}
+
+			break;
 		}
 		case ExplicitTypeExpr:
 		{

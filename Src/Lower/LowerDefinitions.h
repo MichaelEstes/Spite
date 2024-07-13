@@ -177,7 +177,7 @@ struct LowerDefinitions
 			break;
 		case FixedExpr:
 			break;
-		case AnonTypeExpr:
+		case TypeLiteralExpr:
 			break;
 		case ExplicitTypeExpr:
 			break;

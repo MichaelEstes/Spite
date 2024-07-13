@@ -323,9 +323,9 @@ struct PackageChecker
 			CheckExpr(expr->fixedExpr.atExpr);
 			exprChecker.CheckFixed(expr);
 			break;
-		case AnonTypeExpr:
+		case TypeLiteralExpr:
 		{
-			for (Expr* e : *expr->anonTypeExpr.values) CheckExpr(e);
+			for (Expr* e : *expr->typeLiteralExpr.values) CheckExpr(e);
 			break;
 		}
 		case AsExpr:

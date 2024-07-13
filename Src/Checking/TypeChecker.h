@@ -88,13 +88,13 @@ struct TypeChecker
 
 	void CheckAnonType(Stmnt* node, Type* type, Expr* expr)
 	{
-		if (expr->typeID != ExprID::AnonTypeExpr)
+		if (expr->typeID != ExprID::TypeLiteralExpr)
 		{
 			AddError(node->start, "Can only assign anonymous type expressions to inline types");
 			return;
 		}
 
-		auto& anonExpr = expr->anonTypeExpr;
+		auto& anonExpr = expr->typeLiteralExpr;
 		if (type->typeID == TypeID::ImplicitType)
 		{
 			eastl::vector<Token*>* identifiers = type->implicitType.identifiers;

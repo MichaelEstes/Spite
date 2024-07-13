@@ -123,12 +123,12 @@ bool operator==(const Expr& left, const Expr& right)
 	case FixedExpr:
 		return *left.fixedExpr.atExpr == *right.fixedExpr.atExpr;
 	//Not sure what good comparing anon or explicit types is
-	case AnonTypeExpr:
+	case TypeLiteralExpr:
 	{
-		if (left.anonTypeExpr.values->size() != right.anonTypeExpr.values->size()) return false;
-		for (size_t i = 0; i < left.anonTypeExpr.values->size(); i++)
+		if (left.typeLiteralExpr.values->size() != right.typeLiteralExpr.values->size()) return false;
+		for (size_t i = 0; i < left.typeLiteralExpr.values->size(); i++)
 		{
-			if (!(*left.anonTypeExpr.values->at(i) == *right.anonTypeExpr.values->at(i))) return false;
+			if (!(*left.typeLiteralExpr.values->at(i) == *right.typeLiteralExpr.values->at(i))) return false;
 		}
 		return true;
 	}
@@ -292,10 +292,10 @@ inline size_t HashExpr(const Expr* expr)
 	}
 	case FixedExpr:
 		return HashExpr(expr->fixedExpr.atExpr) + UniqueType::Fixed;
-	case AnonTypeExpr:
+	case TypeLiteralExpr:
 	{
 		size_t hash = 0;
-		for (Expr* param : *expr->anonTypeExpr.values)
+		for (Expr* param : *expr->typeLiteralExpr.values)
 		{
 			hash += HashExpr(param);
 		}
@@ -610,10 +610,10 @@ eastl::string ToString(Expr* expr)
 	case FixedExpr:
 		return expr->fixedExpr.fixed->ToString() + " " +
 			ToString(expr->fixedExpr.atExpr);
-	case AnonTypeExpr:
+	case TypeLiteralExpr:
 	{
 		eastl::string values = "";
-		for (Expr* expr : *expr->anonTypeExpr.values)
+		for (Expr* expr : *expr->typeLiteralExpr.values)
 		{
 			values += ToString(expr) + ", ";
 		}
