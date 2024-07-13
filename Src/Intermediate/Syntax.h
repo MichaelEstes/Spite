@@ -1831,7 +1831,7 @@ struct Syntax
 
 		if (!of)
 		{
-			of = ParseOperand();
+			of = ParsePrimaryExpr();
 			indexExpr->indexExpr.forward = true;
 		}
 
