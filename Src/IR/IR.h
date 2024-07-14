@@ -76,15 +76,6 @@ namespace SpiteIR
 		Parent(IR* iRParent) { this->kind = ParentKind::IR; this->iRParent = iRParent; }
 	};
 
-	enum class LiteralKind
-	{
-		IntLiteral,
-		FloatLiteral,
-		HexLiteral,
-		StringLiteral,
-		BoolLiteral,
-	};
-
 	enum class BinaryOpKind
 	{
 		Add,
@@ -122,10 +113,23 @@ namespace SpiteIR
 		Array<Instruction> values;
 	};
 
-	struct Constant
+	enum class LiteralKind
+	{
+		LiteralInt,
+		LiteralFloat,
+		LiteralString
+	};
+
+	struct Literal
 	{
 		LiteralKind kind;
-		string value;
+		
+		union
+		{
+			size_t intLiteral;
+			double floatLiteral;
+			string* stringLiteral;
+		};
 	};
 
 	enum class OperandKind
@@ -151,7 +155,7 @@ namespace SpiteIR
 
 			struct
 			{
-				string* value;
+				Literal value;
 			} literal;
 
 			struct

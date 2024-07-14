@@ -2,6 +2,8 @@
 
 #include "Stmnt.h"
 
+size_t IntLiteralStringToInt(StringView& str);
+
 bool operator==(const Expr& left, const Expr& right);
 bool operator!=(const Expr& left, const Expr& right);
 bool operator==(const Type& left, const Type& right);
@@ -9,6 +11,7 @@ bool operator!=(const Type& left, const Type& right);
 
 inline size_t HashType(const Type* type);
 inline size_t HashExpr(const Expr* expr);
+
 
 struct TypeHash
 {

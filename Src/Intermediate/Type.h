@@ -104,7 +104,7 @@ struct Type
 		struct
 		{
 			Type* type;
-			int size;
+			intmax_t size;
 		} fixedArrayType;
 	};
 

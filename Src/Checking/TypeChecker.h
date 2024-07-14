@@ -47,7 +47,7 @@ struct TypeChecker
 		{
 			if (utils.IsConstantIntExpr(arr.size))
 			{
-				int size = utils.EvaluateConstantIntExpr(arr.size);
+				size_t size = utils.EvaluateConstantIntExpr(arr.size);
 				if (size)
 				{
 					Type* arrType = arr.type;

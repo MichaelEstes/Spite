@@ -1,5 +1,19 @@
 #include "SyntaxUtils.h"
 
+size_t IntLiteralStringToInt(StringView& str)
+{
+	size_t count = str.count;
+	const char* start = str.start;
+	size_t i = 0;
+
+	while (count--)
+	{
+		i = i * 10 + (*start++ - '0');
+	}
+
+	return i;
+}
+
 bool operator==(const Type& left, const Type& right)
 {
 	if (left.typeID == TypeID::ValueType) return *left.valueType.type == right;
@@ -581,11 +595,17 @@ eastl::string ToString(Expr* expr)
 	case SelectorExpr:
 		return ToString(expr->selectorExpr.on) + "." + ToString(expr->selectorExpr.select);
 	case IndexExpr:
-		return ToString(expr->indexExpr.of) +
-			expr->indexExpr.lBrack->ToString() +
-			ToString(expr->indexExpr.index) +
-			expr->indexExpr.rBrack->ToString();
-		break;
+	{
+		eastl::string indexStr = expr->indexExpr.index ? ToString(expr->indexExpr.index) : "";
+		if (expr->indexExpr.forward)
+		{
+			return "[" + indexStr + "]" + ToString(expr->indexExpr.of);
+		}
+		else
+		{
+			return ToString(expr->indexExpr.of) + "[" + indexStr + "]";
+		}
+	}		
 	case FunctionCallExpr:
 	{
 		eastl::string params = "";
@@ -618,7 +638,7 @@ eastl::string ToString(Expr* expr)
 			values += ToString(expr) + ", ";
 		}
 
-		return "{" + values + "}";
+		return  expr->typeLiteralExpr.array ? "[" + values + "]" : "{" + values + "}";
 	}
 	case ExplicitTypeExpr:
 	{

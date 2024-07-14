@@ -39,21 +39,7 @@ struct CheckerUtils
 		return false;
 	}
 
-	inline int IntLiteralStringToInt(StringView& str)
-	{
-		size_t count = str.count;
-		const char* start = str.start;
-		int i = 0;
-		
-		while (count--)
-		{
-			i = i * 10 + (*start++ - '0');
-		}
-
-		return i;
-	}
-
-	int EvaluateConstantIntExpr(Expr* expr)
+	size_t EvaluateConstantIntExpr(Expr* expr)
 	{
 		switch (expr->typeID)
 		{
