@@ -4,6 +4,7 @@
 #include "EASTL/hash_map.h"
 
 #include "../Containers/Arena.h"
+#include "../Utils/Utils.h"
 
 namespace SpiteIR
 {
@@ -106,30 +107,12 @@ namespace SpiteIR
 		XOr,
 	};
 
-	struct Block
+	enum class PrimitiveKind
 	{
-		Parent parent;
-		string name;
-		Array<Instruction> values;
-	};
-
-	enum class LiteralKind
-	{
-		LiteralInt,
-		LiteralFloat,
-		LiteralString
-	};
-
-	struct Literal
-	{
-		LiteralKind kind;
-		
-		union
-		{
-			size_t intLiteral;
-			double floatLiteral;
-			string* stringLiteral;
-		};
+		Void,
+		Int,
+		Float,
+		String
 	};
 
 	enum class OperandKind
@@ -141,35 +124,6 @@ namespace SpiteIR
 		Label,
 	};
 
-	struct Operand
-	{
-		Type* type;
-		OperandKind kind;
-
-		union
-		{
-			struct
-			{
-				size_t reg;
-			} register_;
-
-			struct
-			{
-				Literal value;
-			} literal;
-
-			struct
-			{
-				Array<Operand>* members;
-			} structLiteral;
-
-			struct
-			{
-				Block* block;
-			} label;
-		};
-	};
-
 	enum class InstructionKind
 	{
 		None,
@@ -178,17 +132,14 @@ namespace SpiteIR
 		Jump,
 		Branch,
 		Call,
-		Initialize,
 		Allocate,
 		HeapAllocate,
 		Load,
+		Store,
+		Free,
 		Cast,
 		Switch,
-	};
-
-	struct Return
-	{
-		Operand operand;
+		SimpleOp
 	};
 
 	enum class CompareKind
@@ -199,6 +150,55 @@ namespace SpiteIR
 		GreaterThan,
 		LessThanEqual,
 		GreaterThanEqual,
+	};
+
+	enum class TypeKind
+	{
+		PrimitiveType,
+		StateType,
+		StructureType,
+		PointerType,
+		DynamicArrayType,
+		FixedArrayType,
+		FunctionType
+	};
+
+	struct Block
+	{
+		Parent parent;
+		string name;
+		Array<Instruction> values;
+	};
+
+	struct Literal
+	{
+		PrimitiveKind kind;
+		
+		union
+		{
+			size_t intLiteral;
+			double floatLiteral;
+			string* stringLiteral;
+		};
+	};
+
+	struct Operand
+	{
+		Type* type;
+		OperandKind kind;
+
+		union
+		{
+			size_t reg;
+			Literal literal;
+			Array<Operand>* structLiteral;
+			Block* label;
+		};
+	};
+
+	struct Return
+	{
+		Operand operand;
 	};
 
 	struct Compare
@@ -227,18 +227,19 @@ namespace SpiteIR
 
 	struct Allocate
 	{
-		Operand operand;
+		Type* type;
+		size_t result;
 	};
 
 	struct Load
 	{
-		Operand dst;
+		size_t dst;
 		Operand src;
 	};
 
 	struct Store
 	{
-		Operand dst;
+		size_t dst;
 		Operand src;
 	};
 
@@ -302,25 +303,6 @@ namespace SpiteIR
 			Switch switch_;
 			SimpleOp op;
 		};
-	};
-
-	enum class TypeKind
-	{
-		PrimitiveType,
-		StateType,
-		StructureType,
-		PointerType,
-		DynamicArrayType,
-		FixedArrayType,
-		FunctionType
-	};
-
-	enum class PrimitiveKind
-	{
-		Void,
-		Int,
-		Float,
-		String
 	};
 
 	struct Type
@@ -404,7 +386,7 @@ namespace SpiteIR
 		string name;
 		Type* returnType;
 		HashMap<string, Argument*> arguments;
-		Array<Block> blocks;
+		Array<Block*> blocks;
 	};
 
 	struct Member
@@ -503,6 +485,11 @@ namespace SpiteIR
 		inline Value* AllocateValue()
 		{
 			return arena.Emplace<Value>();
+		}
+
+		inline Block* AllocateBlock()
+		{
+			return arena.Emplace<Block>();
 		}
 
 		inline CompileFunction* AllocateCompileFunction()

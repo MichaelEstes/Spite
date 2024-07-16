@@ -44,7 +44,7 @@ enum UniqueType
 	Import,
 	Package,
 	State,
-	Assert,
+	AssertTok,
 	Extern,
 	Global,
 	Where,

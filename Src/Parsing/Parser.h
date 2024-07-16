@@ -9,7 +9,7 @@ struct Parser
 	Tokens tokens;
 	Scanner scanner;
 
-	Parser(const eastl::string& file) : file(file), scanner(file)
+	Parser(const eastl::string& file) : file(file)
 	{
 	}
 

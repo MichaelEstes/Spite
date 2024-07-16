@@ -21,7 +21,7 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "state", TokenType::Keyword, UniqueType::State },
 	{ "global", TokenType::Keyword, UniqueType::Global },
 	{ "extern", TokenType::Keyword, UniqueType::Extern },
-	{ "assert", TokenType::Keyword, UniqueType::Assert },
+	{ "assert", TokenType::Keyword, UniqueType::AssertTok },
 	{ "where", TokenType::Keyword, UniqueType::Where },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
 	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
@@ -455,6 +455,9 @@ struct Tokens
 			}
 			else if (currVal == val[0] && !escaped && val.count > 1)
 			{
+				val.start += 1;
+				val.last -= 1;
+				val.count -= 2;
 				token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::StringLiteral);
 				Reset(tokens);
 			}

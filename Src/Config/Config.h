@@ -131,15 +131,16 @@ inline Config ParseConfig(int argc, char** argv)
 	switch (config.arch)
 	{
 	case X64:
-		config.targetArchBitWidth = 64;
-	case X86:
-		config.targetArchBitWidth = 32;
-	case Arm32:
-		config.targetArchBitWidth = 32;
 	case Arm64:
-		config.targetArchBitWidth = 64;
+		config.targetArchBitWidth = 8;
+		break;
+	case X86:
+	case Arm32:
+		config.targetArchBitWidth = 4;
+		break;
 	default:
-		config.targetArchBitWidth = 64;
+		config.targetArchBitWidth = 8;
+		break;
 	}
 
 	return config;

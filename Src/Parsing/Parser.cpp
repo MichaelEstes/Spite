@@ -6,7 +6,7 @@
 SymbolTable* Parser::Parse()
 {
 	Profiler profiler = Profiler();
-	size_t fileSize = scanner.Init();
+	size_t fileSize = scanner.Init(file);
 	tokens.Init(fileSize);
 
 	scanner.Scan(tokens);

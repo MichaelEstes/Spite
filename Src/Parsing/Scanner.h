@@ -12,14 +12,14 @@ class Scanner
 {
 public:
 
-	Scanner(const eastl::string& file): fileLoc(file)
+	Scanner()
 	{
-		pos = Position(&fileLoc);
 		index = 0;
 	}
 
-	size_t Init()
+	size_t Init(const eastl::string& fileLoc)
 	{
+		pos = Position(&fileLoc);
 		std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
 		{
@@ -77,7 +77,6 @@ private:
 	size_t contentCount;
 	size_t index;
 	Position pos;
-	const eastl::string& fileLoc;
 
 	inline void UpdatePosition(char last)
 	{
