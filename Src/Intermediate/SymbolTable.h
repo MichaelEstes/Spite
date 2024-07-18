@@ -387,6 +387,14 @@ struct SymbolTable
 		return nullptr;
 	}
 
+	inline Stmnt* FindStatement(StringView& val)
+	{
+		Stmnt* found = FindState(val); 
+		if (!found) found = FindFunction(val);
+		if (!found) found = FindGlobalVariable(val);
+		return found;
+	}
+
 	inline Stmnt* FindState(StringView& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())

@@ -412,6 +412,7 @@ struct CheckerUtils
 			{
 				Type* importedType = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
 				importedType->importedType.packageName = expr->identifierExpr.identifier;
+				importedType->importedType.typeName = nullptr;
 				return importedType;
 			}
 			else
@@ -440,25 +441,33 @@ struct CheckerUtils
 		return nullptr;
 	}
 
-	inline bool ValidTypeForSelector(Type* type)
+	Type* GetImportedTypeForSelector(Expr* of, Type* type)
 	{
-		switch (type->typeID)
+		Token* package = type->importedType.packageName;
+		Token* name = of->selectorExpr.select->identifierExpr.identifier;
+		Stmnt* stmnt = context.globalTable->FindStatementForPackage(package, name);
+		if (!stmnt)
 		{
-		case NamedType:
-		case ImportedType:
-			return true;
-		case PointerType:
-			return ValidTypeForSelector(type->pointerType.type);
-		case ValueType:
-			return ValidTypeForSelector(type->valueType.type);
-			break;
-		case TemplatedType:
-			return ValidTypeForSelector(type->templatedType.type);
+			AddError(of->start, "CheckerUtils:GetImportedTypeForSelector No statement found for expression");
+			return type;
+		}
+
+		switch (stmnt->nodeID)
+		{
+		case Definition:
+			// Check if type hasn't been inferred yet?
+			return stmnt->definition.type;
+		case FunctionStmnt:
+			return FunctionToFunctionType(stmnt);
+		case StateStmnt:
+			type->importedType.typeName = stmnt->state.name;
+			return type;
 		default:
 			break;
 		}
 
-		return false;
+		AddError(of->start, "CheckerUtils:GetImportedTypeForSelector Unable to infer type for selector expression");
+		return type;
 	}
 
 	inline Type* GetSelectorType(Expr* of, Type* type)
@@ -466,16 +475,15 @@ struct CheckerUtils
 		auto& selector = of->selectorExpr;
 		StringView& name = selector.select->identifierExpr.identifier->val;
 
+		if (type->typeID == TypeID::ImportedType && !type->importedType.typeName)
+		{
+			return GetImportedTypeForSelector(of, type);
+		}
+
 		if (type->typeID == TypeID::ExplicitType)
 		{
 			Stmnt* explicitMember = FindTypeMember(type->explicitType.declarations, name);
 			return explicitMember->definition.type;
-		}
-
-		if (!ValidTypeForSelector(type))
-		{
-			AddError(of->start, "CheckerUtils:GetSelectorType Invalid type for selector: " + ToString(type));
-			return nullptr;
 		}
 
 		Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);

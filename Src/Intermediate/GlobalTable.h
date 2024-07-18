@@ -66,6 +66,13 @@ struct GlobalTable
 		return nullptr;
 	}
 
+	inline Stmnt* FindStatementForPackage(Token* package, Token* name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package->val);
+		if (!symbolTable) return nullptr;
+		return symbolTable->FindStatement(name->val);
+	}
+
 	Stmnt* FindStateForType(Type* type, SymbolTable* symbolTable)
 	{
 		switch (type->typeID)

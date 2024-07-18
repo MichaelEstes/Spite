@@ -188,6 +188,7 @@ struct LowerDefinitions
 		case IndexExpr:
 			break;
 		case FunctionCallExpr:
+			BuildFunctionCall(expr, block, scope);
 			break;
 		case NewExpr:
 			break;
@@ -274,6 +275,12 @@ struct LowerDefinitions
 
 		SpiteIR::Instruction& allocate = BuildAllocate(irType, block, scope);
 		SpiteIR::Instruction& store = BuildStore(irType, block, allocate.allocate.result, literalOp);
+	}
+
+	void BuildFunctionCall(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	{
+		auto& funcCall = expr->functionCallExpr;
+
 	}
 
 	SpiteIR::Instruction& BuildAllocate(SpiteIR::Type* type, SpiteIR::Block* block, BlockScope& scope)

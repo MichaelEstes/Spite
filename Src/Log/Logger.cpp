@@ -1,9 +1,7 @@
 #include "Logger.h"
-
 #include "../Tokens/Token.h"
 
-
-#ifdef DEBUG
+#ifdef NDEBUG
 #define Assert(condition) void(0)
 #else
 #define Assert(condition)													\
