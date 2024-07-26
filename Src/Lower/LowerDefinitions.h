@@ -10,6 +10,8 @@ extern Config config;
 struct BlockScope
 {
 	eastl::hash_map<StringView, size_t, StringViewHash> scopeMap;
+	eastl::vector<Expr*> deferred;
+	eastl::vector<size_t> toDestroy;
 	size_t prevReg = 0;
 	size_t curr = 0;
 
@@ -25,6 +27,10 @@ struct LowerDefinitions
 	LowerContext& context;
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 	eastl::deque<BlockScope> scopeQueue;
+	SymbolTable* symbolTable = nullptr;
+	eastl::vector<Expr*>* currTemplates = nullptr;
+	
+	
 	Interpreter interpreter;
 
 	LowerDefinitions(LowerContext& context): context(context), interpreter(2000000)
@@ -34,22 +40,24 @@ struct LowerDefinitions
 	{
 		for (SpiteIR::Package* package : context.ir->packages)
 		{
+			symbolTable = context.packageToSymbolTableMap[package];
 			for (auto& [key, state] : package->states)
 			{
 				ASTContainer& stateContainer = context.stateASTMap[state];
-				BuildStateDefault(state, stateContainer.node, stateContainer.templates);
+				currTemplates = stateContainer.templates;
+				BuildStateDefault(state, stateContainer.node);
 			}
 
 			for (auto& [key, function] : package->functions)
 			{
 				ASTContainer& funcContainer = context.functionASTMap[function];
-				BuildFunction(function, funcContainer.node, funcContainer.templates);
+				currTemplates = funcContainer.templates;
+				BuildFunction(function, funcContainer.node);
 			}
 		}
 	}
 	
-	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt, 
-		eastl::vector<Expr*>* templates = nullptr)
+	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt)
 	{
 
 	}
@@ -73,7 +81,7 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt, eastl::vector<Expr*>* templates = nullptr)
+	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
 		if (!decl)
@@ -81,7 +89,7 @@ struct LowerDefinitions
 			AddError(funcStmnt->start, "LowerDefinitions:BuildEntryBlock No declaration found for function");
 			return;
 		}
-		BuildEntryBlock(function, funcStmnt, decl, templates);
+		BuildEntryBlock(function, funcStmnt, decl);
 
 		for (SpiteIR::Block* block : function->blocks)
 		{
@@ -89,8 +97,7 @@ struct LowerDefinitions
 		}
 	}
 
-	void BuildEntryBlock(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl,
-		eastl::vector<Expr*>* templates = nullptr)
+	void BuildEntryBlock(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl)
 	{
 		auto& decl = funcDecl->functionDecl;
 		SpiteIR::Block* block = context.ir->AllocateBlock();
@@ -121,6 +128,7 @@ struct LowerDefinitions
 		switch (stmnt->nodeID)
 		{
 		case ExpressionStmnt:
+			BuildExpr(stmnt->expressionStmnt.expression, block, scope);
 			break;
 		case Definition:
 			BuildVarDefinition(stmnt, block, scope);
@@ -279,8 +287,82 @@ struct LowerDefinitions
 
 	void BuildFunctionCall(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
+		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
+		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
 		auto& funcCall = expr->functionCallExpr;
+		SpiteIR::Function* irFunction = nullptr;
 
+		switch (funcCall.callKind)
+		{
+		case FunctionCall:
+			irFunction = FindFunctionForFunctionCall(expr);
+			break;
+		case ConstructorCall:
+			break;
+		case MemberMethodCall:
+			break;
+		case UniformMethodCall:
+			break;
+		case FunctionTypeCall:
+			break;
+		case UnresolvedGenericCall:
+			break;
+		default:
+			break;
+		}
+
+		//Assert(irFunction);
+
+		eastl::vector<size_t>* params = context.ir->AllocateArray<size_t>();
+		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
+		for (size_t i = 0; i < exprParams->size(); i++)
+		{
+			Expr* param = exprParams->at(i);
+			BuildExpr(param, block, scope);
+			params->push_back(scope.prevReg);
+		}
+
+		BuildCall(irFunction, params, block);
+	}
+
+	Stmnt* FindFunctionStmnt(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+			return context.globalTable->FindScopedFunction(expr->identifierExpr.identifier, symbolTable);
+		case SelectorExpr:
+			return context.globalTable->FindStatementForPackage(expr->selectorExpr.on->identifierExpr.identifier,
+				expr->selectorExpr.select->identifierExpr.identifier);
+		case TemplateExpr:
+			return FindFunctionStmnt(expr->templateExpr.expr);
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
+	SpiteIR::Function* FindFunctionForFunctionCall(Expr* expr)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* stmnt = FindFunctionStmnt(caller);
+		StringView& packageName = stmnt->package->val;
+		eastl::string functionName;
+		if (caller->typeID == ExprID::TemplateExpr)
+		{
+			functionName = BuildTemplatedFunctionName(stmnt, caller->templateExpr.templateArgs);
+		}
+		else
+		{
+			functionName = BuildFunctionName(stmnt);
+		}
+
+		SpiteIR::Package* package = context.packageMap[packageName];
+		SpiteIR::Function* function = package->functions[functionName];
+		
+		Assert(function);
+		return function;
 	}
 
 	SpiteIR::Instruction& BuildAllocate(SpiteIR::Type* type, SpiteIR::Block* block, BlockScope& scope)
@@ -302,7 +384,7 @@ struct LowerDefinitions
 		return BuildAllocate(irType, block, scope);
 	}
 
-	SpiteIR::Instruction& BuildStore(SpiteIR::Type* type, SpiteIR::Block* block, size_t dst, 
+	SpiteIR::Instruction& BuildStore(SpiteIR::Type* type, SpiteIR::Block* block, size_t dst,
 		SpiteIR::Operand& src)
 	{
 		SpiteIR::Instruction& store = block->values.emplace_back();
@@ -320,5 +402,15 @@ struct LowerDefinitions
 		operand.kind = SpiteIR::OperandKind::Register;
 		operand.reg = reg;
 		return operand;
+	}
+
+	SpiteIR::Instruction& BuildCall(SpiteIR::Function* function, eastl::vector<size_t>* params,
+		SpiteIR::Block* block)
+	{
+		SpiteIR::Instruction& call = block->values.emplace_back();
+		call.kind = SpiteIR::InstructionKind::Call;
+		call.call.function = function;
+		call.call.params = params;
+		return call;
 	}
 };

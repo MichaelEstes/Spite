@@ -11,10 +11,10 @@ struct ASTContainer
 struct LowerContext
 {
 	GlobalTable* globalTable;
-	SymbolTable* symbolTable = nullptr;
 	SpiteIR::IR* ir;
 
-	eastl::hash_map<eastl::string, SpiteIR::Package*> packageMap;
+	eastl::hash_map<SpiteIR::Package*, SymbolTable*> packageToSymbolTableMap;
+	eastl::hash_map<StringView, SpiteIR::Package*, StringViewHash> packageMap;
 	eastl::hash_map<eastl::string, SpiteIR::State*> stateMap;
 	eastl::hash_map<eastl::string, SpiteIR::Function*> functionMap;
 	eastl::hash_map<SpiteIR::State*, ASTContainer> stateASTMap;

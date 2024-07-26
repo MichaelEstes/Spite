@@ -36,6 +36,17 @@ enum ExprID
 	ConstantIntExpr
 };
 
+enum FunctionCallKind
+{
+	UnknownCall,
+	FunctionCall,
+	ConstructorCall,
+	MemberMethodCall,
+	UniformMethodCall,
+	FunctionTypeCall,
+	UnresolvedGenericCall,
+};
+
 struct Expr
 {
 	ExprID typeID;
@@ -79,6 +90,7 @@ struct Expr
 			eastl::vector<Expr*>* params;
 			Token* lParen;
 			Token* rParen;
+			FunctionCallKind callKind;
 		} functionCallExpr;
 
 		struct

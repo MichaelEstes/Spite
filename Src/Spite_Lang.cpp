@@ -107,13 +107,14 @@ int main(int argc, char** argv)
 				return false;
 			}
 
-			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax for " + config.file);
+			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax");
 		}
 
 		//globalTable.Print();
-
+		Profiler lowerProfiler = Profiler();
 		Lower lower = Lower(&globalTable);
 		ir = lower.BuildIR(entryTable);
+		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
 	/*{

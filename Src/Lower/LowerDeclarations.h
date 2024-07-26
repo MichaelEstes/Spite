@@ -19,23 +19,23 @@ struct LowerDeclarations
 	{
 		SpiteIR::Package* package = context.ir->AddPackage();
 
+		StringView& packageName = symbolTable->package->val;
 		package->file = *symbolTable->package->pos.file;
 		package->name = BuildPackageName(symbolTable->package);
 		package->parent = context.ir;
 
-		context.packageMap[package->name] = package;
+		context.packageToSymbolTableMap[package] = symbolTable;
+		context.packageMap[packageName] = package;
 
 		for (Stmnt* key : symbolTable->imports)
 		{
-			if (context.packageMap.find(key->importStmnt.packageName->ToString()) == context.packageMap.end())
+			if (context.packageMap.find(packageName) == context.packageMap.end())
 			{
 				SymbolTable* symbolTable = context.globalTable->FindSymbolTable(key->importStmnt.packageName->val);
 				SpiteIR::Package* imported = BuildDeclarations(symbolTable);
 				package->imports.push_back(imported);
 			}
 		}
-
-		context.symbolTable = symbolTable;
 
 		for (auto& [key, value] : symbolTable->stateMap)
 		{

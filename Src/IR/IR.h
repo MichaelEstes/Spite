@@ -132,6 +132,7 @@ namespace SpiteIR
 		Jump,
 		Branch,
 		Call,
+		TailCall,
 		Allocate,
 		HeapAllocate,
 		Load,
@@ -221,8 +222,8 @@ namespace SpiteIR
 
 	struct Call
 	{
-		Function* call;
-		Array<Operand>* params;
+		Function* function;
+		Array<size_t>* params;
 	};
 
 	struct Allocate
@@ -233,14 +234,14 @@ namespace SpiteIR
 
 	struct Load
 	{
-		size_t dst;
 		Operand src;
+		size_t dst;
 	};
 
 	struct Store
 	{
-		size_t dst;
 		Operand src;
+		size_t dst;
 	};
 
 	struct Free

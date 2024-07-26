@@ -1857,7 +1857,8 @@ struct Syntax
 	{
 		Expr* funcCall = CreateExpr(of->start, ExprID::FunctionCallExpr);
 		Token* lParen = curr;
-		funcCall->functionCallExpr.function = CopyExpr(of);
+		funcCall->functionCallExpr.callKind = FunctionCallKind::UnknownCall;
+		funcCall->functionCallExpr.function = of;
 		funcCall->functionCallExpr.lParen = lParen;
 		Advance();
 		funcCall->functionCallExpr.params = ParseExprList();

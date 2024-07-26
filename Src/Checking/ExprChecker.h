@@ -108,6 +108,7 @@ struct ExprChecker
 				// Constructor being called
 			case StmntID::StateStmnt:
 			{
+				functionCall.callKind = FunctionCallKind::ConstructorCall;
 				// Every state has a default constructor
 				if (paramCount == 0) return;
 
@@ -128,7 +129,10 @@ struct ExprChecker
 				for (Stmnt* con : stateSymbol->constructors)
 				{
 					Stmnt* conDecl = con->constructor.decl;
-					if (CheckValidFunctionCallParams(con, conDecl, &conParams)) return;
+					if (CheckValidFunctionCallParams(con, conDecl, &conParams))
+					{
+						return;
+					}
 				}
 
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No constructor found with matching paramters");
@@ -136,6 +140,7 @@ struct ExprChecker
 			}
 			case StmntID::FunctionStmnt:
 			{
+				functionCall.callKind = FunctionCallKind::FunctionCall;
 				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl, params))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
@@ -146,13 +151,21 @@ struct ExprChecker
 			{
 				Stmnt* state = context.globalTable->FindScopedState(functionStmnt->method.stateName, context.symbolTable);
 				eastl::vector<Expr*> methodParams = eastl::vector<Expr*>();
+				Expr* caller = GetCallerExprMethodCall(function);
 
-				Type thisType = Type(TypeID::GenericNamedType);
 				Expr thisIdent = Expr(ExprID::TypeExpr, functionStmnt->method.stateName);
-				thisIdent.typeExpr.type = &thisType;
-
-				if (state->state.generics) methodParams.push_back(&thisIdent);
-				else methodParams.push_back(GetStateParamForMethodCall(function));
+				if (CallerIsReceiver(caller))
+				{
+					Type* type = utils.InferType(caller);
+					while (type->typeID == TypeID::TemplatedType) type = type->templatedType.type;
+					thisIdent.typeExpr.type = type;
+					methodParams.push_back(&thisIdent);
+					functionCall.callKind = FunctionCallKind::MemberMethodCall;
+				}
+				else
+				{
+					functionCall.callKind = FunctionCallKind::UniformMethodCall;
+				}
 
 				for (Expr* param : *params) methodParams.push_back(param);
 
@@ -175,6 +188,7 @@ struct ExprChecker
 				// Primitive constrtuctor
 			case TypeID::PrimitiveType:
 			{
+				functionCall.callKind = FunctionCallKind::ConstructorCall;
 				// Default primitive constructor
 				if (paramCount == 0) return;
 				else if (paramCount == 1)
@@ -189,6 +203,7 @@ struct ExprChecker
 			break;
 			case TypeID::FunctionType:
 			{
+				functionCall.callKind = FunctionCallKind::FunctionTypeCall;
 				auto& func = functionType->functionType;
 				if (paramCount != func.paramTypes->size())
 				{
@@ -211,6 +226,7 @@ struct ExprChecker
 				break;
 			}
 			case TypeID::GenericNamedType:
+				functionCall.callKind = FunctionCallKind::UnresolvedGenericCall;
 				return;
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
@@ -219,15 +235,28 @@ struct ExprChecker
 		}
 	}
 
-	Expr* GetStateParamForMethodCall(Expr* expr)
+	Expr* GetCallerExprMethodCall(Expr* expr)
 	{
-		Expr* param = expr;
-		if (param->typeID == ExprID::TemplateExpr)
+		if (expr->typeID == ExprID::TemplateExpr)
 		{
-			param = param->templateExpr.expr;
+			return GetCallerExprMethodCall(expr->templateExpr.expr);
 		}
 
-		return param->selectorExpr.on;
+		return expr->selectorExpr.on;
+	}
+
+	bool CallerIsReceiver(Expr* caller)
+	{
+		if (caller->typeID == ExprID::SelectorExpr)
+		{
+			return CallerIsReceiver(caller->selectorExpr.on);
+		}
+		else if (caller->typeID == ExprID::IdentifierExpr)
+		{
+			return utils.FindInScope(caller->identifierExpr.identifier->val) != nullptr;
+		}
+
+		return false;
 	}
 
 	bool CheckValidFunctionCallParams(Stmnt* calledFor, Stmnt* funcDecl, eastl::vector<Expr*>* params)

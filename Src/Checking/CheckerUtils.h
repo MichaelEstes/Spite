@@ -141,15 +141,22 @@ struct CheckerUtils
 		return 0;
 	}
 
-	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
+	Stmnt* GetDeclarationStmntForExpr(Expr* expr, Token* package = nullptr)
 	{
-
 		switch (expr->typeID)
 		{
 		case IdentifierExpr:
 		{
 			Token* ident = expr->identifierExpr.identifier;
-			Stmnt* stmnt = FindNodeForName(ident);
+			Stmnt* stmnt = nullptr;
+			if (package)
+			{
+				stmnt = context.globalTable->FindStatementForPackage(package, ident);
+			}
+			else
+			{
+				stmnt = FindNodeForName(ident);
+			}
 			if (!stmnt) return stmnt;
 
 			switch (stmnt->nodeID)
@@ -172,8 +179,8 @@ struct CheckerUtils
 			}
 			else if (IsPackageExpr(expr))
 			{
-				//Package is being selected, keep walking
-				return GetDeclarationStmntForExpr(expr->selectorExpr.select);
+				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
+				return GetDeclarationStmntForExpr(expr->selectorExpr.select, package);
 			}
 			else
 			{
@@ -1253,6 +1260,11 @@ struct CheckerUtils
 		if (type->typeID == TypeID::NamedType || type->typeID == TypeID::ImportedType)
 		{
 			Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
+			if (!state)
+			{
+				AddError("Unable to find state for: " + ToString(type));
+				return types;
+			}
 			decls = state->state.members;
 		}
 		else

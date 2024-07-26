@@ -189,6 +189,7 @@ struct PackageChecker
 
 	void CheckStmnt(Stmnt* node)
 	{
+		Assert(node);
 		switch (node->nodeID)
 		{
 		case ExpressionStmnt:
@@ -298,6 +299,7 @@ struct PackageChecker
 
 	void CheckExpr(Expr* expr)
 	{
+		//Assert(expr);
 		switch (expr->typeID)
 		{
 		case InvalidExpr:
@@ -310,13 +312,20 @@ struct PackageChecker
 			CheckExpr(expr->selectorExpr.select);
 			break;
 		case IndexExpr:
+			CheckExpr(expr->indexExpr.of);
+			if (expr->indexExpr.index) CheckExpr(expr->indexExpr.index);
 			break;
 		case FunctionCallExpr:
 			CheckExpr(expr->functionCallExpr.function);
 			exprChecker.CheckFunctionCallExpr(expr);
+			for (Expr* param : *expr->functionCallExpr.params)
+			{
+				CheckExpr(param);
+			}
 			break;
 		case NewExpr:
 			CheckExpr(expr->newExpr.primaryExpr);
+			if (expr->newExpr.atExpr) CheckExpr(expr->newExpr.atExpr);
 			exprChecker.CheckNew(expr);
 			break;
 		case FixedExpr:
@@ -328,6 +337,11 @@ struct PackageChecker
 			for (Expr* e : *expr->typeLiteralExpr.values) CheckExpr(e);
 			break;
 		}
+		//case ExplicitTypeExpr:
+		//{
+		//	for (Stmnt* stmnt : *expr->explicitTypeExpr.values) CheckStmnt(stmnt);
+		//	break;
+		//}
 		case AsExpr:
 			CheckExpr(expr->asExpr.of);
 			CheckType(expr->asExpr.to, expr->start);
@@ -443,7 +457,10 @@ struct PackageChecker
 		{
 			StringView& name = definition.name->val;
 			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = context.scopeQueue.back();
-			if (back.find(name) != back.end()) AddError(node->start, "Re-definition of variable name: " + name);
+			if (back.find(name) != back.end())
+			{
+				AddError(node->start, "PackageChecker:CheckDefinition Re-definition of variable name: " + name);
+			}
 			else back[name] = node;
 		}
 	}
@@ -463,7 +480,10 @@ struct PackageChecker
 			for (Stmnt* decl : *explicitType.declarations)
 			{
 				StringView& name = decl->definition.name->val;
-				if (back.find(name) != back.end()) AddError(decl->start, "Re-definition of variable name: " + name);
+				if (back.find(name) != back.end())
+				{
+					AddError(decl->start, "PackageChecker:CheckInlineDefinition Re-definition of variable name: " + name);
+				}
 				else back[name] = decl;
 				CheckType(decl->definition.type, decl->start);
 			}

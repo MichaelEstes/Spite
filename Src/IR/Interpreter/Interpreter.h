@@ -61,7 +61,7 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Branch:
 			break;
 		case SpiteIR::InstructionKind::Call:
-			break;
+			return InterpretCall(inst);
 		case SpiteIR::InstructionKind::Allocate:
 			return InterpretAllocate(inst);
 		case SpiteIR::InstructionKind::HeapAllocate:
@@ -129,5 +129,17 @@ struct Interpreter
 		}
 
 		return dst;
+	}
+
+	void* InterpretCall(SpiteIR::Instruction& callInst)
+	{
+		auto& call = callInst.call;
+
+		if (call.function)
+		{
+			return call.function;
+		}
+
+		return stackTop;
 	}
 };
