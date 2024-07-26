@@ -6,7 +6,7 @@
 #else
 #define Assert(condition)													\
 do {																		\
-	if (!condition)															\
+	if (!(condition))														\
 	{																		\
 		std::cout << "Assertion Failed - Function='" << __FUNCTION__ <<		\
 		"' File='" << __FILE__ << "' Line='" << __LINE__ << "'\n";			\
