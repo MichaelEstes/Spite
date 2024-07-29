@@ -557,9 +557,11 @@ struct Syntax
 			Stmnt* del = CreateStmnt(start, StmntID::Destructor);
 			del->destructor.stateName = name;
 			del->destructor.del = curr;
+			del->destructor.decl = CreateStmnt(start, StmntID::FunctionDecl);
+			del->destructor.decl->functionDecl.parameters = CreateVectorPtr<Stmnt>();
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
-			del->destructor.body = ParseBody(del);
+			del->destructor.decl->functionDecl.body = ParseBody(del);
 			symbolTable->SetDestructor(del);
 			return del;
 		}

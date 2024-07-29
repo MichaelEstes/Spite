@@ -95,6 +95,68 @@ inline eastl::string OperatorToString(Token* op)
 	return "";
 }
 
+SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
+{
+	switch (type)
+	{
+	case Add:
+		return SpiteIR::BinaryOpKind::Add;
+	case Subtract:
+		return SpiteIR::BinaryOpKind::Subtract;
+	case Multiply:
+		return SpiteIR::BinaryOpKind::Multiply;
+	case Divide:
+		return SpiteIR::BinaryOpKind::Divide;
+	case Modulo:
+		return SpiteIR::BinaryOpKind::Modulo;
+	case And:
+		return SpiteIR::BinaryOpKind::And;
+	case Or:
+		return SpiteIR::BinaryOpKind::Or;
+	case Xor:
+		return SpiteIR::BinaryOpKind::Xor;
+	case Shiftl:
+		return SpiteIR::BinaryOpKind::ShiftLeft;
+	case Shiftr:
+		return SpiteIR::BinaryOpKind::ShiftRight;
+	case AndNot:
+		return SpiteIR::BinaryOpKind::AndNot;
+	case LogicAnd:
+		return SpiteIR::BinaryOpKind::LogicAnd;
+	case LogicOr:
+		return SpiteIR::BinaryOpKind::LogicOr;
+	case Equal:
+		return SpiteIR::BinaryOpKind::Equal;
+	case NotEql:
+		return SpiteIR::BinaryOpKind::NotEql;
+	case Less:
+		return SpiteIR::BinaryOpKind::Less;
+	case Greater:
+		return SpiteIR::BinaryOpKind::Greater;
+	case LessEqual:
+		return SpiteIR::BinaryOpKind::LessEqual;
+	case GreaterEqual:
+		return SpiteIR::BinaryOpKind::GreaterEqual;
+	default:
+		return SpiteIR::BinaryOpKind::Add;
+	}
+}
+
+SpiteIR::UnaryOpKind UnaryOpToIR(UniqueType type)
+{
+	switch (type)
+	{
+	case Subtract:
+		return SpiteIR::UnaryOpKind::Subtract;
+	case Not:
+		return SpiteIR::UnaryOpKind::Not;
+	case Xor:
+		return SpiteIR::UnaryOpKind::XOr;
+	default:
+		return SpiteIR::UnaryOpKind::Subtract;
+	}
+}
+
 eastl::string BuildTemplatedString(eastl::vector<Expr*>* templates)
 {
 	eastl::string str = "__";

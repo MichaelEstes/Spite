@@ -3,22 +3,25 @@
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerContext.h"
-#include "../IR/Interpreter/Interpreter.h"
 
 extern Config config;
 
+struct ScopeValue
+{
+	size_t reg;
+	SpiteIR::Type* type;
+};
+
 struct BlockScope
 {
-	eastl::hash_map<StringView, size_t, StringViewHash> scopeMap;
+	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeMap;
 	eastl::vector<Expr*> deferred;
 	eastl::vector<size_t> toDestroy;
-	size_t prevReg = 0;
 	size_t curr = 0;
 
-	void IncrementRegister(size_t amount)
+	void IncrementRegister(SpiteIR::Type* type)
 	{
-		prevReg = curr;
-		curr += amount;
+		curr += type->size;
 	}
 };
 
@@ -30,10 +33,7 @@ struct LowerDefinitions
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	
-	
-	Interpreter interpreter;
-
-	LowerDefinitions(LowerContext& context): context(context), interpreter(2000000)
+	LowerDefinitions(LowerContext& context): context(context)
 	{}
 
 	void BuildDefinitions()
@@ -74,6 +74,8 @@ struct LowerDefinitions
 			return func->stateOperator.decl;
 		case Constructor:
 			return func->constructor.decl;
+		case Destructor:
+			return func->destructor.decl;
 		default:
 			break;
 		}
@@ -84,17 +86,8 @@ struct LowerDefinitions
 	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
-		if (!decl)
-		{
-			AddError(funcStmnt->start, "LowerDefinitions:BuildEntryBlock No declaration found for function");
-			return;
-		}
+		Assert(decl);
 		BuildEntryBlock(function, funcStmnt, decl);
-
-		for (SpiteIR::Block* block : function->blocks)
-		{
-			interpreter.InterpretBlock(block);
-		}
 	}
 
 	void BuildEntryBlock(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl)
@@ -176,17 +169,16 @@ struct LowerDefinitions
 	void BuildVarDefinition(Stmnt* stmnt, SpiteIR::Block* block, BlockScope& scope)
 	{
 		auto& def = stmnt->definition;
-		BuildExpr(def.assignment, block, scope);
-		scope.scopeMap[def.name->val] = scope.prevReg;
+		ScopeValue value = BuildExpr(def.assignment, block, scope);
+		scope.scopeMap[def.name->val] = value;
 	}
 
-	void BuildExpr(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	ScopeValue BuildExpr(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
 		switch (expr->typeID)
 		{
 		case LiteralExpr:
-			BuildLiteral(expr, block, scope);
-			break;
+			return BuildLiteral(expr, block, scope);
 		case IdentifierExpr:
 			break;
 		case PrimitiveExpr:
@@ -196,8 +188,7 @@ struct LowerDefinitions
 		case IndexExpr:
 			break;
 		case FunctionCallExpr:
-			BuildFunctionCall(expr, block, scope);
-			break;
+			return BuildFunctionCall(expr, block, scope);
 		case NewExpr:
 			break;
 		case FixedExpr:
@@ -231,9 +222,11 @@ struct LowerDefinitions
 		default:
 			break;
 		}
+
+		return { 0, nullptr };
 	}
 
-	void BuildLiteral(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	ScopeValue BuildLiteral(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
 		auto& lit = expr->literalExpr;
 		SpiteIR::Operand literalOp = SpiteIR::Operand();
@@ -283,9 +276,40 @@ struct LowerDefinitions
 
 		SpiteIR::Instruction& allocate = BuildAllocate(irType, block, scope);
 		SpiteIR::Instruction& store = BuildStore(irType, block, allocate.allocate.result, literalOp);
+		return { store.store.dst, irType };
 	}
 
-	void BuildFunctionCall(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	ScopeValue BuildBinaryExpression(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	{
+		Expr* left = expr->binaryExpr.left;
+		Expr* right = expr->binaryExpr.right;
+		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.opType);
+
+		ScopeValue leftVal = BuildExpr(left, block, scope);
+		ScopeValue rightVal = BuildExpr(right, block, scope);
+
+		if (leftVal.type->kind == SpiteIR::TypeKind::PrimitiveType &&
+			rightVal.type->kind == SpiteIR::TypeKind::PrimitiveType)
+		{
+			return BuildBinaryOp(leftVal, rightVal, op, block, scope);
+		}
+	}
+
+	ScopeValue BuildBinaryOp(ScopeValue leftVal, ScopeValue rightVal, SpiteIR::BinaryOpKind kind,
+		SpiteIR::Block* block, BlockScope& scope)
+	{
+		SpiteIR::Instruction& binOp = block->values.emplace_back();
+		binOp.kind = SpiteIR::InstructionKind::BinOp;
+		binOp.binOp.kind = kind;
+		binOp.binOp.left = BuildRegisterOperand(leftVal.reg, leftVal.type);
+		binOp.binOp.right = BuildRegisterOperand(rightVal.reg, rightVal.type);
+		binOp.binOp.result = scope.curr;
+		
+		scope.IncrementRegister(leftVal.type);
+		return { binOp.binOp.result, leftVal.type };
+	}
+
+	ScopeValue BuildFunctionCall(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
 		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
 		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
@@ -311,18 +335,17 @@ struct LowerDefinitions
 			break;
 		}
 
-		//Assert(irFunction);
-
-		eastl::vector<size_t>* params = context.ir->AllocateArray<size_t>();
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
 		for (size_t i = 0; i < exprParams->size(); i++)
 		{
 			Expr* param = exprParams->at(i);
-			BuildExpr(param, block, scope);
-			params->push_back(scope.prevReg);
+			ScopeValue value = BuildExpr(param, block, scope);
+			params->push_back(BuildRegisterOperand(value.reg, value.type));
 		}
 
-		BuildCall(irFunction, params, block);
+		SpiteIR::Instruction& call = BuildCall(irFunction, params, block, scope);
+		return { call.call.result, irFunction->returnType };
 	}
 
 	Stmnt* FindFunctionStmnt(Expr* expr)
@@ -343,38 +366,47 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	SpiteIR::Function* FindFunctionForFunctionCall(Expr* expr)
+	SpiteIR::Function* FindFunctionForFunctionStmnt(Stmnt* func, eastl::vector<Expr*>* templates = nullptr)
 	{
-		Expr* caller = expr->functionCallExpr.function;
-		Stmnt* stmnt = FindFunctionStmnt(caller);
-		StringView& packageName = stmnt->package->val;
+		Assert(func);
+		StringView& packageName = func->package->val;
 		eastl::string functionName;
-		if (caller->typeID == ExprID::TemplateExpr)
+		if (templates)
 		{
-			functionName = BuildTemplatedFunctionName(stmnt, caller->templateExpr.templateArgs);
+			functionName = BuildTemplatedFunctionName(func, templates);
 		}
 		else
 		{
-			functionName = BuildFunctionName(stmnt);
+			functionName = BuildFunctionName(func);
 		}
 
 		SpiteIR::Package* package = context.packageMap[packageName];
 		SpiteIR::Function* function = package->functions[functionName];
-		
-		Assert(function);
 		return function;
+	}
+
+	SpiteIR::Function* FindFunctionForFunctionCall(Expr* expr)
+	{
+		Assert(expr);
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* stmnt = FindFunctionStmnt(caller);
+		eastl::vector<Expr*>* templates = nullptr;
+		if (caller->typeID == ExprID::TemplateExpr)
+		{
+			templates = caller->templateExpr.templateArgs;
+		}
+		
+		return FindFunctionForFunctionStmnt(stmnt, templates);
 	}
 
 	SpiteIR::Instruction& BuildAllocate(SpiteIR::Type* type, SpiteIR::Block* block, BlockScope& scope)
 	{
-		size_t result = scope.curr;
 		SpiteIR::Instruction& allocate = block->values.emplace_back();
 		allocate.kind = SpiteIR::InstructionKind::Allocate;
 		allocate.allocate.type = type;
-		allocate.allocate.result = result;
+		allocate.allocate.result = scope.curr;
 
-		scope.IncrementRegister(type->size);
-
+		scope.IncrementRegister(type);
 		return allocate;
 	}
 
@@ -404,13 +436,16 @@ struct LowerDefinitions
 		return operand;
 	}
 
-	SpiteIR::Instruction& BuildCall(SpiteIR::Function* function, eastl::vector<size_t>* params,
-		SpiteIR::Block* block)
+	SpiteIR::Instruction& BuildCall(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params,
+		SpiteIR::Block* block, BlockScope& scope)
 	{
 		SpiteIR::Instruction& call = block->values.emplace_back();
 		call.kind = SpiteIR::InstructionKind::Call;
 		call.call.function = function;
 		call.call.params = params;
+		call.call.result = scope.curr;
+
+		scope.IncrementRegister(function->returnType);
 		return call;
 	}
 };

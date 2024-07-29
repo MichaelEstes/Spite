@@ -16,6 +16,23 @@ struct Interpreter
 		stackTop = stack;
 	}
 
+	void* InterpretBlock(SpiteIR::Block* block)
+	{
+		void* last = IncrementStackFrame();
+		for (SpiteIR::Instruction& inst : block->values)
+		{
+			last = InterpretInstruction(inst);
+		}
+		return last;
+	}
+
+	void* Interpret(SpiteIR::IR* ir)
+	{
+		SpiteIR::Function* entry = ir->entry;
+		InterpretBlock(entry->blocks.front());
+		return stack;
+	}
+
 	void* IncrementStackFrame()
 	{
 		stackFrameQueue.push_back(stackTop);
@@ -30,16 +47,6 @@ struct Interpreter
 		stackFrameTop = last;
 		stackTop = last;
 		return stackTop;
-	}
-
-	void* InterpretBlock(SpiteIR::Block* block)
-	{
-		void* last = IncrementStackFrame();
-		for (SpiteIR::Instruction& inst : block->values)
-		{
-			last = InterpretInstruction(inst);
-		}
-		return last;
 	}
 
 	void* IncrementStackPointer(size_t amount)
@@ -76,7 +83,9 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::Switch:
 			break;
-		case SpiteIR::InstructionKind::SimpleOp:
+		case SpiteIR::InstructionKind::BinOp:
+			return InterpretBinaryOp(inst);
+		case SpiteIR::InstructionKind::UnOp:
 			break;
 		default:
 			break;
@@ -114,7 +123,7 @@ struct Interpreter
 			{
 				size_t* sizeDst = (size_t*)dst;
 				*sizeDst = src.literal.stringLiteral->size();
-				char** strDst = (char**)sizeDst + 1;
+				char** strDst = (char**)(sizeDst + 1);
 				*strDst = (char*)src.literal.stringLiteral->c_str();
 			}
 				break;
@@ -141,5 +150,57 @@ struct Interpreter
 		}
 
 		return stackTop;
+	}
+
+	void* InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
+	{
+		switch (binOpInst.binOp.kind)
+		{
+		case SpiteIR::BinaryOpKind::Add:
+			break;
+		case SpiteIR::BinaryOpKind::Subtract:
+			break;
+		case SpiteIR::BinaryOpKind::Multiply:
+			break;
+		case SpiteIR::BinaryOpKind::Divide:
+			break;
+		case SpiteIR::BinaryOpKind::Modulo:
+			break;
+		case SpiteIR::BinaryOpKind::And:
+			break;
+		case SpiteIR::BinaryOpKind::Or:
+			break;
+		case SpiteIR::BinaryOpKind::Xor:
+			break;
+		case SpiteIR::BinaryOpKind::ShiftLeft:
+			break;
+		case SpiteIR::BinaryOpKind::ShiftRight:
+			break;
+		case SpiteIR::BinaryOpKind::AndNot:
+			break;
+		case SpiteIR::BinaryOpKind::LogicAnd:
+			break;
+		case SpiteIR::BinaryOpKind::LogicOr:
+			break;
+		case SpiteIR::BinaryOpKind::Equal:
+			break;
+		case SpiteIR::BinaryOpKind::NotEql:
+			break;
+		case SpiteIR::BinaryOpKind::Less:
+			break;
+		case SpiteIR::BinaryOpKind::Greater:
+			break;
+		case SpiteIR::BinaryOpKind::LessEqual:
+			break;
+		case SpiteIR::BinaryOpKind::GreaterEqual:
+			break;
+		default:
+			break;
+		}
+	}
+
+	void* InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
+	{
+
 	}
 };

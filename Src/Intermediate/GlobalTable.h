@@ -4,6 +4,8 @@
 struct GlobalTable
 {
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
+	SymbolTable* entryTable;
+	Stmnt* entryFunc;
 
 	GlobalTable()
 	{

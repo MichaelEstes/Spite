@@ -140,7 +140,8 @@ namespace SpiteIR
 		Free,
 		Cast,
 		Switch,
-		SimpleOp
+		BinOp,
+		UnOp
 	};
 
 	enum class CompareKind
@@ -223,7 +224,8 @@ namespace SpiteIR
 	struct Call
 	{
 		Function* function;
-		Array<size_t>* params;
+		Array<Operand>* params;
+		size_t result;
 	};
 
 	struct Allocate
@@ -266,23 +268,15 @@ namespace SpiteIR
 		BinaryOpKind kind;
 		Operand left;
 		Operand right;
+		size_t result;
+
 	};
 
 	struct UnaryOp
 	{
 		UnaryOpKind kind;
 		Operand operand;
-	};
-
-	struct SimpleOp
-	{
-		bool binary;
-
-		union 
-		{
-			BinaryOp binaryOp;
-			UnaryOp unaryOp;
-		};
+		size_t result;
 	};
 
 	struct Instruction
@@ -302,7 +296,8 @@ namespace SpiteIR
 			Free free;
 			Cast cast;
 			Switch switch_;
-			SimpleOp op;
+			BinaryOp binOp;
+			UnaryOp unOp;
 		};
 	};
 
@@ -447,6 +442,7 @@ namespace SpiteIR
 	struct IR
 	{
 		Array<Package*> packages;
+		Function* entry;
 		Arena arena;
 
 		IR(size_t initialSize) : arena(initialSize * 256) {}

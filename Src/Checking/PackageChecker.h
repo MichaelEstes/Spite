@@ -139,7 +139,7 @@ struct PackageChecker
 	{
 		context.currentContext = nullptr;
 		if (!destructor) return; // Destructor not required
-		CheckBody(destructor->destructor.body);
+		CheckBody(destructor->destructor.decl->functionDecl.body);
 	}
 
 	void CheckFunction(Stmnt* function)

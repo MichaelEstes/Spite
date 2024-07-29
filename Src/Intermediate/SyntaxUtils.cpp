@@ -444,9 +444,9 @@ eastl::string ToString(Stmnt* node)
 	case Destructor:
 		return node->destructor.stateName->ToString() + "::" +
 			node->destructor.del->ToString() +
-			ToString(node->destructor.body);
+			ToString(node->destructor.decl);
 	case Constructor:
-		return node->destructor.stateName->ToString() + "::" +
+		return node->constructor.stateName->ToString() + "::" +
 			ToString(node->constructor.decl);
 	case FunctionDecl:
 	{

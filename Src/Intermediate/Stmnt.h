@@ -175,7 +175,7 @@ struct Stmnt
 		{
 			Token* stateName;
 			Token* del;
-			Body body;
+			Stmnt* decl;
 		} destructor;
 
 		struct

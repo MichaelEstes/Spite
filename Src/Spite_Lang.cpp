@@ -3,6 +3,7 @@
 #include "Spite_Lang.h"
 #include "IR/IR.h"
 #include "Lower/Lower.h"
+#include "./IR/Interpreter/Interpreter.h"
 
 typedef eastl::string string;
 
@@ -37,13 +38,16 @@ namespace EA::StdC
 
 Config config;
 
-void CheckEntryFunction(SymbolTable* symbolTable)
+Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 {
 	StringView entryFuncName = StringView(config.entry.c_str());
-	if (!symbolTable->FindFunction(entryFuncName))
+	Stmnt* entryFunc = symbolTable->FindFunction(entryFuncName);
+	if (!entryFunc)
 	{
 		AddError("CheckEntryFunction: No entry function named " + config.entry + " found in file " + config.dir);
 	}
+
+	return entryFunc;
 }
 
 int main(int argc, char** argv)
@@ -73,6 +77,7 @@ int main(int argc, char** argv)
 	files.erase(entry);
 
 	SpiteIR::IR* ir = nullptr;
+
 	{
 		GlobalTable globalTable = GlobalTable();
 		eastl::vector<Parser> parsers = eastl::vector<Parser>();
@@ -82,6 +87,7 @@ int main(int argc, char** argv)
 			SymbolTable* symbolTable = parser.Parse();
 			if (!symbolTable)
 			{
+				Logger::PrintErrors();
 				return 1;
 			}
 			globalTable.InsertTable(symbolTable);
@@ -91,12 +97,19 @@ int main(int argc, char** argv)
 		SymbolTable* entryTable = parser.Parse();
 		if (!entryTable)
 		{
+			Logger::PrintErrors();
 			return 1;
 		}
 		globalTable.InsertTable(entryTable);
+		globalTable.entryTable = entryTable;
+		globalTable.entryFunc = CheckEntryFunction(entryTable);
+		if (Logger::HasErrors())
+		{
+			Logger::PrintErrors();
+			return 1;
+		}
 
 		{
-			CheckEntryFunction(entryTable);
 			Profiler checkerProfiler = Profiler();
 			Checker checker = Checker(&globalTable);
 			checker.Check();
@@ -104,7 +117,7 @@ int main(int argc, char** argv)
 			if (Logger::HasErrors())
 			{
 				Logger::PrintErrors();
-				return false;
+				return 1;
 			}
 
 			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax");
@@ -114,8 +127,16 @@ int main(int argc, char** argv)
 		Profiler lowerProfiler = Profiler();
 		Lower lower = Lower(&globalTable);
 		ir = lower.BuildIR(entryTable);
+		if (Logger::HasErrors())
+		{
+			Logger::PrintErrors();
+			return 1;
+		}
 		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
+
+	Interpreter interpreter = Interpreter(2000000);
+	interpreter.Interpret(ir);
 
 	/*{
 		Profiler builderProfiler = Profiler();
