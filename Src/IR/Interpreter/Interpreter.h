@@ -1,6 +1,7 @@
 #pragma once
 #include "EASTL/deque.h"
 #include "../IR.h"
+#include "../../Utils/Utils.h"
 
 struct Interpreter
 {
@@ -49,10 +50,9 @@ struct Interpreter
 		return stackTop;
 	}
 
-	void* IncrementStackPointer(size_t amount)
+	void IncrementStackPointer(size_t amount)
 	{
 		stackTop += amount;
-		return stackTop;
 	}
 
 	void* InterpretInstruction(SpiteIR::Instruction& inst)
@@ -113,6 +113,8 @@ struct Interpreter
 		case SpiteIR::OperandKind::Literal:
 			switch (src.literal.kind)
 			{
+			case SpiteIR::PrimitiveKind::Byte:
+				*(char*)dst = src.literal.byteLiteral;
 			case SpiteIR::PrimitiveKind::Int:
 				*(size_t*)dst = src.literal.intLiteral;
 				break;
@@ -152,15 +154,102 @@ struct Interpreter
 		return stackTop;
 	}
 
+#define binaryOpTypeMacro(inst, op, castType)				\
+{															\
+	void* left = stackFrameTop + inst.binOp.left.reg;		\
+	void* right = stackFrameTop + inst.binOp.right.reg;		\
+	*(castType*)(void*)stackTop =							\
+			*(castType*)left op *(castType*)right;			\
+	IncrementStackPointer(inst.binOp.left.type->size);		\
+}															
+
+#define binaryOpMacro(inst, op)								\
+{															\
+	switch (inst.binOp.left.type->primitive.kind)			\
+	{														\
+	case SpiteIR::PrimitiveKind::Int:						\
+		if (inst.binOp.left.type->primitive.isSigned)		\
+		{													\
+			switch (inst.binOp.left.type->size)				\
+			{												\
+			case 1:											\
+			case 8:											\
+				binaryOpTypeMacro(inst, op, char);			\
+				break;										\
+			case 16:										\
+				binaryOpTypeMacro(inst, op, int16_t);		\
+				break;										\
+			case 32:										\
+				binaryOpTypeMacro(inst, op, int32_t);		\
+				break;										\
+			case 64:										\
+				binaryOpTypeMacro(inst, op, int64_t);		\
+				break;										\
+			case 128:										\
+				binaryOpTypeMacro(inst, op, intmax_t);		\
+				break;										\
+			default:										\
+				break;										\
+			}												\
+		}													\
+		else												\
+		{													\
+			switch (inst.binOp.left.type->size)				\
+			{												\
+			case 1:											\
+			case 8:											\
+				binaryOpTypeMacro(inst, op, unsigned char);	\
+				break;										\
+			case 16:										\
+				binaryOpTypeMacro(inst, op, uint16_t);		\
+				break;										\
+			case 32:										\
+				binaryOpTypeMacro(inst, op, uint32_t);		\
+				break;										\
+			case 64:										\
+				binaryOpTypeMacro(inst, op, uint64_t);		\
+				break;										\
+			case 128:										\
+				binaryOpTypeMacro(inst, op, uintmax_t);		\
+				break;										\
+			default:										\
+				break;										\
+			}												\
+		}													\
+		break;												\
+	case SpiteIR::PrimitiveKind::Float:						\
+		switch (inst.binOp.left.type->size)					\
+		{													\
+		case 32:											\
+			binaryOpTypeMacro(inst, op, float);				\
+			break;											\
+		case 64:											\
+			binaryOpTypeMacro(inst, op, double);			\
+			break;											\
+		default:											\
+			break;											\
+		}													\
+		break;												\
+	default:												\
+		break;												\
+	}														\
+}
+
 	void* InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
+		Assert(binOpInst.binOp.left.kind == SpiteIR::OperandKind::Register);
+		Assert(binOpInst.binOp.right.kind == SpiteIR::OperandKind::Register);
+
 		switch (binOpInst.binOp.kind)
 		{
 		case SpiteIR::BinaryOpKind::Add:
+			binaryOpMacro(binOpInst, +);
 			break;
 		case SpiteIR::BinaryOpKind::Subtract:
+			binaryOpMacro(binOpInst, -);
 			break;
 		case SpiteIR::BinaryOpKind::Multiply:
+			binaryOpMacro(binOpInst, *);
 			break;
 		case SpiteIR::BinaryOpKind::Divide:
 			break;

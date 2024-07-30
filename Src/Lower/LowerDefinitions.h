@@ -204,6 +204,7 @@ struct LowerDefinitions
 		case ReferenceExpr:
 			break;
 		case BinaryExpr:
+			BuildBinaryExpression(expr, block, scope);
 			break;
 		case UnaryExpr:
 			break;
@@ -253,12 +254,12 @@ struct LowerDefinitions
 			*literal.stringLiteral = lit.val->val.ToString();
 			break;
 		case UniqueType::TrueLiteral:
-			literal.kind = SpiteIR::PrimitiveKind::Int;
-			literal.intLiteral = 1;
+			literal.kind = SpiteIR::PrimitiveKind::Byte;
+			literal.byteLiteral = 1;
 			break;
 		case UniqueType::FalseLiteral:
-			literal.kind = SpiteIR::PrimitiveKind::Int;
-			literal.intLiteral = 0;
+			literal.kind = SpiteIR::PrimitiveKind::Byte;
+			literal.byteLiteral = 0;
 			break;
 		default:
 			literal.kind = SpiteIR::PrimitiveKind::Void;
@@ -287,6 +288,8 @@ struct LowerDefinitions
 
 		ScopeValue leftVal = BuildExpr(left, block, scope);
 		ScopeValue rightVal = BuildExpr(right, block, scope);
+
+		if (!leftVal.type || !rightVal.type) return { 0, nullptr };
 
 		if (leftVal.type->kind == SpiteIR::TypeKind::PrimitiveType &&
 			rightVal.type->kind == SpiteIR::TypeKind::PrimitiveType)
@@ -334,6 +337,8 @@ struct LowerDefinitions
 		default:
 			break;
 		}
+
+		if (!irFunction) return {0, nullptr};
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;

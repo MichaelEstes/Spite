@@ -1,8 +1,23 @@
 #pragma once
 #include <memory>
+#include <stdlib.h>
+#include <iostream>
 
 #define ToBit(val) (1 << (val))
 
+#ifdef NDEBUG
+#define Assert(condition) void(0)
+#else
+#define Assert(condition)													\
+do {																		\
+	if (!(condition))														\
+	{																		\
+		std::cout << "Assertion Failed - Function='" << __FUNCTION__ <<		\
+		"' File='" << __FILE__ << "' Line='" << __LINE__ << "'\n";			\
+		std::exit(1);														\
+	}																		\
+ } while(0)
+#endif
 
 template<typename Func>
 struct DeferCall {

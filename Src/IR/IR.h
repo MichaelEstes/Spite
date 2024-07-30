@@ -110,6 +110,7 @@ namespace SpiteIR
 	enum class PrimitiveKind
 	{
 		Void,
+		Byte,
 		Int,
 		Float,
 		String
@@ -178,6 +179,7 @@ namespace SpiteIR
 		
 		union
 		{
+			char byteLiteral;
 			size_t intLiteral;
 			double floatLiteral;
 			string* stringLiteral;

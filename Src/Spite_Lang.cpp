@@ -44,7 +44,7 @@ Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 	Stmnt* entryFunc = symbolTable->FindFunction(entryFuncName);
 	if (!entryFunc)
 	{
-		AddError("CheckEntryFunction: No entry function named " + config.entry + " found in file " + config.dir);
+		Logger::FatalError("CheckEntryFunction: No entry function named " + config.entry + " found in file " + config.dir);
 	}
 
 	return entryFunc;
