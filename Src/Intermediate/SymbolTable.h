@@ -440,11 +440,11 @@ struct SymbolTable
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Byte:
-			type->primitiveType.size = 8;
+			type->primitiveType.size = 1;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Ubyte:
-			type->primitiveType.size = 8;
+			type->primitiveType.size = 1;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Int:
@@ -452,19 +452,19 @@ struct SymbolTable
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int16:
-			type->primitiveType.size = 16;
+			type->primitiveType.size = 2;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int32:
-			type->primitiveType.size = 32;
+			type->primitiveType.size = 4;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int64:
-			type->primitiveType.size = 64;
+			type->primitiveType.size = 8;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int128:
-			type->primitiveType.size = 128;
+			type->primitiveType.size = 16;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Uint:
@@ -472,19 +472,19 @@ struct SymbolTable
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint16:
-			type->primitiveType.size = 16;
+			type->primitiveType.size = 2;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint32:
-			type->primitiveType.size = 32;
+			type->primitiveType.size = 4;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint64:
-			type->primitiveType.size = 64;
+			type->primitiveType.size = 8;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint128:
-			type->primitiveType.size = 128;
+			type->primitiveType.size = 16;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Float:
@@ -492,11 +492,11 @@ struct SymbolTable
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float32:
-			type->primitiveType.size = 32;
+			type->primitiveType.size = 4;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float64:
-			type->primitiveType.size = 64;
+			type->primitiveType.size = 8;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::String:

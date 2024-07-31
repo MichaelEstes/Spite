@@ -116,7 +116,7 @@ struct Interpreter
 			case SpiteIR::PrimitiveKind::Byte:
 				*(char*)dst = src.literal.byteLiteral;
 			case SpiteIR::PrimitiveKind::Int:
-				*(size_t*)dst = src.literal.intLiteral;
+				*(int64_t*)dst = src.literal.intLiteral;
 				break;
 			case SpiteIR::PrimitiveKind::Float:
 				*(double*)dst = src.literal.floatLiteral;
@@ -163,29 +163,27 @@ struct Interpreter
 	IncrementStackPointer(inst.binOp.left.type->size);		\
 }															
 
-#define binaryOpMacro(inst, op)								\
-{															\
-	switch (inst.binOp.left.type->primitive.kind)			\
+#define binaryOpMacroI(inst, op)							\
+	if (inst.binOp.left.type->primitive.kind ==				\
+					SpiteIR::PrimitiveKind::Int)			\
 	{														\
-	case SpiteIR::PrimitiveKind::Int:						\
 		if (inst.binOp.left.type->primitive.isSigned)		\
 		{													\
 			switch (inst.binOp.left.type->size)				\
 			{												\
 			case 1:											\
-			case 8:											\
 				binaryOpTypeMacro(inst, op, char);			\
 				break;										\
-			case 16:										\
+			case 2:											\
 				binaryOpTypeMacro(inst, op, int16_t);		\
 				break;										\
-			case 32:										\
+			case 4:											\
 				binaryOpTypeMacro(inst, op, int32_t);		\
 				break;										\
-			case 64:										\
+			case 8:											\
 				binaryOpTypeMacro(inst, op, int64_t);		\
 				break;										\
-			case 128:										\
+			case 16:										\
 				binaryOpTypeMacro(inst, op, intmax_t);		\
 				break;										\
 			default:										\
@@ -197,43 +195,43 @@ struct Interpreter
 			switch (inst.binOp.left.type->size)				\
 			{												\
 			case 1:											\
-			case 8:											\
 				binaryOpTypeMacro(inst, op, unsigned char);	\
 				break;										\
-			case 16:										\
+			case 2:											\
 				binaryOpTypeMacro(inst, op, uint16_t);		\
 				break;										\
-			case 32:										\
+			case 4:											\
 				binaryOpTypeMacro(inst, op, uint32_t);		\
 				break;										\
-			case 64:										\
+			case 8:											\
 				binaryOpTypeMacro(inst, op, uint64_t);		\
 				break;										\
-			case 128:										\
+			case 16:										\
 				binaryOpTypeMacro(inst, op, uintmax_t);		\
 				break;										\
 			default:										\
 				break;										\
 			}												\
 		}													\
-		break;												\
-	case SpiteIR::PrimitiveKind::Float:						\
+	}														\
+
+#define binaryOpMacroFP(inst, op)							\
+	if (inst.binOp.left.type->primitive.kind ==				\
+				SpiteIR::PrimitiveKind::Int)				\
+	{														\
 		switch (inst.binOp.left.type->size)					\
 		{													\
-		case 32:											\
+		case 4:												\
 			binaryOpTypeMacro(inst, op, float);				\
 			break;											\
-		case 64:											\
+		case 8:												\
 			binaryOpTypeMacro(inst, op, double);			\
 			break;											\
 		default:											\
 			break;											\
 		}													\
-		break;												\
-	default:												\
-		break;												\
 	}														\
-}
+
 
 	void* InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
@@ -243,45 +241,73 @@ struct Interpreter
 		switch (binOpInst.binOp.kind)
 		{
 		case SpiteIR::BinaryOpKind::Add:
-			binaryOpMacro(binOpInst, +);
+			binaryOpMacroI(binOpInst, +);
+			binaryOpMacroFP(binOpInst, +);
 			break;
 		case SpiteIR::BinaryOpKind::Subtract:
-			binaryOpMacro(binOpInst, -);
+			binaryOpMacroI(binOpInst, -);
+			binaryOpMacroFP(binOpInst, -);
 			break;
 		case SpiteIR::BinaryOpKind::Multiply:
-			binaryOpMacro(binOpInst, *);
+			binaryOpMacroI(binOpInst, *);
+			binaryOpMacroFP(binOpInst, *);
 			break;
 		case SpiteIR::BinaryOpKind::Divide:
+			binaryOpMacroI(binOpInst, /);
+			binaryOpMacroFP(binOpInst, /);
 			break;
 		case SpiteIR::BinaryOpKind::Modulo:
+			binaryOpMacroI(binOpInst, %);
 			break;
 		case SpiteIR::BinaryOpKind::And:
+			binaryOpMacroI(binOpInst, &);
 			break;
 		case SpiteIR::BinaryOpKind::Or:
+			binaryOpMacroI(binOpInst, |);
 			break;
 		case SpiteIR::BinaryOpKind::Xor:
+			binaryOpMacroI(binOpInst, ^);
 			break;
 		case SpiteIR::BinaryOpKind::ShiftLeft:
+			binaryOpMacroI(binOpInst, <<);
 			break;
 		case SpiteIR::BinaryOpKind::ShiftRight:
+			binaryOpMacroI(binOpInst, >>);
 			break;
 		case SpiteIR::BinaryOpKind::AndNot:
+			binaryOpMacroI(binOpInst, &~);
 			break;
 		case SpiteIR::BinaryOpKind::LogicAnd:
+			binaryOpMacroI(binOpInst, &&);
+			binaryOpMacroFP(binOpInst, &&);
 			break;
 		case SpiteIR::BinaryOpKind::LogicOr:
+			binaryOpMacroI(binOpInst, ||);
+			binaryOpMacroFP(binOpInst, ||);
 			break;
 		case SpiteIR::BinaryOpKind::Equal:
+			binaryOpMacroI(binOpInst, ==);
+			binaryOpMacroFP(binOpInst, ==);
 			break;
 		case SpiteIR::BinaryOpKind::NotEql:
+			binaryOpMacroI(binOpInst, !=);
+			binaryOpMacroFP(binOpInst, !=);
 			break;
 		case SpiteIR::BinaryOpKind::Less:
+			binaryOpMacroI(binOpInst, <);
+			binaryOpMacroFP(binOpInst, <);
 			break;
 		case SpiteIR::BinaryOpKind::Greater:
+			binaryOpMacroI(binOpInst, >);
+			binaryOpMacroFP(binOpInst, >);
 			break;
 		case SpiteIR::BinaryOpKind::LessEqual:
+			binaryOpMacroI(binOpInst, <=);
+			binaryOpMacroFP(binOpInst, <=);
 			break;
 		case SpiteIR::BinaryOpKind::GreaterEqual:
+			binaryOpMacroI(binOpInst, >=);
+			binaryOpMacroFP(binOpInst, >=);
 			break;
 		default:
 			break;
