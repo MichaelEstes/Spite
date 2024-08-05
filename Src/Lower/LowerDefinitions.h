@@ -14,6 +14,7 @@ struct ScopeValue
 
 struct BlockScope
 {
+	SpiteIR::Block* block;
 	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeMap;
 	eastl::vector<Expr*> deferred;
 	eastl::vector<size_t> toDestroy;
@@ -25,11 +26,17 @@ struct BlockScope
 	}
 };
 
+struct FunctionContext
+{
+	size_t forCount = 0;
+};
+
 struct LowerDefinitions
 {
 	LowerContext& context;
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 	eastl::deque<BlockScope> scopeQueue;
+	eastl::hash_map<SpiteIR::Function*, FunctionContext> funcContextMap;
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	
@@ -87,30 +94,46 @@ struct LowerDefinitions
 	{
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
 		Assert(decl);
+
+		funcContextMap[function] = FunctionContext();
 		BuildEntryBlock(function, funcStmnt, decl);
 	}
 
 	void BuildEntryBlock(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl)
 	{
 		auto& decl = funcDecl->functionDecl;
+		Body& body = decl.body;
+		BuildBodyBlock("entry", function, body);
+	}
+
+	SpiteIR::Block* BuildBlock(const eastl::string& name, SpiteIR::Function* function)
+	{
 		SpiteIR::Block* block = context.ir->AllocateBlock();
-		function->blocks.push_back(block);
+		block->name = name;
 		block->parent = function;
-		block->name = "entry";
+		function->blocks[block->name] = block;
+
+		return block;
+	}
+
+	void BuildBodyBlock(const eastl::string& name, SpiteIR::Function* function, Body& body)
+	{
+		SpiteIR::Block* block = BuildBlock(name, function);
+
 		scopeQueue.emplace_back();
 		BlockScope& scope = scopeQueue.back();
+		scope.block = block;
 
-		auto& body = decl.body;
 		if (body.body->nodeID == StmntID::Block)
 		{
-			for (Stmnt* stmnt : *decl.body.body->block.inner)
+			for (Stmnt* stmnt : *body.body->block.inner)
 			{
 				BuildStmntForBlock(stmnt, block, scope);
 			}
 		}
 		else
 		{
-			BuildStmntForBlock(decl.body.body, block, scope);
+			BuildStmntForBlock(body.body, block, scope);
 		}
 	}
 
@@ -139,6 +162,7 @@ struct LowerDefinitions
 		case IfStmnt:
 			break;
 		case ForStmnt:
+			BuildForStmnt(stmnt, block, scope);
 			break;
 		case WhileStmnt:
 			break;
@@ -173,6 +197,24 @@ struct LowerDefinitions
 		scope.scopeMap[def.name->val] = value;
 	}
 
+	void BuildForStmnt(Stmnt* stmnt, SpiteIR::Block* block, BlockScope& scope)
+	{
+		Assert(stmnt->forStmnt.isDeclaration);
+		Assert(block->parent.kind == SpiteIR::ParentKind::Function);
+		SpiteIR::Function* func = block->parent.functionParent;
+		FunctionContext& funcContext = funcContextMap[func];
+
+		auto& for_ = stmnt->forStmnt;
+
+		SpiteIR::Block* start = BuildForStart(stmnt, func, funcContext.forCount);
+	}
+
+	SpiteIR::Block* BuildForStart(Stmnt* stmnt, SpiteIR::Function* function, size_t index)
+	{
+		eastl::string forStartName = "for_start" + eastl::to_string(index);
+		SpiteIR::Block* block = BuildBlock(forStartName, function);
+	}
+
 	ScopeValue BuildExpr(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
 		switch (expr->typeID)
@@ -180,7 +222,7 @@ struct LowerDefinitions
 		case LiteralExpr:
 			return BuildLiteral(expr, block, scope);
 		case IdentifierExpr:
-			break;
+			return FindValueForIndent(expr, block, scope);
 		case PrimitiveExpr:
 			break;
 		case SelectorExpr:
@@ -204,8 +246,7 @@ struct LowerDefinitions
 		case ReferenceExpr:
 			break;
 		case BinaryExpr:
-			BuildBinaryExpression(expr, block, scope);
-			break;
+			return BuildBinaryExpression(expr, block, scope);
 		case UnaryExpr:
 			break;
 		case GroupedExpr:
@@ -280,6 +321,17 @@ struct LowerDefinitions
 		return { store.store.dst, irType };
 	}
 
+	ScopeValue FindValueForIndent(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
+	{
+		StringView& ident = expr->identifierExpr.identifier->val;
+		if (scope.scopeMap.find(ident) != scope.scopeMap.end())
+		{
+			return scope.scopeMap[ident];
+		}
+
+		return { 0, nullptr };
+	}
+
 	ScopeValue BuildBinaryExpression(Expr* expr, SpiteIR::Block* block, BlockScope& scope)
 	{
 		Expr* left = expr->binaryExpr.left;
@@ -296,6 +348,8 @@ struct LowerDefinitions
 		{
 			return BuildBinaryOp(leftVal, rightVal, op, block, scope);
 		}
+
+		return { 0, nullptr };
 	}
 
 	ScopeValue BuildBinaryOp(ScopeValue leftVal, ScopeValue rightVal, SpiteIR::BinaryOpKind kind,

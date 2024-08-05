@@ -110,6 +110,7 @@ namespace SpiteIR
 	enum class PrimitiveKind
 	{
 		Void,
+		Bool,
 		Byte,
 		Int,
 		Float,
@@ -384,7 +385,7 @@ namespace SpiteIR
 		string name;
 		Type* returnType;
 		HashMap<string, Argument*> arguments;
-		Array<Block*> blocks;
+		HashMap<string, Block*> blocks;
 	};
 
 	struct Member

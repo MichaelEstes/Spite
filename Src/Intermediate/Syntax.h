@@ -815,6 +815,7 @@ struct Syntax
 			return node;
 		}
 
+		AddError(node->start, "Syntax:ParseExprStmnt Invalid expression");
 		node->nodeID = StmntID::InvalidStmnt;
 		return node;
 	}
@@ -1203,7 +1204,7 @@ struct Syntax
 	Stmnt* ParseDeclaration()
 	{
 		Token* start = curr;
-		if (Expect(TokenType::Identifier, "Expected an identifier, possible compiler bug") &&
+		if (Expect(TokenType::Identifier, "Expected an identifier") &&
 			ThenExpect(UniqueType::Colon, "Expected a colon (':') after identifier in explicit definition"))
 		{
 			Advance();
@@ -1281,7 +1282,7 @@ struct Syntax
 				break;
 
 			default:
-				AddError(curr, "Expected type decleration");
+				AddError(curr, "Syntax:ParseType Expected type declaration");
 				break;
 			}
 			break;
