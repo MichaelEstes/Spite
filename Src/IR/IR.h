@@ -123,7 +123,6 @@ namespace SpiteIR
 		Register,
 		Literal,
 		StructLiteral,
-		Label,
 	};
 
 	enum class InstructionKind
@@ -167,11 +166,16 @@ namespace SpiteIR
 		FunctionType
 	};
 
+	struct Label
+	{
+		string name;
+		Array<Instruction> values;
+	};
+
 	struct Block
 	{
 		Parent parent;
-		string name;
-		Array<Instruction> values;
+		Array<Label*> labels;
 	};
 
 	struct Literal
@@ -197,7 +201,6 @@ namespace SpiteIR
 			size_t reg;
 			Literal literal;
 			Array<Operand>* structLiteral;
-			Block* label;
 		};
 	};
 
@@ -206,22 +209,16 @@ namespace SpiteIR
 		Operand operand;
 	};
 
-	struct Compare
-	{
-		Operand left;
-		Operand right;
-		CompareKind kind;
-	};
-
 	struct Jump
 	{
-		Block* label;
+		Label* label;
 	};
 
 	struct Branch
 	{
-		Compare compare;
-		Jump jump;
+		Operand test;
+		Jump _if;
+		Jump _else;
 	};
 
 	struct Call
@@ -262,7 +259,7 @@ namespace SpiteIR
 
 	struct Switch
 	{
-		Compare compare;
+		Operand test;
 		HashMap<int, Block*>* cases;
 	};
 
@@ -272,7 +269,6 @@ namespace SpiteIR
 		Operand left;
 		Operand right;
 		size_t result;
-
 	};
 
 	struct UnaryOp
@@ -289,7 +285,6 @@ namespace SpiteIR
 		union 
 		{
 			Return return_;
-			Compare compare;
 			Jump jump;
 			Branch branch;
 			Call call;
@@ -385,7 +380,7 @@ namespace SpiteIR
 		string name;
 		Type* returnType;
 		HashMap<string, Argument*> arguments;
-		HashMap<string, Block*> blocks;
+		Block* block;
 	};
 
 	struct Member
@@ -490,6 +485,11 @@ namespace SpiteIR
 		inline Block* AllocateBlock()
 		{
 			return arena.Emplace<Block>();
+		}
+
+		inline Label* AllocateLabel()
+		{
+			return arena.Emplace<Label>();
 		}
 
 		inline CompileFunction* AllocateCompileFunction()

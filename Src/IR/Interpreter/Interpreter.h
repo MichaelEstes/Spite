@@ -8,7 +8,6 @@ struct Interpreter
 {
 	char* stack;
 	eastl::deque<char*> stackFrameQueue;
-	eastl::hash_map<eastl::string, char*> labelToFrame;
 	char* stackFrameTop;
 	char* stackTop;
 
@@ -19,20 +18,20 @@ struct Interpreter
 		stackTop = stack;
 	}
 
-	void* InterpretBlock(SpiteIR::Block* block)
+	void InterpretBlock(SpiteIR::Block* block)
 	{
-		labelToFrame[block->name] = stackTop;
-		void* last = IncrementStackFrame();
-		for (SpiteIR::Instruction& inst : block->values)
+		SpiteIR::Label* entry = block->labels.front();
+		for (SpiteIR::Instruction& inst : entry->values)
 		{
-			last = InterpretInstruction(inst);
+			InterpretInstruction(inst);
 		}
-		return last;
 	}
 
 	void* InterpretFunction(SpiteIR::Function* func)
 	{
-		return InterpretBlock(func->blocks["entry"]);
+		IncrementStackFrame();
+		InterpretBlock(func->block);
+		return DecrementStackFrame();
 	}
 
 	void* Interpret(SpiteIR::IR* ir)
@@ -41,11 +40,10 @@ struct Interpreter
 		return InterpretFunction(entry);
 	}
 
-	char* IncrementStackFrame()
+	void IncrementStackFrame()
 	{
 		stackFrameQueue.push_back(stackTop);
 		stackFrameTop = stackTop;
-		return stackTop;
 	}
 
 	char* DecrementStackFrame()
