@@ -37,7 +37,7 @@ struct ExprChecker
 			return;
 		}
 
-		Stmnt* genericsNode = utils.GetGenerics(stmnt);
+		Stmnt* genericsNode = GetGenerics(stmnt);
 		if (!genericsNode)
 		{
 			AddError(expr->start, "ExprChecker:CheckGenerics Generic expression used on a type that doesn't define generics");
@@ -57,7 +57,7 @@ struct ExprChecker
 			DeferredTemplateInstantiation toDefer = DeferredTemplateInstantiation();
 			toDefer.forwardTo = genericsNode;
 			toDefer.templatesToForward = templateArgs;
-			context.deferred.deferredTemplates[utils.GetGenerics(context.currentContext)].push_back(toDefer);
+			context.deferred.deferredTemplates[GetGenerics(context.currentContext)].push_back(toDefer);
 			return;
 		}
 

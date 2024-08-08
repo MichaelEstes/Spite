@@ -2,6 +2,21 @@
 
 #include "Stmnt.h"
 
+inline Stmnt* GetGenerics(Stmnt* node)
+{
+	switch (node->nodeID)
+	{
+	case FunctionStmnt:
+		return node->function.generics;
+	case StateStmnt:
+		return node->state.generics;
+	case Method:
+		return node->method.generics;
+	default:
+		return nullptr;
+	}
+}
+
 size_t IntLiteralStringToInt(StringView& str);
 
 bool operator==(const Expr& left, const Expr& right);

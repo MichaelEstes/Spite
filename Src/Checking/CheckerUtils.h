@@ -798,21 +798,6 @@ struct CheckerUtils
 		return primitive->primitiveType.type == UniqueType::String;
 	}
 
-	inline Stmnt* GetGenerics(Stmnt* node)
-	{
-		switch (node->nodeID)
-		{
-		case FunctionStmnt:
-			return node->function.generics;
-		case StateStmnt:
-			return node->state.generics;
-		case Method:
-			return node->method.generics;
-		default:
-			return nullptr;
-		}
-	}
-
 	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
 		if (IsGenericOfCurrentContext(namedType) || IsGenericOfCurrentContext(rhs))

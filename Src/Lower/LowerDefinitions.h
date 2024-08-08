@@ -44,9 +44,17 @@ struct LowerDefinitions
 	FunctionContext scope;
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
+	eastl::vector<Token*>* currGenerics = nullptr;
 	
 	LowerDefinitions(LowerContext& context): context(context)
 	{}
+
+	void SetCurrentGenerics(Stmnt* stmnt)
+	{
+		Stmnt* generics = GetGenerics(stmnt);
+		if (generics) currGenerics = generics->generics.names;
+		else currGenerics = nullptr;
+	}
 
 	void BuildDefinitions()
 	{
@@ -57,6 +65,7 @@ struct LowerDefinitions
 			{
 				ASTContainer& stateContainer = context.stateASTMap[state];
 				currTemplates = stateContainer.templates;
+				SetCurrentGenerics(stateContainer.node);
 				BuildStateDefault(state, stateContainer.node);
 			}
 
@@ -64,6 +73,7 @@ struct LowerDefinitions
 			{
 				ASTContainer& funcContainer = context.functionASTMap[function];
 				currTemplates = funcContainer.templates;
+				SetCurrentGenerics(funcContainer.node);
 				BuildFunction(function, funcContainer.node);
 			}
 		}
@@ -209,9 +219,27 @@ struct LowerDefinitions
 
 	SpiteIR::Label* BuildForCondition(Stmnt* stmnt)
 	{
+		SpiteIR::Instruction& jump = BuildJump(scope.function->block->labels.back());
+
 		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* label = BuildLabel(forStartName);
+
+		jump.jump.label = label;
+
 		auto& for_ = stmnt->forStmnt;
+		auto& def = for_.iterated.declaration->definition;
+		SpiteIR::Instruction& alloc = BuildAllocateForType(def.type, label);
+		ScopeValue to = BuildExpr(for_.toIterate);
+
+		if (for_.rangeFor)
+		{
+			ScopeValue from = BuildDefaultValue(alloc.allocate.type, alloc.allocate.result);
+			ScopeValue cmp = BuildBinaryOp(from, to, SpiteIR::BinaryOpKind::LessEqual, label);
+		}
+		else
+		{
+
+		}
 
 		return label;
 	}
@@ -283,6 +311,66 @@ struct LowerDefinitions
 		}
 
 		return { 0, nullptr };
+	}
+
+	ScopeValue BuildDefaultValue(SpiteIR::Type* type, size_t result)
+	{
+		SpiteIR::Label* label = scope.function->block->labels.back();
+		switch (type->kind)
+		{
+		case SpiteIR::TypeKind::PrimitiveType:
+		{
+			SpiteIR::Operand defaultOp = SpiteIR::Operand();
+			defaultOp.kind = SpiteIR::OperandKind::Literal;
+			SpiteIR::Literal& literal = defaultOp.literal;
+
+			switch (type->primitive.kind)
+			{
+			case SpiteIR::PrimitiveKind::Bool:
+				literal.kind = SpiteIR::PrimitiveKind::Bool;
+				literal.byteLiteral = 0;
+				break;
+			case SpiteIR::PrimitiveKind::Byte:
+				literal.kind = SpiteIR::PrimitiveKind::Bool;
+				literal.byteLiteral = 0;
+				break;
+			case SpiteIR::PrimitiveKind::Int:
+				literal.kind = SpiteIR::PrimitiveKind::Int;
+				literal.intLiteral = 0;
+				break;
+			case SpiteIR::PrimitiveKind::Float:
+				literal.kind = SpiteIR::PrimitiveKind::Float;
+				literal.floatLiteral = 0.0f;
+				break;
+			case SpiteIR::PrimitiveKind::String:
+				literal.kind = SpiteIR::PrimitiveKind::String;
+				literal.stringLiteral = context.ir->AllocateString();
+				break;
+			default:
+				return { 0, nullptr };
+				break;
+			}
+
+			SpiteIR::Instruction& store = BuildStore(type, label, result, defaultOp);
+			break;
+		}
+		case SpiteIR::TypeKind::StateType:
+			break;
+		case SpiteIR::TypeKind::StructureType:
+			break;
+		case SpiteIR::TypeKind::PointerType:
+			break;
+		case SpiteIR::TypeKind::DynamicArrayType:
+			break;
+		case SpiteIR::TypeKind::FixedArrayType:
+			break;
+		case SpiteIR::TypeKind::FunctionType:
+			break;
+		default:
+			break;
+		}
+
+		return { result, type };
 	}
 
 	ScopeValue BuildLiteral(Expr* expr)
@@ -489,7 +577,7 @@ struct LowerDefinitions
 
 	SpiteIR::Instruction& BuildAllocateForType(Type* type, SpiteIR::Label* label)
 	{
-		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this);
+		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
 		return BuildAllocate(irType, label);
 	}
 
@@ -524,5 +612,13 @@ struct LowerDefinitions
 
 		scope.IncrementRegister(function->returnType);
 		return call;
+	}
+
+	SpiteIR::Instruction& BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)
+	{
+		SpiteIR::Instruction& jump = label->values.emplace_back();
+		jump.kind = SpiteIR::InstructionKind::Jump;
+		jump.jump.label = to;
+		return jump;
 	}
 };
