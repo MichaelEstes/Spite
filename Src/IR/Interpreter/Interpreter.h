@@ -18,13 +18,18 @@ struct Interpreter
 		stackTop = stack;
 	}
 
-	void InterpretBlock(SpiteIR::Block* block)
+	void InterpretLabel(SpiteIR::Label* label)
 	{
-		SpiteIR::Label* entry = block->labels.front();
-		for (SpiteIR::Instruction& inst : entry->values)
+		for (SpiteIR::Instruction& inst : label->values)
 		{
 			InterpretInstruction(inst);
 		}
+	}
+
+	void InterpretBlock(SpiteIR::Block* block)
+	{
+		SpiteIR::Label* entry = block->labels.front();
+		InterpretLabel(entry);
 	}
 
 	void* InterpretFunction(SpiteIR::Function* func)
@@ -60,7 +65,7 @@ struct Interpreter
 		stackTop += amount;
 	}
 
-	void* InterpretInstruction(SpiteIR::Instruction& inst)
+	void InterpretInstruction(SpiteIR::Instruction& inst)
 	{
 		switch (inst.kind)
 		{
@@ -69,19 +74,24 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Compare:
 			break;
 		case SpiteIR::InstructionKind::Jump:
+			InterpretJump(inst);
 			break;
 		case SpiteIR::InstructionKind::Branch:
+			InterpretBranch(inst);
 			break;
 		case SpiteIR::InstructionKind::Call:
-			return InterpretCall(inst);
+			InterpretCall(inst);
+			break;
 		case SpiteIR::InstructionKind::Allocate:
-			return InterpretAllocate(inst);
+			InterpretAllocate(inst);
+			break;
 		case SpiteIR::InstructionKind::HeapAllocate:
 			break;
 		case SpiteIR::InstructionKind::Load:
 			break;
 		case SpiteIR::InstructionKind::Store:
-			return InterpretStore(inst);
+			InterpretStore(inst);
+			break;
 		case SpiteIR::InstructionKind::Free:
 			break;
 		case SpiteIR::InstructionKind::Cast:
@@ -89,24 +99,41 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Switch:
 			break;
 		case SpiteIR::InstructionKind::BinOp:
-			return InterpretBinaryOp(inst);
+			InterpretBinaryOp(inst);
+			break;
 		case SpiteIR::InstructionKind::UnOp:
 			break;
 		default:
 			break;
 		}
-
-		return nullptr;
 	}
 
-	void* InterpretAllocate(SpiteIR::Instruction& allocateInst)
+	void InterpretJump(SpiteIR::Instruction& jumpInst)
+	{
+		Assert(jumpInst.jump.label);
+		InterpretLabel(jumpInst.jump.label);
+	} 
+
+	void InterpretBranch(SpiteIR::Instruction& branchInst)
+	{
+		Assert(branchInst.branch.true_ && branchInst.branch.false_ &&
+				branchInst.branch.test.kind == SpiteIR::OperandKind::Register &&
+				branchInst.branch.test.type->kind == SpiteIR::TypeKind::PrimitiveType && 
+				branchInst.branch.test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
+
+		bool* test = (bool*)stackFrameTop + branchInst.branch.test.reg;
+
+		if(*test) InterpretLabel(branchInst.branch.true_);
+		else InterpretLabel(branchInst.branch.false_);
+	}
+
+	void InterpretAllocate(SpiteIR::Instruction& allocateInst)
 	{
 		void* allocated = stackTop;
 		IncrementStackPointer(allocateInst.allocate.type->size);
-		return allocated;
 	}
 
-	void* InterpretStore(SpiteIR::Instruction& storeInst)
+	void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
 		void* dst = stackFrameTop + storeInst.store.dst;
 		SpiteIR::Operand& src = storeInst.store.src;
@@ -143,27 +170,23 @@ struct Interpreter
 		default:
 			break;
 		}
-
-		return dst;
 	}
 
-	void* InterpretCall(SpiteIR::Instruction& callInst)
+	void InterpretCall(SpiteIR::Instruction& callInst)
 	{
 		auto& call = callInst.call;
 
 		if (call.function)
 		{
-			return call.function;
+			return;
 		}
-
-		return stackTop;
 	}
 
 #define boolOpTypeMacro(inst, op, castType)					\
 {															\
 	void* left = stackFrameTop + inst.binOp.left.reg;		\
 	void* right = stackFrameTop + inst.binOp.right.reg;		\
-	*(char*)(void*)stackTop =								\
+	*(bool*)(void*)stackTop =								\
 			*(castType*)left op *(castType*)right;			\
 	IncrementStackPointer(inst.binOp.left.type->size);		\
 }															
@@ -247,7 +270,7 @@ struct Interpreter
 	}														\
 
 
-	void* InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
+	void InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
 		Assert(binOpInst.binOp.left.kind == SpiteIR::OperandKind::Register);
 		Assert(binOpInst.binOp.right.kind == SpiteIR::OperandKind::Register);
@@ -327,13 +350,10 @@ struct Interpreter
 			Logger::FatalError("Interpreter:InterpretBinaryOp Invalid operation");
 			break;
 		}
-
-		return stackTop;
 	}
 
-	void* InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
+	void InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
 
-		return stackTop;
 	}
 };

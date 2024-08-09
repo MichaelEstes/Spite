@@ -95,6 +95,16 @@ inline eastl::string OperatorToString(Token* op)
 	return "";
 }
 
+SpiteIR::Type _boolType = {
+	1,
+	SpiteIR::TypeKind::PrimitiveType,
+	true,
+	{
+		true,
+		SpiteIR::PrimitiveKind::Bool
+	}
+};
+
 SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
 {
 	switch (type)
@@ -436,6 +446,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->size = type->primitiveType.size;
+		irType->byValue = true;
 		irType->primitive.isSigned = type->primitiveType.isSigned;
 		switch (type->primitiveType.type)
 		{

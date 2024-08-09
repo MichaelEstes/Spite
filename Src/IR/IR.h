@@ -169,7 +169,7 @@ namespace SpiteIR
 	struct Label
 	{
 		string name;
-		Array<Instruction> values;
+		Array<Instruction*> values;
 	};
 
 	struct Block
@@ -217,8 +217,8 @@ namespace SpiteIR
 	struct Branch
 	{
 		Operand test;
-		Jump _if;
-		Jump _else;
+		Label* true_;
+		Label* false_;
 	};
 
 	struct Call
