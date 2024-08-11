@@ -194,22 +194,20 @@ struct Interpreter
 		}
 	}
 
-#define boolOpTypeMacro(inst, op, castType)					\
-{															\
-	void* left = stackFrameTop + inst.binOp.left.reg;		\
-	void* right = stackFrameTop + inst.binOp.right.reg;		\
-	*(bool*)(void*)stackTop =								\
-			*(castType*)left op *(castType*)right;			\
-	IncrementStackPointer(inst.binOp.left.type->size);		\
+#define boolOpTypeMacro(inst, op, castType)										\
+{																				\
+	castType left = *(castType*)(void*)(stackFrameTop + inst.binOp.left.reg);	\
+	castType right = *(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);	\
+	bool* result = (bool*)(void*)(stackFrameTop + inst.binOp.result);			\
+	*result = left op right;													\
 }															
 
-#define binaryOpTypeMacro(inst, op, castType)				\
-{															\
-	void* left = stackFrameTop + inst.binOp.left.reg;		\
-	void* right = stackFrameTop + inst.binOp.right.reg;		\
-	*(castType*)(void*)stackTop =							\
-			*(castType*)left op *(castType*)right;			\
-	IncrementStackPointer(inst.binOp.left.type->size);		\
+#define binaryOpTypeMacro(inst, op, castType)									\
+{																				\
+	castType left = *(castType*)(void*)(stackFrameTop + inst.binOp.left.reg);	\
+	castType right = *(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);	\
+	castType* result = (castType*)(void*)(stackFrameTop + inst.binOp.result);	\
+	*result = left op right;													\
 }															
 
 #define binaryOpMacroI(inst, op, assignMacro)				\

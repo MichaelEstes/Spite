@@ -4,6 +4,7 @@
 #include "IR/IR.h"
 #include "Lower/Lower.h"
 #include "./IR/Interpreter/Interpreter.h"
+#include "IR/Interpreter/Decompiler.h"
 
 typedef eastl::string string;
 
@@ -137,6 +138,9 @@ int main(int argc, char** argv)
 
 	Interpreter interpreter = Interpreter(2000000);
 	interpreter.Interpret(ir);
+	Decompiler decompiler = Decompiler();
+	decompiler.Decompile(ir);
+
 
 	/*{
 		Profiler builderProfiler = Profiler();

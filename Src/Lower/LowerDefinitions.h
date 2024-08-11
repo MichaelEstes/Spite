@@ -337,6 +337,7 @@ struct LowerDefinitions
 		case SpiteIR::TypeKind::PrimitiveType:
 		{
 			SpiteIR::Operand defaultOp = SpiteIR::Operand();
+			defaultOp.type = type;
 			defaultOp.kind = SpiteIR::OperandKind::Literal;
 			SpiteIR::Literal& literal = defaultOp.literal;
 
@@ -491,9 +492,12 @@ struct LowerDefinitions
 		binOp->binOp.right = BuildRegisterOperand(rightVal);
 		binOp->binOp.result = scope.curr;
 		
-		scope.IncrementRegister(leftVal.type);
-		if(kind >= SpiteIR::BinaryOpKind::LogicAnd) return { binOp->binOp.result, &_boolType };
-		else return { binOp->binOp.result, leftVal.type };
+		ScopeValue value;
+		if(kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, &_boolType };
+		else value = { binOp->binOp.result, leftVal.type };
+
+		BuildAllocate(value.type);
+		return value;
 	}
 
 	ScopeValue BuildFunctionCall(Expr* expr)
