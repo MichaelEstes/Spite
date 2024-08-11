@@ -175,6 +175,7 @@ namespace SpiteIR
 	struct Block
 	{
 		Parent parent;
+		Array<Instruction*> allocations;
 		Array<Label*> labels;
 	};
 
@@ -442,6 +443,7 @@ namespace SpiteIR
 		Array<Package*> packages;
 		Function* entry;
 		Arena arena;
+		Arena instructions;
 
 		IR(size_t initialSize) : arena(initialSize * 256) {}
 
@@ -509,7 +511,7 @@ namespace SpiteIR
 
 		inline Instruction* AllocateInstruction()
 		{
-			return arena.Emplace<Instruction>();
+			return instructions.Emplace<Instruction>();
 		}
 
 		template<typename T>

@@ -216,11 +216,11 @@ struct LowerDefinitions
 		auto& def = for_.iterated.declaration->definition;
 
 		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
-		SpiteIR::Instruction& alloc = BuildAllocateForType(def.type, fromLabel);
+		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
 		ScopeValue init = { 0, nullptr };
 		if (for_.rangeFor)
 		{
-			init = BuildDefaultValue(alloc.allocate.type, alloc.allocate.result, fromLabel);
+			init = BuildDefaultValue(alloc->allocate.type, alloc->allocate.result, fromLabel);
 		}
 		else
 		{
@@ -229,14 +229,14 @@ struct LowerDefinitions
 
 		ScopeValue to = BuildExpr(for_.toIterate);
 
-		SpiteIR::Instruction& toCond = BuildJump(fromLabel);
+		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
 		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forCondLabel = BuildLabel(forStartName);
-		toCond.jump.label = forCondLabel;
+		toCond->jump.label = forCondLabel;
 
 		ScopeValue cmp = BuildBinaryOp(init, to, SpiteIR::BinaryOpKind::LessEqual, forCondLabel);
 		SpiteIR::Operand test = BuildRegisterOperand(cmp);
-		SpiteIR::Instruction& branch = BuildBranch(forCondLabel, test);
+		SpiteIR::Instruction* branch = BuildBranch(forCondLabel, test);
 
 		eastl::string forLoopName = "for_loop" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forLoopLabel = BuildLabelBody(forLoopName, for_.body);
@@ -244,28 +244,20 @@ struct LowerDefinitions
 		if (for_.rangeFor)
 		{
 			SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forLoopLabel, init));
-			SpiteIR::Instruction& storeInc = BuildStore(init.type, forLoopLabel, init.reg, incremented);
+			SpiteIR::Instruction* storeInc = BuildStore(init.type, forLoopLabel, init.reg, incremented);
 		}
 		else
 		{
 
 		}
 		
-		SpiteIR::Instruction& loopToCond = BuildJump(forLoopLabel, forCondLabel);
+		SpiteIR::Instruction* loopToCond = BuildJump(forLoopLabel, forCondLabel);
 
 		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forEndLabel = BuildLabel(forEndName);
-		branch.branch.true_ = forLoopLabel;
-		branch.branch.false_ = forEndLabel;
+		branch->branch.true_ = forLoopLabel;
+		branch->branch.false_ = forEndLabel;
 		scope.forCount++;
-	}
-
-	SpiteIR::Label* BuildForEnd(Stmnt* stmnt)
-	{
-		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
-		SpiteIR::Label* label = BuildLabel(forEndName);
-
-		return label;
 	}
 
 	ScopeValue BuildIncrement(SpiteIR::Label* label, ScopeValue& toIncrement)
@@ -278,10 +270,10 @@ struct LowerDefinitions
 			SpiteIR::PrimitiveKind::Int,
 			1
 		};
-		SpiteIR::Instruction& allocate = BuildAllocate(toIncrement.type, label);
-		SpiteIR::Instruction& store = BuildStore(toIncrement.type, label, allocate.allocate.result, amount);
+		SpiteIR::Instruction* allocate = BuildAllocate(toIncrement.type);
+		SpiteIR::Instruction* store = BuildStore(toIncrement.type, label, allocate->allocate.result, amount);
 		
-		ScopeValue right = { allocate.allocate.result, toIncrement.type };
+		ScopeValue right = { allocate->allocate.result, toIncrement.type };
 		return BuildBinaryOp(toIncrement, right, SpiteIR::BinaryOpKind::Add, label);
 	}
 
@@ -375,7 +367,7 @@ struct LowerDefinitions
 				break;
 			}
 
-			SpiteIR::Instruction& store = BuildStore(type, label, result, defaultOp);
+			SpiteIR::Instruction* store = BuildStore(type, label, result, defaultOp);
 			break;
 		}
 		case SpiteIR::TypeKind::StateType:
@@ -446,9 +438,9 @@ struct LowerDefinitions
 		literalOp.type = irType;
 
 		SpiteIR::Label* label = scope.function->block->labels.back();
-		SpiteIR::Instruction& allocate = BuildAllocate(irType, label);
-		SpiteIR::Instruction& store = BuildStore(irType, label, allocate.allocate.result, literalOp);
-		return { store.store.dst, irType };
+		SpiteIR::Instruction* allocate = BuildAllocate(irType);
+		SpiteIR::Instruction* store = BuildStore(irType, label, allocate->allocate.result, literalOp);
+		return { store->store.dst, irType };
 	}
 
 	ScopeValue FindValueForIndent(Expr* expr)
@@ -482,19 +474,26 @@ struct LowerDefinitions
 		return { 0, nullptr };
 	}
 
+	SpiteIR::Instruction* CreateInstruction(SpiteIR::Label* label)
+	{
+		SpiteIR::Instruction* inst = context.ir->AllocateInstruction();
+		label->values.push_back(inst);
+		return inst;
+	}
+
 	ScopeValue BuildBinaryOp(ScopeValue leftVal, ScopeValue rightVal, SpiteIR::BinaryOpKind kind,
 		SpiteIR::Label* label)
 	{
-		SpiteIR::Instruction& binOp = label->values.emplace_back();
-		binOp.kind = SpiteIR::InstructionKind::BinOp;
-		binOp.binOp.kind = kind;
-		binOp.binOp.left = BuildRegisterOperand(leftVal);
-		binOp.binOp.right = BuildRegisterOperand(rightVal);
-		binOp.binOp.result = scope.curr;
+		SpiteIR::Instruction* binOp = CreateInstruction(label);
+		binOp->kind = SpiteIR::InstructionKind::BinOp;
+		binOp->binOp.kind = kind;
+		binOp->binOp.left = BuildRegisterOperand(leftVal);
+		binOp->binOp.right = BuildRegisterOperand(rightVal);
+		binOp->binOp.result = scope.curr;
 		
 		scope.IncrementRegister(leftVal.type);
-		if(kind >= SpiteIR::BinaryOpKind::LogicAnd) return { binOp.binOp.result, &_boolType };
-		else return { binOp.binOp.result, leftVal.type };
+		if(kind >= SpiteIR::BinaryOpKind::LogicAnd) return { binOp->binOp.result, &_boolType };
+		else return { binOp->binOp.result, leftVal.type };
 	}
 
 	ScopeValue BuildFunctionCall(Expr* expr)
@@ -534,8 +533,8 @@ struct LowerDefinitions
 			params->push_back(BuildRegisterOperand(value));
 		}
 
-		SpiteIR::Instruction& call = BuildCall(irFunction, params, scope.function->block->labels.back());
-		return { call.call.result, irFunction->returnType };
+		SpiteIR::Instruction* call = BuildCall(irFunction, params, scope.function->block->labels.back());
+		return { call->call.result, irFunction->returnType };
 	}
 
 	Stmnt* FindFunctionStmnt(Expr* expr)
@@ -589,30 +588,31 @@ struct LowerDefinitions
 		return FindFunctionForFunctionStmnt(stmnt, templates);
 	}
 
-	SpiteIR::Instruction& BuildAllocate(SpiteIR::Type* type, SpiteIR::Label* label)
+	SpiteIR::Instruction* BuildAllocate(SpiteIR::Type* type)
 	{
-		SpiteIR::Instruction& allocate = label->values.emplace_back();
-		allocate.kind = SpiteIR::InstructionKind::Allocate;
-		allocate.allocate.type = type;
-		allocate.allocate.result = scope.curr;
+		SpiteIR::Instruction* allocate = context.ir->AllocateInstruction();
+		allocate->kind = SpiteIR::InstructionKind::Allocate;
+		allocate->allocate.type = type;
+		allocate->allocate.result = scope.curr;
 
+		scope.function->block->allocations.push_back(allocate);
 		scope.IncrementRegister(type);
 		return allocate;
 	}
 
-	SpiteIR::Instruction& BuildAllocateForType(Type* type, SpiteIR::Label* label)
+	SpiteIR::Instruction* BuildAllocateForType(Type* type)
 	{
 		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
-		return BuildAllocate(irType, label);
+		return BuildAllocate(irType);
 	}
 
-	SpiteIR::Instruction& BuildStore(SpiteIR::Type* type, SpiteIR::Label* label, size_t dst,
+	SpiteIR::Instruction* BuildStore(SpiteIR::Type* type, SpiteIR::Label* label, size_t dst,
 		SpiteIR::Operand& src)
 	{
-		SpiteIR::Instruction& store = label->values.emplace_back();
-		store.kind = SpiteIR::InstructionKind::Store;
-		store.store.dst = dst;
-		store.store.src = src;
+		SpiteIR::Instruction* store = CreateInstruction(label);
+		store->kind = SpiteIR::InstructionKind::Store;
+		store->store.dst = dst;
+		store->store.src = src;
 
 		return store;
 	}
@@ -626,35 +626,35 @@ struct LowerDefinitions
 		return operand;
 	}
 
-	SpiteIR::Instruction& BuildCall(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params,
+	SpiteIR::Instruction* BuildCall(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params,
 		SpiteIR::Label* label)
 	{
-		SpiteIR::Instruction& call = label->values.emplace_back();
-		call.kind = SpiteIR::InstructionKind::Call;
-		call.call.function = function;
-		call.call.params = params;
-		call.call.result = scope.curr;
+		SpiteIR::Instruction* call = CreateInstruction(label);
+		call->kind = SpiteIR::InstructionKind::Call;
+		call->call.function = function;
+		call->call.params = params;
+		call->call.result = scope.curr;
 
 		scope.IncrementRegister(function->returnType);
 		return call;
 	}
 
-	SpiteIR::Instruction& BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)
+	SpiteIR::Instruction* BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)
 	{
-		SpiteIR::Instruction& jump = label->values.emplace_back();
-		jump.kind = SpiteIR::InstructionKind::Jump;
-		jump.jump.label = to;
+		SpiteIR::Instruction* jump = CreateInstruction(label);
+		jump->kind = SpiteIR::InstructionKind::Jump;
+		jump->jump.label = to;
 		return jump;
 	}
 
-	SpiteIR::Instruction& BuildBranch(SpiteIR::Label* label, SpiteIR::Operand& test, 
+	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, SpiteIR::Operand& test, 
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
-		SpiteIR::Instruction& branch = label->values.emplace_back();
-		branch.kind = SpiteIR::InstructionKind::Branch;
-		branch.branch.test = test;
-		branch.branch.true_ = true_;
-		branch.branch.false_ = false_;
+		SpiteIR::Instruction* branch = CreateInstruction(label);
+		branch->kind = SpiteIR::InstructionKind::Branch;
+		branch->branch.test = test;
+		branch->branch.true_ = true_;
+		branch->branch.false_ = false_;
 		return branch;
 	}
 };

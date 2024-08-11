@@ -20,15 +20,20 @@ struct Interpreter
 
 	void InterpretLabel(SpiteIR::Label* label)
 	{
-		for (SpiteIR::Instruction& inst : label->values)
+		for (SpiteIR::Instruction* inst : label->values)
 		{
-			InterpretInstruction(inst);
+			InterpretInstruction(*inst);
 		}
 	}
 
 	void InterpretBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label* entry = block->labels.front();
+		for (SpiteIR::Instruction* inst : block->allocations)
+		{
+			Assert(inst->kind == SpiteIR::InstructionKind::Allocate);
+			InterpretAllocate(*inst);
+		}
 		InterpretLabel(entry);
 	}
 
@@ -121,7 +126,7 @@ struct Interpreter
 				branchInst.branch.test.type->kind == SpiteIR::TypeKind::PrimitiveType && 
 				branchInst.branch.test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
 
-		bool* test = (bool*)stackFrameTop + branchInst.branch.test.reg;
+		bool* test = (bool*)(stackFrameTop + branchInst.branch.test.reg);
 
 		if(*test) InterpretLabel(branchInst.branch.true_);
 		else InterpretLabel(branchInst.branch.false_);
@@ -141,7 +146,14 @@ struct Interpreter
 		switch (src.kind)
 		{
 		case SpiteIR::OperandKind::Register:
+		{
+			char* srcReg = stackFrameTop + storeInst.store.src.reg;
+			for (size_t i = 0; i < src.type->size; i++)
+			{
+				((char*)dst)[i] = srcReg[i];
+			}
 			break;
+		}
 		case SpiteIR::OperandKind::Literal:
 			switch (src.literal.kind)
 			{
