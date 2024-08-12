@@ -234,7 +234,7 @@ struct LowerDefinitions
 		SpiteIR::Label* forCondLabel = BuildLabel(forStartName);
 		toCond->jump.label = forCondLabel;
 
-		ScopeValue cmp = BuildBinaryOp(init, to, SpiteIR::BinaryOpKind::LessEqual, forCondLabel);
+		ScopeValue cmp = BuildBinaryOp(init, to, SpiteIR::BinaryOpKind::Less, forCondLabel);
 		SpiteIR::Operand test = BuildRegisterOperand(cmp);
 		SpiteIR::Instruction* branch = BuildBranch(forCondLabel, test);
 
