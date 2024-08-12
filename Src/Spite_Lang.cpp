@@ -136,10 +136,15 @@ int main(int argc, char** argv)
 		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
+	Profiler interpretProfiler = Profiler();
 	Interpreter interpreter = Interpreter(2000000);
 	interpreter.Interpret(ir);
+	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+
+	interpretProfiler.Reset();
 	Decompiler decompiler = Decompiler();
 	decompiler.Decompile(ir);
+	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 
 
 	/*{

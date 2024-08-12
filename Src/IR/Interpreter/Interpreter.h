@@ -20,15 +20,21 @@ struct Interpreter
 
 	void InterpretLabel(SpiteIR::Label* label)
 	{
-		for (SpiteIR::Instruction* inst : label->values)
+		SpiteIR::Label* currentLabel = label;
+		while (currentLabel)
 		{
-			InterpretInstruction(*inst);
+			eastl::vector<SpiteIR::Instruction*>& instructions = currentLabel->values;
+			currentLabel = nullptr;
+			for (SpiteIR::Instruction* inst : instructions)
+			{
+				InterpretInstruction(*inst, currentLabel);
+			}
 		}
 	}
 
 	void InterpretBlock(SpiteIR::Block* block)
 	{
-		SpiteIR::Label* entry = block->labels.front();
+		SpiteIR::Label*& entry = block->labels.front();
 		for (SpiteIR::Instruction* inst : block->allocations)
 		{
 			Assert(inst->kind == SpiteIR::InstructionKind::Allocate);
@@ -70,7 +76,7 @@ struct Interpreter
 		stackTop += amount;
 	}
 
-	void InterpretInstruction(SpiteIR::Instruction& inst)
+	void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
 	{
 		switch (inst.kind)
 		{
@@ -79,10 +85,10 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Compare:
 			break;
 		case SpiteIR::InstructionKind::Jump:
-			InterpretJump(inst);
+			InterpretJump(inst, label);
 			break;
 		case SpiteIR::InstructionKind::Branch:
-			InterpretBranch(inst);
+			InterpretBranch(inst, label);
 			break;
 		case SpiteIR::InstructionKind::Call:
 			InterpretCall(inst);
@@ -113,28 +119,27 @@ struct Interpreter
 		}
 	}
 
-	void InterpretJump(SpiteIR::Instruction& jumpInst)
+	void InterpretJump(SpiteIR::Instruction& jumpInst, SpiteIR::Label*& label)
 	{
 		Assert(jumpInst.jump.label);
-		InterpretLabel(jumpInst.jump.label);
+		label = jumpInst.jump.label;
 	} 
 
-	void InterpretBranch(SpiteIR::Instruction& branchInst)
+	void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
 		Assert(branchInst.branch.true_ && branchInst.branch.false_ &&
 				branchInst.branch.test.kind == SpiteIR::OperandKind::Register &&
 				branchInst.branch.test.type->kind == SpiteIR::TypeKind::PrimitiveType && 
 				branchInst.branch.test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
 
-		bool* test = (bool*)(stackFrameTop + branchInst.branch.test.reg);
-
-		if(*test) InterpretLabel(branchInst.branch.true_);
-		else InterpretLabel(branchInst.branch.false_);
+		if(*(bool*)(stackFrameTop + branchInst.branch.test.reg)) 
+			label = branchInst.branch.true_;
+		else 
+			label = branchInst.branch.false_;
 	}
 
 	void InterpretAllocate(SpiteIR::Instruction& allocateInst)
 	{
-		void* allocated = stackTop;
 		IncrementStackPointer(allocateInst.allocate.type->size);
 	}
 
@@ -147,10 +152,9 @@ struct Interpreter
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-			char* srcReg = stackFrameTop + storeInst.store.src.reg;
 			for (size_t i = 0; i < src.type->size; i++)
 			{
-				((char*)dst)[i] = srcReg[i];
+				((char*)dst)[i] = (stackFrameTop + storeInst.store.src.reg)[i];
 			}
 			break;
 		}
@@ -196,18 +200,16 @@ struct Interpreter
 
 #define boolOpTypeMacro(inst, op, castType)										\
 {																				\
-	castType left = *(castType*)(void*)(stackFrameTop + inst.binOp.left.reg);	\
-	castType right = *(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);	\
-	bool* result = (bool*)(void*)(stackFrameTop + inst.binOp.result);			\
-	*result = left op right;													\
+	*(bool*)(void*)(stackFrameTop + inst.binOp.result) =						\
+	*(castType*)(void*)(stackFrameTop + inst.binOp.left.reg) op					\
+	*(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);					\
 }															
 
 #define binaryOpTypeMacro(inst, op, castType)									\
 {																				\
-	castType left = *(castType*)(void*)(stackFrameTop + inst.binOp.left.reg);	\
-	castType right = *(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);	\
-	castType* result = (castType*)(void*)(stackFrameTop + inst.binOp.result);	\
-	*result = left op right;													\
+	*(castType*)(void*)(stackFrameTop + inst.binOp.result) =					\
+	*(castType*)(void*)(stackFrameTop + inst.binOp.left.reg) op					\
+	*(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);					\
 }															
 
 #define binaryOpMacroI(inst, op, assignMacro)				\

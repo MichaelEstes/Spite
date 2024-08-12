@@ -17,4 +17,9 @@ struct Profiler
 	{
 		return duration_cast<nanoseconds>(high_resolution_clock::now() - time).count() / 1000000000.0f;
 	}
+
+	void Reset()
+	{
+		time = high_resolution_clock::now();
+	}
 };
