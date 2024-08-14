@@ -161,6 +161,7 @@ struct Decompiler
 		switch (inst.kind)
 		{
 		case SpiteIR::InstructionKind::Return:
+			DecompileReturn(inst);
 			break;
 		case SpiteIR::InstructionKind::Compare:
 			break;
@@ -197,6 +198,11 @@ struct Decompiler
 		default:
 			break;
 		}
+	}
+
+	void DecompileReturn(SpiteIR::Instruction& returnInst)
+	{
+		Write("return " + WriteOperand(returnInst.return_.operand));
 	}
 
 	void DecompileJump(SpiteIR::Instruction& jumpInst)

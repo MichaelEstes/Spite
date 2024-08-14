@@ -84,6 +84,13 @@ struct LowerDefinitions
 
 	}
 
+	SpiteIR::Type* ToIRType(Type* type)
+	{
+		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
+		Assert(irType);
+		return irType;
+	}
+
 	Stmnt* GetDeclForFunc(Stmnt* func)
 	{
 		switch (func->nodeID)
@@ -152,16 +159,16 @@ struct LowerDefinitions
 
 	void BuildStmntForBlock(Stmnt* stmnt)
 	{
-
 		switch (stmnt->nodeID)
 		{
 		case ExpressionStmnt:
-			BuildExpr(stmnt->expressionStmnt.expression);
+			BuildExpr(stmnt->expressionStmnt.expression, stmnt);
 			break;
 		case Definition:
 			BuildVarDefinition(stmnt);
 			break;
 		case InlineDefinition:
+			BuildInlineDefinition(stmnt);
 			break;
 		case FunctionStmnt:
 			break;
@@ -189,6 +196,7 @@ struct LowerDefinitions
 		case BreakStmnt:
 			break;
 		case ReturnStmnt:
+			//BuildReturn(stmnt);
 			break;
 		case CompileStmnt:
 			break;
@@ -205,8 +213,16 @@ struct LowerDefinitions
 	void BuildVarDefinition(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
-		ScopeValue value = BuildExpr(def.assignment);
+		ScopeValue value = BuildExpr(def.assignment, stmnt);
 		scope.scopeMap[def.name->val] = value;
+	}
+
+	void BuildInlineDefinition(Stmnt* stmnt)
+	{
+		Assert(stmnt->inlineDefinition.type->typeID == TypeID::ExplicitType && 
+				stmnt->inlineDefinition.assignment);
+		auto& def = stmnt->inlineDefinition;
+		ScopeValue value = BuildExpr(def.assignment, stmnt);
 	}
 
 	void BuildForStmnt(Stmnt* stmnt)
@@ -227,7 +243,7 @@ struct LowerDefinitions
 
 		}
 
-		ScopeValue to = BuildExpr(for_.toIterate);
+		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
 		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
@@ -260,6 +276,27 @@ struct LowerDefinitions
 		scope.forCount++;
 	}
 
+	void BuildReturn(Stmnt* stmnt)
+	{
+		Assert(stmnt->returnStmnt.expr);
+		auto& ret = stmnt->returnStmnt;
+
+		SpiteIR::Label* label = scope.function->block->labels.back();
+		if (ret.expr->typeID == ExprID::TypeExpr && 
+			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
+			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
+		{
+			SpiteIR::Operand voidOp = SpiteIR::Operand();
+			voidOp.kind = SpiteIR::OperandKind::Void;
+			BuildReturnOp(label, voidOp);
+		}
+		else
+		{
+			ScopeValue value = BuildExpr(ret.expr, stmnt);
+			BuildReturnOp(label, BuildRegisterOperand(value));
+		}
+	}
+
 	ScopeValue BuildIncrement(SpiteIR::Label* label, ScopeValue& toIncrement)
 	{
 		Assert(toIncrement.type->kind == SpiteIR::TypeKind::PrimitiveType);
@@ -277,7 +314,7 @@ struct LowerDefinitions
 		return BuildBinaryOp(toIncrement, right, SpiteIR::BinaryOpKind::Add, label);
 	}
 
-	ScopeValue BuildExpr(Expr* expr)
+	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
 	{
 		switch (expr->typeID)
 		{
@@ -292,7 +329,7 @@ struct LowerDefinitions
 		case IndexExpr:
 			break;
 		case FunctionCallExpr:
-			return BuildFunctionCall(expr);
+			return BuildFunctionCall(expr, stmnt);
 		case NewExpr:
 			break;
 		case FixedExpr:
@@ -308,7 +345,7 @@ struct LowerDefinitions
 		case ReferenceExpr:
 			break;
 		case BinaryExpr:
-			return BuildBinaryExpression(expr);
+			return BuildBinaryExpression(expr, stmnt);
 		case UnaryExpr:
 			break;
 		case GroupedExpr:
@@ -444,6 +481,15 @@ struct LowerDefinitions
 		return { store->store.dst, irType };
 	}
 
+	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
+	{
+		eastl::vector<ScopeValue> values;
+		for (Expr* val : *expr->typeLiteralExpr.values)
+		{
+			values.push_back(BuildExpr(val, stmnt));
+		}
+	}
+
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
@@ -455,14 +501,14 @@ struct LowerDefinitions
 		return { 0, nullptr };
 	}
 
-	ScopeValue BuildBinaryExpression(Expr* expr)
+	ScopeValue BuildBinaryExpression(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* left = expr->binaryExpr.left;
 		Expr* right = expr->binaryExpr.right;
 		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.opType);
 
-		ScopeValue leftVal = BuildExpr(left);
-		ScopeValue rightVal = BuildExpr(right);
+		ScopeValue leftVal = BuildExpr(left, stmnt);
+		ScopeValue rightVal = BuildExpr(right, stmnt);
 
 		if (!leftVal.type || !rightVal.type) return { 0, nullptr };
 
@@ -500,7 +546,7 @@ struct LowerDefinitions
 		return value;
 	}
 
-	ScopeValue BuildFunctionCall(Expr* expr)
+	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
 		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
@@ -533,7 +579,7 @@ struct LowerDefinitions
 		for (size_t i = 0; i < exprParams->size(); i++)
 		{
 			Expr* param = exprParams->at(i);
-			ScopeValue value = BuildExpr(param);
+			ScopeValue value = BuildExpr(param, stmnt);
 			params->push_back(BuildRegisterOperand(value));
 		}
 
@@ -606,7 +652,7 @@ struct LowerDefinitions
 
 	SpiteIR::Instruction* BuildAllocateForType(Type* type)
 	{
-		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
+		SpiteIR::Type* irType = ToIRType(type);
 		return BuildAllocate(irType);
 	}
 
@@ -651,7 +697,7 @@ struct LowerDefinitions
 		return jump;
 	}
 
-	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, SpiteIR::Operand& test, 
+	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, const SpiteIR::Operand& test,
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
 		SpiteIR::Instruction* branch = CreateInstruction(label);
@@ -660,5 +706,13 @@ struct LowerDefinitions
 		branch->branch.true_ = true_;
 		branch->branch.false_ = false_;
 		return branch;
+	}
+
+	SpiteIR::Instruction* BuildReturnOp(SpiteIR::Label* label, const SpiteIR::Operand& operand)
+	{
+		SpiteIR::Instruction* ret = CreateInstruction(label);
+		ret->kind = SpiteIR::InstructionKind::Return;
+		ret->return_.operand = operand;
+		return ret;
 	}
 };

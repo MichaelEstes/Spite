@@ -95,6 +95,16 @@ inline eastl::string OperatorToString(Token* op)
 	return "";
 }
 
+SpiteIR::Type _voidType = {
+	0,
+	SpiteIR::TypeKind::PrimitiveType,
+	true,
+	{
+		true,
+		SpiteIR::PrimitiveKind::Void
+	}
+};
+
 SpiteIR::Type _boolType = {
 	1,
 	SpiteIR::TypeKind::PrimitiveType,

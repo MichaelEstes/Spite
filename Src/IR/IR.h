@@ -119,7 +119,7 @@ namespace SpiteIR
 
 	enum class OperandKind
 	{
-		None,
+		Void,
 		Register,
 		Literal,
 		StructLiteral,
