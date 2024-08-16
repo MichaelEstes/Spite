@@ -276,7 +276,7 @@ struct Tokens
 	struct IdentifierParser
 	{
 		StringView val;
-		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
+		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType = nullptr;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{
@@ -325,7 +325,7 @@ struct Tokens
 	struct OperatorParser
 	{
 		StringView val;
-		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType;
+		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType = nullptr;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{

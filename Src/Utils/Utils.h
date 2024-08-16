@@ -36,3 +36,9 @@ DeferCall<Func> createDefer(Func&& callback) { return DeferCall<Func>(std::forwa
 #define deferFuncNameUnique(l, r) l##r
 #define deferFuncName deferFuncNameUnique(_deffered, __COUNTER__)
 #define defer(statement) auto deferFuncName = createDefer([&]()->void{statement;})
+
+template<typename Map, typename Value>
+bool MapHas(Map& map, Value& value)
+{
+	return map.find(value) != map.end();
+}

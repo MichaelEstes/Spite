@@ -29,20 +29,6 @@ struct Checker
 		ExpandDeferredTemplates();
 	}
 
-	Token* GetTokenForTemplate(Expr* expr)
-	{
-		if (expr->typeID == ExprID::TypeExpr && expr->typeExpr.type->typeID == TypeID::NamedType)
-		{
-			return expr->typeExpr.type->namedType.typeName;
-		}
-		else if (expr->typeID == ExprID::IdentifierExpr)
-		{
-			return expr->identifierExpr.identifier;
-		}
-
-		return nullptr;
-	}
-
 	eastl::vector<Expr*>* CopyTemplateArgs(eastl::vector<Expr*>* args, Token* package)
 	{
 		eastl::vector<Expr*>* copy = globalTable->FindSymbolTable(package->val)->CreateVectorPtr<Expr>();

@@ -138,7 +138,7 @@ int main(int argc, char** argv)
 
 	Profiler interpretProfiler = Profiler();
 	Interpreter interpreter = Interpreter(2000000);
-	interpreter.Interpret(ir);
+	int value = *(int*)interpreter.Interpret(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
 	interpretProfiler.Reset();

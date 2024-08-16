@@ -8,8 +8,8 @@ extern Config config;
 
 struct ScopeValue
 {
-	size_t reg;
-	SpiteIR::Type* type;
+	size_t reg = 0;;
+	SpiteIR::Type* type = nullptr;
 };
 
 struct FunctionContext
@@ -45,6 +45,8 @@ struct LowerDefinitions
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	eastl::vector<Token*>* currGenerics = nullptr;
+	SpiteIR::Package* currPackage = nullptr;
+
 	
 	LowerDefinitions(LowerContext& context): context(context)
 	{}
@@ -56,10 +58,40 @@ struct LowerDefinitions
 		else currGenerics = nullptr;
 	}
 
+	Expr* ExpandTemplate(Expr* expr)
+	{
+		Token* exprToken = GetTokenForTemplate(expr);
+		if (exprToken)
+		{
+			for (int i = 0; i < currGenerics->size(); i++)
+			{
+				Token* token = currGenerics->at(i);
+				if (token->val == exprToken->val)
+				{
+					return currTemplates->at(i);
+				}
+			}
+		}
+
+		return expr;
+	}
+
+	eastl::vector<Expr*> ExpandTemplates(eastl::vector<Expr*>* exprs)
+	{
+		eastl::vector<Expr*> expanded;
+		for (Expr* expr : *exprs)
+		{
+			expanded.push_back(ExpandTemplate(expr));
+		}
+
+		return expanded;
+	}
+
 	void BuildDefinitions()
 	{
 		for (SpiteIR::Package* package : context.ir->packages)
 		{
+			currPackage = package;
 			symbolTable = context.packageToSymbolTableMap[package];
 			for (auto& [key, state] : package->states)
 			{
@@ -114,6 +146,7 @@ struct LowerDefinitions
 
 	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
+		Assert(function);
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
 		Assert(decl);
 
@@ -196,7 +229,7 @@ struct LowerDefinitions
 		case BreakStmnt:
 			break;
 		case ReturnStmnt:
-			//BuildReturn(stmnt);
+			BuildReturn(stmnt);
 			break;
 		case CompileStmnt:
 			break;
@@ -214,7 +247,7 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
-		scope.scopeMap[def.name->val] = value;
+		if (value.type) scope.scopeMap[def.name->val] = value;
 	}
 
 	void BuildInlineDefinition(Stmnt* stmnt)
@@ -281,6 +314,7 @@ struct LowerDefinitions
 		Assert(stmnt->returnStmnt.expr);
 		auto& ret = stmnt->returnStmnt;
 
+
 		SpiteIR::Label* label = scope.function->block->labels.back();
 		if (ret.expr->typeID == ExprID::TypeExpr && 
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
@@ -293,7 +327,7 @@ struct LowerDefinitions
 		else
 		{
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
-			BuildReturnOp(label, BuildRegisterOperand(value));
+			if (value.type) BuildReturnOp(label, BuildRegisterOperand(value));
 		}
 	}
 
@@ -493,7 +527,7 @@ struct LowerDefinitions
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
-		if (scope.scopeMap.find(ident) != scope.scopeMap.end())
+		if (MapHas(scope.scopeMap, ident))
 		{
 			return scope.scopeMap[ident];
 		}
@@ -612,15 +646,19 @@ struct LowerDefinitions
 		eastl::string functionName;
 		if (templates)
 		{
-			functionName = BuildTemplatedFunctionName(func, templates);
+			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
+			functionName = BuildTemplatedFunctionName(func, &expandedTemplates);
 		}
 		else
 		{
 			functionName = BuildFunctionName(func);
 		}
-
+		
+		Assert(MapHas(context.packageMap, packageName));
 		SpiteIR::Package* package = context.packageMap[packageName];
+		Assert(MapHas(package->functions, functionName));
 		SpiteIR::Function* function = package->functions[functionName];
+
 		return function;
 	}
 

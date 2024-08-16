@@ -14,6 +14,20 @@ size_t IntLiteralStringToInt(StringView& str)
 	return i;
 }
 
+Token* GetTokenForTemplate(Expr* expr)
+{
+	if (expr->typeID == ExprID::TypeExpr && expr->typeExpr.type->typeID == TypeID::NamedType)
+	{
+		return expr->typeExpr.type->namedType.typeName;
+	}
+	else if (expr->typeID == ExprID::IdentifierExpr)
+	{
+		return expr->identifierExpr.identifier;
+	}
+
+	return nullptr;
+}
+
 bool operator==(const Type& left, const Type& right)
 {
 	if (left.typeID == TypeID::ValueType) return *left.valueType.type == right;

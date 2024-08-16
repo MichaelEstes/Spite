@@ -8,13 +8,13 @@ struct Interpreter
 {
 	char* stack;
 	eastl::deque<char*> stackFrameQueue;
-	char* stackFrameTop;
+	char* stackFrameStart;
 	char* stackTop;
 
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
-		stackFrameTop = stack;
+		stackFrameStart = stack;
 		stackTop = stack;
 	}
 
@@ -59,14 +59,14 @@ struct Interpreter
 	void IncrementStackFrame()
 	{
 		stackFrameQueue.push_back(stackTop);
-		stackFrameTop = stackTop;
+		stackFrameStart = stackTop;
 	}
 
 	char* DecrementStackFrame()
 	{
 		char* last = stackFrameQueue.back();
 		stackFrameQueue.pop_back();
-		stackFrameTop = last;
+		stackFrameStart = last;
 		stackTop = last;
 		return stackTop;
 	}
@@ -76,11 +76,20 @@ struct Interpreter
 		stackTop += amount;
 	}
 
+	void CopyValue(SpiteIR::Operand& src, void* dst)
+	{
+		for (size_t i = 0; i < src.type->size; i++)
+		{
+			((char*)dst)[i] = (stackFrameStart + src.reg)[i];
+		}
+	}
+
 	void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
 	{
 		switch (inst.kind)
 		{
 		case SpiteIR::InstructionKind::Return:
+			InterpretReturn(inst);
 			break;
 		case SpiteIR::InstructionKind::Compare:
 			break;
@@ -119,6 +128,22 @@ struct Interpreter
 		}
 	}
 
+	void InterpretReturn(SpiteIR::Instruction& inst)
+	{
+		switch (inst.return_.operand.kind)
+		{
+		case SpiteIR::OperandKind::Register:
+			CopyValue(inst.return_.operand, stackFrameStart);
+			break;
+		case SpiteIR::OperandKind::Literal:
+			break;
+		case SpiteIR::OperandKind::StructLiteral:
+			break;
+		default:
+			break;
+		}
+	}
+
 	void InterpretJump(SpiteIR::Instruction& jumpInst, SpiteIR::Label*& label)
 	{
 		Assert(jumpInst.jump.label);
@@ -132,7 +157,7 @@ struct Interpreter
 				branchInst.branch.test.type->kind == SpiteIR::TypeKind::PrimitiveType && 
 				branchInst.branch.test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
 
-		if(*(bool*)(stackFrameTop + branchInst.branch.test.reg)) 
+		if(*(bool*)(stackFrameStart + branchInst.branch.test.reg)) 
 			label = branchInst.branch.true_;
 		else 
 			label = branchInst.branch.false_;
@@ -145,17 +170,15 @@ struct Interpreter
 
 	void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
-		void* dst = stackFrameTop + storeInst.store.dst;
+		void* dst = stackFrameStart + storeInst.store.dst;
 		SpiteIR::Operand& src = storeInst.store.src;
 
 		switch (src.kind)
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-			for (size_t i = 0; i < src.type->size; i++)
-			{
-				((char*)dst)[i] = (stackFrameTop + storeInst.store.src.reg)[i];
-			}
+
+			CopyValue(src, dst);
 			break;
 		}
 		case SpiteIR::OperandKind::Literal:
@@ -200,16 +223,16 @@ struct Interpreter
 
 #define boolOpTypeMacro(inst, op, castType)										\
 {																				\
-	*(bool*)(void*)(stackFrameTop + inst.binOp.result) =						\
-	*(castType*)(void*)(stackFrameTop + inst.binOp.left.reg) op					\
-	*(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);					\
+	*(bool*)(void*)(stackFrameStart + inst.binOp.result) =						\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op					\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);					\
 }															
 
 #define binaryOpTypeMacro(inst, op, castType)									\
 {																				\
-	*(castType*)(void*)(stackFrameTop + inst.binOp.result) =					\
-	*(castType*)(void*)(stackFrameTop + inst.binOp.left.reg) op					\
-	*(castType*)(void*)(stackFrameTop + inst.binOp.right.reg);					\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.result) =					\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op					\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);					\
 }															
 
 #define binaryOpMacroI(inst, op, assignMacro)				\

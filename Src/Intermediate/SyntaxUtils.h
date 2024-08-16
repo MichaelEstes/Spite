@@ -17,6 +17,7 @@ inline Stmnt* GetGenerics(Stmnt* node)
 	}
 }
 
+Token* GetTokenForTemplate(Expr* expr);
 size_t IntLiteralStringToInt(StringView& str);
 
 bool operator==(const Expr& left, const Expr& right);
