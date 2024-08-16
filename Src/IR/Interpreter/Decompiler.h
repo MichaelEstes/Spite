@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EASTL/hash_set.h"
+#include "EASTL/deque.h"
 #include "../../Log/Logger.h"
 #include "../IR.h"
 
@@ -8,6 +9,8 @@ struct Decompiler
 {
 	eastl::string output;
 	eastl::hash_set<SpiteIR::Function*> seenFunctions;
+	eastl::deque<SpiteIR::Function*> functionQueue;
+	
 	eastl::hash_set<SpiteIR::Label*> seenLabels;
 
 	Decompiler()
@@ -20,7 +23,7 @@ struct Decompiler
 		Logger::Info(output);
 	}
 
-	void Write(const eastl::string line)
+	void Write(const eastl::string& line)
 	{
 		output += line;
 		output += '\n';
@@ -138,21 +141,25 @@ struct Decompiler
 
 
 	void DecompileFunction(SpiteIR::Function* func)
-	{
-		if (seenFunctions.find(func) == seenFunctions.end())
-		{
-			seenFunctions.insert(func);
-			Write(func->name);
-			Write("{");
-			DecompileBlock(func->block);
-			Write("}");
-		}
+	{	
+		Write(func->name);
+		Write("{");
+		DecompileBlock(func->block);
+		Write("}");
 	}
 
 	void Decompile(SpiteIR::IR* ir)
 	{
 		SpiteIR::Function* entry = ir->entry;
-		DecompileFunction(entry);
+		functionQueue.push_back(entry);
+
+		while (functionQueue.size() > 0)
+		{
+			SpiteIR::Function* func = functionQueue.back();
+			functionQueue.pop_back();
+			DecompileFunction(func);
+		}
+
 		Print();
 	}
 
@@ -233,11 +240,19 @@ struct Decompiler
 
 	void DecompileCall(SpiteIR::Instruction& callInst)
 	{
-		auto& call = callInst.call;
-
-		if (call.function)
+		eastl::string callStr = "call " + WriteType(callInst.call.function->returnType) + " " +
+			callInst.call.function->name + " ";
+		for (SpiteIR::Operand& param : *callInst.call.params)
 		{
-			return;
+			callStr += WriteOperand(param);
+		}
+
+		Write(callStr);
+
+		if (seenFunctions.find(callInst.call.function) == seenFunctions.end())
+		{
+			seenFunctions.insert(callInst.call.function);
+			functionQueue.push_back(callInst.call.function);
 		}
 	}
 

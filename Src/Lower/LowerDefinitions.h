@@ -210,6 +210,7 @@ struct LowerDefinitions
 		case Conditional:
 			break;
 		case AssignmentStmnt:
+			BuildAssignment(stmnt);
 			break;
 		case IfStmnt:
 			break;
@@ -258,6 +259,14 @@ struct LowerDefinitions
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
 	}
 
+	void BuildAssignment(Stmnt* stmnt)
+	{
+		ScopeValue assignTo = BuildExpr(stmnt->assignmentStmnt.assignTo, stmnt);
+		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
+		BuildStore(assignTo.type, scope.function->block->labels.back(),
+			assignTo.reg, BuildRegisterOperand(assignment));
+	}
+
 	void BuildForStmnt(Stmnt* stmnt)
 	{
 		Assert(stmnt->forStmnt.isDeclaration);
@@ -275,6 +284,8 @@ struct LowerDefinitions
 		{
 
 		}
+
+		scope.scopeMap[def.name->val] = init;
 
 		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
@@ -695,7 +706,7 @@ struct LowerDefinitions
 	}
 
 	SpiteIR::Instruction* BuildStore(SpiteIR::Type* type, SpiteIR::Label* label, size_t dst,
-		SpiteIR::Operand& src)
+		const SpiteIR::Operand& src)
 	{
 		SpiteIR::Instruction* store = CreateInstruction(label);
 		store->kind = SpiteIR::InstructionKind::Store;

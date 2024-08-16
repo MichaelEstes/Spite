@@ -509,12 +509,10 @@ struct Tokens
 		return WithinRange(val, 37, 38) ||
 			WithinRange(val, 40, 47) ||
 			WithinRange(val, 58, 64) ||
+			WithinRange(val, 123, 126) ||
 			val == '!' ||
 			val == '[' ||
 			val == ']' ||
-			val == '{' ||
-			val == '}' ||
-			val == '~' ||
 			val == '^';
 	}
 

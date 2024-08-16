@@ -213,26 +213,21 @@ struct Interpreter
 
 	void InterpretCall(SpiteIR::Instruction& callInst)
 	{
-		auto& call = callInst.call;
-
-		if (call.function)
-		{
-			return;
-		}
+		InterpretFunction(callInst.call.function);
 	}
 
-#define boolOpTypeMacro(inst, op, castType)										\
-{																				\
-	*(bool*)(void*)(stackFrameStart + inst.binOp.result) =						\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op					\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);					\
+#define boolOpTypeMacro(inst, op, castType)								\
+{																		\
+	*(bool*)(void*)(stackFrameStart + inst.binOp.result) =				\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op		\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);		\
 }															
 
-#define binaryOpTypeMacro(inst, op, castType)									\
-{																				\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.result) =					\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op					\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);					\
+#define binaryOpTypeMacro(inst, op, castType)							\
+{																		\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.result) =			\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op		\
+	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);		\
 }															
 
 #define binaryOpMacroI(inst, op, assignMacro)				\
