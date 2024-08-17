@@ -126,6 +126,7 @@ struct Decompiler
 			{
 				DecompileInstruction(*inst);
 			}
+			DecompileInstruction(*label->terminator);
 		}
 	}
 

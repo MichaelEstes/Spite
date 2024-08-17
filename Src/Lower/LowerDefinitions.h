@@ -20,6 +20,7 @@ struct FunctionContext
 	eastl::vector<size_t> toDestroy;
 	size_t curr = 0;
 	size_t forCount = 0;
+	size_t ifCount = 0;
 
 	void IncrementRegister(SpiteIR::Type* type)
 	{
@@ -213,6 +214,7 @@ struct LowerDefinitions
 			BuildAssignment(stmnt);
 			break;
 		case IfStmnt:
+			BuildIfStmnt(stmnt);
 			break;
 		case ForStmnt:
 			BuildForStmnt(stmnt);
@@ -265,6 +267,36 @@ struct LowerDefinitions
 		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
 		BuildStore(assignTo.type, scope.function->block->labels.back(),
 			assignTo.reg, BuildRegisterOperand(assignment));
+	}
+
+	void BuildIfStmnt(Stmnt* stmnt)
+	{
+		Assert(stmnt->ifStmnt.condition->nodeID == StmntID::Conditional);
+		auto& if_ = stmnt->ifStmnt;
+
+		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
+		auto& ifCondition = if_.condition->conditional;
+		ScopeValue cond = BuildExpr(ifCondition.condition, stmnt);
+
+		SpiteIR::Instruction* fromBranch = BuildBranch(fromLabel, BuildRegisterOperand(cond));
+
+		eastl::string ifThenName = "if_then" + eastl::to_string(scope.ifCount);
+		SpiteIR::Label* ifThenLabel = BuildLabelBody(ifThenName, ifCondition.body);
+		fromBranch->branch.true_ = ifThenLabel;
+
+		eastl::string ifElseName = "if_else" + eastl::to_string(scope.ifCount);
+		SpiteIR::Label* ifElseLabel = BuildLabel(ifElseName);
+		fromBranch->branch.false_ = ifElseLabel;
+
+		for (Stmnt* elseIfStmnt : *if_.elifs)
+		{
+			Assert(elseIfStmnt->nodeID == StmntID::Conditional);
+			auto& elseIfCondition = elseIfStmnt->conditional;
+			ScopeValue elseCond = BuildExpr(elseIfCondition.condition, stmnt);
+
+			
+		}
+
 	}
 
 	void BuildForStmnt(Stmnt* stmnt)
@@ -573,6 +605,13 @@ struct LowerDefinitions
 		return inst;
 	}
 
+	SpiteIR::Instruction* CreateTerminator(SpiteIR::Label* label)
+	{
+		SpiteIR::Instruction* inst = context.ir->AllocateInstruction();
+		label->terminator = inst;
+		return inst;
+	}
+
 	ScopeValue BuildBinaryOp(ScopeValue leftVal, ScopeValue rightVal, SpiteIR::BinaryOpKind kind,
 		SpiteIR::Label* label)
 	{
@@ -740,7 +779,8 @@ struct LowerDefinitions
 
 	SpiteIR::Instruction* BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)
 	{
-		SpiteIR::Instruction* jump = CreateInstruction(label);
+		Assert(!label->terminator);
+		SpiteIR::Instruction* jump = CreateTerminator(label);
 		jump->kind = SpiteIR::InstructionKind::Jump;
 		jump->jump.label = to;
 		return jump;
@@ -749,7 +789,8 @@ struct LowerDefinitions
 	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, const SpiteIR::Operand& test,
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
-		SpiteIR::Instruction* branch = CreateInstruction(label);
+		Assert(!label->terminator);
+		SpiteIR::Instruction* branch = CreateTerminator(label);
 		branch->kind = SpiteIR::InstructionKind::Branch;
 		branch->branch.test = test;
 		branch->branch.true_ = true_;
@@ -759,7 +800,8 @@ struct LowerDefinitions
 
 	SpiteIR::Instruction* BuildReturnOp(SpiteIR::Label* label, const SpiteIR::Operand& operand)
 	{
-		SpiteIR::Instruction* ret = CreateInstruction(label);
+		Assert(!label->terminator);
+		SpiteIR::Instruction* ret = CreateTerminator(label);
 		ret->kind = SpiteIR::InstructionKind::Return;
 		ret->return_.operand = operand;
 		return ret;

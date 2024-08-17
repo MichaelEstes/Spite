@@ -24,11 +24,13 @@ struct Interpreter
 		while (currentLabel)
 		{
 			eastl::vector<SpiteIR::Instruction*>& instructions = currentLabel->values;
+			SpiteIR::Instruction* terminator = currentLabel->terminator;
 			currentLabel = nullptr;
 			for (SpiteIR::Instruction* inst : instructions)
 			{
 				InterpretInstruction(*inst, currentLabel);
 			}
+			InterpretInstruction(*terminator, currentLabel);
 		}
 	}
 

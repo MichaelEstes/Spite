@@ -170,7 +170,7 @@ namespace SpiteIR
 	{
 		string name;
 		Array<Instruction*> values;
-		Instruction* terminator;
+		Instruction* terminator = nullptr;
 	};
 
 	struct Block
