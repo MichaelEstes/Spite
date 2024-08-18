@@ -129,7 +129,6 @@ namespace SpiteIR
 	{
 		None,
 		Return,
-		Compare,
 		Jump,
 		Branch,
 		Call,
@@ -227,7 +226,7 @@ namespace SpiteIR
 	{
 		Function* function;
 		Array<Operand>* params;
-		Operand result;
+		size_t result;
 	};
 
 	struct Allocate

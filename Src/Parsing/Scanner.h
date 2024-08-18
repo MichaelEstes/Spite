@@ -19,14 +19,13 @@ public:
 
 	size_t Init(const eastl::string& fileLoc)
 	{
+		Profiler profiler = Profiler();
 		pos = Position(&fileLoc);
 		std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
 		{
 			Logger::FatalError("Unable to open src file: " + fileLoc);
 		}
-
-		Profiler profiler = Profiler();
 
 		file.seekg(0, std::ios::end);
 		size_t fileSize = file.tellg();
@@ -36,7 +35,8 @@ public:
 		file.read(&contents[0], contentCount);
 		file.close();
 
-		Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc);
+		eastl::string log = "Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc;
+		Logger::Info(log);
 		return fileSize;
 	}
 

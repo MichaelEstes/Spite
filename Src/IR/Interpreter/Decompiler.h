@@ -243,7 +243,8 @@ struct Decompiler
 
 	void DecompileCall(SpiteIR::Instruction& callInst)
 	{
-		eastl::string callStr = WriteOperand(callInst.call.result) + " = call " + callInst.call.function->name + "(";
+		eastl::string callStr = "r" + eastl::to_string(callInst.call.result) + " = call " + 
+			WriteType(callInst.call.function->returnType) + " " + callInst.call.function->name + "(";
 		for (SpiteIR::Operand& param : *callInst.call.params)
 		{
 			callStr += WriteOperand(param);

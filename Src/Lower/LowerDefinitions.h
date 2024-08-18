@@ -99,7 +99,7 @@ struct LowerDefinitions
 				ASTContainer& stateContainer = context.stateASTMap[state];
 				currTemplates = stateContainer.templates;
 				SetCurrentGenerics(stateContainer.node);
-				BuildStateDefault(state, stateContainer.node);
+				BuildState(state, stateContainer.node);
 			}
 
 			for (auto& [key, function] : package->functions)
@@ -110,6 +110,11 @@ struct LowerDefinitions
 				BuildFunction(function, funcContainer.node);
 			}
 		}
+	}
+
+	void BuildState(SpiteIR::State* state, Stmnt* stateStmnt)
+	{
+		BuildStateDefault(state, stateStmnt);
 	}
 
 	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt)
@@ -592,7 +597,7 @@ struct LowerDefinitions
 		irType->primitive.kind = literal.kind;
 		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
 			config.targetArchBitWidth * 2 : config.targetArchBitWidth;
-		irType->primitive.isSigned = false;
+		irType->primitive.isSigned = true;
 
 		literalOp.type = irType;
 
@@ -714,7 +719,7 @@ struct LowerDefinitions
 		SpiteIR::Instruction* alloc = BuildAllocate(irFunction->returnType);
 		SpiteIR::Instruction* call = BuildCall(irFunction, alloc->allocate.result, params, 
 			scope.function->block->labels.back());
-		return { call->call.result.reg, call->call.result.type };
+		return { call->call.result, irFunction->returnType };
 	}
 
 	Stmnt* FindFunctionStmnt(Expr* expr)
@@ -817,7 +822,7 @@ struct LowerDefinitions
 		call->kind = SpiteIR::InstructionKind::Call;
 		call->call.function = function;
 		call->call.params = params;
-		call->call.result = BuildRegisterOperand({ returnReg, function->returnType });
+		call->call.result = returnReg;
 		return call;
 	}
 
