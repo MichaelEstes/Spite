@@ -48,8 +48,8 @@ struct LowerDefinitions
 	eastl::vector<Token*>* currGenerics = nullptr;
 	SpiteIR::Package* currPackage = nullptr;
 
-	
-	LowerDefinitions(LowerContext& context): context(context)
+
+	LowerDefinitions(LowerContext& context) : context(context)
 	{}
 
 	void SetCurrentGenerics(Stmnt* stmnt)
@@ -111,7 +111,7 @@ struct LowerDefinitions
 			}
 		}
 	}
-	
+
 	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt)
 	{
 
@@ -153,7 +153,18 @@ struct LowerDefinitions
 
 		function->block = context.ir->AllocateBlock();
 		scope.Reset(function);
+		BuildFunctionArguments(function, funcStmnt);
 		BuildEntryLabel(function, funcStmnt, decl);
+	}
+
+	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
+	{
+		for (SpiteIR::Argument* arg : function->arguments)
+		{
+			SpiteIR::Instruction* alloc = BuildAllocate(arg->value->type);
+			StringView name = StringView(arg->value->name.c_str());
+			scope.scopeMap[name] = { alloc->allocate.result, alloc->allocate.type };
+		}
 	}
 
 	void BuildEntryLabel(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl)
@@ -175,7 +186,13 @@ struct LowerDefinitions
 	SpiteIR::Label* BuildLabelBody(const eastl::string& name, Body& body)
 	{
 		SpiteIR::Label* Label = BuildLabel(name);
+		BuildBody(body);
 
+		return Label;
+	}
+
+	void BuildBody(Body& body)
+	{
 		if (body.body->nodeID == StmntID::Block)
 		{
 			for (Stmnt* stmnt : *body.body->block.inner)
@@ -187,8 +204,6 @@ struct LowerDefinitions
 		{
 			BuildStmntForBlock(body.body);
 		}
-
-		return Label;
 	}
 
 	void BuildStmntForBlock(Stmnt* stmnt)
@@ -255,8 +270,8 @@ struct LowerDefinitions
 
 	void BuildInlineDefinition(Stmnt* stmnt)
 	{
-		Assert(stmnt->inlineDefinition.type->typeID == TypeID::ExplicitType && 
-				stmnt->inlineDefinition.assignment);
+		Assert(stmnt->inlineDefinition.type->typeID == TypeID::ExplicitType &&
+			stmnt->inlineDefinition.assignment);
 		auto& def = stmnt->inlineDefinition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
 	}
@@ -269,34 +284,63 @@ struct LowerDefinitions
 			assignTo.reg, BuildRegisterOperand(assignment));
 	}
 
+	SpiteIR::Label* BuildCondition(const eastl::string& thenName, const eastl::string& elseName, Stmnt* stmnt)
+	{
+		Assert(stmnt->nodeID == StmntID::Conditional);
+
+		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
+		ScopeValue cond = BuildExpr(stmnt->conditional.condition, stmnt);
+		SpiteIR::Instruction* fromBranch = BuildBranch(fromLabel, BuildRegisterOperand(cond));
+
+		SpiteIR::Label* ifThenLabel = BuildLabelBody(thenName, stmnt->conditional.body);
+		fromBranch->branch.true_ = ifThenLabel;
+
+		SpiteIR::Label* ifElseLabel = BuildLabel(elseName);
+		fromBranch->branch.false_ = ifElseLabel;
+
+		return ifThenLabel;
+	}
+
 	void BuildIfStmnt(Stmnt* stmnt)
 	{
 		Assert(stmnt->ifStmnt.condition->nodeID == StmntID::Conditional);
 		auto& if_ = stmnt->ifStmnt;
 
-		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
-		auto& ifCondition = if_.condition->conditional;
-		ScopeValue cond = BuildExpr(ifCondition.condition, stmnt);
-
-		SpiteIR::Instruction* fromBranch = BuildBranch(fromLabel, BuildRegisterOperand(cond));
+		eastl::vector<SpiteIR::Label*> nonTerminated = eastl::vector<SpiteIR::Label*>();
 
 		eastl::string ifThenName = "if_then" + eastl::to_string(scope.ifCount);
-		SpiteIR::Label* ifThenLabel = BuildLabelBody(ifThenName, ifCondition.body);
-		fromBranch->branch.true_ = ifThenLabel;
-
 		eastl::string ifElseName = "if_else" + eastl::to_string(scope.ifCount);
-		SpiteIR::Label* ifElseLabel = BuildLabel(ifElseName);
-		fromBranch->branch.false_ = ifElseLabel;
+		SpiteIR::Label* ifThenLabel = BuildCondition(ifThenName, ifElseName, if_.condition);
+		if (!ifThenLabel->terminator) nonTerminated.push_back(ifThenLabel);
 
-		for (Stmnt* elseIfStmnt : *if_.elifs)
+		for (size_t i = 0; i < if_.elifs->size(); i++)
 		{
-			Assert(elseIfStmnt->nodeID == StmntID::Conditional);
-			auto& elseIfCondition = elseIfStmnt->conditional;
-			ScopeValue elseCond = BuildExpr(elseIfCondition.condition, stmnt);
-
-			
+			Stmnt* elseIfStmnt = if_.elifs->at(i);
+			eastl::string elseIfThenName = "else_if_then" + eastl::to_string(scope.ifCount) +
+				"_" + eastl::to_string(i);
+			eastl::string elseIfElseName = "else_if_else" + eastl::to_string(scope.ifCount) +
+				"_" + eastl::to_string(i);
+			SpiteIR::Label* elseifThenLabel = BuildCondition(elseIfThenName, elseIfElseName, elseIfStmnt);
+			if (!elseifThenLabel->terminator) nonTerminated.push_back(elseifThenLabel);
 		}
 
+		if (if_.elseCondition)
+		{
+			BuildBody(if_.elseCondition);
+		}
+
+		SpiteIR::Label* currLabel = scope.function->block->labels.back();
+		if (!currLabel->terminator) nonTerminated.push_back(currLabel);
+
+		if (nonTerminated.size())
+		{
+			eastl::string ifEndName = "if_end" + eastl::to_string(scope.ifCount);
+			SpiteIR::Label* ifEndLabel = BuildLabel(ifEndName);
+			for (SpiteIR::Label* label : nonTerminated)
+			{
+				BuildJump(label, ifEndLabel);
+			}
+		}
 	}
 
 	void BuildForStmnt(Stmnt* stmnt)
@@ -342,7 +386,7 @@ struct LowerDefinitions
 		{
 
 		}
-		
+
 		SpiteIR::Instruction* loopToCond = BuildJump(forLoopLabel, forCondLabel);
 
 		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
@@ -359,7 +403,7 @@ struct LowerDefinitions
 
 
 		SpiteIR::Label* label = scope.function->block->labels.back();
-		if (ret.expr->typeID == ExprID::TypeExpr && 
+		if (ret.expr->typeID == ExprID::TypeExpr &&
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
 		{
@@ -386,7 +430,7 @@ struct LowerDefinitions
 		};
 		SpiteIR::Instruction* allocate = BuildAllocate(toIncrement.type);
 		SpiteIR::Instruction* store = BuildStore(toIncrement.type, label, allocate->allocate.result, amount);
-		
+
 		ScopeValue right = { allocate->allocate.result, toIncrement.type };
 		return BuildBinaryOp(toIncrement, right, SpiteIR::BinaryOpKind::Add, label);
 	}
@@ -518,7 +562,7 @@ struct LowerDefinitions
 			literal.intLiteral = IntLiteralStringToInt(lit.val->val);
 			break;
 		case UniqueType::HexLiteral:
-			literal.kind = SpiteIR::PrimitiveKind::Int;			
+			literal.kind = SpiteIR::PrimitiveKind::Int;
 			literal.intLiteral = std::stoul(lit.val->val.ToString().c_str(), nullptr, 16);
 			break;
 		case UniqueType::FloatLiteral:
@@ -547,7 +591,7 @@ struct LowerDefinitions
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->primitive.kind = literal.kind;
 		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
-						config.targetArchBitWidth * 2 : config.targetArchBitWidth;
+			config.targetArchBitWidth * 2 : config.targetArchBitWidth;
 		irType->primitive.isSigned = false;
 
 		literalOp.type = irType;
@@ -621,9 +665,9 @@ struct LowerDefinitions
 		binOp->binOp.left = BuildRegisterOperand(leftVal);
 		binOp->binOp.right = BuildRegisterOperand(rightVal);
 		binOp->binOp.result = scope.curr;
-		
+
 		ScopeValue value;
-		if(kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, &_boolType };
+		if (kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, &_boolType };
 		else value = { binOp->binOp.result, leftVal.type };
 
 		BuildAllocate(value.type);
@@ -656,7 +700,7 @@ struct LowerDefinitions
 			break;
 		}
 
-		if (!irFunction) return {0, nullptr};
+		if (!irFunction) return { 0, nullptr };
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
@@ -667,8 +711,10 @@ struct LowerDefinitions
 			params->push_back(BuildRegisterOperand(value));
 		}
 
-		SpiteIR::Instruction* call = BuildCall(irFunction, params, scope.function->block->labels.back());
-		return { call->call.result, irFunction->returnType };
+		SpiteIR::Instruction* alloc = BuildAllocate(irFunction->returnType);
+		SpiteIR::Instruction* call = BuildCall(irFunction, alloc->allocate.result, params, 
+			scope.function->block->labels.back());
+		return { call->call.result.reg, call->call.result.type };
 	}
 
 	Stmnt* FindFunctionStmnt(Expr* expr)
@@ -703,7 +749,7 @@ struct LowerDefinitions
 		{
 			functionName = BuildFunctionName(func);
 		}
-		
+
 		Assert(MapHas(context.packageMap, packageName));
 		SpiteIR::Package* package = context.packageMap[packageName];
 		Assert(MapHas(package->functions, functionName));
@@ -722,7 +768,7 @@ struct LowerDefinitions
 		{
 			templates = caller->templateExpr.templateArgs;
 		}
-		
+
 		return FindFunctionForFunctionStmnt(stmnt, templates);
 	}
 
@@ -764,16 +810,14 @@ struct LowerDefinitions
 		return operand;
 	}
 
-	SpiteIR::Instruction* BuildCall(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params,
-		SpiteIR::Label* label)
+	SpiteIR::Instruction* BuildCall(SpiteIR::Function* function, size_t returnReg, 
+		eastl::vector<SpiteIR::Operand>* params, SpiteIR::Label* label)
 	{
 		SpiteIR::Instruction* call = CreateInstruction(label);
 		call->kind = SpiteIR::InstructionKind::Call;
 		call->call.function = function;
 		call->call.params = params;
-		call->call.result = scope.curr;
-
-		scope.IncrementRegister(function->returnType);
+		call->call.result = BuildRegisterOperand({ returnReg, function->returnType });
 		return call;
 	}
 

@@ -45,9 +45,26 @@ struct Interpreter
 		InterpretLabel(entry);
 	}
 
-	void* InterpretFunction(SpiteIR::Function* func)
+	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params, char* frame)
 	{
+		size_t offset = 0;
+		for (SpiteIR::Operand param : *params)
+		{
+			CopyValue(param, stackTop + offset, frame);
+			offset += param.type->size;
+		}
+	}
+
+	void* InterpretFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params = nullptr)
+	{
+		char* prevStackStart = stackFrameStart;
 		IncrementStackFrame();
+
+		if (params)
+		{
+			MoveParams(params, prevStackStart);
+		}
+
 		InterpretBlock(func->block);
 		return DecrementStackFrame();
 	}
@@ -58,13 +75,13 @@ struct Interpreter
 		return InterpretFunction(entry);
 	}
 
-	void IncrementStackFrame()
+	inline void IncrementStackFrame()
 	{
 		stackFrameQueue.push_back(stackTop);
 		stackFrameStart = stackTop;
 	}
 
-	char* DecrementStackFrame()
+	inline char* DecrementStackFrame()
 	{
 		char* last = stackFrameQueue.back();
 		stackFrameQueue.pop_back();
@@ -73,16 +90,16 @@ struct Interpreter
 		return stackTop;
 	}
 
-	void IncrementStackPointer(size_t amount)
+	inline void IncrementStackPointer(size_t amount)
 	{
 		stackTop += amount;
 	}
 
-	void CopyValue(SpiteIR::Operand& src, void* dst)
+	void CopyValue(SpiteIR::Operand& src, void* dst, char* frame)
 	{
 		for (size_t i = 0; i < src.type->size; i++)
 		{
-			((char*)dst)[i] = (stackFrameStart + src.reg)[i];
+			((char*)dst)[i] = (frame + src.reg)[i];
 		}
 	}
 
@@ -135,7 +152,7 @@ struct Interpreter
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyValue(inst.return_.operand, stackFrameStart);
+			CopyValue(inst.return_.operand, stackFrameStart, stackFrameStart);
 			break;
 		case SpiteIR::OperandKind::Literal:
 			break;
@@ -180,7 +197,7 @@ struct Interpreter
 		case SpiteIR::OperandKind::Register:
 		{
 
-			CopyValue(src, dst);
+			CopyValue(src, dst, stackFrameStart);
 			break;
 		}
 		case SpiteIR::OperandKind::Literal:
@@ -215,7 +232,7 @@ struct Interpreter
 
 	void InterpretCall(SpiteIR::Instruction& callInst)
 	{
-		InterpretFunction(callInst.call.function);
+		InterpretFunction(callInst.call.function, callInst.call.params);
 	}
 
 #define boolOpTypeMacro(inst, op, castType)								\
@@ -351,6 +368,8 @@ struct Interpreter
 			binaryOpMacroFP(binOpInst, &&, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::LogicOr:
+			//Not working
+			Assert(false);
 			binaryOpMacroI(binOpInst, ||, boolOpTypeMacro)
 			binaryOpMacroFP(binOpInst, ||, boolOpTypeMacro)
 			break;

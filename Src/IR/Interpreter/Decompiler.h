@@ -31,6 +31,8 @@ struct Decompiler
 
 	eastl::string WriteType(SpiteIR::Type* type)
 	{
+		if (!type) return "undefined";
+
 		switch (type->kind)
 		{
 		case SpiteIR::TypeKind::PrimitiveType:
@@ -121,12 +123,12 @@ struct Decompiler
 		if (seenLabels.find(label) == seenLabels.end())
 		{
 			seenLabels.insert(label);
-			Write(label->name + ":");
+			Write("\n" + label->name + ":");
 			for (SpiteIR::Instruction* inst : label->values)
 			{
 				DecompileInstruction(*inst);
 			}
-			DecompileInstruction(*label->terminator);
+			if (label->terminator) DecompileInstruction(*label->terminator);
 		}
 	}
 
@@ -146,7 +148,7 @@ struct Decompiler
 		Write(func->name);
 		Write("{");
 		DecompileBlock(func->block);
-		Write("}");
+		Write("}\n");
 	}
 
 	void Decompile(SpiteIR::IR* ir)
@@ -241,12 +243,12 @@ struct Decompiler
 
 	void DecompileCall(SpiteIR::Instruction& callInst)
 	{
-		eastl::string callStr = "call " + WriteType(callInst.call.function->returnType) + " " +
-			callInst.call.function->name + " ";
+		eastl::string callStr = WriteOperand(callInst.call.result) + " = call " + callInst.call.function->name + "(";
 		for (SpiteIR::Operand& param : *callInst.call.params)
 		{
 			callStr += WriteOperand(param);
 		}
+		callStr += ")";
 
 		Write(callStr);
 

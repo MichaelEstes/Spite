@@ -227,7 +227,7 @@ namespace SpiteIR
 	{
 		Function* function;
 		Array<Operand>* params;
-		size_t result;
+		Operand result;
 	};
 
 	struct Allocate
@@ -361,7 +361,6 @@ namespace SpiteIR
 	struct Argument
 	{
 		Function* parent;
-		size_t index;
 		Value* value;
 	}; 
 
@@ -381,14 +380,13 @@ namespace SpiteIR
 
 		string name;
 		Type* returnType;
-		HashMap<string, Argument*> arguments;
+		Array<Argument*> arguments;
 		Block* block;
 	};
 
 	struct Member
 	{
 		State* parent;
-		size_t index;
 		Value* value;
 	};
 
@@ -410,7 +408,7 @@ namespace SpiteIR
 			int flags;
 		} metadata;
 
-		HashMap<string, Member*> members;
+		Array<Member*> members;
 		Array<Function*> methods;
 		Array<Function*> operators;
 		Array<Function*> constructors;

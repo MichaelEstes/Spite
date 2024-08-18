@@ -141,10 +141,10 @@ int main(int argc, char** argv)
 	int64_t value = *(int64_t*)interpreter.Interpret(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
-	//interpretProfiler.Reset();
-	//Decompiler decompiler = Decompiler();
-	//decompiler.Decompile(ir);
-	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
+	interpretProfiler.Reset();
+	Decompiler decompiler = Decompiler();
+	decompiler.Decompile(ir);
+	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 
 
 	/*{
