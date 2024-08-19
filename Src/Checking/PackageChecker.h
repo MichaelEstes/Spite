@@ -160,15 +160,6 @@ struct PackageChecker
 	inline void CheckBody(Body& body)
 	{
 		AddScope();
-
-		// If single statement inline function make statement a return
-		if (body.statement && body.body->nodeID == StmntID::ExpressionStmnt)
-		{
-			Expr* expr = body.body->expressionStmnt.expression;
-			body.body->nodeID = StmntID::ReturnStmnt;
-			body.body->returnStmnt.expr = expr;
-		}
-
 		CheckStmnt(body.body);
 		PopScope();
 	}
@@ -183,6 +174,15 @@ struct PackageChecker
 				CheckDefinition(node);
 			}
 		}
+
+		// If single statement inline function make statement a return
+		if (body.statement && body.body->nodeID == StmntID::ExpressionStmnt)
+		{
+			Expr* expr = body.body->expressionStmnt.expression;
+			body.body->nodeID = StmntID::ReturnStmnt;
+			body.body->returnStmnt.expr = expr;
+		}
+
 		CheckStmnt(body.body);
 		PopScope();
 	}
@@ -287,10 +287,10 @@ struct PackageChecker
 		}
 		case CompileStmnt:
 			CheckType(node->compileStmnt.returnType, node->start);
-			CheckBody(node->compileStmnt.body);
+			CheckFuncBody(node->compileStmnt.body);
 			break;
 		case CompileDebugStmnt:
-			CheckBody(node->compileDebugStmnt.body);
+			CheckFuncBody(node->compileDebugStmnt.body);
 			break;
 		default:
 			break;

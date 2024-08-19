@@ -31,7 +31,7 @@ struct Decompiler
 
 	eastl::string WriteType(SpiteIR::Type* type)
 	{
-		if (!type) return "undefined";
+		if (!type) return "void";
 
 		switch (type->kind)
 		{
@@ -100,6 +100,8 @@ struct Decompiler
 
 	eastl::string WriteOperand(SpiteIR::Operand& operand)
 	{
+		if (operand.kind == SpiteIR::OperandKind::Void) return "void";
+
 		eastl::string out = WriteType(operand.type) + " ";
 		switch (operand.kind)
 		{
@@ -129,6 +131,7 @@ struct Decompiler
 				DecompileInstruction(*inst);
 			}
 			if (label->terminator) DecompileInstruction(*label->terminator);
+			else Write("NON TERMINATED LABEL");
 		}
 	}
 
@@ -172,8 +175,6 @@ struct Decompiler
 		{
 		case SpiteIR::InstructionKind::Return:
 			DecompileReturn(inst);
-			break;
-		case SpiteIR::InstructionKind::Compare:
 			break;
 		case SpiteIR::InstructionKind::Jump:
 			DecompileJump(inst);

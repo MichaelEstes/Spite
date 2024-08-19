@@ -432,6 +432,12 @@ inline eastl::string BuildGlobalVariableName(Stmnt* global)
 	return BuildPackageName(global->package) + '_' + global->definition.name->val.ToString();
 }
 
+inline bool IsVoidType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType && 
+				type->primitive.kind == SpiteIR::PrimitiveKind::Void;
+}
+
 template<typename Low>
 SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
 {

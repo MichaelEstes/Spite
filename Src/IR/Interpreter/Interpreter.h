@@ -12,6 +12,8 @@ struct Interpreter
 	char* stackFrameStart;
 	char* stackTop;
 
+	int branchCount = 0;
+
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
@@ -190,6 +192,8 @@ struct Interpreter
 			label = branchInst.branch.true_;
 		else 
 			label = branchInst.branch.false_;
+
+		branchCount += 1;
 	}
 
 	void InterpretAllocate(SpiteIR::Instruction& allocateInst)

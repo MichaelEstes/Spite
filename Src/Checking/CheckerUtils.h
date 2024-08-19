@@ -1169,6 +1169,10 @@ struct CheckerUtils
 
 		if (left->typeID == TypeID::PrimitiveType && right->typeID == TypeID::PrimitiveType)
 		{
+			// Void can only be assigned to void which would be caught in the type equality check above
+			if (left->primitiveType.type == UniqueType::Void ||
+				right->primitiveType.type == UniqueType::Void) return false;
+
 			// Maybe strings shouldn't be primitives, they are not assignable to other primitives
 			bool isStringL = IsString(left);
 			bool isStringR = IsString(right);

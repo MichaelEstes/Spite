@@ -160,6 +160,11 @@ struct LowerDefinitions
 		scope.Reset(function);
 		BuildFunctionArguments(function, funcStmnt);
 		BuildEntryLabel(function, funcStmnt, decl);
+		SpiteIR::Label* lastLabel = scope.function->block->labels.back();
+		if (!lastLabel->terminator && IsVoidType(function->returnType))
+		{
+			BuildVoidReturn(lastLabel);
+		}
 	}
 
 	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
@@ -313,17 +318,19 @@ struct LowerDefinitions
 
 		eastl::vector<SpiteIR::Label*> nonTerminated = eastl::vector<SpiteIR::Label*>();
 
-		eastl::string ifThenName = "if_then" + eastl::to_string(scope.ifCount);
-		eastl::string ifElseName = "if_else" + eastl::to_string(scope.ifCount);
+		size_t ifCount = scope.ifCount;
+		scope.ifCount += 1;
+		eastl::string ifThenName = "if_then" + eastl::to_string(ifCount);
+		eastl::string ifElseName = "if_else" + eastl::to_string(ifCount);
 		SpiteIR::Label* ifThenLabel = BuildCondition(ifThenName, ifElseName, if_.condition);
 		if (!ifThenLabel->terminator) nonTerminated.push_back(ifThenLabel);
 
 		for (size_t i = 0; i < if_.elifs->size(); i++)
 		{
 			Stmnt* elseIfStmnt = if_.elifs->at(i);
-			eastl::string elseIfThenName = "else_if_then" + eastl::to_string(scope.ifCount) +
+			eastl::string elseIfThenName = "else_if_then" + eastl::to_string(ifCount) +
 				"_" + eastl::to_string(i);
-			eastl::string elseIfElseName = "else_if_else" + eastl::to_string(scope.ifCount) +
+			eastl::string elseIfElseName = "else_if_else" + eastl::to_string(ifCount) +
 				"_" + eastl::to_string(i);
 			SpiteIR::Label* elseifThenLabel = BuildCondition(elseIfThenName, elseIfElseName, elseIfStmnt);
 			if (!elseifThenLabel->terminator) nonTerminated.push_back(elseifThenLabel);
@@ -339,7 +346,7 @@ struct LowerDefinitions
 
 		if (nonTerminated.size())
 		{
-			eastl::string ifEndName = "if_end" + eastl::to_string(scope.ifCount);
+			eastl::string ifEndName = "if_end" + eastl::to_string(ifCount);
 			SpiteIR::Label* ifEndLabel = BuildLabel(ifEndName);
 			for (SpiteIR::Label* label : nonTerminated)
 			{
@@ -353,6 +360,12 @@ struct LowerDefinitions
 		Assert(stmnt->forStmnt.isDeclaration);
 		auto& for_ = stmnt->forStmnt;
 		auto& def = for_.iterated.declaration->definition;
+
+		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
+		eastl::string forLoopName = "for_body" + eastl::to_string(scope.forCount);
+		eastl::string forIncName = "for_inc" + eastl::to_string(scope.forCount);
+		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
+		scope.forCount++;
 
 		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
 		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
@@ -371,7 +384,6 @@ struct LowerDefinitions
 		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
-		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forCondLabel = BuildLabel(forStartName);
 		toCond->jump.label = forCondLabel;
 
@@ -379,26 +391,36 @@ struct LowerDefinitions
 		SpiteIR::Operand test = BuildRegisterOperand(cmp);
 		SpiteIR::Instruction* branch = BuildBranch(forCondLabel, test);
 
-		eastl::string forLoopName = "for_loop" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forLoopLabel = BuildLabelBody(forLoopName, for_.body);
+		
+		SpiteIR::Label* currentBodyLabel = scope.function->block->labels.back();
+		SpiteIR::Instruction* bodyToInc = BuildJump(currentBodyLabel);
+		SpiteIR::Label* forIncLabel = BuildLabel(forIncName);
+		bodyToInc->jump.label = forIncLabel;
 
 		if (for_.rangeFor)
 		{
-			SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forLoopLabel, init));
-			SpiteIR::Instruction* storeInc = BuildStore(init.type, forLoopLabel, init.reg, incremented);
+			SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forIncLabel, init));
+			SpiteIR::Instruction* storeInc = BuildStore(init.type, forIncLabel, init.reg, incremented);
 		}
 		else
 		{
 
 		}
 
-		SpiteIR::Instruction* loopToCond = BuildJump(forLoopLabel, forCondLabel);
+		SpiteIR::Instruction* loopToCond = BuildJump(forIncLabel, forCondLabel);
 
-		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
 		SpiteIR::Label* forEndLabel = BuildLabel(forEndName);
 		branch->branch.true_ = forLoopLabel;
 		branch->branch.false_ = forEndLabel;
-		scope.forCount++;
+	}
+
+	inline void BuildVoidReturn(SpiteIR::Label* label)
+	{
+		SpiteIR::Operand voidOp = SpiteIR::Operand();
+		voidOp.kind = SpiteIR::OperandKind::Void;
+		BuildReturnOp(label, voidOp);
+
 	}
 
 	void BuildReturn(Stmnt* stmnt)
@@ -412,9 +434,7 @@ struct LowerDefinitions
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
 		{
-			SpiteIR::Operand voidOp = SpiteIR::Operand();
-			voidOp.kind = SpiteIR::OperandKind::Void;
-			BuildReturnOp(label, voidOp);
+			BuildVoidReturn(label);
 		}
 		else
 		{
