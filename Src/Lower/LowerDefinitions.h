@@ -21,6 +21,7 @@ struct FunctionContext
 	size_t curr = 0;
 	size_t forCount = 0;
 	size_t ifCount = 0;
+	size_t blockCount = 0;
 
 	void IncrementRegister(SpiteIR::Type* type)
 	{
@@ -35,6 +36,8 @@ struct FunctionContext
 		toDestroy.clear();
 		curr = 0;
 		forCount = 0;
+		ifCount = 0;
+		blockCount = 0;
 	}
 };
 
@@ -264,9 +267,10 @@ struct LowerDefinitions
 		case CompileDebugStmnt:
 			break;
 		case Block:
-		{
-		}
+			BuildBlock(stmnt);
+			break;
 		default:
+			Logger::Error("LowerDefinitions:BuildStmnt Invalid Statement");
 			break;
 		}
 	}
@@ -458,6 +462,30 @@ struct LowerDefinitions
 
 		ScopeValue right = { allocate->allocate.result, toIncrement.type };
 		return BuildBinaryOp(toIncrement, right, SpiteIR::BinaryOpKind::Add, label);
+	}
+
+	void BuildBlock(Stmnt* stmnt)
+	{
+		SpiteIR::Label* startLabel = scope.function->block->labels.back();
+		eastl::string blockName = "block" + eastl::to_string(scope.blockCount);
+		eastl::string blockEndName = "block_end" + eastl::to_string(scope.blockCount);
+
+		SpiteIR::Instruction* toBlock = BuildJump(startLabel);
+		SpiteIR::Label* blockLabel = BuildLabel(blockName);
+		toBlock->jump.label = blockLabel;
+
+		for (Stmnt* stmnt : *stmnt->block.inner)
+		{
+			BuildStmntForBlock(stmnt);
+		}
+
+		SpiteIR::Label* currLabel = scope.function->block->labels.back();
+		if (!currLabel->terminator)
+		{
+			SpiteIR::Instruction* toBlockEnd = BuildJump(currLabel);
+			SpiteIR::Label* blockEndLabel = BuildLabel(blockEndName);
+			toBlockEnd->jump.label = blockEndLabel;
+		}
 	}
 
 	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
