@@ -2,8 +2,8 @@ package Std
 
 state Array<T>
 {
-	start: *T,
 	count: int
+	start: *T,
 }
 
 Array::(count: int)

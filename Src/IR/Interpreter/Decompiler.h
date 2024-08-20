@@ -70,6 +70,10 @@ struct Decompiler
 		case SpiteIR::TypeKind::PointerType:
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::FixedArrayType:
+		{
+			return "[" + eastl::to_string(type->fixedArray.count) + " x " + 
+				WriteType(type->fixedArray.type) + "]";
+		}
 		case SpiteIR::TypeKind::FunctionType:
 		default:
 			break;

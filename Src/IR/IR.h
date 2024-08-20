@@ -322,6 +322,7 @@ namespace SpiteIR
 			struct
 			{
 				Array<Type*>* types;
+				//Nullable
 				Array<string>* names;
 			} structureType;
 

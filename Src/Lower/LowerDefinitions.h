@@ -294,8 +294,7 @@ struct LowerDefinitions
 	{
 		ScopeValue assignTo = BuildExpr(stmnt->assignmentStmnt.assignTo, stmnt);
 		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
-		BuildStore(assignTo.type, scope.function->block->labels.back(),
-			assignTo.reg, BuildRegisterOperand(assignment));
+		BuildStore(scope.function->block->labels.back(),assignTo.reg, BuildRegisterOperand(assignment));
 	}
 
 	SpiteIR::Label* BuildCondition(const eastl::string& thenName, const eastl::string& elseName, Stmnt* stmnt)
@@ -405,7 +404,7 @@ struct LowerDefinitions
 		if (for_.rangeFor)
 		{
 			SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forIncLabel, init));
-			SpiteIR::Instruction* storeInc = BuildStore(init.type, forIncLabel, init.reg, incremented);
+			SpiteIR::Instruction* storeInc = BuildStore(forIncLabel, init.reg, incremented);
 		}
 		else
 		{
@@ -458,7 +457,7 @@ struct LowerDefinitions
 			1
 		};
 		SpiteIR::Instruction* allocate = BuildAllocate(toIncrement.type);
-		SpiteIR::Instruction* store = BuildStore(toIncrement.type, label, allocate->allocate.result, amount);
+		SpiteIR::Instruction* store = BuildStore(label, allocate->allocate.result, amount);
 
 		ScopeValue right = { allocate->allocate.result, toIncrement.type };
 		return BuildBinaryOp(toIncrement, right, SpiteIR::BinaryOpKind::Add, label);
@@ -509,6 +508,7 @@ struct LowerDefinitions
 		case FixedExpr:
 			break;
 		case TypeLiteralExpr:
+			BuildTypeLiteral(expr, stmnt);
 			break;
 		case ExplicitTypeExpr:
 			break;
@@ -579,7 +579,7 @@ struct LowerDefinitions
 				break;
 			}
 
-			SpiteIR::Instruction* store = BuildStore(type, label, result, defaultOp);
+			SpiteIR::Instruction* store = BuildStore(label, result, defaultOp);
 			break;
 		}
 		case SpiteIR::TypeKind::StateType:
@@ -651,17 +651,50 @@ struct LowerDefinitions
 
 		SpiteIR::Label* label = scope.function->block->labels.back();
 		SpiteIR::Instruction* allocate = BuildAllocate(irType);
-		SpiteIR::Instruction* store = BuildStore(irType, label, allocate->allocate.result, literalOp);
+		SpiteIR::Instruction* store = BuildStore(label, allocate->allocate.result, literalOp);
 		return { store->store.dst, irType };
 	}
 
 	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
 	{
+		Assert(expr->typeLiteralExpr.values->size());
+		SpiteIR::Label* label = scope.function->block->labels.back();
 		eastl::vector<ScopeValue> values;
 		for (Expr* val : *expr->typeLiteralExpr.values)
 		{
 			values.push_back(BuildExpr(val, stmnt));
 		}
+
+		SpiteIR::Type* derivedType = context.ir->AllocateType();
+		if (expr->typeLiteralExpr.array)
+		{
+			derivedType->kind = SpiteIR::TypeKind::FixedArrayType;
+			derivedType->fixedArray.count = values.size();
+			derivedType->fixedArray.type = values.at(0).type;
+			derivedType->size = derivedType->fixedArray.count * derivedType->fixedArray.type->size;
+		}
+		else
+		{
+			derivedType->kind = SpiteIR::TypeKind::StructureType;
+			derivedType->size = 0;
+			derivedType->structureType.types = context.ir->AllocateArray<SpiteIR::Type*>();
+			derivedType->structureType.names = nullptr;
+			for (ScopeValue& value : values)
+			{
+				derivedType->structureType.types->push_back(value.type);
+				derivedType->size += value.type->size;
+			}
+		}
+
+		SpiteIR::Instruction* alloc = BuildAllocate(derivedType);
+		size_t offset = 0;
+		for (ScopeValue& value : values)
+		{
+			BuildStore(label, alloc->allocate.result + offset, BuildRegisterOperand(value));
+			offset += value.type->size;
+		}
+
+		return { alloc->allocate.result, derivedType };
 	}
 
 	ScopeValue FindValueForIndent(Expr* expr)
@@ -843,8 +876,7 @@ struct LowerDefinitions
 		return BuildAllocate(irType);
 	}
 
-	SpiteIR::Instruction* BuildStore(SpiteIR::Type* type, SpiteIR::Label* label, size_t dst,
-		const SpiteIR::Operand& src)
+	SpiteIR::Instruction* BuildStore(SpiteIR::Label* label, size_t dst, const SpiteIR::Operand& src)
 	{
 		SpiteIR::Instruction* store = CreateInstruction(label);
 		store->kind = SpiteIR::InstructionKind::Store;
