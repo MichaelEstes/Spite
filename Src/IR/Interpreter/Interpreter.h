@@ -139,6 +139,7 @@ struct Interpreter
 		case SpiteIR::InstructionKind::HeapAllocate:
 			break;
 		case SpiteIR::InstructionKind::Load:
+			InterpretLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
 			InterpretStore(inst);
@@ -180,6 +181,16 @@ struct Interpreter
 		Assert(jumpInst.jump.label);
 		label = jumpInst.jump.label;
 	} 
+
+	void InterpretLoad(SpiteIR::Instruction& loadInst)
+	{
+		Assert(loadInst.load.offset.kind == SpiteIR::OperandKind::Register);
+		Assert(loadInst.load.offset.type->kind == SpiteIR::TypeKind::PrimitiveType);
+
+		int offset = *(int*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
+		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
+			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
+	}
 
 	void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
@@ -251,169 +262,172 @@ struct Interpreter
 			stackFrameStart + callInst.call.result, stackFrameStart);
 	}
 
-#define boolOpTypeMacro(inst, op, castType)								\
-{																		\
-	*(bool*)(void*)(stackFrameStart + inst.binOp.result) =				\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op		\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);		\
+#define boolOpTypeMacro(left, right, result, op, lType, rType)				\
+{																			\
+	*(bool*)(void*)(stackFrameStart + result) =								\
+	*(lType*)(void*)(stackFrameStart + left.reg) op							\
+	*(rType*)(void*)(stackFrameStart + right.reg);							\
 }															
 
-#define binaryOpTypeMacro(inst, op, castType)							\
-{																		\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.result) =			\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.left.reg) op		\
-	*(castType*)(void*)(stackFrameStart + inst.binOp.right.reg);		\
+#define binaryOpTypeMacro(left, right, result, op, lType, rType)			\
+{																			\
+	*(lType*)(void*)(stackFrameStart + result) =							\
+	*(lType*)(void*)(stackFrameStart + left.reg) op							\
+	*(rType*)(void*)(stackFrameStart + right.reg);							\
 }															
 
-#define binaryOpMacroI(inst, op, assignMacro)				\
-	if (inst.binOp.left.type->primitive.kind ==				\
-					SpiteIR::PrimitiveKind::Int ||			\
-		inst.binOp.left.type->primitive.kind ==				\
-					SpiteIR::PrimitiveKind::Bool ||			\
-		inst.binOp.left.type->primitive.kind ==				\
-					SpiteIR::PrimitiveKind::Byte)			\
-	{														\
-		if (inst.binOp.left.type->primitive.isSigned)		\
-		{													\
-			switch (inst.binOp.left.type->size)				\
-			{												\
-			case 1:											\
-				assignMacro(inst, op, char);				\
-				break;										\
-			case 2:											\
-				assignMacro(inst, op, int16_t);				\
-				break;										\
-			case 4:											\
-				assignMacro(inst, op, int32_t);				\
-				break;										\
-			case 8:											\
-				assignMacro(inst, op, int64_t);				\
-				break;										\
-			case 16:										\
-				assignMacro(inst, op, intmax_t);			\
-				break;										\
-			default:										\
-				break;										\
-			}												\
-		}													\
-		else												\
-		{													\
-			switch (inst.binOp.left.type->size)				\
-			{												\
-			case 1:											\
-				assignMacro(inst, op, unsigned char);		\
-				break;										\
-			case 2:											\
-				assignMacro(inst, op, uint16_t);			\
-				break;										\
-			case 4:											\
-				assignMacro(inst, op, uint32_t);			\
-				break;										\
-			case 8:											\
-				assignMacro(inst, op, uint64_t);			\
-				break;										\
-			case 16:										\
-				assignMacro(inst, op, uintmax_t);			\
-				break;										\
-			default:										\
-				break;										\
-			}												\
-		}													\
-	}														\
+#define binaryOpMacroI(left, right, result, op, assignMacro)				\
+	if (left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Int ||							\
+		left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Bool ||							\
+		left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Byte)							\
+	{																		\
+		if (left.type->primitive.isSigned)									\
+		{																	\
+			switch (left.type->size)										\
+			{																\
+			case 1:															\
+				assignMacro(left, right, result, op, char, char);			\
+				break;														\
+			case 2:															\
+				assignMacro(left, right, result, op, int16_t, int16_t);		\
+				break;														\
+			case 4:															\
+				assignMacro(left, right, result, op, int32_t, int32_t);		\
+				break;														\
+			case 8:															\
+				assignMacro(left, right, result, op, int64_t, int64_t);		\
+				break;														\
+			case 16:														\
+				assignMacro(left, right, result, op, intmax_t, intmax_t);	\
+				break;														\
+			default:														\
+				break;														\
+			}																\
+		}																	\
+		else																\
+		{																	\
+			switch (left.type->size)										\
+			{																\
+			case 1:															\
+				assignMacro(left, right, result, op, uint8_t, uint8_t);		\
+				break;														\
+			case 2:															\
+				assignMacro(left, right, result, op, uint16_t, uint16_t);	\
+				break;														\
+			case 4:															\
+				assignMacro(left, right, result, op, uint32_t, uint32_t);	\
+				break;														\
+			case 8:															\
+				assignMacro(left, right, result, op, uint64_t, uint64_t);	\
+				break;														\
+			case 16:														\
+				assignMacro(left, right, result, op, uintmax_t, uintmax_t);	\
+				break;														\
+			default:														\
+				break;														\
+			}																\
+		}																	\
+	}																		\
 
-#define binaryOpMacroFP(inst, op, assignMacro)				\
-	else if (inst.binOp.left.type->primitive.kind ==		\
-				SpiteIR::PrimitiveKind::Float)				\
-	{														\
-		switch (inst.binOp.left.type->size)					\
-		{													\
-		case 4:												\
-			assignMacro(inst, op, float);					\
-			break;											\
-		case 8:												\
-			assignMacro(inst, op, double);					\
-			break;											\
-		default:											\
-			break;											\
-		}													\
-	}														\
-
+#define binaryOpMacroFP(left, right, result, op, assignMacro)				\
+	else if (left.type->primitive.kind ==									\
+				SpiteIR::PrimitiveKind::Float)								\
+	{																		\
+		switch (left.type->size)											\
+		{																	\
+		case 4:																\
+			assignMacro(left, right, result, op, float, float);				\
+			break;															\
+		case 8:																\
+			assignMacro(left, right, result, op, double, double);			\
+			break;															\
+		default:															\
+			break;															\
+		}																	\
+	}																		\
 
 	void InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
 		Assert(binOpInst.binOp.left.kind == SpiteIR::OperandKind::Register);
 		Assert(binOpInst.binOp.right.kind == SpiteIR::OperandKind::Register);
 
+		SpiteIR::Operand& left = binOpInst.binOp.left;
+		SpiteIR::Operand& right = binOpInst.binOp.right;
+		size_t result = binOpInst.binOp.result;
+
 		switch (binOpInst.binOp.kind)
 		{
 		case SpiteIR::BinaryOpKind::Add:
-			binaryOpMacroI(binOpInst, +, binaryOpTypeMacro)
-			binaryOpMacroFP(binOpInst, +, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, +, binaryOpTypeMacro)
+			binaryOpMacroFP(left, right, result, +, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Subtract:
-			binaryOpMacroI(binOpInst, -, binaryOpTypeMacro)
-			binaryOpMacroFP(binOpInst, -, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, -, binaryOpTypeMacro)
+			binaryOpMacroFP(left, right, result, -, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Multiply:
-			binaryOpMacroI(binOpInst, *, binaryOpTypeMacro)
-			binaryOpMacroFP(binOpInst, *, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, *, binaryOpTypeMacro)
+			binaryOpMacroFP(left, right, result, *, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Divide:
-			binaryOpMacroI(binOpInst, /, binaryOpTypeMacro)
-			binaryOpMacroFP(binOpInst, /, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, /, binaryOpTypeMacro)
+			binaryOpMacroFP(left, right, result, /, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Modulo:
-			binaryOpMacroI(binOpInst, %, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, %, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::And:
-			binaryOpMacroI(binOpInst, &, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, &, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Or:
-			binaryOpMacroI(binOpInst, |, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, |, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Xor:
-			binaryOpMacroI(binOpInst, ^, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, ^, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::ShiftLeft:
-			binaryOpMacroI(binOpInst, <<, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, <<, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::ShiftRight:
-			binaryOpMacroI(binOpInst, >>, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, >>, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::AndNot:
-			binaryOpMacroI(binOpInst, &~, binaryOpTypeMacro)
+			binaryOpMacroI(left, right, result, &~, binaryOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::LogicAnd:
-			binaryOpMacroI(binOpInst, &&, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, &&, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, &&, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, &&, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::LogicOr:
-			binaryOpMacroI(binOpInst, ||, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, ||, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, ||, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, ||, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Equal:
-			binaryOpMacroI(binOpInst, ==, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, ==, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, ==, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, ==, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::NotEql:
-			binaryOpMacroI(binOpInst, !=, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, !=, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, !=, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, !=, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Less:
-			binaryOpMacroI(binOpInst, <, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, <, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, <, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, <, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::Greater:
-			binaryOpMacroI(binOpInst, >, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, >, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, >, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, >, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::LessEqual:
-			binaryOpMacroI(binOpInst, <=, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, <=, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, <=, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, <=, boolOpTypeMacro)
 			break;
 		case SpiteIR::BinaryOpKind::GreaterEqual:
-			binaryOpMacroI(binOpInst, >=, boolOpTypeMacro)
-			binaryOpMacroFP(binOpInst, >=, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, >=, boolOpTypeMacro)
+			binaryOpMacroFP(left, right, result, >=, boolOpTypeMacro)
 			break;
 		default:
 			Logger::FatalError("Interpreter:InterpretBinaryOp Invalid operation");

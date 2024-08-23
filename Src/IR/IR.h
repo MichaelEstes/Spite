@@ -237,8 +237,9 @@ namespace SpiteIR
 
 	struct Load
 	{
+		Operand dst;
 		Operand src;
-		size_t dst;
+		Operand offset;
 	};
 
 	struct Store

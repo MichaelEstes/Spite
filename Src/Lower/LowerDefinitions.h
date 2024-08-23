@@ -12,12 +12,17 @@ struct ScopeValue
 	SpiteIR::Type* type = nullptr;
 };
 
-struct FunctionContext
+struct FunctionScope
 {
-	SpiteIR::Function* function;
 	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeMap;
 	eastl::vector<Expr*> deferred;
 	eastl::vector<size_t> toDestroy;
+};
+
+struct FunctionContext
+{
+	SpiteIR::Function* function;
+	eastl::deque<FunctionScope> scopeQueue;
 	size_t curr = 0;
 	size_t forCount = 0;
 	size_t ifCount = 0;
@@ -31,9 +36,7 @@ struct FunctionContext
 	void Reset(SpiteIR::Function* function)
 	{
 		this->function = function;
-		scopeMap.clear();
-		deferred.clear();
-		toDestroy.clear();
+		scopeQueue.clear();
 		curr = 0;
 		forCount = 0;
 		ifCount = 0;
@@ -45,7 +48,7 @@ struct LowerDefinitions
 {
 	LowerContext& context;
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
-	FunctionContext scope;
+	FunctionContext funcContext;
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	eastl::vector<Token*>* currGenerics = nullptr;
@@ -115,6 +118,40 @@ struct LowerDefinitions
 		}
 	}
 
+	void AddScope()
+	{
+		funcContext.scopeQueue.emplace_back();
+	}
+
+	void PopScope()
+	{
+		FunctionScope scope = funcContext.scopeQueue.back();
+		funcContext.scopeQueue.pop_back();
+	}
+
+	void AddValueToCurrentScope(const StringView& name, const ScopeValue& value)
+	{
+		funcContext.scopeQueue.back().scopeMap[name] = value;
+	}
+
+	ScopeValue FindScopeValue(StringView& name)
+	{
+		for (auto it = funcContext.scopeQueue.rbegin(); it != funcContext.scopeQueue.rend(); it++)
+		{
+			if (MapHas(it->scopeMap, name))
+			{
+				return it->scopeMap[name];
+			}
+		}
+
+		return { 0, nullptr };
+	}
+
+	SpiteIR::Label* GetCurrentLabel()
+	{
+		return funcContext.function->block->labels.back();
+	}
+
 	void BuildState(SpiteIR::State* state, Stmnt* stateStmnt)
 	{
 		BuildStateDefault(state, stateStmnt);
@@ -122,7 +159,6 @@ struct LowerDefinitions
 
 	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt)
 	{
-
 	}
 
 	SpiteIR::Type* ToIRType(Type* type)
@@ -160,14 +196,16 @@ struct LowerDefinitions
 		Assert(decl);
 
 		function->block = context.ir->AllocateBlock();
-		scope.Reset(function);
+		funcContext.Reset(function);
+		AddScope();
 		BuildFunctionArguments(function, funcStmnt);
 		BuildEntryLabel(function, funcStmnt, decl);
-		SpiteIR::Label* lastLabel = scope.function->block->labels.back();
+		SpiteIR::Label* lastLabel = GetCurrentLabel();
 		if (!lastLabel->terminator && IsVoidType(function->returnType))
 		{
 			BuildVoidReturn(lastLabel);
 		}
+		PopScope();
 	}
 
 	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
@@ -176,7 +214,7 @@ struct LowerDefinitions
 		{
 			SpiteIR::Instruction* alloc = BuildAllocate(arg->value->type);
 			StringView name = StringView(arg->value->name.c_str());
-			scope.scopeMap[name] = { alloc->allocate.result, alloc->allocate.type };
+			AddValueToCurrentScope(name, { alloc->allocate.result, alloc->allocate.type });
 		}
 	}
 
@@ -191,7 +229,7 @@ struct LowerDefinitions
 	{
 		SpiteIR::Label* label = context.ir->AllocateLabel();
 		label->name = name;
-		scope.function->block->labels.push_back(label);
+		funcContext.function->block->labels.push_back(label);
 
 		return label;
 	}
@@ -279,7 +317,7 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
-		if (value.type) scope.scopeMap[def.name->val] = value;
+		if (value.type) AddValueToCurrentScope(def.name->val, value);
 	}
 
 	void BuildInlineDefinition(Stmnt* stmnt)
@@ -294,14 +332,14 @@ struct LowerDefinitions
 	{
 		ScopeValue assignTo = BuildExpr(stmnt->assignmentStmnt.assignTo, stmnt);
 		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
-		BuildStore(scope.function->block->labels.back(),assignTo.reg, BuildRegisterOperand(assignment));
+		BuildStore(GetCurrentLabel(),assignTo.reg, BuildRegisterOperand(assignment));
 	}
 
 	SpiteIR::Label* BuildCondition(const eastl::string& thenName, const eastl::string& elseName, Stmnt* stmnt)
 	{
 		Assert(stmnt->nodeID == StmntID::Conditional);
 
-		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
+		SpiteIR::Label* fromLabel = GetCurrentLabel();
 		ScopeValue cond = BuildExpr(stmnt->conditional.condition, stmnt);
 		SpiteIR::Instruction* fromBranch = BuildBranch(fromLabel, BuildRegisterOperand(cond));
 
@@ -321,8 +359,8 @@ struct LowerDefinitions
 
 		eastl::vector<SpiteIR::Label*> nonTerminated = eastl::vector<SpiteIR::Label*>();
 
-		size_t ifCount = scope.ifCount;
-		scope.ifCount += 1;
+		size_t ifCount = funcContext.ifCount;
+		funcContext.ifCount += 1;
 		eastl::string ifThenName = "if_then" + eastl::to_string(ifCount);
 		eastl::string ifElseName = "if_else" + eastl::to_string(ifCount);
 		SpiteIR::Label* ifThenLabel = BuildCondition(ifThenName, ifElseName, if_.condition);
@@ -344,7 +382,7 @@ struct LowerDefinitions
 			BuildBody(if_.elseCondition);
 		}
 
-		SpiteIR::Label* currLabel = scope.function->block->labels.back();
+		SpiteIR::Label* currLabel = GetCurrentLabel();
 		if (!currLabel->terminator) nonTerminated.push_back(currLabel);
 
 		if (nonTerminated.size())
@@ -364,13 +402,13 @@ struct LowerDefinitions
 		auto& for_ = stmnt->forStmnt;
 		auto& def = for_.iterated.declaration->definition;
 
-		eastl::string forStartName = "for_cond" + eastl::to_string(scope.forCount);
-		eastl::string forLoopName = "for_body" + eastl::to_string(scope.forCount);
-		eastl::string forIncName = "for_inc" + eastl::to_string(scope.forCount);
-		eastl::string forEndName = "for_end" + eastl::to_string(scope.forCount);
-		scope.forCount++;
+		eastl::string forStartName = "for_cond" + eastl::to_string(funcContext.forCount);
+		eastl::string forLoopName = "for_body" + eastl::to_string(funcContext.forCount);
+		eastl::string forIncName = "for_inc" + eastl::to_string(funcContext.forCount);
+		eastl::string forEndName = "for_end" + eastl::to_string(funcContext.forCount);
+		funcContext.forCount++;
 
-		SpiteIR::Label* fromLabel = scope.function->block->labels.back();
+		SpiteIR::Label* fromLabel = GetCurrentLabel();
 		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
 		ScopeValue init = { 0, nullptr };
 		if (for_.rangeFor)
@@ -382,7 +420,7 @@ struct LowerDefinitions
 
 		}
 
-		scope.scopeMap[def.name->val] = init;
+		AddValueToCurrentScope(def.name->val, init);
 
 		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
@@ -396,7 +434,7 @@ struct LowerDefinitions
 
 		SpiteIR::Label* forLoopLabel = BuildLabelBody(forLoopName, for_.body);
 		
-		SpiteIR::Label* currentBodyLabel = scope.function->block->labels.back();
+		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
 		SpiteIR::Instruction* bodyToInc = BuildJump(currentBodyLabel);
 		SpiteIR::Label* forIncLabel = BuildLabel(forIncName);
 		bodyToInc->jump.label = forIncLabel;
@@ -432,7 +470,7 @@ struct LowerDefinitions
 		auto& ret = stmnt->returnStmnt;
 
 
-		SpiteIR::Label* label = scope.function->block->labels.back();
+		SpiteIR::Label* label = GetCurrentLabel();
 		if (ret.expr->typeID == ExprID::TypeExpr &&
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
@@ -465,9 +503,9 @@ struct LowerDefinitions
 
 	void BuildBlock(Stmnt* stmnt)
 	{
-		SpiteIR::Label* startLabel = scope.function->block->labels.back();
-		eastl::string blockName = "block" + eastl::to_string(scope.blockCount);
-		eastl::string blockEndName = "block_end" + eastl::to_string(scope.blockCount);
+		SpiteIR::Label* startLabel = GetCurrentLabel();
+		eastl::string blockName = "block" + eastl::to_string(funcContext.blockCount);
+		eastl::string blockEndName = "block_end" + eastl::to_string(funcContext.blockCount);
 
 		SpiteIR::Instruction* toBlock = BuildJump(startLabel);
 		SpiteIR::Label* blockLabel = BuildLabel(blockName);
@@ -478,7 +516,7 @@ struct LowerDefinitions
 			BuildStmntForBlock(stmnt);
 		}
 
-		SpiteIR::Label* currLabel = scope.function->block->labels.back();
+		SpiteIR::Label* currLabel = GetCurrentLabel();
 		if (!currLabel->terminator)
 		{
 			SpiteIR::Instruction* toBlockEnd = BuildJump(currLabel);
@@ -500,7 +538,7 @@ struct LowerDefinitions
 		case SelectorExpr:
 			break;
 		case IndexExpr:
-			break;
+			return BuildIndexExpr(expr, stmnt);
 		case FunctionCallExpr:
 			return BuildFunctionCall(expr, stmnt);
 		case NewExpr:
@@ -508,8 +546,7 @@ struct LowerDefinitions
 		case FixedExpr:
 			break;
 		case TypeLiteralExpr:
-			BuildTypeLiteral(expr, stmnt);
-			break;
+			return BuildTypeLiteral(expr, stmnt);
 		case ExplicitTypeExpr:
 			break;
 		case AsExpr:
@@ -523,7 +560,7 @@ struct LowerDefinitions
 		case UnaryExpr:
 			break;
 		case GroupedExpr:
-			break;
+			return BuildExpr(expr->groupedExpr.expr, stmnt);
 		case TemplateExpr:
 			break;
 		case TypeExpr:
@@ -649,7 +686,7 @@ struct LowerDefinitions
 
 		literalOp.type = irType;
 
-		SpiteIR::Label* label = scope.function->block->labels.back();
+		SpiteIR::Label* label = GetCurrentLabel();
 		SpiteIR::Instruction* allocate = BuildAllocate(irType);
 		SpiteIR::Instruction* store = BuildStore(label, allocate->allocate.result, literalOp);
 		return { store->store.dst, irType };
@@ -658,7 +695,7 @@ struct LowerDefinitions
 	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr->typeLiteralExpr.values->size());
-		SpiteIR::Label* label = scope.function->block->labels.back();
+		SpiteIR::Label* label = GetCurrentLabel();
 		eastl::vector<ScopeValue> values;
 		for (Expr* val : *expr->typeLiteralExpr.values)
 		{
@@ -700,9 +737,55 @@ struct LowerDefinitions
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
-		if (MapHas(scope.scopeMap, ident))
+		return FindScopeValue(ident);
+	}
+
+	SpiteIR::Type* GetDereferencedType(SpiteIR::Type* type)
+	{
+		switch (type->kind)
 		{
-			return scope.scopeMap[ident];
+		case SpiteIR::TypeKind::PointerType:
+			return type->pointer.type;
+		case SpiteIR::TypeKind::DynamicArrayType:
+			return type->dynamicArray.type;
+		case SpiteIR::TypeKind::FixedArrayType:
+			return type->fixedArray.type;
+		default:
+			break;
+		}
+		return nullptr;
+	}
+
+	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
+		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
+
+		ScopeValue dst = { 0, nullptr };
+
+		switch (toIndex.type->kind)
+		{
+		case SpiteIR::TypeKind::StateType:
+			break;
+		case SpiteIR::TypeKind::PointerType:
+		case SpiteIR::TypeKind::DynamicArrayType:
+		case SpiteIR::TypeKind::FixedArrayType:
+		{
+			SpiteIR::Type* type = GetDereferencedType(toIndex.type);
+			SpiteIR::Instruction* alloc = BuildAllocate(type);
+			SpiteIR::Operand dst = BuildRegisterOperand({ alloc->allocate.result, type });
+			SpiteIR::Operand src = BuildRegisterOperand(toIndex);
+			SpiteIR::Operand offset = BuildRegisterOperand(index);
+			SpiteIR::Instruction* load = BuildLoad(label, dst, src, offset);
+			break;
+		}
+		case SpiteIR::TypeKind::PrimitiveType:
+		case SpiteIR::TypeKind::StructureType:
+		case SpiteIR::TypeKind::FunctionType:
+			break;
+		default:
+			break;
 		}
 
 		return { 0, nullptr };
@@ -722,7 +805,7 @@ struct LowerDefinitions
 		if (leftVal.type->kind == SpiteIR::TypeKind::PrimitiveType &&
 			rightVal.type->kind == SpiteIR::TypeKind::PrimitiveType)
 		{
-			return BuildBinaryOp(leftVal, rightVal, op, scope.function->block->labels.back());
+			return BuildBinaryOp(leftVal, rightVal, op, GetCurrentLabel());
 		}
 
 		return { 0, nullptr };
@@ -750,7 +833,7 @@ struct LowerDefinitions
 		binOp->binOp.kind = kind;
 		binOp->binOp.left = BuildRegisterOperand(leftVal);
 		binOp->binOp.right = BuildRegisterOperand(rightVal);
-		binOp->binOp.result = scope.curr;
+		binOp->binOp.result = funcContext.curr;
 
 		ScopeValue value;
 		if (kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, &_boolType };
@@ -799,7 +882,7 @@ struct LowerDefinitions
 
 		SpiteIR::Instruction* alloc = BuildAllocate(irFunction->returnType);
 		SpiteIR::Instruction* call = BuildCall(irFunction, alloc->allocate.result, params, 
-			scope.function->block->labels.back());
+			GetCurrentLabel());
 		return { call->call.result, irFunction->returnType };
 	}
 
@@ -863,10 +946,10 @@ struct LowerDefinitions
 		SpiteIR::Instruction* allocate = context.ir->AllocateInstruction();
 		allocate->kind = SpiteIR::InstructionKind::Allocate;
 		allocate->allocate.type = type;
-		allocate->allocate.result = scope.curr;
+		allocate->allocate.result = funcContext.curr;
 
-		scope.function->block->allocations.push_back(allocate);
-		scope.IncrementRegister(type);
+		funcContext.function->block->allocations.push_back(allocate);
+		funcContext.IncrementRegister(type);
 		return allocate;
 	}
 
@@ -884,6 +967,18 @@ struct LowerDefinitions
 		store->store.src = src;
 
 		return store;
+	}
+
+	SpiteIR::Instruction* BuildLoad(SpiteIR::Label* label, const SpiteIR::Operand dst, 
+		const SpiteIR::Operand& src, const SpiteIR::Operand& offset)
+	{
+		SpiteIR::Instruction* load = CreateInstruction(label);
+		load->kind = SpiteIR::InstructionKind::Load;
+		load->load.dst = dst;
+		load->load.src = src;
+		load->load.offset = offset;
+
+		return load;
 	}
 
 	SpiteIR::Operand BuildRegisterOperand(const ScopeValue& value)

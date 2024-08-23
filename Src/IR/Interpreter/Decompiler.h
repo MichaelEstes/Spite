@@ -195,6 +195,7 @@ struct Decompiler
 		case SpiteIR::InstructionKind::HeapAllocate:
 			break;
 		case SpiteIR::InstructionKind::Load:
+			DecompileLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
 			DecompileStore(inst);
@@ -238,6 +239,12 @@ struct Decompiler
 	{
 		Write("r" + eastl::to_string(allocateInst.allocate.result) + " = " + 
 			"allocate " + WriteType(allocateInst.allocate.type));
+	}
+
+	void DecompileLoad(SpiteIR::Instruction& loadInst)
+	{
+		Write(WriteOperand(loadInst.load.dst) + " = " +
+			"load " + WriteOperand(loadInst.load.src) + " " + WriteOperand(loadInst.load.offset));
 	}
 
 	void DecompileStore(SpiteIR::Instruction& storeInst)

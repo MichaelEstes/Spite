@@ -146,7 +146,6 @@ int main(int argc, char** argv)
 	int64_t value = *(int64_t*)interpreter.Interpret(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
-
 	/*{
 		Profiler builderProfiler = Profiler();
 		switch (config.output)
