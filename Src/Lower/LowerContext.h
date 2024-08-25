@@ -20,6 +20,9 @@ struct LowerContext
 	eastl::hash_map<SpiteIR::State*, ASTContainer> stateASTMap;
 	eastl::hash_map<SpiteIR::Function*, ASTContainer> functionASTMap;
 
+	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
+	eastl::vector<SpiteIR::Type*> toResolveStateSize;
+
 	SpiteIR::State* FindState(const eastl::string& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())

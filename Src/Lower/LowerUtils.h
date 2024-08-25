@@ -442,7 +442,9 @@ template<typename Low>
 SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
 {
 	SpiteIR::State* state = lower->context.FindState(val);
-	if (!state) lower->toResolve.push_back({ val, type });
+	if (!state) lower->context.toResolveStateType.push_back({ val, type });
+	else if (!state->size && type) lower->context.toResolveStateSize.push_back(type);
+	else if (type) type->size = state->size;
 	return state;
 }
 
@@ -532,13 +534,16 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StructureType;
+		irType->size = 0;
 		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
 		irType->structureType.names = ir->AllocateArray<eastl::string>();
 		for (size_t i = 0; i < type->explicitType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
-			irType->structureType.types->push_back(TypeToIRType(ir, def.type, lower, generics, templates));
+			SpiteIR::Type* member = TypeToIRType(ir, def.type, lower, generics, templates);
+			irType->size += member->size;
+			irType->structureType.types->push_back(member);
 			irType->structureType.names->push_back(def.name->val.ToString());
 		}
 		return irType;
@@ -571,6 +576,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->kind = SpiteIR::TypeKind::FixedArrayType;
 		irType->fixedArray.count = type->fixedArrayType.size;
 		irType->fixedArray.type = TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates);
+		irType->size = config.targetArchBitWidth + (irType->fixedArray.type->size * irType->fixedArray.count);
 		return irType;
 	}
 	case TemplatedType:

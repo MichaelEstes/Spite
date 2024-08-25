@@ -47,7 +47,6 @@ struct FunctionContext
 struct LowerDefinitions
 {
 	LowerContext& context;
-	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 	FunctionContext funcContext;
 	SymbolTable* symbolTable = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;

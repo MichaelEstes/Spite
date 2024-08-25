@@ -10,7 +10,6 @@
 struct LowerDeclarations
 {
 	LowerContext& context;
-	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolve;
 
 	LowerDeclarations(LowerContext& context) : context(context)
 	{}
@@ -42,18 +41,24 @@ struct LowerDeclarations
 			BuildStateDeclarations(package, value);
 		}
 
-		while (toResolve.size() > 0)
+		while (context.toResolveStateType.size() > 0)
 		{
-			eastl::tuple<eastl::string, SpiteIR::Type*> val = toResolve.back();
+			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
 			eastl::string& typeName = eastl::get<0>(val);
 			SpiteIR::Type* type = eastl::get<1>(val);
 			type->stateType.state = FindState(this, typeName, nullptr);
-			toResolve.pop_back();
+			context.toResolveStateType.pop_back();
 		}
 
 		for (auto& [key, state] : package->states)
 		{
 			BuildStateSize(state, state);
+		}
+
+		while (context.toResolveStateSize.size() > 0)
+		{
+			SpiteIR::Type* val = context.toResolveStateSize.back();
+			val->size = val->stateType.state->size;
 		}
 
 		for (auto& [key, value] : symbolTable->functionMap)
@@ -111,7 +116,7 @@ struct LowerDeclarations
 		case SpiteIR::TypeKind::DynamicArrayType:
 			return type->size;
 		case SpiteIR::TypeKind::FixedArrayType:
-			return type->fixedArray.count * GetSizeForType(type->fixedArray.type, state);
+			return type->size;
 		case SpiteIR::TypeKind::FunctionType:
 			return type->size;
 		default:
