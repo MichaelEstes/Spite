@@ -550,6 +550,7 @@ struct LowerDefinitions
 		case ExplicitTypeExpr:
 			break;
 		case AsExpr:
+			BuildCastExpr(expr, stmnt);
 			break;
 		case DereferenceExpr:
 			break;
@@ -576,6 +577,12 @@ struct LowerDefinitions
 		}
 
 		return { 0, nullptr };
+	}
+
+	ScopeValue FindValueForIndent(Expr* expr)
+	{
+		StringView& ident = expr->identifierExpr.identifier->val;
+		return FindScopeValue(ident);
 	}
 
 	ScopeValue BuildDefaultValue(SpiteIR::Type* type, size_t result, SpiteIR::Label* label)
@@ -734,10 +741,16 @@ struct LowerDefinitions
 		return { alloc->allocate.result, derivedType };
 	}
 
-	ScopeValue FindValueForIndent(Expr* expr)
+	ScopeValue BuildCastExpr(Expr* expr, Stmnt* stmnt)
 	{
-		StringView& ident = expr->identifierExpr.identifier->val;
-		return FindScopeValue(ident);
+		auto& as = expr->asExpr;
+		ScopeValue toCast = BuildExpr(as.of, stmnt);
+		SpiteIR::Type* toType = ToIRType(as.to);
+		SpiteIR::Instruction* alloc = BuildAllocate(toType);
+		ScopeValue to = { alloc->allocate.result, toType };
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(toCast), 
+			BuildRegisterOperand(to));
+		return to;
 	}
 
 	SpiteIR::Type* GetDereferencedType(SpiteIR::Type* type)
@@ -774,10 +787,10 @@ struct LowerDefinitions
 		{
 			SpiteIR::Type* type = GetDereferencedType(toIndex.type);
 			SpiteIR::Instruction* alloc = BuildAllocate(type);
-			SpiteIR::Operand dst = BuildRegisterOperand({ alloc->allocate.result, type });
+			dst = { alloc->allocate.result, type };
 			SpiteIR::Operand src = BuildRegisterOperand(toIndex);
 			SpiteIR::Operand offset = BuildRegisterOperand(index);
-			SpiteIR::Instruction* load = BuildLoad(label, dst, src, offset);
+			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), src, offset);
 			break;
 		}
 		case SpiteIR::TypeKind::PrimitiveType:
@@ -788,7 +801,7 @@ struct LowerDefinitions
 			break;
 		}
 
-		return { 0, nullptr };
+		return dst;
 	}
 
 	ScopeValue BuildBinaryExpression(Expr* expr, Stmnt* stmnt)
@@ -965,7 +978,6 @@ struct LowerDefinitions
 		store->kind = SpiteIR::InstructionKind::Store;
 		store->store.dst = dst;
 		store->store.src = src;
-
 		return store;
 	}
 
@@ -977,8 +989,17 @@ struct LowerDefinitions
 		load->load.dst = dst;
 		load->load.src = src;
 		load->load.offset = offset;
-
 		return load;
+	}
+
+	SpiteIR::Instruction* BuildCast(SpiteIR::Label* label, const SpiteIR::Operand from,
+		const SpiteIR::Operand& to)
+	{
+		SpiteIR::Instruction* cast = CreateInstruction(label);
+		cast->kind = SpiteIR::InstructionKind::Cast;
+		cast->cast.from = from;
+		cast->cast.to = to;
+		return cast;
 	}
 
 	SpiteIR::Operand BuildRegisterOperand(const ScopeValue& value)

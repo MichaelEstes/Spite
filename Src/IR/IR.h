@@ -256,7 +256,7 @@ namespace SpiteIR
 	struct Cast
 	{
 		Operand from;
-		Type* to;
+		Operand to;
 	};
 
 	struct Switch
