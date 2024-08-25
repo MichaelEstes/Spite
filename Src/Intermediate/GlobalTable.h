@@ -109,7 +109,8 @@ struct GlobalTable
 		{
 			StringView& package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (symbolTable) return symbolTable->FindState(stateName);
+			state = symbolTable->FindState(stateName);
+			if (state) return state;
 		}
 
 		return nullptr;
@@ -126,7 +127,8 @@ struct GlobalTable
 		{
 			StringView& package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (symbolTable) return symbolTable->FindStateSymbol(stateName);
+			state = symbolTable->FindStateSymbol(stateName);
+			if (state) return state;
 		}
 
 		return nullptr;
@@ -143,7 +145,8 @@ struct GlobalTable
 		{
 			StringView & package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (symbolTable) return symbolTable->FindFunction(functionName);
+			stmnt = symbolTable->FindFunction(functionName);
+			if (stmnt) return stmnt;
 		}
 
 		return nullptr;
@@ -160,7 +163,8 @@ struct GlobalTable
 		{
 			StringView & package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (symbolTable) return symbolTable->FindGlobalVariable(globalVarName);
+			stmnt = symbolTable->FindGlobalVariable(globalVarName);
+			if (stmnt) return stmnt;
 		}
 
 		return nullptr;

@@ -1251,7 +1251,7 @@ struct CheckerUtils
 			Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
 			if (!state)
 			{
-				AddError("Unable to find state for: " + ToString(type));
+				AddError("CheckerUtils:UnwrapComplexType Unable to find state for: " + ToString(type));
 				return types;
 			}
 			decls = state->state.members;

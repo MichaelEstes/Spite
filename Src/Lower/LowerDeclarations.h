@@ -59,6 +59,7 @@ struct LowerDeclarations
 		{
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
+			context.toResolveStateSize.pop_back();
 		}
 
 		for (auto& [key, value] : symbolTable->functionMap)

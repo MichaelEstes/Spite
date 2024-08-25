@@ -768,8 +768,15 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
+	ScopeValue BuildForwardIndexExpr(Expr* expr, Stmnt* stmnt)
+	{
+
+		return { 0, nullptr };
+	}
+
 	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
 	{
+		if (expr->indexExpr.forward) return BuildForwardIndexExpr(expr, stmnt);
 		SpiteIR::Label* label = GetCurrentLabel();
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
 		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
