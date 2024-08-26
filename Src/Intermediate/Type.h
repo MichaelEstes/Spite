@@ -126,3 +126,57 @@ struct Type
 		primitiveType.isSigned = isSigned;
 	}
 };
+
+inline bool IsInt(Type* primitive)
+{
+	switch (primitive->primitiveType.type)
+	{
+	case UniqueType::Bool:
+	case UniqueType::Byte:
+	case UniqueType::Int:
+	case UniqueType::Int16:
+	case UniqueType::Int32:
+	case UniqueType::Int64:
+	case UniqueType::Int128:
+	case UniqueType::Ubyte:
+	case UniqueType::Uint:
+	case UniqueType::Uint16:
+	case UniqueType::Uint32:
+	case UniqueType::Uint64:
+	case UniqueType::Uint128:
+		return true;
+	default:
+		return false;
+	}
+}
+
+inline bool IsIntLike(Type* type)
+{
+	if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
+	else if (type->typeID == TypeID::PointerType) return true;
+	else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
+}
+
+inline bool IsFloat(Type* primitive)
+{
+	switch (primitive->primitiveType.type)
+	{
+	case UniqueType::Float:
+	case UniqueType::Float32:
+	case UniqueType::Float64:
+		return true;
+	default:
+		return false;
+	}
+}
+
+inline bool IsComparableToZero(Type* type)
+{
+	return (type->typeID == TypeID::PrimitiveType && (IsInt(type) || IsFloat(type)))
+		|| IsIntLike(type);
+}
+
+inline bool IsString(Type* primitive)
+{
+	return primitive->primitiveType.type == UniqueType::String;
+}

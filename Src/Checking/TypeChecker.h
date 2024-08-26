@@ -45,9 +45,9 @@ struct TypeChecker
 		auto& arr = type->arrayType;
 		if (arr.size)
 		{
-			if (utils.IsConstantIntExpr(arr.size))
+			if (context.scopeUtils.IsConstantIntExpr(arr.size))
 			{
-				size_t size = utils.EvaluateConstantIntExpr(arr.size);
+				size_t size = context.scopeUtils.EvaluateConstantIntExpr(arr.size);
 				if (size)
 				{
 					Type* arrType = arr.type;
@@ -160,7 +160,7 @@ struct TypeChecker
 	{
 		auto& conditional = node->conditional;
 		Type* inferred = utils.InferType(conditional.condition);
-		if (!utils.IsComparableToZero(inferred))
+		if (!IsComparableToZero(inferred))
 		{
 			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
 		}
@@ -178,7 +178,7 @@ struct TypeChecker
 			Type* type = utils.InferType(forStmnt.toIterate);
 			if (forStmnt.rangeFor)
 			{
-				if (!utils.IsInt(type))
+				if (!IsInt(type))
 					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
 			}
 			else
@@ -196,7 +196,7 @@ struct TypeChecker
 	inline void CheckSwitchType(Stmnt* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
-		if (!utils.IsInt(utils.InferType(switchStmnt.switchOn)))
+		if (!IsInt(utils.InferType(switchStmnt.switchOn)))
 		{
 			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
 		}

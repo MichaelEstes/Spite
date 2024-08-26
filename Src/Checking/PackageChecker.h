@@ -34,7 +34,7 @@ struct PackageChecker
 		{
 			AddScope();
 			// Keep in state in context for method checking
-			context.currentStateContext = value.state;
+			context.currentContext = value.state;
 			CheckState(key, value.state);
 			CheckConstructors(value.constructors);
 			CheckMethods(value.methods);
@@ -42,7 +42,6 @@ struct PackageChecker
 			CheckDestructor(value.destructor);
 			PopScope();
 		}
-		context.currentStateContext = nullptr;
 
 		for (auto& [key, value] : context.symbolTable->functionMap)
 		{
@@ -54,8 +53,8 @@ struct PackageChecker
 
 		}
 
-		context.scopeQueue.pop_back();
-		if (context.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
+		context.scopeUtils.scopeQueue.pop_back();
+		if (context.scopeUtils.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
 	}
 
 	void CheckImport(Stmnt* imported)
@@ -70,13 +69,13 @@ struct PackageChecker
 
 	void AddScope()
 	{
-		context.scopeQueue.emplace_back();
+		context.scopeUtils.AddScope();
 	}
 
 	void PopScope()
 	{
-		context.scopeQueue.pop_back();
-		if (context.scopeQueue.size() == 0)
+		context.scopeUtils.PopScope();
+		if (context.scopeUtils.scopeQueue.size() == 0)
 		{
 			Logger::FatalError("PackageChecker::PopScope Global scope removed, possible compiler error");
 		}
@@ -299,7 +298,7 @@ struct PackageChecker
 
 	void CheckExpr(Expr* expr)
 	{
-		//Assert(expr);
+		Assert(expr);
 		switch (expr->typeID)
 		{
 		case InvalidExpr:
@@ -447,21 +446,20 @@ struct PackageChecker
 		}
 	}
 
-	void CheckDefinition(Stmnt* node, bool scopeDefinition = true)
+	void CheckDefinition(Stmnt* stmnt, bool scopeDefinition = true)
 	{
-		auto& definition = node->definition;
-		CheckType(node->definition.type, node->start, definition.assignment);
+		auto& definition = stmnt->definition;
+		CheckType(stmnt->definition.type, stmnt->start, definition.assignment);
 		if (definition.assignment) CheckExpr(definition.assignment);
-		typeChecker.CheckDefinitionType(node);
+		typeChecker.CheckDefinitionType(stmnt);
 		if (scopeDefinition)
 		{
 			StringView& name = definition.name->val;
-			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = context.scopeQueue.back();
-			if (back.find(name) != back.end())
+			if (context.scopeUtils.HasInTopScope(name))
 			{
-				AddError(node->start, "PackageChecker:CheckDefinition Re-definition of variable name: " + name);
+				AddError(stmnt->start, "PackageChecker:CheckDefinition Re-definition of variable name: " + name);
 			}
-			else back[name] = node;
+			else context.scopeUtils.AddToTopScope(name, stmnt);
 		}
 	}
 
@@ -475,16 +473,15 @@ struct PackageChecker
 
 		if (type->typeID == TypeID::ExplicitType)
 		{
-			eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = context.scopeQueue.back();
 			auto& explicitType = type->explicitType;
 			for (Stmnt* decl : *explicitType.declarations)
 			{
 				StringView& name = decl->definition.name->val;
-				if (back.find(name) != back.end())
+				if (context.scopeUtils.HasInTopScope(name))
 				{
 					AddError(decl->start, "PackageChecker:CheckInlineDefinition Re-definition of variable name: " + name);
 				}
-				else back[name] = decl;
+				else context.scopeUtils.AddToTopScope(name, decl);;
 				CheckType(decl->definition.type, decl->start);
 			}
 		}

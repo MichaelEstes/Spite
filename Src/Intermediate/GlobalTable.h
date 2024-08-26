@@ -109,6 +109,7 @@ struct GlobalTable
 		{
 			StringView& package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
 			state = symbolTable->FindState(stateName);
 			if (state) return state;
 		}
@@ -127,6 +128,7 @@ struct GlobalTable
 		{
 			StringView& package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
 			state = symbolTable->FindStateSymbol(stateName);
 			if (state) return state;
 		}
@@ -145,6 +147,7 @@ struct GlobalTable
 		{
 			StringView & package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
 			stmnt = symbolTable->FindFunction(functionName);
 			if (stmnt) return stmnt;
 		}
@@ -163,6 +166,7 @@ struct GlobalTable
 		{
 			StringView & package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
 			stmnt = symbolTable->FindGlobalVariable(globalVarName);
 			if (stmnt) return stmnt;
 		}
@@ -176,5 +180,70 @@ struct GlobalTable
 		if (!found) found = FindScopedFunction(name, symbolTable);
 		if (!found) found = FindScopedGlobalVar(name, symbolTable);
 		return found;
+	}
+
+	inline Stmnt* FindStateMemberOrMethodStmnt(Stmnt* state, Token* name, SymbolTable* symbolTable)
+	{
+		Stmnt* stmnt = FindStateMember(state, name->val);
+		if (stmnt)
+		{
+			return FindStateForType(stmnt->definition.type, symbolTable);
+		}
+
+		StateSymbol* stateSymbol = FindScopedStateSymbol(state->state.name, symbolTable);
+		stmnt = FindStateMethod(stateSymbol, name->val);
+		return stmnt;
+	}
+
+	Token* GetStateNameForStmnt(Stmnt* stmnt)
+	{
+		switch (stmnt->nodeID)
+		{
+		case Method:
+			return stmnt->method.stateName;
+		case StateOperator:
+			return stmnt->stateOperator.stateName;
+		case Destructor:
+			return stmnt->destructor.stateName;
+		case Constructor:
+			return stmnt->constructor.stateName;
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
+	Stmnt* FindStateForStmnt(Stmnt* stmnt, SymbolTable* symbolTable)
+	{
+		Token* stateName = GetStateNameForStmnt(stmnt);
+		if (!stateName) return nullptr;
+
+		return FindScopedState(stateName, symbolTable);
+	}
+
+	bool IsGenericOfStmnt(Type* type, Stmnt* stmnt, SymbolTable* symbolTable)
+	{
+		if (!type || !stmnt || type->typeID != TypeID::NamedType) return false;
+
+		Token* ident = type->namedType.typeName;
+		if (stmnt && IsGeneric(ident, stmnt)) return true;
+
+		Stmnt* state = FindStateForStmnt(stmnt, symbolTable);
+		return state && IsGeneric(ident, state);
+	}
+
+	bool IsGenericOfStmnt(Expr* expr, Stmnt* stmnt, SymbolTable* symbolTable)
+	{
+		if (expr->typeID == ExprID::TypeExpr) 
+			return IsGenericOfStmnt(expr->typeExpr.type, stmnt, symbolTable);
+
+		if (!stmnt || expr->typeID != ExprID::IdentifierExpr) return false;
+
+		Token* ident = expr->identifierExpr.identifier;
+		if (stmnt && IsGeneric(ident, stmnt)) return true;
+		
+		Stmnt* state = FindStateForStmnt(stmnt, symbolTable);
+		return state && IsGeneric(ident, state);
 	}
 };

@@ -30,7 +30,7 @@ struct ExprChecker
 		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
 		Expr* ofExpr = templateExpr.expr;
 
-		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
+		Stmnt* stmnt = context.scopeUtils.GetDeclarationStmntForExpr(ofExpr);
 		if (!stmnt)
 		{
 			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
@@ -83,7 +83,7 @@ struct ExprChecker
 		Expr* indexExpr = atExpr;
 		while (indexExpr->typeID == ExprID::IndexExpr)
 		{
-			if (!utils.IsConstantIntExpr(indexExpr->indexExpr.index))
+			if (!context.scopeUtils.IsConstantIntExpr(indexExpr->indexExpr.index))
 			{
 				AddError(indexExpr->start, "'fixed' array size expressions must evaluate to a constant value");
 				return;
@@ -99,7 +99,7 @@ struct ExprChecker
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
 		size_t paramCount = params->size();
-		Stmnt* functionStmnt = utils.GetDeclarationStmntForExpr(function);
+		Stmnt* functionStmnt = context.scopeUtils.GetDeclarationStmntForExpr(function);
 
 		if (functionStmnt)
 		{
@@ -253,7 +253,7 @@ struct ExprChecker
 		}
 		else if (caller->typeID == ExprID::IdentifierExpr)
 		{
-			return utils.FindInScope(caller->identifierExpr.identifier->val) != nullptr;
+			return context.scopeUtils.FindInScope(caller->identifierExpr.identifier->val) != nullptr;
 		}
 
 		return false;

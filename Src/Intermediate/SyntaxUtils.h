@@ -2,21 +2,6 @@
 
 #include "Stmnt.h"
 
-inline Stmnt* GetGenerics(Stmnt* node)
-{
-	switch (node->nodeID)
-	{
-	case FunctionStmnt:
-		return node->function.generics;
-	case StateStmnt:
-		return node->state.generics;
-	case Method:
-		return node->method.generics;
-	default:
-		return nullptr;
-	}
-}
-
 Token* GetTokenForTemplate(Expr* expr);
 size_t IntLiteralStringToInt(StringView& str);
 

@@ -768,8 +768,12 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
+	bool readyForArrAlloc = true;
 	ScopeValue BuildForwardIndexExpr(Expr* expr, Stmnt* stmnt)
 	{
+		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
+		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
+
 
 		return { 0, nullptr };
 	}

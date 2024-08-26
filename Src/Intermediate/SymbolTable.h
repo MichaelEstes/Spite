@@ -7,6 +7,7 @@
 #include "../Containers/StringView.h"
 #include "../Containers/Arena.h"
 #include "../Config/Config.h"
+#include "Stmnt.h"
 #include "SyntaxUtils.h"
 
 extern Config config;
@@ -151,6 +152,77 @@ struct StateSymbol
 	eastl::hash_set<Stmnt*, MethodHash, MethodEqual> operators;
 	Stmnt* destructor = nullptr;
 };
+
+inline Stmnt* GetGenerics(Stmnt* node)
+{
+	switch (node->nodeID)
+	{
+	case FunctionStmnt:
+		return node->function.generics;
+	case StateStmnt:
+		return node->state.generics;
+	case Method:
+		return node->method.generics;
+	default:
+		return nullptr;
+	}
+}
+
+inline bool IsGeneric(Token* ident, Stmnt* stmnt)
+{
+	Stmnt* generics = GetGenerics(stmnt);
+	if (!generics) return false;
+
+	for (Token* gen : *generics->generics.names)
+	{
+		if (ident->val == gen->val) return true;
+	}
+
+	return false;
+}
+
+inline Stmnt* FindTypeMember(eastl::vector<Stmnt*>* members, StringView& val)
+{
+	for (Stmnt* node : *members)
+	{
+		if (node->definition.name->val == val) return node;
+	}
+
+	return nullptr;
+}
+
+inline Stmnt* FindStateMember(Stmnt* of, StringView& val)
+{
+	return FindTypeMember(of->state.members, val);
+}
+
+inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
+{
+	auto& methods = of->methods;
+	for (Stmnt* node : methods)
+	{
+		if (node->method.name->val == val) return node;
+	}
+
+	return nullptr;
+}
+
+inline bool IsBooleanOperator(Token* op)
+{
+	switch (op->uniqueType) {
+	case UniqueType::LogicOr:
+	case UniqueType::LogicAnd:
+	case UniqueType::Equal:
+	case UniqueType::NotEql:
+	case UniqueType::Less:
+	case UniqueType::Greater:
+	case UniqueType::LessEqual:
+	case UniqueType::GreaterEqual:
+		return true;
+	default:
+		return false;
+	}
+}
 
 struct SymbolTable
 {
