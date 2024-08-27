@@ -1,5 +1,6 @@
 #include "EASTL/deque.h"
 #include "../Intermediate/GlobalTable.h"
+#include "../Intermediate/ScopeUtils.h"
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerContext.h"
@@ -23,6 +24,7 @@ struct FunctionContext
 {
 	SpiteIR::Function* function;
 	eastl::deque<FunctionScope> scopeQueue;
+	ScopeUtils scopeUtils = ScopeUtils(nullptr, nullptr);
 	size_t curr = 0;
 	size_t forCount = 0;
 	size_t ifCount = 0;
@@ -33,16 +35,20 @@ struct FunctionContext
 		curr += type->size;
 	}
 
-	void Reset(SpiteIR::Function* function)
+	void Reset(SpiteIR::Function* function, SymbolTable* symbolTable, GlobalTable* globalTable)
 	{
 		this->function = function;
 		scopeQueue.clear();
+		scopeUtils.scopeQueue.clear();
 		curr = 0;
 		forCount = 0;
 		ifCount = 0;
 		blockCount = 0;
 	}
 };
+
+const size_t InvalidRegister = (size_t)-1;
+const ScopeValue InvalidScopeValue = { InvalidRegister, nullptr };
 
 struct LowerDefinitions
 {
@@ -120,12 +126,14 @@ struct LowerDefinitions
 	void AddScope()
 	{
 		funcContext.scopeQueue.emplace_back();
+		funcContext.scopeUtils.AddScope();
 	}
 
 	void PopScope()
 	{
 		FunctionScope scope = funcContext.scopeQueue.back();
 		funcContext.scopeQueue.pop_back();
+		funcContext.scopeUtils.PopScope();
 	}
 
 	void AddValueToCurrentScope(const StringView& name, const ScopeValue& value)
@@ -143,7 +151,7 @@ struct LowerDefinitions
 			}
 		}
 
-		return { 0, nullptr };
+		return InvalidScopeValue;
 	}
 
 	SpiteIR::Label* GetCurrentLabel()
@@ -195,7 +203,7 @@ struct LowerDefinitions
 		Assert(decl);
 
 		function->block = context.ir->AllocateBlock();
-		funcContext.Reset(function);
+		funcContext.Reset(function, symbolTable, context.globalTable);
 		AddScope();
 		BuildFunctionArguments(function, funcStmnt);
 		BuildEntryLabel(function, funcStmnt, decl);
@@ -243,6 +251,7 @@ struct LowerDefinitions
 
 	void BuildBody(Body& body)
 	{
+		AddScope();
 		if (body.body->nodeID == StmntID::Block)
 		{
 			for (Stmnt* stmnt : *body.body->block.inner)
@@ -254,6 +263,7 @@ struct LowerDefinitions
 		{
 			BuildStmntForBlock(body.body);
 		}
+		PopScope();
 	}
 
 	void BuildStmntForBlock(Stmnt* stmnt)
@@ -316,7 +326,8 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
-		if (value.type) AddValueToCurrentScope(def.name->val, value);
+		AddValueToCurrentScope(def.name->val, value);
+		funcContext.scopeUtils.AddToTopScope(def.name->val, stmnt);
 	}
 
 	void BuildInlineDefinition(Stmnt* stmnt)
@@ -409,7 +420,7 @@ struct LowerDefinitions
 
 		SpiteIR::Label* fromLabel = GetCurrentLabel();
 		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
-		ScopeValue init = { 0, nullptr };
+		ScopeValue init = InvalidScopeValue;
 		if (for_.rangeFor)
 		{
 			init = BuildDefaultValue(alloc->allocate.type, alloc->allocate.result, fromLabel);
@@ -533,7 +544,7 @@ struct LowerDefinitions
 		case IdentifierExpr:
 			return FindValueForIndent(expr);
 		case PrimitiveExpr:
-			break;
+			return BuildPrimitive(expr);
 		case SelectorExpr:
 			break;
 		case IndexExpr:
@@ -575,13 +586,21 @@ struct LowerDefinitions
 			break;
 		}
 
-		return { 0, nullptr };
+		return InvalidScopeValue;
 	}
 
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
 		return FindScopeValue(ident);
+	}
+
+
+	ScopeValue BuildPrimitive(Expr* expr)
+	{
+		UniqueType primEnum = expr->primitiveExpr.primitive->uniqueType;
+		SpiteIR::Type* primType = ToIRType(symbolTable->CreatePrimitive(primEnum));
+		return { InvalidRegister, primType };
 	}
 
 	ScopeValue BuildDefaultValue(SpiteIR::Type* type, size_t result, SpiteIR::Label* label)
@@ -618,7 +637,7 @@ struct LowerDefinitions
 				literal.stringLiteral = context.ir->AllocateString();
 				break;
 			default:
-				return { 0, nullptr };
+				return InvalidScopeValue;
 				break;
 			}
 
@@ -768,14 +787,23 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	bool readyForArrAlloc = true;
+	bool arrCompleted = true;
 	ScopeValue BuildForwardIndexExpr(Expr* expr, Stmnt* stmnt)
 	{
+		bool isCompleted = arrCompleted;
+		arrCompleted = false;
+
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
 		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
 
+		// Only allocate the array on the first entrance for multidimensional arrays
+		if (isCompleted)
+		{
+			arrCompleted = true;
+		}
 
-		return { 0, nullptr };
+
+		return InvalidScopeValue;
 	}
 
 	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
@@ -785,7 +813,7 @@ struct LowerDefinitions
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
 		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
 
-		ScopeValue dst = { 0, nullptr };
+		ScopeValue dst = InvalidScopeValue;
 
 		switch (toIndex.type->kind)
 		{
@@ -823,7 +851,7 @@ struct LowerDefinitions
 		ScopeValue leftVal = BuildExpr(left, stmnt);
 		ScopeValue rightVal = BuildExpr(right, stmnt);
 
-		if (!leftVal.type || !rightVal.type) return { 0, nullptr };
+		if (!leftVal.type || !rightVal.type) return InvalidScopeValue;
 
 		if (leftVal.type->kind == SpiteIR::TypeKind::PrimitiveType &&
 			rightVal.type->kind == SpiteIR::TypeKind::PrimitiveType)
@@ -831,7 +859,7 @@ struct LowerDefinitions
 			return BuildBinaryOp(leftVal, rightVal, op, GetCurrentLabel());
 		}
 
-		return { 0, nullptr };
+		return InvalidScopeValue;
 	}
 
 	SpiteIR::Instruction* CreateInstruction(SpiteIR::Label* label)
@@ -892,7 +920,7 @@ struct LowerDefinitions
 			break;
 		}
 
-		if (!irFunction) return { 0, nullptr };
+		if (!irFunction) return { InvalidRegister, nullptr };
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
