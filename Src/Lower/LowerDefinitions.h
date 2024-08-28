@@ -766,12 +766,7 @@ struct LowerDefinitions
 		}
 
 		SpiteIR::Instruction* alloc = BuildAllocate(derivedType);
-		if (derivedType->kind == SpiteIR::TypeKind::FixedArrayType)
-		{
-			BuildStoreArrayCount(alloc->allocate.result, values.size());
-		}
-		size_t offset = derivedType->kind == SpiteIR::TypeKind::FixedArrayType ? 
-			config.targetArchBitWidth : 0;
+		size_t offset = 0;
 		for (ScopeValue& value : values)
 		{
 			BuildStore(label, alloc->allocate.result + offset, BuildRegisterOperand(value));

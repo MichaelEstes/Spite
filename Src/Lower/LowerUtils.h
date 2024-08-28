@@ -454,7 +454,7 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	fixedArray->kind = SpiteIR::TypeKind::FixedArrayType;
 	fixedArray->fixedArray.count = count;
 	fixedArray->fixedArray.type = type;
-	fixedArray->size = config.targetArchBitWidth + (type->size * count);
+	fixedArray->size = (type->size * count);
 	return fixedArray;
 }
 
