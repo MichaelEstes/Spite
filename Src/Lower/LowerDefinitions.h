@@ -595,7 +595,6 @@ struct LowerDefinitions
 		return FindScopeValue(ident);
 	}
 
-
 	ScopeValue BuildPrimitive(Expr* expr)
 	{
 		UniqueType primEnum = expr->primitiveExpr.primitive->uniqueType;
@@ -717,6 +716,26 @@ struct LowerDefinitions
 		return { store->store.dst, irType };
 	}
 
+	void BuildStoreArrayCount(size_t reg, size_t count)
+	{
+		SpiteIR::Operand literalOp = SpiteIR::Operand();
+		literalOp.kind = SpiteIR::OperandKind::Literal;
+		SpiteIR::Literal& literal = literalOp.literal;
+		literal.kind = SpiteIR::PrimitiveKind::Int;
+		literal.intLiteral = count;
+
+		SpiteIR::Type* irType = context.ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::PrimitiveType;
+		irType->size = config.targetArchBitWidth;
+		irType->primitive.kind = literal.kind;
+		irType->primitive.isSigned = false;
+
+		literalOp.type = irType;
+
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Instruction* store = BuildStore(label, reg, literalOp);
+	}
+
 	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr->typeLiteralExpr.values->size());
@@ -727,16 +746,14 @@ struct LowerDefinitions
 			values.push_back(BuildExpr(val, stmnt));
 		}
 
-		SpiteIR::Type* derivedType = context.ir->AllocateType();
+		SpiteIR::Type* derivedType = nullptr;
 		if (expr->typeLiteralExpr.array)
 		{
-			derivedType->kind = SpiteIR::TypeKind::FixedArrayType;
-			derivedType->fixedArray.count = values.size();
-			derivedType->fixedArray.type = values.at(0).type;
-			derivedType->size = derivedType->fixedArray.count * derivedType->fixedArray.type->size;
+			derivedType = BuildFixedArray(context.ir, values.size(), values.at(0).type);
 		}
 		else
 		{
+			derivedType = context.ir->AllocateType();
 			derivedType->kind = SpiteIR::TypeKind::StructureType;
 			derivedType->size = 0;
 			derivedType->structureType.types = context.ir->AllocateArray<SpiteIR::Type*>();
@@ -749,7 +766,12 @@ struct LowerDefinitions
 		}
 
 		SpiteIR::Instruction* alloc = BuildAllocate(derivedType);
-		size_t offset = 0;
+		if (derivedType->kind == SpiteIR::TypeKind::FixedArrayType)
+		{
+			BuildStoreArrayCount(alloc->allocate.result, values.size());
+		}
+		size_t offset = derivedType->kind == SpiteIR::TypeKind::FixedArrayType ? 
+			config.targetArchBitWidth : 0;
 		for (ScopeValue& value : values)
 		{
 			BuildStore(label, alloc->allocate.result + offset, BuildRegisterOperand(value));
@@ -794,14 +816,28 @@ struct LowerDefinitions
 		arrCompleted = false;
 
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
-		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
+
+		ScopeValue ret = InvalidScopeValue;
+		if (funcContext.scopeUtils.IsConstantIntExpr(expr->indexExpr.index))
+		{
+			size_t count = funcContext.scopeUtils.EvaluateConstantIntExpr(expr->indexExpr.index);
+			SpiteIR::Type* fixedArray = BuildFixedArray(context.ir, count, toIndex.type);
+			ret.type = fixedArray;
+		}
+		else
+		{
+			ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
+		}
 
 		// Only allocate the array on the first entrance for multidimensional arrays
 		if (isCompleted)
 		{
 			arrCompleted = true;
+			SpiteIR::Instruction* alloc = BuildAllocate(ret.type);
+			ret.reg = alloc->allocate.result;
+			return ret;
 		}
-
+		else return ret;
 
 		return InvalidScopeValue;
 	}

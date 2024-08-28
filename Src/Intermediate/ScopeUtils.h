@@ -36,18 +36,27 @@ struct ScopeUtils
 		back[name] = stmnt;
 	}
 
-	bool IsConstantIntExpr(Expr* expr)
+	bool IsConstantIntExpr(Expr* expr, bool checkIdent = true)
 	{
 		switch (expr->typeID)
 		{
 		case LiteralExpr:
 			return expr->literalExpr.type == UniqueType::IntLiteral ||
-				expr->literalExpr.type == UniqueType::HexLiteral;
+					expr->literalExpr.type == UniqueType::HexLiteral;
+		// Need to add reassignment check
 		case IdentifierExpr:
 		{
+			//Only allow one degree of seperation to be considered a constant
+			// Constant --
+			// a := 1
+			// arr := [a]int
+			// Not Constant --
+			// a := 1; b := a
+			// arr := [b]int
+			if (!checkIdent) return false;
 			Stmnt* def = FindInScope(expr->identifierExpr.identifier->val);
 			if (!def || !def->definition.assignment) return false;
-			return IsConstantIntExpr(def->definition.assignment);
+			return IsConstantIntExpr(def->definition.assignment, false);
 		}
 		case BinaryExpr:
 			return IsConstantIntExpr(expr->binaryExpr.left) && IsConstantIntExpr(expr->binaryExpr.right);

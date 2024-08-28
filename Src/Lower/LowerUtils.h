@@ -448,6 +448,16 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	return state;
 }
 
+SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* type)
+{
+	SpiteIR::Type* fixedArray = ir->AllocateType();
+	fixedArray->kind = SpiteIR::TypeKind::FixedArrayType;
+	fixedArray->fixedArray.count = count;
+	fixedArray->fixedArray.type = type;
+	fixedArray->size = config.targetArchBitWidth + (type->size * count);
+	return fixedArray;
+}
+
 template<typename Low>
 SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
@@ -572,11 +582,8 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	}
 	case FixedArrayType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::FixedArrayType;
-		irType->fixedArray.count = type->fixedArrayType.size;
-		irType->fixedArray.type = TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates);
-		irType->size = config.targetArchBitWidth + (irType->fixedArray.type->size * irType->fixedArray.count);
+		SpiteIR::Type* irType = BuildFixedArray(ir, type->fixedArrayType.size, 
+			TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates));
 		return irType;
 	}
 	case TemplatedType:
