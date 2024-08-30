@@ -830,6 +830,13 @@ struct LowerDefinitions
 			arrCompleted = true;
 			SpiteIR::Instruction* alloc = BuildAllocate(ret.type);
 			ret.reg = alloc->allocate.result;
+
+			if (ret.type->kind == SpiteIR::TypeKind::FixedArrayType)
+			{
+
+			}
+			
+
 			return ret;
 		}
 		else return ret;
