@@ -214,7 +214,10 @@ struct Syntax
 			ParsePackage(false);
 			return;
 		case UniqueType::Import:
-			ParseUsing();
+			ParseImport();
+			return;
+		case UniqueType::Extern:
+			ParseExternBlock();
 			return;
 		case UniqueType::State:
 			ParseState();
@@ -264,7 +267,7 @@ struct Syntax
 		Advance();
 	}
 
-	void ParseUsing()
+	void ParseImport()
 	{
 		bool addNode = IsGlobalScope();
 		if (!addNode) AddError(curr, "Cannot import packages outside of the global scope");
@@ -292,6 +295,75 @@ struct Syntax
 			node->end = curr;
 			if (addNode) symbolTable->AddImport(node);
 		}
+	}
+
+	void ParseExternBlock()
+	{
+		Token* externTok = curr;
+		Advance();
+		if (Expect(TokenType::Identifier, "Expected an extern target identifier"))
+		{
+			Token* target = curr;
+			if (!ValidExternTarget(target)) AddError(target, "Invalid extern target: " + target->val);
+			Advance();
+			if (Expect(UniqueType::Lbrace, "Expected an extern block start '{'"))
+			{
+				Advance();
+				while (!Expect(UniqueType::Rbrace) && !IsEOF())
+				{
+					ParseExternDecl(target);
+				}
+			}
+		}
+	}
+
+	void ParseExternDecl(Token* target)
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::ExternFunctionDecl);
+		node->externFunction.target = target;
+
+		if (curr->uniqueType == UniqueType::StringLiteral || Peek()->uniqueType == UniqueType::Rparen)
+			node->externFunction.returnType = CreateVoidType();
+		else node->externFunction.returnType = ParseType(false);
+
+		if (curr->type == TokenType::Identifier || curr->uniqueType == UniqueType::StringLiteral)
+		{
+			node->externFunction.externName = curr;
+			Advance();
+		}
+		else
+		{
+			AddError(curr, "Expected identifier or string external function name");
+			return;
+		}
+
+		if (Expect(UniqueType::Lparen, "Expected extern function parameter opening '('"))
+		{
+			Advance();
+			node->externFunction.parameters = ParseParametersList();
+			if (Expect(UniqueType::Rparen, "Expected extern function parameter closure ')'")) Advance();
+			if (Expect(UniqueType::As))
+			{
+				Advance();
+				if (Expect(TokenType::Identifier, "Expected alias identifier after 'as'"))
+				{
+					node->externFunction.callName = curr;
+					Advance();
+				}
+			}
+			else node->externFunction.callName = node->externFunction.externName;
+
+			if (node->externFunction.callName->type != TokenType::Identifier)
+				AddError(node->externFunction.callName, "Extern function name must be an identifier if no alias is provided");
+
+			if (Expect(UniqueType::Semicolon)) Advance();
+			symbolTable->AddExternFunc(node);
+		}
+	}
+
+	bool ValidExternTarget(Token* target)
+	{
+		return target->val == "c" || target->val == "llvm" || target->val == "js";
 	}
 
 	void ParseState()

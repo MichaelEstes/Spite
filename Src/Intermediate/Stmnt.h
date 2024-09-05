@@ -18,6 +18,7 @@ enum StmntID
 	ImportStmnt,
 	Definition,
 	InlineDefinition,
+	ExternFunctionDecl,
 	FunctionStmnt,
 	AnonFunction,
 	FunctionDecl,
@@ -112,6 +113,15 @@ struct Stmnt
 			Token* op;
 			Expr* assignment;
 		} inlineDefinition;
+
+		struct
+		{
+			Token* target;
+			Type* returnType;
+			Token* externName;
+			Token* callName;
+			eastl::vector<Stmnt*>* parameters;
+		} externFunction;
 
 		struct
 		{
@@ -325,6 +335,9 @@ struct Stmnt
 			break;
 		case InlineDefinition:
 			inlineDefinition = copy.inlineDefinition;
+			break;
+		case ExternFunctionDecl:
+			externFunction = copy.externFunction;
 			break;
 		case FunctionStmnt:
 			function = copy.function;

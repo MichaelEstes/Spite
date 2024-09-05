@@ -7,10 +7,23 @@
 
 extern Config config;
 
+const size_t InvalidRegister = (size_t)-1;
+
+struct DynamicArrayMetadata
+{
+	size_t sizeReg = InvalidRegister;
+};
+
+struct ValueMetadata
+{
+	DynamicArrayMetadata dynamicArrayMetadata;
+};
+
 struct ScopeValue
 {
-	size_t reg = 0;;
+	size_t reg = 0;
 	SpiteIR::Type* type = nullptr;
+	ValueMetadata metadata;
 };
 
 struct FunctionScope
@@ -47,7 +60,6 @@ struct FunctionContext
 	}
 };
 
-const size_t InvalidRegister = (size_t)-1;
 const ScopeValue InvalidScopeValue = { InvalidRegister, nullptr };
 
 struct LowerDefinitions

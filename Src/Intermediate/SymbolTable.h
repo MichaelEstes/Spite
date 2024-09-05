@@ -449,6 +449,11 @@ struct SymbolTable
 		onCompiles.push_back(compile);
 	}
 
+	void AddExternFunc(Stmnt* externFunc)
+	{
+
+	}
+
 	inline StateSymbol* FindStateSymbol(StringView& val)
 	{
 		if (auto entry = stateMap.find(val); entry != stateMap.end())

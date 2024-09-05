@@ -15,3 +15,8 @@ Array::delete
 {
 	delete[] this.array;
 }
+
+void makeArray(count: int, itemBytes: int)
+{
+	
+}

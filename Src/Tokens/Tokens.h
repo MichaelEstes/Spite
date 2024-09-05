@@ -27,8 +27,8 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
 	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 
-	{ "public", TokenType::AccessModifier, UniqueType::Public },
-	{ "private", TokenType::AccessModifier, UniqueType::Private },
+	//{ "public", TokenType::AccessModifier, UniqueType::Public },
+	//{ "private", TokenType::AccessModifier, UniqueType::Private },
 
 	{ "void", TokenType::Primitive, UniqueType::Void },
 	{ "bool", TokenType::Primitive, UniqueType::Bool },
@@ -70,7 +70,7 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "fixed", TokenType::Decorator, UniqueType::Fixed },
 	{ "delete", TokenType::Decorator, UniqueType::Delete },
 	{ "as", TokenType::Decorator, UniqueType::As },
-	{ "at", TokenType::Decorator, UniqueType::At },
+	//{ "at", TokenType::Decorator, UniqueType::At },
 	{ "=>", TokenType::Decorator, UniqueType::FatArrow },
 	{ "...", TokenType::Decorator, UniqueType::Ellipsis },
 	{ "~", TokenType::Decorator, UniqueType::Tilde },

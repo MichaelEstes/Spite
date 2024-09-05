@@ -458,6 +458,14 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	return fixedArray;
 }
 
+SpiteIR::Type* BuildDynamicArray(SpiteIR::IR* ir, SpiteIR::Type* type)
+{
+	SpiteIR::Type* dynamicArray = ir->AllocateType();
+	dynamicArray->kind = SpiteIR::TypeKind::DynamicArrayType;
+	dynamicArray->dynamicArray.type = type;
+	return dynamicArray;
+}
+
 template<typename Low>
 SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
