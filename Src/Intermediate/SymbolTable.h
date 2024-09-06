@@ -13,6 +13,25 @@
 extern Config config;
 struct ExprHash;
 
+struct ExternFuncHash
+{
+	StringViewHash stringHasher;
+	size_t operator()(const Stmnt* stmnt) const
+	{
+		return stringHasher(stmnt->externFunction.callName->val) + 
+			stringHasher(stmnt->externFunction.target->val);
+	}
+};
+
+struct ExternFuncEqual
+{
+	bool operator()(const Stmnt* l, const Stmnt* r) const
+	{
+		return l->externFunction.callName->val == r->externFunction.callName->val &&
+			l->externFunction.target->val == r->externFunction.target->val;
+	}
+};
+
 struct ImportHash
 {
 	StringViewHash stringHasher;
@@ -232,6 +251,8 @@ struct SymbolTable
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
+	eastl::hash_map<StringView, eastl::hash_set<Stmnt*, ExternFuncHash, ExternFuncEqual>, 
+		StringViewHash> externFunctionMap;
 	eastl::vector<Stmnt*> onCompiles;
 	Arena* arena;
 
@@ -451,7 +472,11 @@ struct SymbolTable
 
 	void AddExternFunc(Stmnt* externFunc)
 	{
-
+		eastl::hash_set<Stmnt*, ExternFuncHash, ExternFuncEqual>& funcSet =
+			externFunctionMap[externFunc->externFunction.callName->val];
+		if (funcSet.find(externFunc) != funcSet.end())
+			AddError(externFunc->start, "SymbolTable:AddExternFunc External function declaration with call name and target already exists");
+		funcSet.insert(externFunc);
 	}
 
 	inline StateSymbol* FindStateSymbol(StringView& val)

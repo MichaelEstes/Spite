@@ -306,12 +306,17 @@ struct Syntax
 			Token* target = curr;
 			if (!ValidExternTarget(target)) AddError(target, "Invalid extern target: " + target->val);
 			Advance();
-			if (Expect(UniqueType::Lbrace, "Expected an extern block start '{'"))
+			if (Expect(UniqueType::Lbrace, "Expected extern block start '{'"))
 			{
 				Advance();
 				while (!Expect(UniqueType::Rbrace) && !IsEOF())
 				{
 					ParseExternDecl(target);
+				}
+
+				if (Expect(UniqueType::Rbrace, "Expected extern block closure '}'"))
+				{
+					Advance();
 				}
 			}
 		}
