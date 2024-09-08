@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 {
 	Profiler profiler = Profiler();
 
-	CallExternalFunction("printf");
+	CallExternalFunction("sqrtf");
 
 	config = ParseConfig(argc, argv);
 
