@@ -13,6 +13,12 @@ include_directories (${EASTL_ROOT_DIR}/test/packages/EAStdC/include)
 include_directories (${EASTL_ROOT_DIR}/test/packages/EATest/include)
 include_directories (${EASTL_ROOT_DIR}/test/packages/EAThread/include)
 
+set(DYNCALL_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../dyncall)
+set(DYNCALL_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dyncall)
+set(DYNCALLBACK_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dyncallback)
+set(DYNLOAD_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dynload)
+include_directories (${DYNCALL_ROOT_DIR})
+
 find_package(LLVM REQUIRED CONFIG)
 
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -43,7 +49,7 @@ add_executable (Spite_Lang
 "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" "Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h" 
 "Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h" "Src/Containers/Array.h" 
 "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" 
-"Src/Intermediate/TypeInference.h" "Src/Intermediate/ScopeUtils.h")
+"Src/Intermediate/TypeInference.h" "Src/Intermediate/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
@@ -52,6 +58,10 @@ endif()
 if(MSVC)
 	set(EASTL_LIBRARY debug ${EASTL_ROOT_DIR}/debug/lib/EASTL.lib optimized ${EASTL_ROOT_DIR}/lib/EASTL.lib)
 	add_custom_target(NatVis SOURCES ${EASTL_ROOT_DIR}/doc/EASTL.natvis)
+	
+	set(DYNCALL_LIBRARY debug ${DYNCALL_LIB_DIR}/Debug/dyncall_s.lib optimized ${DYNCALL_LIB_DIR}/Release/dyncall_s.lib)
+	set(DYNCALLBACK_LIBRARY debug ${DYNCALLBACK_LIB_DIR}/Debug/dyncallback_s.lib optimized ${DYNCALLBACK_LIB_DIR}/Release/dyncallback_s.lib)
+	set(DYNLOAD_LIBRARY debug ${DYNLOAD_LIB_DIR}/Debug/dynload_s.lib optimized ${DYNLOAD_LIB_DIR}/Release/dynload_s.lib)
 else()
 	set(CMAKE_BUILD_TYPE "Release")
 	#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
@@ -64,4 +74,5 @@ endif()
 
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
-target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs})
+target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} 
+${DYNCALL_LIBRARY} ${DYNCALLBACK_LIBRARY} ${DYNLOAD_LIBRARY})

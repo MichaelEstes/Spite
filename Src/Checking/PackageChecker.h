@@ -48,6 +48,11 @@ struct PackageChecker
 			CheckFunction(value);
 		}
 
+		for (auto& [key, value] : context.symbolTable->externFunctionMap)
+		{
+			CheckExternalFunctions(value);
+		}
+
 		for (Stmnt* node : context.symbolTable->onCompiles)
 		{
 
@@ -147,6 +152,11 @@ struct PackageChecker
 		auto& decl = function->function.decl;
 		CheckFunctionDecl(decl, function);
 		CheckType(function->function.returnType, function->start);
+	}
+
+	void CheckExternalFunctions(eastl::hash_set<Stmnt*, ExternFuncHash, ExternFuncEqual>& functions)
+	{
+		
 	}
 
 	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)

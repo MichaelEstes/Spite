@@ -5,6 +5,7 @@
 #include "Lower/Lower.h"
 #include "./IR/Interpreter/Interpreter.h"
 #include "IR/Interpreter/Decompiler.h"
+#include "IR/Interpreter/ExternCall.h"
 
 typedef eastl::string string;
 
@@ -54,6 +55,8 @@ Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 int main(int argc, char** argv)
 {
 	Profiler profiler = Profiler();
+
+	CallExternalFunction("printf");
 
 	config = ParseConfig(argc, argv);
 

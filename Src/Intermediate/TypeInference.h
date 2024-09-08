@@ -24,13 +24,13 @@ struct TypeInferer
 			Stmnt* func = scopeUtils.GetDeclarationStmntForExpr(expr->templateExpr.expr);
 			if (!func)
 			{
-				AddError(expr->start, "CheckerUtils:GetGenericsType No function found for expression");
+				AddError(expr->start, "TypeInferer:GetGenericsType No function found for expression");
 				return nullptr;
 			}
 			Stmnt* generics = GetGenerics(func);
 			if (!generics)
 			{
-				AddError(expr->start, "CheckerUtils:GetGenericsType Template expression used on non-templated function");
+				AddError(expr->start, "TypeInferer:GetGenericsType Template expression used on non-templated function");
 				return nullptr;
 			}
 
@@ -39,7 +39,7 @@ struct TypeInferer
 			eastl::vector<Expr*>* templateArgs = expr->templateExpr.templateArgs;
 			if (templateArgs->size() != generics->generics.names->size())
 			{
-				AddError(expr->start, "CheckerUtils:GetGenericsType Invalid number of template arguments for generic type");
+				AddError(expr->start, "TypeInferer:GetGenericsType Invalid number of template arguments for generic type");
 				return nullptr;
 			}
 			for (size_t i = 0; i < generics->generics.names->size(); i++)
@@ -76,10 +76,10 @@ struct TypeInferer
 		return type;
 	}
 
-	inline Type* FillFunctionTypeParams(Stmnt* decl, Type* type)
+	inline Type* FillFunctionTypeParams(eastl::vector<Stmnt*>* parameters, Type* type)
 	{
 		type->functionType.paramTypes = symbolTable->CreateVectorPtr<Type>();
-		for (Stmnt* stmnt : *decl->functionDecl.parameters)
+		for (Stmnt* stmnt : *parameters)
 		{
 			type->functionType.paramTypes->push_back(stmnt->definition.type);
 		}
@@ -90,32 +90,37 @@ struct TypeInferer
 	inline Type* FunctionToFunctionType(Stmnt* stmnt)
 	{
 		Type* type = symbolTable->CreateTypePtr(TypeID::FunctionType);
-		Stmnt* decl = nullptr;
+		eastl::vector<Stmnt*>* parameters = nullptr;
 
 		switch (stmnt->nodeID)
 		{
 		case FunctionStmnt:
 		{
 			type->functionType.returnType = stmnt->function.returnType;
-			decl = stmnt->function.decl;
+			parameters = stmnt->function.decl->functionDecl.parameters;
 			break;
 		}
 		case Method:
 		{
 			type->functionType.returnType = stmnt->method.returnType;
-			decl = stmnt->method.decl;
+			parameters = stmnt->method.decl->functionDecl.parameters;
 			break;
+		}
+		case ExternFunctionDecl:
+		{
+			type->functionType.returnType = stmnt->externFunction.returnType;
+			parameters = stmnt->externFunction.parameters;
 		}
 		default:
 			break;
 		}
 
-		if (!decl)
+		if (!parameters)
 		{
-			AddError(stmnt->start, "CheckerUtils:FunctionToFunctionType Unable to find function declaration for statment: " + ToString(stmnt));
+			AddError(stmnt->start, "TypeInferer:FunctionToFunctionType Unable to find function declaration for statment: " + ToString(stmnt));
 			return nullptr;
 		}
-		return FillFunctionTypeParams(decl, type);
+		return FillFunctionTypeParams(parameters, type);
 	}
 
 	inline Type* GetIdentType(Expr* expr, Token* name)
@@ -137,7 +142,7 @@ struct TypeInferer
 			}
 			else
 			{
-				AddError(expr->start, "CheckerUtils:GetIdentType Unable to get node for name: " + name->val);
+				AddError(expr->start, "TypeInferer:GetIdentType Unable to get node for name: " + name->val);
 				return nullptr;
 			}
 		}
@@ -147,6 +152,7 @@ struct TypeInferer
 		case StmntID::Definition:
 			return stmnt->definition.type;
 		case StmntID::FunctionStmnt:
+		case StmntID::ExternFunctionDecl:
 			return FunctionToFunctionType(stmnt);
 		case StmntID::StateStmnt:
 		{
@@ -157,7 +163,7 @@ struct TypeInferer
 		}
 		}
 
-		AddError("CheckerUtils:GetIdentType unable to find type for name: " + name->val);
+		AddError("TypeInferer:GetIdentType unable to find type for name: " + name->val);
 		return nullptr;
 	}
 
@@ -168,7 +174,7 @@ struct TypeInferer
 		Stmnt* stmnt = globalTable->FindStatementForPackage(package, name);
 		if (!stmnt)
 		{
-			AddError(of->start, "CheckerUtils:GetImportedTypeForSelector No statement found for expression");
+			AddError(of->start, "TypeInferer:GetImportedTypeForSelector No statement found for expression");
 			return type;
 		}
 
@@ -186,7 +192,7 @@ struct TypeInferer
 			break;
 		}
 
-		AddError(of->start, "CheckerUtils:GetImportedTypeForSelector Unable to infer type for selector expression");
+		AddError(of->start, "TypeInferer:GetImportedTypeForSelector Unable to infer type for selector expression");
 		return type;
 	}
 
@@ -209,7 +215,7 @@ struct TypeInferer
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
-			AddError(of->start, "CheckerUtils:GetSelectorType No state found for type: " + ToString(type));
+			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
 			return nullptr;
 		}
 
@@ -265,7 +271,7 @@ struct TypeInferer
 	{
 		if (!of->indexExpr.index)
 		{
-			AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray No expression for indexing array");
+			AddError(of->start, "TypeInferer:GetIndexTypeAccessArray No expression for indexing array");
 			return type;
 		}
 
@@ -290,7 +296,7 @@ struct TypeInferer
 			return type;
 		}
 
-		AddError(of->start, "CheckerUtils:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
+		AddError(of->start, "TypeInferer:GetIndexTypeAccessArray Not a valid type to access index of: " + ToString(type));
 		return nullptr;
 	}
 
@@ -318,7 +324,7 @@ struct TypeInferer
 			break;
 		}
 
-		AddError(of->start, "CheckerUtils:GetFunctionCallType unable to create type for expression: " + ToString(of));
+		AddError(of->start, "TypeInferer:GetFunctionCallType unable to create type for expression: " + ToString(of));
 		return nullptr;
 	}
 
@@ -354,7 +360,7 @@ struct TypeInferer
 
 		if (!type)
 		{
-			AddError(expr->start, "CheckerUtils:EvalType unable to create type for expression: " + ToString(expr));
+			AddError(expr->start, "TypeInferer:EvalType unable to create type for expression: " + ToString(expr));
 			return type;
 		}
 
@@ -389,11 +395,11 @@ struct TypeInferer
 				}
 			}
 
-			AddError(token, "CheckerUtils:GetStateOperatorType No operator found for named type: " + ToString(namedType));
+			AddError(token, "TypeInferer:GetStateOperatorType No operator found for named type: " + ToString(namedType));
 		}
 		else
 		{
-			AddError(token, "CheckerUtils:GetStateOperatorType State not found for named type: " + ToString(namedType));
+			AddError(token, "TypeInferer:GetStateOperatorType State not found for named type: " + ToString(namedType));
 		}
 
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);
@@ -469,7 +475,7 @@ struct TypeInferer
 		{
 			if (right->typeID == TypeID::PrimitiveType) return GetPrimitiveOperatorType(op, left, right);
 			else if (IsIntLike(right)) return right;
-			else AddError(op, "CheckerUtils:GetOperatorType Expected right hand side to be a primitive for operator");
+			else AddError(op, "TypeInferer:GetOperatorType Expected right hand side to be a primitive for operator");
 
 			break;
 		}
@@ -590,14 +596,14 @@ struct TypeInferer
 			Type* fixedArrType = InferType(of->fixedExpr.atExpr);
 			if (fixedArrType->typeID != TypeID::FixedArrayType)
 			{
-				AddError(of->start, "CheckerUtils:InferType fixed expressions must evaluate to a fixed sized array types");
+				AddError(of->start, "TypeInferer:InferType fixed expressions must evaluate to a fixed sized array types");
 				return symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
 			if (fixedArrType->fixedArrayType.type->typeID == TypeID::ArrayType ||
 				fixedArrType->fixedArrayType.type->typeID == TypeID::FixedArrayType)
 			{
-				AddError(of->start, "CheckerUtils:InferType fixed expression cannot be used to create multidimensional arrays");
+				AddError(of->start, "TypeInferer:InferType fixed expression cannot be used to create multidimensional arrays");
 				return symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 

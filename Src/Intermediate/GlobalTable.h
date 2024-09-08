@@ -174,11 +174,31 @@ struct GlobalTable
 		return nullptr;
 	}
 
+	inline Stmnt* FindScopedExternFun(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& externFuncName = name->val;
+
+		Stmnt* stmnt = symbolTable->FindExternalFunction(externFuncName);
+		if (stmnt) return stmnt;
+
+		for (Stmnt * import : symbolTable->imports)
+		{
+			StringView & package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
+			stmnt = symbolTable->FindExternalFunction(externFuncName);
+			if (stmnt) return stmnt;
+		}
+
+		return nullptr;
+	}
+
 	inline Stmnt* FindScopedValue(Token* name, SymbolTable* symbolTable)
 	{
 		Stmnt* found = FindScopedState(name, symbolTable);
 		if (!found) found = FindScopedFunction(name, symbolTable);
 		if (!found) found = FindScopedGlobalVar(name, symbolTable);
+		if (!found) found = FindScopedExternFun(name, symbolTable);
 		return found;
 	}
 

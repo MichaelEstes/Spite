@@ -21,4 +21,4 @@ package Math
 
 E: float = 2.718281828459045;
 
-float Sqrt(val: float) => val * 0.5;
+float Sqrt(val: float) => sqrt(val);

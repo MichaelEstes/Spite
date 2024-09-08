@@ -527,6 +527,16 @@ struct SymbolTable
 		return nullptr;
 	}
 
+	inline Stmnt* FindExternalFunction(StringView& val)
+	{
+		if (auto entry = externFunctionMap.find(val); entry != externFunctionMap.end())
+		{
+			return *entry->second.begin();
+		}
+
+		return nullptr;
+	}
+
 	Type* CreatePrimitive(UniqueType primType)
 	{
 		Type* type = CreateTypePtr(TypeID::PrimitiveType);
