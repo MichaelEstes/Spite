@@ -41,7 +41,7 @@ struct Syntax
 	SymbolTable* symbolTable;
 	size_t nodeCount;
 	Token* package;
-	
+
 	eastl::stack<Scope> scopes;
 
 	Syntax(Tokens& tokensRef) : tokens(tokensRef)
@@ -225,7 +225,7 @@ struct Syntax
 		case UniqueType::OnCompile:
 		{
 			Stmnt* node = ParseCompile();
-			if (node->nodeID != StmntID::InvalidStmnt) 
+			if (node->nodeID != StmntID::InvalidStmnt)
 			{
 				symbolTable->AddOnCompile(node);
 			}
@@ -300,32 +300,63 @@ struct Syntax
 	void ParseExternBlock()
 	{
 		Token* externTok = curr;
+		eastl::vector<Stmnt*>* links = CreateVectorPtr<Stmnt>();
+		eastl::vector<Stmnt*> decls;
+
 		Advance();
-		if (Expect(TokenType::Identifier, "Expected an extern target identifier"))
+		if (Expect(UniqueType::Lbrace, "Expected extern block start '{'"))
 		{
-			Token* target = curr;
-			if (!ValidExternTarget(target)) AddError(target, "Invalid extern target: " + target->val);
 			Advance();
-			if (Expect(UniqueType::Lbrace, "Expected extern block start '{'"))
+			while (!Expect(UniqueType::Rbrace) && !IsEOF())
+			{
+				if (Expect(UniqueType::Link))
+				{
+					Stmnt* link = ParseLink();
+					if (link) links->push_back(link);
+				}
+				else
+				{
+					Stmnt* decl = ParseExternDecl();
+					if (decl) decls.push_back(decl);
+				}
+			}
+
+			if (Expect(UniqueType::Rbrace, "Expected extern block closure '}'"))
 			{
 				Advance();
-				while (!Expect(UniqueType::Rbrace) && !IsEOF())
+				for (Stmnt* decl : decls)
 				{
-					ParseExternDecl(target);
-				}
-
-				if (Expect(UniqueType::Rbrace, "Expected extern block closure '}'"))
-				{
-					Advance();
+					decl->externFunction.links = links;
 				}
 			}
 		}
 	}
 
-	void ParseExternDecl(Token* target)
+	Stmnt* ParseLink()
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::LinkDecl);
+		Advance();
+
+		if (Expect(TokenType::Identifier, "Expected link target platform identifier"))
+		{
+			node->linkDecl.platform = curr;
+			Advance();
+			if (Expect(UniqueType::StringLiteral, "Expected link library  string"))
+			{
+				node->linkDecl.lib = curr;
+				Advance();
+
+				if (Expect(UniqueType::Semicolon)) Advance();
+				return node;
+			}
+		}
+
+		return nullptr;
+	}
+
+	Stmnt* ParseExternDecl()
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::ExternFunctionDecl);
-		node->externFunction.target = target;
 
 		if (curr->uniqueType == UniqueType::StringLiteral || Peek()->uniqueType == UniqueType::Rparen)
 			node->externFunction.returnType = CreateVoidType();
@@ -339,7 +370,7 @@ struct Syntax
 		else
 		{
 			AddError(curr, "Expected identifier or string external function name");
-			return;
+			return nullptr;
 		}
 
 		if (Expect(UniqueType::Lparen, "Expected extern function parameter opening '('"))
@@ -363,12 +394,8 @@ struct Syntax
 
 			if (Expect(UniqueType::Semicolon)) Advance();
 			symbolTable->AddExternFunc(node);
+			return node;
 		}
-	}
-
-	bool ValidExternTarget(Token* target)
-	{
-		return target->val == "c" || target->val == "llvm" || target->val == "js";
 	}
 
 	void ParseState()
@@ -1416,7 +1443,7 @@ struct Syntax
 			arrType->arrayType.type = ParseType();
 			return arrType;
 		}
-		
+
 		arrType->typeID = TypeID::InvalidType;
 		return arrType;
 	}
@@ -1800,7 +1827,7 @@ struct Syntax
 			return anon;
 		}
 
-		if(!array) 
+		if (!array)
 		{
 			// Check if explicit type literal
 			Token* next = Peek();
@@ -1812,7 +1839,7 @@ struct Syntax
 				return anon;
 			}
 		}
-		
+
 		anon->typeLiteralExpr.values = ParseExprList(closure);
 		anon->typeLiteralExpr.array = array;
 		if (Expect(closure, "Missing closure for type literal (']' or '}')")) Advance();
@@ -1877,7 +1904,7 @@ struct Syntax
 			Logger::ErrorRollback();
 			curr = currToken;
 			forwardIndex = ParseTypeLiteralExpr(UniqueType::Rbrack, true);
-			
+
 		}
 
 		return forwardIndex;

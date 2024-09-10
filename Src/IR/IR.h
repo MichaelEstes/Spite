@@ -2,6 +2,7 @@
 #include "EASTL/vector.h"
 #include "EASTL/string.h"
 #include "EASTL/hash_map.h"
+#include "EASTL/bonus/tuple_vector.h"
 
 #include "../Containers/Arena.h"
 #include "../Utils/Utils.h"
@@ -132,6 +133,7 @@ namespace SpiteIR
 		Jump,
 		Branch,
 		Call,
+		ExternCall,
 		TailCall,
 		Allocate,
 		HeapAllocate,
@@ -370,6 +372,19 @@ namespace SpiteIR
 		Inline = ToBit(1),
 	};
 
+	struct PlatformLib
+	{
+		string platform;
+		string lib;
+	};
+
+	struct ExternFunction
+	{
+		Array<PlatformLib>* libs;
+		string externName;
+		string callName;
+	};
+
 	struct Function
 	{
 		Package* parent;
@@ -377,6 +392,7 @@ namespace SpiteIR
 		struct
 		{
 			int flags;
+			ExternFunction* externFunc = nullptr;
 		} metadata;
 
 		string name;
@@ -472,6 +488,11 @@ namespace SpiteIR
 		inline Function* AllocateFunction()
 		{
 			return arena.Emplace<Function>();
+		}
+
+		inline ExternFunction* AllocateExternFunction()
+		{
+			return arena.Emplace<ExternFunction>();
 		}
 
 		inline Argument* AllocateArgument()

@@ -10,6 +10,8 @@
 struct LowerDeclarations
 {
 	LowerContext& context;
+	eastl::hash_map<eastl::vector<Stmnt*>*, eastl::vector<SpiteIR::PlatformLib>*> linkMap;
+
 
 	LowerDeclarations(LowerContext& context) : context(context)
 	{}
@@ -70,6 +72,11 @@ struct LowerDeclarations
 		for (auto& [key, value] : symbolTable->globalValMap)
 		{
 			BuildGlobalVariableDeclaration(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->externFunctionMap)
+		{
+			BuildExternalFunctionDeclarations(package, value);
 		}
 
 		return package;
@@ -425,5 +432,41 @@ struct LowerDeclarations
 		globalVar->name = BuildGlobalVariableName(globalVarStmnt);
 		globalVar->type = TypeToIRType(context.ir, def.type, this);
 		package->globalVariables[globalVar->name] = globalVar;
+	}
+
+	eastl::vector<SpiteIR::PlatformLib>* GetPlatformLibs(eastl::vector<Stmnt*>* links)
+	{
+		if (MapHas(linkMap, links)) return linkMap[links];
+		
+		eastl::vector<SpiteIR::PlatformLib>* platformLibs = context.ir->AllocateArray<SpiteIR::PlatformLib>();
+		
+		for (Stmnt* link : *links)
+		{
+			platformLibs->push_back({ link->linkDecl.platform->val.ToString(),
+				link->linkDecl.lib->val.ToString() });
+		}
+
+		linkMap[links] = platformLibs;
+		return platformLibs;
+	}
+
+	void BuildExternalFunctionDeclarations(SpiteIR::Package* package, Stmnt* externFunc)
+	{
+		SpiteIR::Function* function = context.ir->AllocateFunction();
+		function->parent = package;
+		function->name = externFunc->externFunction.callName->val.ToString();
+		function->returnType = TypeToIRType(context.ir, externFunc->externFunction.returnType, this);
+
+		for (size_t i = 0; i < externFunc->externFunction.parameters->size(); i++)
+		{
+			Stmnt* param = externFunc->externFunction.parameters->at(i);
+			BuildArgumentForFunction(function, param, i);
+		}
+		
+		function->metadata.externFunc = context.ir->AllocateExternFunction();
+		function->metadata.externFunc->libs = GetPlatformLibs(externFunc->externFunction.links);
+		function->metadata.externFunc->externName = externFunc->externFunction.externName->val.ToString();
+		function->metadata.externFunc->callName = externFunc->externFunction.callName->val.ToString();
+		package->functions[function->name] = function;
 	}
 };

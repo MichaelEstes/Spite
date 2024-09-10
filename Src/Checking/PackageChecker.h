@@ -154,7 +154,7 @@ struct PackageChecker
 		CheckType(function->function.returnType, function->start);
 	}
 
-	void CheckExternalFunctions(eastl::hash_set<Stmnt*, ExternFuncHash, ExternFuncEqual>& functions)
+	void CheckExternalFunctions(Stmnt* function)
 	{
 		
 	}

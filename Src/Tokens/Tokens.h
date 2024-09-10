@@ -25,6 +25,7 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "where", TokenType::Keyword, UniqueType::Where },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
 	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
+	{ "#link", TokenType::Keyword, UniqueType::Link },
 	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 
 	//{ "public", TokenType::AccessModifier, UniqueType::Public },
@@ -297,7 +298,7 @@ struct Tokens
 				else if (val[0] == '#')
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
-					AddError(token, "Illegal use of the '#' symbol, the '#' symbol can only be used in front of compile and debug");
+					AddError(token, "Illegal use of the '#' symbol, the '#' symbol can only be used in front specified keywords");
 				}
 				else
 				{

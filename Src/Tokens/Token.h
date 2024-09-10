@@ -50,6 +50,7 @@ enum UniqueType
 	Where,
 	OnCompile,
 	OnCompileDebug,
+	Link,
 	OperatorOverload,
 
 	// AccessModifierKeywords 
