@@ -203,6 +203,7 @@ struct ScopeUtils
 				return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
 			case FunctionStmnt:
 			case StateStmnt:
+			case ExternFunctionDecl:
 				return stmnt;
 			default:
 				return nullptr;

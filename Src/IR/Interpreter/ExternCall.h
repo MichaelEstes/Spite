@@ -2,6 +2,7 @@
 
 #include "EASTL/string.h"
 #include "dyncall/dyncall.h"
+#include "../IR.h"
 
 typedef void (*func_ptr)();
 
@@ -38,4 +39,11 @@ void CallExternalFunction(const eastl::string& name)
 	dcArgFloat(vm, 4.2373);
 	r = dcCallFloat(vm, (DCpointer)func);
 	dcFree(vm);
+}
+
+void* CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params)
+{
+
+
+	return nullptr;
 }

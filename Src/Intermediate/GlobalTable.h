@@ -152,7 +152,7 @@ struct GlobalTable
 			if (stmnt) return stmnt;
 		}
 
-		return nullptr;
+		return FindScopedExternFunc(name, symbolTable);
 	}
 
 	inline Stmnt* FindScopedGlobalVar(Token* name, SymbolTable* symbolTable)
@@ -174,7 +174,7 @@ struct GlobalTable
 		return nullptr;
 	}
 
-	inline Stmnt* FindScopedExternFun(Token* name, SymbolTable* symbolTable)
+	inline Stmnt* FindScopedExternFunc(Token* name, SymbolTable* symbolTable)
 	{
 		StringView& externFuncName = name->val;
 
@@ -198,7 +198,7 @@ struct GlobalTable
 		Stmnt* found = FindScopedState(name, symbolTable);
 		if (!found) found = FindScopedFunction(name, symbolTable);
 		if (!found) found = FindScopedGlobalVar(name, symbolTable);
-		if (!found) found = FindScopedExternFun(name, symbolTable);
+		if (!found) found = FindScopedExternFunc(name, symbolTable);
 		return found;
 	}
 

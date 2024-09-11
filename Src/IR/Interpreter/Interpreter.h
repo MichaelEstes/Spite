@@ -3,6 +3,7 @@
 #include "../IR.h"
 #include "../../Utils/Utils.h"
 #include "../../Log/Logger.h"
+#include "ExternCall.h"
 
 struct Interpreter
 {
@@ -130,6 +131,9 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Branch:
 			InterpretBranch(inst, label);
 			break;
+		case SpiteIR::InstructionKind::ExternCall:
+			InterpretExternCall(inst);
+			break;
 		case SpiteIR::InstructionKind::Call:
 			InterpretCall(inst);
 			break;
@@ -222,7 +226,6 @@ struct Interpreter
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-
 			CopyRegValue(src, dst, stackFrameStart);
 			break;
 		}
@@ -444,6 +447,18 @@ struct Interpreter
 		default:
 			break;
 		}
+	}
+
+	void InterpretExternCall(SpiteIR::Instruction& callInst)
+	{
+		eastl::vector<void*> params;
+		for (SpiteIR::Operand& param : *callInst.call.params)
+		{
+			Assert(param.kind == SpiteIR::OperandKind::Register);
+			params.push_back((void*)(stackFrameStart + param.reg));
+		}
+
+		void* ret = CallExternalFunction(callInst.call.function, params);
 	}
 
 	void InterpretCall(SpiteIR::Instruction& callInst)

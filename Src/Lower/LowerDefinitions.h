@@ -212,19 +212,21 @@ struct LowerDefinitions
 	{
 		Assert(function);
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
-		Assert(decl);
 
 		function->block = context.ir->AllocateBlock();
 		funcContext.Reset(function, symbolTable, context.globalTable);
-		AddScope();
-		BuildFunctionArguments(function, funcStmnt);
-		BuildEntryLabel(function, funcStmnt, decl);
-		SpiteIR::Label* lastLabel = GetCurrentLabel();
-		if (!lastLabel->terminator && IsVoidType(function->returnType))
+		if (!function->metadata.externFunc)
 		{
-			BuildVoidReturn(lastLabel);
+			AddScope();
+			BuildFunctionArguments(function, funcStmnt);
+			BuildEntryLabel(function, funcStmnt, decl);
+			SpiteIR::Label* lastLabel = GetCurrentLabel();
+			if (!lastLabel->terminator && IsVoidType(function->returnType))
+			{
+				BuildVoidReturn(lastLabel);
+			}
+			PopScope();
 		}
-		PopScope();
 	}
 
 	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
@@ -966,6 +968,9 @@ struct LowerDefinitions
 			break;
 		case UnresolvedGenericCall:
 			break;
+		case ExternalCall:
+			irFunction = FindExternalFunctionForFunctionCall(expr);
+			break;
 		default:
 			break;
 		}
@@ -1025,6 +1030,20 @@ struct LowerDefinitions
 		Assert(MapHas(package->functions, functionName));
 		SpiteIR::Function* function = package->functions[functionName];
 
+		return function;
+	}
+
+	SpiteIR::Function* FindExternalFunctionForFunctionCall(Expr* expr)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* stmnt = FindFunctionStmnt(caller);
+
+		eastl::string functionName = stmnt->externFunction.callName->val.ToString();
+		StringView& packageName = stmnt->package->val;
+		Assert(MapHas(context.packageMap, packageName));
+		SpiteIR::Package* package = context.packageMap[packageName];
+		Assert(MapHas(package->functions, functionName));
+		SpiteIR::Function* function = package->functions[functionName];
 		return function;
 	}
 
@@ -1099,11 +1118,18 @@ struct LowerDefinitions
 		return operand;
 	}
 
+	SpiteIR::InstructionKind GetCallKind(SpiteIR::Function* function)
+	{
+		if (function->metadata.externFunc) return SpiteIR::InstructionKind::ExternCall;
+
+		return SpiteIR::InstructionKind::Call;
+	}
+
 	SpiteIR::Instruction* BuildCall(SpiteIR::Function* function, size_t returnReg, 
 		eastl::vector<SpiteIR::Operand>* params, SpiteIR::Label* label)
 	{
 		SpiteIR::Instruction* call = CreateInstruction(label);
-		call->kind = SpiteIR::InstructionKind::Call;
+		call->kind = GetCallKind(function);
 		call->call.function = function;
 		call->call.params = params;
 		call->call.result = returnReg;

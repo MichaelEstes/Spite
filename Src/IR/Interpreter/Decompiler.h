@@ -186,6 +186,9 @@ struct Decompiler
 		case SpiteIR::InstructionKind::Branch:
 			DecompileBranch(inst);
 			break;
+		case SpiteIR::InstructionKind::ExternCall:
+			DecompileExternCall(inst);
+			break;
 		case SpiteIR::InstructionKind::Call:
 			DecompileCall(inst);
 			break;
@@ -251,6 +254,19 @@ struct Decompiler
 	{
 		Write("r" + eastl::to_string(storeInst.store.dst) + " = store " + 
 			WriteOperand(storeInst.store.src));
+	}
+
+	void DecompileExternCall(SpiteIR::Instruction& callInst)
+	{
+		eastl::string callStr = "r" + eastl::to_string(callInst.call.result) + " = extern call " +
+			WriteType(callInst.call.function->returnType) + " " + callInst.call.function->name + "(";
+		for (SpiteIR::Operand& param : *callInst.call.params)
+		{
+			callStr += WriteOperand(param);
+		}
+		callStr += ")";
+
+		Write(callStr);
 	}
 
 	void DecompileCall(SpiteIR::Instruction& callInst)

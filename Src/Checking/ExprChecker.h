@@ -129,7 +129,7 @@ struct ExprChecker
 				for (Stmnt* con : stateSymbol->constructors)
 				{
 					Stmnt* conDecl = con->constructor.decl;
-					if (CheckValidFunctionCallParams(con, conDecl, &conParams))
+					if (CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &conParams))
 					{
 						return;
 					}
@@ -141,7 +141,8 @@ struct ExprChecker
 			case StmntID::FunctionStmnt:
 			{
 				functionCall.callKind = FunctionCallKind::FunctionCall;
-				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl, params))
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
+					params))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
 				}
@@ -169,9 +170,19 @@ struct ExprChecker
 
 				for (Expr* param : *params) methodParams.push_back(param);
 
-				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl, &methodParams))
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters, 
+					&methodParams))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");
+				}
+				return;
+			}
+			case StmntID::ExternFunctionDecl:
+			{
+				functionCall.callKind = FunctionCallKind::ExternalCall;
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->externFunction.parameters, params))
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for external function declaration");
 				}
 				return;
 			}
@@ -259,12 +270,12 @@ struct ExprChecker
 		return false;
 	}
 
-	bool CheckValidFunctionCallParams(Stmnt* calledFor, Stmnt* funcDecl, eastl::vector<Expr*>* params)
+	bool CheckValidFunctionCallParams(Stmnt* calledFor, eastl::vector<Stmnt*>* funcParams, 
+		eastl::vector<Expr*>* params)
 	{
-		eastl::vector<Stmnt*>* funcParams = funcDecl->functionDecl.parameters;
 
 		size_t paramCount = params->size();
-		size_t requiredParamCount = RequiredFunctionParamCount(funcDecl);
+		size_t requiredParamCount = RequiredFunctionParamCount(funcParams);
 		if (requiredParamCount > paramCount) return false;
 
 		for (size_t i = 0; i < paramCount; i++)
@@ -279,10 +290,9 @@ struct ExprChecker
 		return true;
 	}
 
-	size_t RequiredFunctionParamCount(Stmnt* funcDecl)
+	size_t RequiredFunctionParamCount(eastl::vector<Stmnt*>* params)
 	{
 		size_t count = 0;
-		eastl::vector<Stmnt*>* params = funcDecl->functionDecl.parameters;
 
 		for (Stmnt* param : *params)
 		{

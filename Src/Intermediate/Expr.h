@@ -45,6 +45,7 @@ enum FunctionCallKind
 	UniformMethodCall,
 	FunctionTypeCall,
 	UnresolvedGenericCall,
+	ExternalCall,
 };
 
 struct Expr
