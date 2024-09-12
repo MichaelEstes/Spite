@@ -21,6 +21,7 @@ struct Interpreter
 		stackFrameStart = stack;
 		stackTop = stack;
 		IncrementStackFrame();
+		CreateDynCallVM();
 	}
 
 	void InterpretLabel(SpiteIR::Label* label)
