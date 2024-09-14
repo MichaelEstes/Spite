@@ -51,6 +51,41 @@ Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 	return entryFunc;
 }
 
+#ifdef WIN32
+
+#include <windows.h>
+std::filesystem::path GetExecutableDir()
+{
+	wchar_t path[MAX_PATH];
+	GetModuleFileNameW(NULL, path, MAX_PATH);
+	return std::filesystem::path{ path }.parent_path() / "";
+}
+
+#else UNIX
+
+#include <unistd.h>
+std::filesystem::path GetExecutableDir()
+{
+	char path[PATH_MAX];
+	ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+	path[count] = '\0';
+	return std::filesystem::path{ path }.parent_path() / "";
+}
+
+#endif 
+
+void FindAllSourceFilesInDir(eastl::hash_set<string>& files, const std::filesystem::path& dir)
+{
+	for (auto& entry : std::filesystem::recursive_directory_iterator(dir))
+	{
+		if (!entry.is_directory() && entry.path().extension() == ".sp")
+		{
+			string path(entry.path().string().c_str());
+			files.insert(path);
+		}
+	}
+}
+
 int main(int argc, char** argv)
 {
 	Profiler profiler = Profiler();
@@ -61,15 +96,12 @@ int main(int argc, char** argv)
 	
 	if (config.dir.length() > 0)
 	{
-		for (auto& entry : std::filesystem::recursive_directory_iterator(config.dir.c_str()))
-		{
-			if (!entry.is_directory() && entry.path().extension() == ".sp")
-			{
-				string path(entry.path().string().c_str());
-				files.insert(path);
-			}
-		}
+		FindAllSourceFilesInDir(files, std::filesystem::path{ config.dir.c_str() });
 	}
+
+	std::filesystem::path execDir = GetExecutableDir() / "Runtime";
+	FindAllSourceFilesInDir(files, execDir);
+
 
 	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
 		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/

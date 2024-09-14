@@ -35,6 +35,10 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
+set(RUNTIME_PATH "${PROJECT_SOURCE_DIR}/Runtime/")
+
+file(COPY ${RUNTIME_PATH} DESTINATION "${CMAKE_BINARY_DIR}/Runtime")
+
 # Add source to this project's executable.
 add_executable (Spite_Lang 
 "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "Src/Parsing/Parser.cpp"

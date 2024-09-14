@@ -459,7 +459,7 @@ struct Interpreter
 			params.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		void* ret = CallExternalFunction(callInst.call.function, params);
+		CallExternalFunction(callInst.call.function, params, stackFrameStart + callInst.call.result);
 	}
 
 	void InterpretCall(SpiteIR::Instruction& callInst)

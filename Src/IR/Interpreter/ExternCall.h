@@ -23,7 +23,7 @@ func_ptr FindFunction(const eastl::string& name, const eastl::string& lib)
 	return func;
 }
 
-#elif UNIX
+#else UNIX
 
 const char* platform = "linux";
 
@@ -43,6 +43,12 @@ void CreateDynCallVM()
 		dynCallVM = dcNewCallVM(4096);
 		dcMode(dynCallVM, DC_CALL_C_DEFAULT);
 	}
+}
+
+void DestroyDynCallVM()
+{
+	dcFree(dynCallVM);
+	dynCallVM = nullptr;
 }
 
 //void CallExternalFunction(const eastl::string& name)
@@ -136,18 +142,15 @@ eastl::string* FindLibForPlatform(eastl::vector<SpiteIR::PlatformLib>* platformT
 	return nullptr;
 }
 
-void* ConvertValue(size_t size, const void* ptr)
+void CopyValue(size_t size, const void* ptr, char* dst)
 {
-	char* value = new char[size];
 	for (size_t i = 0; i < size; i++)
 	{
-		value[i] = ((char*)ptr)[i];
+		dst[i] = ((char*)ptr)[i];
 	}
-
-	return value;
 }
 
-void* CallDCFunc(SpiteIR::Type* type, func_ptr func)
+void* CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 {
 	switch (type->kind)
 	{
@@ -158,7 +161,8 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func)
 		case SpiteIR::PrimitiveKind::Bool:
 		{
 			bool ret = dcCallBool(dynCallVM, func);
-			return ConvertValue(type->size, &ret);
+			CopyValue(type->size, &ret, dst);
+			break;
 		}
 		case SpiteIR::PrimitiveKind::Byte:
 		case SpiteIR::PrimitiveKind::Int:
@@ -167,23 +171,27 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func)
 			case 1:
 			{
 				char ret = dcCallChar(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			case 2:
 			{
 				int16_t ret = dcCallShort(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			case 4:
 			{
 				int32_t ret = dcCallInt(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			case 8:
 			case 16:
 			{
 				int64_t ret = dcCallLongLong(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			default:
 				break;
@@ -194,12 +202,14 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func)
 			case 4:
 			{
 				float ret = dcCallFloat(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			case 8:
 			{
 				double ret = dcCallDouble(dynCallVM, func);
-				return ConvertValue(type->size, &ret);
+				CopyValue(type->size, &ret, dst);
+				break;
 			}
 			default:
 				break;
@@ -231,7 +241,7 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func)
 	return nullptr;
 }
 
-void* CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params)
+void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst)
 {
 	dcReset(dynCallVM);
 
@@ -248,6 +258,5 @@ void* CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& pa
 	if (!func) Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
 		name + "' for platform '" + platform + "' in lib '" + *lib + "'");
 
-	void* ret = CallDCFunc(function->returnType, func);
-	return ret;
+	CallDCFunc(function->returnType, func, dst);
 }
