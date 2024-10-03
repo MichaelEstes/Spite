@@ -70,29 +70,6 @@ struct ExprChecker
 		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
-	void CheckFixed(Expr* expr)
-	{
-		auto& fixed = expr->fixedExpr;
-		Expr* atExpr = fixed.atExpr;
-		if (atExpr->typeID != ExprID::IndexExpr)
-		{
-			AddError(atExpr->start, "'fixed' must be followed by an array instantiation");
-			return;
-		}
-
-		Expr* indexExpr = atExpr;
-		while (indexExpr->typeID == ExprID::IndexExpr)
-		{
-			if (!context.scopeUtils.IsConstantIntExpr(indexExpr->indexExpr.index))
-			{
-				AddError(indexExpr->start, "'fixed' array size expressions must evaluate to a constant value");
-				return;
-			}
-
-			indexExpr = indexExpr->indexExpr.of;
-		}
-	}
-
 	void CheckFunctionCallExpr(Expr* expr)
 	{
 		auto& functionCall = expr->functionCallExpr;
@@ -158,7 +135,6 @@ struct ExprChecker
 				if (CallerIsReceiver(caller))
 				{
 					Type* type = utils.InferType(caller);
-					while (type->typeID == TypeID::TemplatedType) type = type->templatedType.type;
 					thisIdent.typeExpr.type = type;
 					methodParams.push_back(&thisIdent);
 					functionCall.callKind = FunctionCallKind::MemberMethodCall;

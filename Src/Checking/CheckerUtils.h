@@ -90,12 +90,20 @@ struct CheckerUtils
 		return context.globalTable->IsGenericOfStmnt(expr, context.currentContext, context.symbolTable);
 	}
 
-	bool IsGenericOf(Stmnt* stmnt, Type* type)
+	bool IsTypeGenericOf(Stmnt* stmnt, Type* type)
 	{
 		if (!stmnt) return IsGenericOfCurrentContext(type);
 		if (!type || type->typeID != TypeID::NamedType) return false;
 
 		return IsGeneric(type->namedType.typeName, stmnt);
+	}
+
+	bool IsExprGenericOf(Stmnt* stmnt, Expr* expr)
+	{
+		if (!stmnt) return IsGenericOfCurrentContext(expr);
+		if (!expr || expr->typeID != ExprID::IdentifierExpr) return false;
+
+		return IsGeneric(expr->identifierExpr.identifier, stmnt);
 	}
 
 	bool IsExprOfType(Expr* expr)
@@ -133,15 +141,15 @@ struct CheckerUtils
 			context.scopeUtils, context.currentContext).InferType(of);
 	}
 
-	bool IsAssignable(Type* left, Type* right, Stmnt* context = nullptr)
+	bool IsAssignable(Type* left, Type* right, Stmnt* stmntContext = nullptr)
 	{
 		if (*left == *right) return true;
 
 		if (left->typeID == TypeID::ValueType)
-			return IsAssignable(left->valueType.type, right, context);
+			return IsAssignable(left->valueType.type, right, stmntContext);
 
 		if (right->typeID == TypeID::ValueType)
-			return IsAssignable(left, right->valueType.type, context);
+			return IsAssignable(left, right->valueType.type, stmntContext);
 
 		if (left->typeID == TypeID::PrimitiveType && right->typeID == TypeID::PrimitiveType)
 		{
@@ -162,25 +170,51 @@ struct CheckerUtils
 
 		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
 		{
-			return IsAssignable(left->pointerType.type, right->pointerType.type, context);
+			return IsAssignable(left->pointerType.type, right->pointerType.type, stmntContext);
 		}
 
 		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::ArrayType)
 		{
-			return IsAssignable(left->arrayType.type, right->arrayType.type, context);
+			return IsAssignable(left->arrayType.type, right->arrayType.type, stmntContext);
 		}
 
 		if (left->typeID == TypeID::FixedArrayType && right->typeID == TypeID::ArrayType)
 		{
-			return IsAssignable(left->fixedArrayType.type, right->arrayType.type, context);
+			return IsAssignable(left->fixedArrayType.type, right->arrayType.type, stmntContext);
 		}
 
 		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::FixedArrayType)
 		{
-			return IsAssignable(left->arrayType.type, right->fixedArrayType.type, context);
+			return IsAssignable(left->arrayType.type, right->fixedArrayType.type, stmntContext);
 		}
 
-		if (IsGenericOf(context, left) || IsGenericOf(context, right)) return true;
+		if (left->typeID == TypeID::TemplatedType && right->typeID == TypeID::TemplatedType)
+		{
+			if (!IsAssignable(left->templatedType.type, right->templatedType.type, stmntContext))
+				return false;
+
+			eastl::vector<Expr*>* leftTemplateArgs = left->templatedType.templates->templateExpr.templateArgs;
+			eastl::vector<Expr*>* rightTemplateArgs = right->templatedType.templates->templateExpr.templateArgs;
+
+			if (leftTemplateArgs->size() != rightTemplateArgs->size()) return false;
+
+			Stmnt* state = context.globalTable->FindStateForType(left, context.symbolTable);
+
+			for (size_t i = 0; i < leftTemplateArgs->size(); i++)
+			{
+				Expr* lTempl = leftTemplateArgs->at(i);
+				Expr* rTempl = rightTemplateArgs->at(i);
+				if (IsExprGenericOf(state, lTempl) || IsExprGenericOf(state, rTempl) ||
+					IsExprGenericOf(stmntContext, lTempl) || IsExprGenericOf(stmntContext, rTempl))
+					continue;
+
+				if (!IsAssignable(InferType(lTempl), InferType(rTempl))) return false;
+			}
+
+			return true;
+		}
+
+		if (IsTypeGenericOf(stmntContext, left) || IsTypeGenericOf(stmntContext, right)) return true;
 
 		if (IsComplexType(left) && IsComplexType(right))
 		{
@@ -195,7 +229,7 @@ struct CheckerUtils
 			{
 				Type* lType = leftTypes.at(i);
 				Type* rType = rightTypes.at(i);
-				if (!IsAssignable(lType, rType, context)) return false;
+				if (!IsAssignable(lType, rType, stmntContext)) return false;
 			}
 
 			return true;

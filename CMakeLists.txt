@@ -36,7 +36,8 @@ if (POLICY CMP0141)
 endif()
 
 set(RUNTIME_PATH "${PROJECT_SOURCE_DIR}/Runtime/")
-
+file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/Runtime")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Runtime")
 file(COPY ${RUNTIME_PATH} DESTINATION "${CMAKE_BINARY_DIR}/Runtime")
 
 # Add source to this project's executable.

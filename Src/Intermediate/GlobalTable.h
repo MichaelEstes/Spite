@@ -82,7 +82,7 @@ struct GlobalTable
 		case NamedType:
 			return FindScopedState(type->namedType.typeName, symbolTable);
 		case ImportedType:
-			return FindScopedState(type->importedType.typeName, symbolTable);
+			return FindState(type->importedType.packageName, type->importedType.typeName);
 		case PointerType:
 			return FindStateForType(type->pointerType.type, symbolTable);
 		case ValueType:
@@ -90,12 +90,18 @@ struct GlobalTable
 		case ArrayType:
 			return FindStateForType(type->arrayType.type, symbolTable);
 		case TemplatedType:
-			return FindStateForType(type->arrayType.type, symbolTable);
+			return FindStateForType(type->templatedType.type, symbolTable);
 		case FixedArrayType:
 			return FindStateForType(type->fixedArrayType.type, symbolTable);
 		default:
 			return nullptr;
 		}
+	}
+
+	Stmnt* FindState(Token* package, Token* name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package->val);
+		return symbolTable->FindState(name->val);
 	}
 
 	inline Stmnt* FindScopedState(Token* name, SymbolTable* symbolTable)

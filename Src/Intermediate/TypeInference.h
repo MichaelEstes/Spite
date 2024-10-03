@@ -69,8 +69,6 @@ struct TypeInferer
 		Type* type = symbolTable->CreateTypePtr(TypeID::TemplatedType);
 		type->templatedType.templates = symbolTable->CreateExpr(expr->start, ExprID::TemplateExpr);
 		type->templatedType.templates->templateExpr.expr = nullptr;
-		type->templatedType.templates->templateExpr.open = expr->templateExpr.open;
-		type->templatedType.templates->templateExpr.close = expr->templateExpr.close;
 		type->templatedType.templates->templateExpr.templateArgs = expr->templateExpr.templateArgs;
 		type->templatedType.type = of;
 		return type;
@@ -240,31 +238,7 @@ struct TypeInferer
 
 	inline Type* GetIndexType(Expr* of, Type* type)
 	{
-		if (of->indexExpr.forward)
-		{
-			return GetIndexTypeCreateArray(of, type);
-		}
-		else
-		{
-			return GetIndexTypeAccessArray(of, type);
-		}
-	}
-
-	inline Type* GetIndexTypeCreateArray(Expr* of, Type* type)
-	{
-		// Has index expression
-		if (of->indexExpr.index && scopeUtils.IsConstantIntExpr(of->indexExpr.index))
-		{
-			Type* arrType = symbolTable->CreateTypePtr(TypeID::FixedArrayType);
-			arrType->fixedArrayType.size = scopeUtils.EvaluateConstantIntExpr(of->indexExpr.index);
-			arrType->fixedArrayType.type = type;
-			return arrType;
-		}
-
-		Type* arrType = symbolTable->CreateTypePtr(TypeID::ArrayType);
-		arrType->arrayType.type = type;
-		arrType->arrayType.size = of->indexExpr.index;
-		return arrType;
+		return GetIndexTypeAccessArray(of, type);
 	}
 
 	inline Type* GetIndexTypeAccessArray(Expr* of, Type* type)
@@ -307,25 +281,16 @@ struct TypeInferer
 		if (!type) return nullptr;
 		switch (type->typeID)
 		{
-		case PrimitiveType:
-			return type;
-		case ImportedType:
-		case NamedType:
-			return type;
 		case FunctionType:
 			return type->functionType.returnType;
 		case TemplatedType:
 		{
 			if (of->functionCallExpr.function->typeID == ExprID::TemplateExpr) return type;
-		}
-		case GenericNamedType:
-			return type;
-		default:
 			break;
 		}
-
-		AddError(of->start, "TypeInferer:GetFunctionCallType unable to create type for expression: " + ToString(of));
-		return nullptr;
+		default:
+			return type;
+		}
 	}
 
 	Type* EvalType(Expr* expr)
@@ -607,10 +572,9 @@ struct TypeInferer
 				return symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
-			Type* fixedType = fixedArrType->fixedArrayType.type;
-			fixedArrType->typeID = TypeID::PointerType;
-			fixedArrType->pointerType.type = fixedType;
-			return fixedArrType;
+			Type* fixedType = symbolTable->CreateTypePtr(TypeID::PointerType);
+			fixedType->pointerType.type = fixedArrType->fixedArrayType.type;
+			return fixedType;
 		}
 		case TypeLiteralExpr:
 		{

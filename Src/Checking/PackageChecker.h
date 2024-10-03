@@ -35,7 +35,7 @@ struct PackageChecker
 			AddScope();
 			// Keep in state in context for method checking
 			context.currentContext = value.state;
-			CheckState(key, value.state);
+			CheckState(key, value);
 			CheckConstructors(value.constructors);
 			CheckMethods(value.methods);
 			CheckOperators(value.operators);
@@ -91,15 +91,68 @@ struct PackageChecker
 		CheckDefinition(global);
 	}
 
-	void CheckState(const StringView& name, Stmnt* state)
+	void SetGenericThis(StateSymbol& stateSymbol)
 	{
+		Type* templated = context.symbolTable->CreateTypePtr(TypeID::TemplatedType);
+		eastl::vector<Expr*>* generics = context.symbolTable->CreateVectorPtr<Expr>();
+		for (Token* gen : *stateSymbol.state->state.generics->generics.names)
+		{
+			Expr* genExpr = context.symbolTable->CreateExpr(gen, ExprID::IdentifierExpr);
+			genExpr->identifierExpr.identifier = gen;
+			generics->push_back(genExpr);
+		}
+
+		Expr* templates = context.symbolTable->CreateExpr(
+			generics->at(0)->identifierExpr.identifier, ExprID::TemplateExpr);
+		templates->templateExpr.expr = nullptr;
+		templates->templateExpr.templateArgs = generics;
+
+		Type* stateType = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
+		stateType->importedType.packageName = stateSymbol.state->package;
+		stateType->importedType.typeName = stateSymbol.state->state.name;
+		
+		templated->templatedType.templates = templates;
+		templated->templatedType.type = stateType;
+
+		for (Stmnt* constructor : stateSymbol.constructors)
+		{
+			eastl::vector<Stmnt*>* params = constructor->constructor.decl->functionDecl.parameters;
+			params->at(0)->definition.type = templated;
+		}
+
+		for (Stmnt* method : stateSymbol.methods)
+		{
+			eastl::vector<Stmnt*>* params = method->method.decl->functionDecl.parameters;
+			params->at(0)->definition.type = templated;
+		}
+
+		for (Stmnt* op : stateSymbol.operators)
+		{
+			eastl::vector<Stmnt*>* params = op->stateOperator.decl->functionDecl.parameters;
+			params->at(0)->definition.type = templated;
+		}
+	}
+
+	void CheckStateGenerics(StateSymbol& stateSymbol)
+	{
+		SetGenericThis(stateSymbol);
+
+	}
+
+	void CheckState(const StringView& name, StateSymbol& stateSymbol)
+	{
+		Stmnt* state = stateSymbol.state;
 		if (!state)
 		{
 			AddError("State was not defined for name: " + name);
 			return;
 		}
 
-		context.currentContext = state;
+		if (state->state.generics)
+		{
+			CheckStateGenerics(stateSymbol);
+		}
+
 		auto& stateRef = state->state;
 		for (Stmnt* member : *stateRef.members)
 		{
@@ -339,7 +392,6 @@ struct PackageChecker
 			break;
 		case FixedExpr:
 			CheckExpr(expr->fixedExpr.atExpr);
-			exprChecker.CheckFixed(expr);
 			break;
 		case TypeLiteralExpr:
 		{
@@ -395,21 +447,21 @@ struct PackageChecker
 		}
 	}
 
-	void CheckType(Type* type, Token* start, Expr* assignment = nullptr)
+	void CheckType(Type* type, Token* start, Expr* templates = nullptr)
 	{
 		switch (type->typeID)
 		{
 		case InvalidType:
 		case ImplicitType:
+		case UnknownType:
 			AddError(start, "Invalid type found");
 			break;
-		case UnknownType:
-			typeChecker.InferUnknownType(type, assignment);
-			CheckType(type, start);
+		case ImportedType:
+			typeChecker.CheckImportedType(type, templates);
 			break;
 		case NamedType:
 		{
-			typeChecker.CheckNamedType(type);
+			typeChecker.CheckNamedType(type, templates);
 			break;
 		}
 		case ExplicitType:
@@ -434,8 +486,9 @@ struct PackageChecker
 		}
 		case TemplatedType:
 		{
-			CheckType(type->templatedType.type, start);
-			for (Expr* templ : *type->templatedType.templates->templateExpr.templateArgs)
+			Expr* templs = type->templatedType.templates;
+			CheckType(type->templatedType.type, start, templs);
+			for (Expr* templ : *templs->templateExpr.templateArgs)
 			{
 				CheckExpr(templ);
 			}
@@ -459,9 +512,14 @@ struct PackageChecker
 	void CheckDefinition(Stmnt* stmnt, bool scopeDefinition = true)
 	{
 		auto& definition = stmnt->definition;
-		CheckType(stmnt->definition.type, stmnt->start, definition.assignment);
+
 		if (definition.assignment) CheckExpr(definition.assignment);
+
+		if(stmnt->definition.type->typeID == UnknownType) 
+			typeChecker.InferUnknownType(stmnt->definition.type, definition.assignment);
+		CheckType(stmnt->definition.type, stmnt->start);
 		typeChecker.CheckDefinitionType(stmnt);
+
 		if (scopeDefinition)
 		{
 			StringView& name = definition.name->val;

@@ -1,15 +1,20 @@
-extern c
-{
-	*byte malloc(size: int);
-}
+package Mem
 
+extern
+{
+	#link linux "libm.so";
+	#link windows "msvcrt.dll";
+
+	*byte malloc(size: int);
+	void free(ptr: *void);
+}
 
 *byte alloc(size: int)
 {
 	return malloc(size);
 }
 
-void free(ptr: *void)
+void dealloc(ptr: *void)
 {
-	return malloc(size);
+	free(ptr);
 }

@@ -736,7 +736,6 @@ struct Syntax
 		{
 			node->end = curr;
 			Advance();
-			node->generics.count = node->generics.names->size();
 			node->generics.templatesToExpand = symbolTable->arena->Emplace<eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash, ExprArrEqual>>();
 			return node;
 		}
@@ -1745,7 +1744,7 @@ struct Syntax
 
 		case UniqueType::Array:
 		case UniqueType::Lbrack:
-			return ParseForwardIndex();
+			return ParseArrayExpr();
 
 		case UniqueType::OnCompile:
 			return ParseCompileExpr();
@@ -1894,20 +1893,33 @@ struct Syntax
 		return selector;
 	}
 
-	Expr* ParseForwardIndex()
+	Expr* ParseArrayExpr()
 	{
-		Token* currToken = curr;
-		Logger::SetErrorRollback();
-		Expr* forwardIndex = ParseIndex(nullptr);
-		if (Logger::HasErrorsToRollback())
+		if (Expect(UniqueType::Array))
 		{
-			Logger::ErrorRollback();
-			curr = currToken;
-			forwardIndex = ParseTypeLiteralExpr(UniqueType::Rbrack, true);
-
+			return ParseTypeExpr();
 		}
 
-		return forwardIndex;
+		Token* start = curr;
+		Advance();
+		Expr* index = ParseExpr();
+
+		if (Expect(UniqueType::Rbrack))
+		{
+			curr = start;
+			return ParseTypeExpr();
+		}
+		else if (Expect(UniqueType::Comma))
+		{
+			curr = start;
+			return ParseTypeLiteralExpr(UniqueType::Rbrack, true);
+		}
+		else
+		{
+			AddError(start, "Syntax:ParseArrayExpr Expected array type declaration or array literal");
+			index->typeID = ExprID::InvalidExpr;
+			return index;
+		}
 	}
 
 	Expr* ParseIndex(Expr* of)
@@ -1915,45 +1927,29 @@ struct Syntax
 		Token* currToken = curr;
 		Expr* indexExpr = CreateExpr(currToken, ExprID::IndexExpr);
 		indexExpr->indexExpr.lBrack = currToken;
-		indexExpr->indexExpr.forward = false;
 
-		if (currToken->uniqueType == UniqueType::Array)
+		Advance();
+		if (curr->uniqueType == UniqueType::Rbrack)
 		{
-			Advance();
-			indexExpr->indexExpr.index = nullptr;
-			indexExpr->indexExpr.rBrack = currToken;
+			indexExpr->indexExpr.rBrack = curr;
+			AddError(curr, "Unexpected empty index ('[]') in expression");
+			indexExpr->typeID = ExprID::InvalidExpr;
+			return indexExpr;
 		}
 		else
 		{
-			Advance();
-			if (curr->uniqueType == UniqueType::Rbrack)
+			Expr* expr = ParseExpr();
+			indexExpr->indexExpr.index = expr;
+			if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
 			{
 				indexExpr->indexExpr.rBrack = curr;
-				AddError(curr, "Unexpected empty index ('[]') in expression");
-				indexExpr->typeID = ExprID::InvalidExpr;
-				return indexExpr;
+				Advance();
 			}
 			else
 			{
-				Expr* expr = ParseExpr();
-				indexExpr->indexExpr.index = expr;
-				if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
-				{
-					indexExpr->indexExpr.rBrack = curr;
-					Advance();
-				}
-				else
-				{
-					indexExpr->typeID = ExprID::InvalidExpr;
-					return indexExpr;
-				}
+				indexExpr->typeID = ExprID::InvalidExpr;
+				return indexExpr;
 			}
-		}
-
-		if (!of)
-		{
-			of = ParsePrimaryExpr();
-			indexExpr->indexExpr.forward = true;
 		}
 
 		indexExpr->indexExpr.of = of;
@@ -1999,17 +1995,28 @@ struct Syntax
 		return generics;
 	}
 
+	Expr* ParseTypeExpr()
+	{
+		Expr* expr = CreateExpr(curr, ExprID::TypeExpr);
+		Type* type = ParseType(false);
+		if (type->typeID != TypeID::InvalidType)
+		{
+			expr->typeExpr.type = type;
+			return expr;
+		}
+
+		expr->typeID = ExprID::InvalidExpr;
+		return expr;
+	}
+
 	Expr* ParseTypeOrPrimaryExpr()
 	{
 		Token* start = curr;
 		Logger::SetErrorRollback();
-		Type* type = ParseType(false);
-		if (type->typeID != TypeID::InvalidType)
-		{
-			Expr* expr = CreateExpr(start, ExprID::TypeExpr);
-			expr->typeExpr.type = type;
+
+		Expr* expr = ParseTypeExpr();
+		if (expr->typeID != ExprID::InvalidExpr)
 			return expr;
-		}
 
 		curr = start;
 		Logger::ErrorRollback();
@@ -2021,7 +2028,6 @@ struct Syntax
 		Expr* generics = CreateExpr(curr, ExprID::TemplateExpr);
 		eastl::vector<Expr*>* genericTemplates = CreateVectorPtr<Expr>();
 		generics->templateExpr.expr = expr;
-		generics->templateExpr.open = curr;
 		generics->templateExpr.templateArgs = genericTemplates;
 
 		Advance();
@@ -2050,7 +2056,6 @@ struct Syntax
 
 		if (Expect(UniqueType::Greater, "Expected generic closure ('>')"))
 		{
-			generics->templateExpr.close = curr;
 			Advance();
 		}
 		else

@@ -1,16 +1,16 @@
 package Math
 
-//#link linux "libc";
-//#link windows "msvcrt";
+extern
+{
+	#link linux "libm.so";
+	#link windows "msvcrt.dll";
+
+	float64 sqrt(val: float64);
+}
 
 //extern llvm
 //{
 //	float64 "llvm.sqrt.f64"(val: float64) as sqrt;
-//}
-
-//extern c
-//{
-//	float64 sqrt(val: float64);
 //}
 
 // No js link required since Math is a global object

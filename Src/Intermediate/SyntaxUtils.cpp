@@ -611,14 +611,7 @@ eastl::string ToString(Expr* expr)
 	case IndexExpr:
 	{
 		eastl::string indexStr = expr->indexExpr.index ? ToString(expr->indexExpr.index) : "";
-		if (expr->indexExpr.forward)
-		{
-			return "[" + indexStr + "]" + ToString(expr->indexExpr.of);
-		}
-		else
-		{
-			return ToString(expr->indexExpr.of) + "[" + indexStr + "]";
-		}
+		return ToString(expr->indexExpr.of) + "[" + indexStr + "]";
 	}		
 	case FunctionCallExpr:
 	{
@@ -694,9 +687,9 @@ eastl::string ToString(Expr* expr)
 		}
 
 		return (expr->templateExpr.expr != nullptr ? ToString(expr->templateExpr.expr) : "") +
-			expr->templateExpr.open->ToString() +
+			"<" +
 			templateArgs +
-			expr->templateExpr.close->ToString();
+			">";
 	}
 	case TypeExpr:
 		return ToString(expr->typeExpr.type);

@@ -230,6 +230,8 @@ struct ScopeUtils
 		}
 		case TemplateExpr:
 			return GetDeclarationStmntForExpr(expr->templateExpr.expr);
+		case TypeExpr:
+			return globalTable->FindStateForType(expr->typeExpr.type, symbolTable);
 		default:
 			break;
 		}

@@ -82,7 +82,6 @@ struct Expr
 			Expr* index;
 			Token* lBrack;
 			Token* rBrack;
-			bool forward;
 		} indexExpr;
 
 		struct
@@ -162,8 +161,6 @@ struct Expr
 		{
 			Expr* expr;
 			eastl::vector<Expr*>* templateArgs;
-			Token* open;
-			Token* close;
 		} templateExpr;
 
 		struct

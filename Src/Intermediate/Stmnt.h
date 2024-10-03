@@ -162,7 +162,6 @@ struct Stmnt
 		{
 			eastl::vector<Token*>* names;
 			Stmnt* whereStmnt;
-			size_t count;
 			eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash, ExprArrEqual>* templatesToExpand;
 		} generics;
 

@@ -13,12 +13,56 @@ struct TypeChecker
 
 	TypeChecker(CheckerContext& context) : context(context), utils(context) {}
 
-	void CheckNamedType(Type* type)
+	void CheckTypeGenerics(Stmnt* state, Expr* templates, Token* token)
+	{
+		Stmnt* generics = GetGenerics(state);
+		if (generics)
+		{
+			if (!templates)
+			{
+				AddError(token, "TypeChecker:CheckTypeGenerics No templates provided for generic type");
+				return;
+			}
+
+			size_t genericsCount = generics->generics.names->size();
+			size_t templatesCount = templates->templateExpr.templateArgs->size();
+			if (genericsCount != templatesCount)
+			{
+				AddError(token, "TypeChecker:CheckTypeGenerics Expected " 
+					+ eastl::to_string(genericsCount) 
+					+ " templates, but was provided "
+					+ eastl::to_string(templatesCount) 
+					+ " templates");
+			}
+		}
+		else if (templates)
+		{
+			AddError(token, "TypeChecker:CheckTypeGenerics Templates provided for non-generic type");
+		}
+	}
+
+	void CheckImportedType(Type* type, Expr* templates)
+	{
+		Stmnt* state = context.globalTable->FindState(type->importedType.packageName,
+			type->importedType.typeName);
+
+		if (!state)
+		{
+			AddError(type->importedType.typeName, "TypeChecker:CheckImportedType Could not find imported type");
+			return;
+		}
+
+		CheckTypeGenerics(state, templates, type->importedType.typeName);
+	}
+
+	void CheckNamedType(Type* type, Expr* templates)
 	{
 		Token* name = type->namedType.typeName;
 		Stmnt* state = context.globalTable->FindScopedState(name, context.symbolTable);
 		if (state)
 		{
+			CheckTypeGenerics(state, templates, type->namedType.typeName);
+
 			type->typeID = TypeID::ImportedType;
 			type->importedType.packageName = state->package;
 			type->importedType.typeName = name;
@@ -48,7 +92,7 @@ struct TypeChecker
 			if (context.scopeUtils.IsConstantIntExpr(arr.size))
 			{
 				size_t size = context.scopeUtils.EvaluateConstantIntExpr(arr.size);
-				if (size)
+				if (size > 0)
 				{
 					Type* arrType = arr.type;
 					type->typeID = TypeID::FixedArrayType;
@@ -81,7 +125,6 @@ struct TypeChecker
 			else if (!utils.IsAssignable(definition.type, inferredType))
 			{
 				AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
-				return;
 			}
 		}
 	}
