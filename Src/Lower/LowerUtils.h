@@ -1,6 +1,6 @@
 #pragma once
-#include "../Intermediate/GlobalTable.h"
-#include "../Intermediate/SyntaxUtils.h"
+#include "../Syntax/GlobalTable.h"
+#include "../Syntax/SyntaxUtils.h"
 #include "../IR/IR.h"
 
 extern Config config;

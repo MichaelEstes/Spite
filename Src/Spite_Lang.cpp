@@ -92,8 +92,7 @@ int main(int argc, char** argv)
 
 	config = ParseConfig(argc, argv);
 
-	eastl::hash_set<string> files = eastl::hash_set<string>();
-	
+	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (config.dir.length() > 0)
 	{
 		FindAllSourceFilesInDir(files, std::filesystem::path{ config.dir.c_str() });
@@ -136,6 +135,7 @@ int main(int argc, char** argv)
 		globalTable.InsertTable(entryTable);
 		globalTable.entryTable = entryTable;
 		globalTable.entryFunc = CheckEntryFunction(entryTable);
+		globalTable.SetRuntimeTable();
 		if (Logger::HasErrors())
 		{
 			Logger::PrintErrors();

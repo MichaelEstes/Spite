@@ -1,8 +1,8 @@
 #pragma once
 
 #include <EASTL/deque.h>
-#include "../Intermediate/SymbolTable.h"
-#include "../Intermediate/Syntax.h"
+#include "../Syntax/SymbolTable.h"
+#include "../Syntax/Syntax.h"
 #include "CheckerUtils.h"
 #include "DeferredChecker.h"
 

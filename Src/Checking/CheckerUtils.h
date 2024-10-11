@@ -1,10 +1,10 @@
 #pragma once
 
 #include <EASTL/deque.h>
-#include "../Intermediate/Syntax.h"
-#include "../Intermediate/GlobalTable.h"
+#include "../Syntax/Syntax.h"
+#include "../Syntax/GlobalTable.h"
 #include "CheckerContext.h"
-#include "../Intermediate/TypeInference.h"
+#include "../Syntax/TypeInference.h"
 
 struct CheckerUtils
 {

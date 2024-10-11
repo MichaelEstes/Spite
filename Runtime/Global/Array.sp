@@ -2,8 +2,8 @@ package _
 
 state Array<T>
 {
-	count: int
-	array: *T,
+	count: int,
+	array: *T
 }
 
 T Array::operator::[](index: int)
@@ -16,7 +16,7 @@ Array::delete
 	delete[] this.array;
 }
 
-void makeArray(count: int, itemBytes: int)
+*byte make_array(count: int, itemBytes: int)
 {
-	
+	return alloc(count * itemBytes);
 }

@@ -1,6 +1,6 @@
 #pragma once
-#include "../Intermediate/Syntax.h"
-#include "../Intermediate/GlobalTable.h"
+#include "Syntax.h"
+#include "GlobalTable.h"
 #include "ScopeUtils.h"
 
 static Type boolType = Type(1, UniqueType::Bool, false);

@@ -1,6 +1,6 @@
 #pragma once
 #include "EASTL/deque.h"
-#include "../Intermediate/GlobalTable.h"
+#include "GlobalTable.h"
 
 struct ScopeUtils
 {

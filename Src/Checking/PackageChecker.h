@@ -1,5 +1,5 @@
 #pragma once
-#include "../Intermediate/GlobalTable.h"
+#include "../Syntax/GlobalTable.h"
 #include "EASTL/deque.h"
 #include "TypeChecker.h"
 #include "ExprChecker.h"

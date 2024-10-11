@@ -10,7 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Verifier.h"
 
-#include "../../Intermediate/SymbolTable.h"
+#include "../../Syntax/SymbolTable.h"
 #include "../../Config/Config.h"
 
 extern Config config;

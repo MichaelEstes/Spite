@@ -1,7 +1,7 @@
 #pragma once
 
 #include "EASTL/hash_map.h"
-#include "../Intermediate/Stmnt.h"
+#include "../Syntax/Stmnt.h"
 
 struct DeferredTemplateInstantiation
 {

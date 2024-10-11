@@ -1,7 +1,7 @@
 #pragma once
 #include "DeferredChecker.h"
-#include "../Intermediate/GlobalTable.h"
-#include "../Intermediate/ScopeUtils.h"
+#include "../Syntax/GlobalTable.h"
+#include "../Syntax/ScopeUtils.h"
 
 struct CheckerContext
 {

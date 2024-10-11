@@ -1,6 +1,6 @@
 #pragma once
 #include "EASTL/string.h"
-#include "../Intermediate/SymbolTable.h"
+#include "../Syntax/SymbolTable.h"
 #include "Scanner.h"
 
 struct Parser

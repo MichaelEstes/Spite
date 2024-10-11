@@ -1,6 +1,6 @@
 #include "../Log/Logger.h"
 #include "Parser.h"
-#include "../Intermediate/Syntax.h"
+#include "../Syntax/Syntax.h"
 #include "../Utils/Profiler.h"
 
 SymbolTable* Parser::Parse()

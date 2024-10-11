@@ -1,5 +1,5 @@
 #pragma once
-#include "../Intermediate/GlobalTable.h"
+#include "../Syntax/GlobalTable.h"
 #include "../IR/IR.h"
 #include "LowerDeclarations.h"
 

@@ -1,6 +1,6 @@
 #include "EASTL/deque.h"
-#include "../Intermediate/GlobalTable.h"
-#include "../Intermediate/ScopeUtils.h"
+#include "../Syntax/GlobalTable.h"
+#include "../Syntax/ScopeUtils.h"
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerContext.h"

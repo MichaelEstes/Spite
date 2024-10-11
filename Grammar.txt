@@ -38,22 +38,22 @@
 <operator> :=   <binaryOperator> | <unaryOperator> | <variationOperator> | <bitwiseOperator> | 
 				<relativeOperator> | <assignmentOperator> | <definitionOperator> | <accessOperator> 
 
-<binaryOperator> := "+" | "-" | "*" | "/" | "%" | "&&" | "||" | "<<" | ">>" | "|" | "^" | "&" | "&^" | 
+<binaryOperator> := + | - | * | / | % | && | || | << | >> | | | ^ | & | &^ | 
 					<relativeOperator>
 
-<unaryOperator> := "!" | "-" | "^"
+<unaryOperator> := ! | - | ^
 
-<bitwiseOperator> := "|" | "^" | "<<" | ">>" | "&" | "&^"
+<bitwiseOperator> := | | ^ | << | >> | & | &^
 
-<relativeOperator> := "==" | "!=" | "<=" | ">=" | "<" | ">"
+<relativeOperator> := == | != | <= | >= | < | >
 
-<assignmentOperator> := "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | "&^="
+<assignmentOperator> := += | -= | *= | /= | %= | &= | |= | ^= | <<= | >>= | &^=
 
-<definitionOperator> := "=" | ":="
+<definitionOperator> := = | :=
 
-<accessOperator> := "..." | "in" | ".." | "[]" | "=>" | "<-"
+<accessOperator> := ... | in | .. | [] | => 
 
-<using> := using <identifier>
+<import> := import <identifier>
 
 <package> := package <identifier>
 
@@ -205,7 +205,7 @@
 <extern> := extern <scope> (<type> <identifier> <parentheses> ?(<declaration>...), </parentheses>...) </scope>
 
 <program> := <package> & 
-				<using...> & 
+				<import...> & 
 				<state...> & 
 				<function...> & 
 				<method...> & 

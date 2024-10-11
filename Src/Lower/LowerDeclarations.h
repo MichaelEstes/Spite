@@ -1,7 +1,7 @@
 #pragma once
 #include "EASTL/tuple.h"
 
-#include "../Intermediate/GlobalTable.h"
+#include "../Syntax/GlobalTable.h"
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerDefinitions.h"

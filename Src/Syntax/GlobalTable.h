@@ -4,8 +4,11 @@
 struct GlobalTable
 {
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
+	SymbolTable* runtimeTable;
 	SymbolTable* entryTable;
 	Stmnt* entryFunc;
+
+	StringView runtimePackage = StringView("_");
 
 	GlobalTable()
 	{
@@ -51,6 +54,12 @@ struct GlobalTable
 		{
 			packageToSymbolTable[package]->Merge(symbolTable);
 		}
+	}
+
+	void SetRuntimeTable()
+	{
+		SymbolTable* runtime = packageToSymbolTable[runtimePackage];
+		this->runtimeTable = runtime;
 	}
 
 	inline bool IsPackage(StringView& package)

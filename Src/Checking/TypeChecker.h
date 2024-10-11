@@ -3,8 +3,8 @@
 #include <EASTL/deque.h>
 
 #include "CheckerUtils.h"
-#include "../Intermediate/SymbolTable.h"
-#include "../Intermediate/GlobalTable.h"
+#include "../Syntax/SymbolTable.h"
+#include "../Syntax/GlobalTable.h"
 
 struct TypeChecker
 {

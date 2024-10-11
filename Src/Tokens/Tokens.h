@@ -23,10 +23,15 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "extern", TokenType::Keyword, UniqueType::Extern },
 	{ "assert", TokenType::Keyword, UniqueType::AssertTok },
 	{ "where", TokenType::Keyword, UniqueType::Where },
+	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
 	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
 	{ "#link", TokenType::Keyword, UniqueType::Link },
-	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
+
+	{ "new", TokenType::Keyword, UniqueType::New },
+	{ "delete", TokenType::Keyword, UniqueType::Delete },
+	{ "fixed", TokenType::Keyword, UniqueType::Fixed },
+	{ "as", TokenType::Keyword, UniqueType::As },
 
 	//{ "public", TokenType::AccessModifier, UniqueType::Public },
 	//{ "private", TokenType::AccessModifier, UniqueType::Private },
@@ -67,10 +72,6 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "return", TokenType::Flow, UniqueType::Return },
 	{ "defer", TokenType::Flow, UniqueType::Defer },
 
-	{ "new", TokenType::Decorator, UniqueType::New },
-	{ "fixed", TokenType::Decorator, UniqueType::Fixed },
-	{ "delete", TokenType::Decorator, UniqueType::Delete },
-	{ "as", TokenType::Decorator, UniqueType::As },
 	//{ "at", TokenType::Decorator, UniqueType::At },
 	{ "=>", TokenType::Decorator, UniqueType::FatArrow },
 	{ "...", TokenType::Decorator, UniqueType::Ellipsis },
