@@ -278,6 +278,8 @@ inline size_t HashType(const Type* type)
 		hash += inplaceStrHasher(importedType.typeName->val);
 		return hash;
 	}
+	case AnyType:
+		return inplaceStrHasher("any");
 	default:
 		break;
 	}
@@ -369,7 +371,7 @@ inline size_t HashExpr(const Expr* expr)
 		break;
 	}
 
-	Logger::FatalError("SymbolTable:TypeHash Unable to create hash for Type");
+	Logger::FatalError("SymbolTable:TypeExpr Unable to create hash for Expr");
 	return 0;
 }
 
@@ -806,6 +808,8 @@ eastl::string ToString(Type* type)
 		return type->importedType.packageName->ToString() +
 			"." +
 			type->importedType.typeName->ToString();
+	case AnyType:
+		return "any";
 	default:
 		return "";
 	}

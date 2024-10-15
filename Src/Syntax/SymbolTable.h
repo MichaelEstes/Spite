@@ -140,6 +140,7 @@ struct MethodEqual
 		if (lReturnType && *lReturnType != *rReturnType) return false;
 		if (lName && *lName != *rName) return false;
 
+		return true;
 	}
 };
 
@@ -386,7 +387,7 @@ struct SymbolTable
 		}
 	}
 
-	void AddImport(Stmnt * import)
+	void AddImport(Stmnt* import)
 	{
 		imports.insert(import);
 	}

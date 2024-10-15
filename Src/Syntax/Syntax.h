@@ -206,7 +206,7 @@ struct Syntax
 	{
 		switch (curr->uniqueType)
 		{
-		case UniqueType::Any:
+		case UniqueType::UniqueUnknown:
 			if (Expect(TokenType::Comment)) ParseComments();
 			return;
 		case UniqueType::Package:
@@ -843,13 +843,8 @@ struct Syntax
 			return ParseReturn();
 
 		default:
-			if (curr->type == TokenType::Literal) return ParseExprStmnt();
-			Advance();
-			break;
+			return ParseExprStmnt();
 		}
-
-		AddError(curr, "Syntax:ParseBlockStatment Unexpected token: '" + curr->ToString() + "'");
-		return CreateStmnt(curr, StmntID::InvalidStmnt);
 	}
 
 	Stmnt* ParseIdentifierStmnt()
@@ -904,7 +899,7 @@ struct Syntax
 			node->expressionStmnt.expression = expr;
 			node->end = curr;
 
-			if (IsAssignableExpr(expr) && IsAssignmentOperator())
+			if (IsAssignmentOperator())
 			{
 				node->nodeID = StmntID::AssignmentStmnt;
 				node->assignmentStmnt.assignTo = expr;
@@ -1384,6 +1379,10 @@ struct Syntax
 				type = ParseFunctionType();
 				break;
 
+			case UniqueType::Any:
+				type = ParseAnyType();
+				break;
+
 			default:
 				AddError(curr, "Syntax:ParseType Expected type declaration");
 				break;
@@ -1577,6 +1576,13 @@ struct Syntax
 		}
 
 		type->typeID = TypeID::InvalidType;
+		return type;
+	}
+
+	Type* ParseAnyType()
+	{
+		Type* type = CreateTypePtr(TypeID::AnyType);
+		Advance();
 		return type;
 	}
 
@@ -2107,14 +2113,6 @@ struct Syntax
 		}
 
 		return exprs;
-	}
-
-	bool IsAssignableExpr(Expr* expr)
-	{
-		ExprID type = expr->typeID;
-		return type == ExprID::IdentifierExpr ||
-			type == ExprID::SelectorExpr ||
-			type == ExprID::IndexExpr;
 	}
 
 	bool IsAssignmentOperator()

@@ -6,6 +6,7 @@ struct GlobalTable
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
 	SymbolTable* runtimeTable;
 	SymbolTable* entryTable;
+	StateSymbol* arraySymbol;
 	Stmnt* entryFunc;
 
 	StringView runtimePackage = StringView("_");
@@ -60,6 +61,14 @@ struct GlobalTable
 	{
 		SymbolTable* runtime = packageToSymbolTable[runtimePackage];
 		this->runtimeTable = runtime;
+		StringView arrayStateName = "array";
+		this->arraySymbol = this->runtimeTable->FindStateSymbol(arrayStateName);
+		packageToSymbolTable.erase(runtimePackage);
+	}
+
+	Stmnt* GetArrayState()
+	{
+		return this->arraySymbol->state;
 	}
 
 	inline bool IsPackage(StringView& package)
@@ -73,6 +82,7 @@ struct GlobalTable
 		{
 			return packageToSymbolTable[package];
 		}
+		else if (package == runtimePackage) return runtimeTable;
 
 		return nullptr;
 	}
@@ -80,8 +90,8 @@ struct GlobalTable
 	inline Stmnt* FindStatementForPackage(Token* package, Token* name)
 	{
 		SymbolTable* symbolTable = FindSymbolTable(package->val);
-		if (!symbolTable) return nullptr;
-		return symbolTable->FindStatement(name->val);
+		if (symbolTable) return symbolTable->FindStatement(name->val);
+		return runtimeTable->FindStatement(name->val);
 	}
 
 	Stmnt* FindStateForType(Type* type, SymbolTable* symbolTable)
@@ -96,10 +106,10 @@ struct GlobalTable
 			return FindStateForType(type->pointerType.type, symbolTable);
 		case ValueType:
 			return FindStateForType(type->valueType.type, symbolTable);
-		case ArrayType:
-			return FindStateForType(type->arrayType.type, symbolTable);
 		case TemplatedType:
 			return FindStateForType(type->templatedType.type, symbolTable);
+		case ArrayType:
+			return GetArrayState();
 		case FixedArrayType:
 			return FindStateForType(type->fixedArrayType.type, symbolTable);
 		default:
@@ -129,7 +139,7 @@ struct GlobalTable
 			if (state) return state;
 		}
 
-		return nullptr;
+		return runtimeTable->FindState(stateName);
 	}
 
 	inline StateSymbol* FindScopedStateSymbol(Token* name, SymbolTable* symbolTable)
@@ -148,7 +158,7 @@ struct GlobalTable
 			if (state) return state;
 		}
 
-		return nullptr;
+		return runtimeTable->FindStateSymbol(stateName);;
 	}
 
 	inline Stmnt* FindScopedFunction(Token* name, SymbolTable* symbolTable)
@@ -166,6 +176,9 @@ struct GlobalTable
 			stmnt = symbolTable->FindFunction(functionName);
 			if (stmnt) return stmnt;
 		}
+
+		stmnt = runtimeTable->FindFunction(functionName);
+		if (stmnt) return stmnt;
 
 		return FindScopedExternFunc(name, symbolTable);
 	}
@@ -186,7 +199,7 @@ struct GlobalTable
 			if (stmnt) return stmnt;
 		}
 
-		return nullptr;
+		return runtimeTable->FindGlobalVariable(globalVarName);;
 	}
 
 	inline Stmnt* FindScopedExternFunc(Token* name, SymbolTable* symbolTable)
@@ -205,7 +218,7 @@ struct GlobalTable
 			if (stmnt) return stmnt;
 		}
 
-		return nullptr;
+		return runtimeTable->FindExternalFunction(externFuncName);;
 	}
 
 	inline Stmnt* FindScopedValue(Token* name, SymbolTable* symbolTable)

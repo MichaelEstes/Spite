@@ -1,5 +1,7 @@
 package _
 
+null := 0 as *void;
+
 extern
 {
 	#link linux "libm.so";
@@ -17,4 +19,12 @@ extern
 void dealloc(ptr: *void)
 {
 	free(ptr);
+}
+
+void copy_bytes(dst: *byte, src: *byte, toCopy: int)
+{
+	for(i .. toCopy)
+	{
+		(dst + i)~ = (src + i)~;
+	}
 }

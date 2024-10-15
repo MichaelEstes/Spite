@@ -95,25 +95,63 @@ inline eastl::string OperatorToString(Token* op)
 	return "";
 }
 
-SpiteIR::Type _voidType = {
-	0,
-	SpiteIR::TypeKind::PrimitiveType,
-	true,
-	{
+SpiteIR::Type* CreateVoidType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	*type = {
+		0,
+		SpiteIR::TypeKind::PrimitiveType,
 		true,
-		SpiteIR::PrimitiveKind::Void
-	}
-};
+		{
+			true,
+			SpiteIR::PrimitiveKind::Void
+		}
+	};
+	return type;
+}
 
-SpiteIR::Type _boolType = {
-	1,
-	SpiteIR::TypeKind::PrimitiveType,
-	true,
-	{
+
+
+SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	*type = {
+		1,
+		SpiteIR::TypeKind::PrimitiveType,
 		true,
-		SpiteIR::PrimitiveKind::Bool
-	}
-};
+		{
+			true,
+			SpiteIR::PrimitiveKind::Bool
+		}
+	};
+	return type;
+}
+
+
+SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	*type = {
+		(size_t)config.targetArchBitWidth,
+		SpiteIR::TypeKind::PrimitiveType,
+		true,
+		{
+			true,
+			SpiteIR::PrimitiveKind::Int
+		}
+	};
+	return type;
+}
+
+SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	type->size = (size_t)config.targetArchBitWidth;
+	type->kind = SpiteIR::TypeKind::PointerType;
+	type->byValue = true;
+	type->pointer.type = CreateVoidType(ir);
+	return type;
+}
 
 SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
 {
@@ -232,6 +270,8 @@ eastl::string BuildTypeString(Type* type)
 	case ImportedType:
 		return type->importedType.packageName->val.ToString() + '_' +
 			type->importedType.typeName->val.ToString();
+	case AnyType:
+		return "any";
 	default:
 		break;
 	}
@@ -434,8 +474,8 @@ inline eastl::string BuildGlobalVariableName(Stmnt* global)
 
 inline bool IsVoidType(SpiteIR::Type* type)
 {
-	return type->kind == SpiteIR::TypeKind::PrimitiveType && 
-				type->primitive.kind == SpiteIR::PrimitiveKind::Void;
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->primitive.kind == SpiteIR::PrimitiveKind::Void;
 }
 
 template<typename Low>
@@ -571,6 +611,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PointerType;
 		irType->size = config.targetArchBitWidth;
+		irType->byValue = true;
 		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, lower, generics, templates);
 		return irType;
 	}
@@ -590,7 +631,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	}
 	case FixedArrayType:
 	{
-		SpiteIR::Type* irType = BuildFixedArray(ir, type->fixedArrayType.size, 
+		SpiteIR::Type* irType = BuildFixedArray(ir, type->fixedArrayType.size,
 			TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates));
 		return irType;
 	}
@@ -614,6 +655,15 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		{
 			irType->function.params->push_back(TypeToIRType(ir, param, lower, generics, templates));
 		}
+		return irType;
+	}
+	case AnyType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::PointerType;
+		irType->size = config.targetArchBitWidth;
+		irType->byValue = true;
+		irType->pointer.type = nullptr;
 		return irType;
 	}
 	default:

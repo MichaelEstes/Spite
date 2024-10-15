@@ -96,7 +96,7 @@ struct ExprChecker
 				Expr thisIdent = Expr(ExprID::TypeExpr, stateSymbol->state->state.name);
 				thisIdent.typeExpr.type = &thisType;
 
-				if (stateSymbol->state->state.generics) thisType.typeID = TypeID::GenericNamedType;
+				if (stateSymbol->state->state.generics) thisType.typeID = TypeID::AnyType;
 				else thisType.namedType.typeName = stateSymbol->state->state.name;
 
 				conParams.push_back(&thisIdent);
@@ -212,7 +212,7 @@ struct ExprChecker
 				}
 				break;
 			}
-			case TypeID::GenericNamedType:
+			case TypeID::AnyType:
 				functionCall.callKind = FunctionCallKind::UnresolvedGenericCall;
 				return;
 			default:

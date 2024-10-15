@@ -104,10 +104,6 @@ struct TypeChecker
 					AddError(arr.arr, "TypeChecker:CheckArrayType Array size expression must evaluate to a positive number");
 				}
 			}
-			else
-			{
-				AddError(arr.arr, "TypeChecker:CheckArrayType Array size expression must be a constant value");
-			}
 		}
 	}
 

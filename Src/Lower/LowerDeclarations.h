@@ -16,11 +16,21 @@ struct LowerDeclarations
 	LowerDeclarations(LowerContext& context) : context(context)
 	{}
 
-	SpiteIR::Package* BuildDeclarations(SymbolTable* symbolTable)
+	void BuildDeclarations()
 	{
+		for (auto& [key, value] : context.globalTable->packageToSymbolTable)
+		{
+			BuildPackageDeclarations(value);
+		}
+	}
+
+	SpiteIR::Package* BuildPackageDeclarations(SymbolTable* symbolTable)
+	{
+		StringView& packageName = symbolTable->package->val;
+		if (MapHas(context.packageMap, packageName)) return context.packageMap[packageName];
+
 		SpiteIR::Package* package = context.ir->AddPackage();
 
-		StringView& packageName = symbolTable->package->val;
 		package->file = *symbolTable->package->pos.file;
 		package->name = BuildPackageName(symbolTable->package);
 		package->parent = context.ir;
@@ -30,12 +40,9 @@ struct LowerDeclarations
 
 		for (Stmnt* key : symbolTable->imports)
 		{
-			if (context.packageMap.find(packageName) == context.packageMap.end())
-			{
-				SymbolTable* symbolTable = context.globalTable->FindSymbolTable(key->importStmnt.packageName->val);
-				SpiteIR::Package* imported = BuildDeclarations(symbolTable);
-				package->imports.push_back(imported);
-			}
+			SymbolTable* symbolTable = context.globalTable->FindSymbolTable(key->importStmnt.packageName->val);
+			SpiteIR::Package* imported = BuildPackageDeclarations(symbolTable);
+			package->imports.push_back(imported);
 		}
 
 		for (auto& [key, value] : symbolTable->stateMap)
@@ -104,7 +111,7 @@ struct LowerDeclarations
 		case SpiteIR::TypeKind::StateType:
 			if (type->stateType.state == state)
 			{
-				Logger::FatalError("LowerDeclarrations:GetSizeForType Unable to get size for state: " 
+				Logger::FatalError("LowerDeclarrations:GetSizeForType Unable to get size for state: "
 					+ state->name + ", it is self-referencing");
 				return 0;
 			}
@@ -130,6 +137,9 @@ struct LowerDeclarations
 		default:
 			break;
 		}
+
+		//Error
+		return 0;
 	}
 
 	void BuildStateDeclarations(SpiteIR::Package* package, StateSymbol& stateSymbol)
@@ -174,7 +184,7 @@ struct LowerDeclarations
 				Stmnt* memberStmnt = stateStmnt->state.members->at(i);
 				BuildMemberForState(state, memberStmnt, i, genericNames, templates);
 			}
-			
+
 			context.stateASTMap[state] = { stateStmnt, templates };
 			BuildMethodsForState(package, stateSymbol, state, genericNames, templates);
 		}
@@ -437,9 +447,9 @@ struct LowerDeclarations
 	eastl::vector<SpiteIR::PlatformLib>* GetPlatformLibs(eastl::vector<Stmnt*>* links)
 	{
 		if (MapHas(linkMap, links)) return linkMap[links];
-		
+
 		eastl::vector<SpiteIR::PlatformLib>* platformLibs = context.ir->AllocateArray<SpiteIR::PlatformLib>();
-		
+
 		for (Stmnt* link : *links)
 		{
 			platformLibs->push_back({ link->linkDecl.platform->val.ToString(),
@@ -462,7 +472,7 @@ struct LowerDeclarations
 			Stmnt* param = externFunc->externFunction.parameters->at(i);
 			BuildArgumentForFunction(function, param, i);
 		}
-		
+
 		function->metadata.externFunc = context.ir->AllocateExternFunction();
 		function->metadata.externFunc->libs = GetPlatformLibs(externFunc->externFunction.links);
 		function->metadata.externFunc->externName = externFunc->externFunction.externName->val.ToString();

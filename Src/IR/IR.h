@@ -457,6 +457,7 @@ namespace SpiteIR
 	struct IR
 	{
 		Array<Package*> packages;
+		Package* runtime;
 		Function* entry;
 		Arena arena;
 		Arena instructions;
@@ -468,6 +469,21 @@ namespace SpiteIR
 			Package* package = AllocatePackage();
 			packages.push_back(package);
 			return package;
+		}
+
+		inline Package* FindPackage(string name)
+		{
+			for (Package* package : packages) 
+			{
+				if (package->name == name) return package;
+			}
+
+			return nullptr;
+		}
+
+		inline void SetRuntimePackage(Package* package)
+		{
+			runtime = package;
 		}
 
 		inline Package* AllocatePackage()

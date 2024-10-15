@@ -141,6 +141,12 @@ struct CheckerUtils
 			context.scopeUtils, context.currentContext).InferType(of);
 	}
 
+	bool IsArrayStateType(Type* type)
+	{
+		return context.globalTable->FindStateForType(type, context.symbolTable) ==
+			context.globalTable->GetArrayState();
+	}
+
 	bool IsAssignable(Type* left, Type* right, Stmnt* stmntContext = nullptr)
 	{
 		if (*left == *right) return true;
@@ -160,12 +166,12 @@ struct CheckerUtils
 			// Maybe strings shouldn't be primitives, they are not assignable to other primitives
 			bool isStringL = IsString(left);
 			bool isStringR = IsString(right);
-			if (isStringL || isStringR)
+			/*if (isStringL || isStringR)
 			{
 				return isStringL && isStringR;
-			}
+			}*/
 
-			return true;
+			return isStringL == isStringR;
 		}
 
 		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
@@ -178,14 +184,14 @@ struct CheckerUtils
 			return IsAssignable(left->arrayType.type, right->arrayType.type, stmntContext);
 		}
 
-		if (left->typeID == TypeID::FixedArrayType && right->typeID == TypeID::ArrayType)
-		{
-			return IsAssignable(left->fixedArrayType.type, right->arrayType.type, stmntContext);
-		}
-
 		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::FixedArrayType)
 		{
 			return IsAssignable(left->arrayType.type, right->fixedArrayType.type, stmntContext);
+		}
+
+		if (IsArrayStateType(left))
+		{
+			return right->typeID == TypeID::ArrayType || right->typeID == TypeID::FixedArrayType;
 		}
 
 		if (left->typeID == TypeID::TemplatedType && right->typeID == TypeID::TemplatedType)
@@ -235,10 +241,7 @@ struct CheckerUtils
 			return true;
 		}
 
-		if (left->typeID == TypeID::GenericNamedType || right->typeID == TypeID::GenericNamedType)
-		{
-			return true;
-		}
+		if (left->typeID == TypeID::AnyType || right->typeID == TypeID::AnyType) return true;
 
 		return false;
 	}

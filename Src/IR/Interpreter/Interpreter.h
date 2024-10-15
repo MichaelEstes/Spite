@@ -193,7 +193,7 @@ struct Interpreter
 		Assert(loadInst.load.offset.kind == SpiteIR::OperandKind::Register);
 		Assert(loadInst.load.offset.type->kind == SpiteIR::TypeKind::PrimitiveType);
 
-		int offset = *(int*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
+		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
 		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
 			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
 	}

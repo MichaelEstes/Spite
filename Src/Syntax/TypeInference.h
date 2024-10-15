@@ -125,7 +125,7 @@ struct TypeInferer
 	{
 		if (globalTable->IsGenericOfStmnt(expr, context, symbolTable))
 		{
-			return symbolTable->CreateTypePtr(TypeID::GenericNamedType);
+			return symbolTable->CreateTypePtr(TypeID::AnyType);
 		}
 
 		Stmnt* stmnt = scopeUtils.FindForName(name);
@@ -210,7 +210,12 @@ struct TypeInferer
 			return explicitMember->definition.type;
 		}
 
-		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
+		Stmnt* state = nullptr;
+		if (type->typeID == TypeID::ArrayType)
+		{
+			state = globalTable->GetArrayState();
+		}
+		else state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
 			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
@@ -266,7 +271,7 @@ struct TypeInferer
 			return type->arrayType.type;
 		case FixedArrayType:
 			return type->fixedArrayType.type;
-		case GenericNamedType:
+		case AnyType:
 			return type;
 		}
 
@@ -291,6 +296,8 @@ struct TypeInferer
 		default:
 			return type;
 		}
+
+		return nullptr;
 	}
 
 	Type* EvalType(Expr* expr)
@@ -338,7 +345,7 @@ struct TypeInferer
 		if (globalTable->IsGenericOfStmnt(namedType, context, symbolTable) ||
 			globalTable->IsGenericOfStmnt(rhs, context, symbolTable))
 		{
-			return symbolTable->CreateTypePtr(TypeID::GenericNamedType);
+			return symbolTable->CreateTypePtr(TypeID::AnyType);
 		}
 
 		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);

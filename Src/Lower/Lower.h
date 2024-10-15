@@ -19,12 +19,10 @@ struct Lower
 	SpiteIR::IR* BuildIR(SymbolTable* entry)
 	{
 		LowerDeclarations lowerDecl = LowerDeclarations(context);
-		//lowerDecl.BuildDeclarations(entry);
-
-		for (auto& [key, value] : context.globalTable->packageToSymbolTable)
-		{
-			lowerDecl.BuildDeclarations(value);
-		}
+		SpiteIR::Package* runtime = lowerDecl.BuildPackageDeclarations(context.globalTable->runtimeTable);
+		ir->SetRuntimePackage(runtime);
+		lowerDecl.BuildDeclarations();
+		//lowerDecl.BuildPackageDeclarations(entry);
 
 		LowerDefinitions lowerDef = LowerDefinitions(context);
 		lowerDef.BuildDefinitions();

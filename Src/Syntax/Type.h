@@ -18,17 +18,14 @@ enum TypeID
 	PointerType,
 	ValueType,
 	ArrayType,
+	FixedArrayType,
 	TemplatedType,
 	FunctionType,
 	ImportedType,
+	AnyType,
 
-	// For type checking/inference
-	// Only for use of type checking before template expansion, essentially an 'any' type
-	GenericNamedType,
 	// Type container for use inferring anonymous type expressions in non assignment cases
 	AnonymousType,
-	// Fixed array, returned as pointer, no count field
-	FixedArrayType,
 };
 
 struct Type
@@ -155,6 +152,8 @@ inline bool IsIntLike(Type* type)
 	if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
 	else if (type->typeID == TypeID::PointerType) return true;
 	else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
+
+	return false;
 }
 
 inline bool IsFloat(Type* primitive)

@@ -35,6 +35,8 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 
 	//{ "public", TokenType::AccessModifier, UniqueType::Public },
 	//{ "private", TokenType::AccessModifier, UniqueType::Private },
+	
+	{ "any", TokenType::Keyword, UniqueType::Any },
 
 	{ "void", TokenType::Primitive, UniqueType::Void },
 	{ "bool", TokenType::Primitive, UniqueType::Bool },
@@ -184,7 +186,7 @@ struct Tokens
 	void Finalize()
 	{
 		StringView val = StringView();
-		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::Any);
+		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::UniqueUnknown);
 		//PrintTokens();
 	}
 
@@ -298,7 +300,7 @@ struct Tokens
 				}
 				else if (val[0] == '#')
 				{
-					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
+					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 					AddError(token, "Illegal use of the '#' symbol, the '#' symbol can only be used in front specified keywords");
 				}
 				else
@@ -309,7 +311,7 @@ struct Tokens
 			}
 			else if (currIsInvalid && !(val.count == 1 && currVal == '#'))
 			{
-				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
+				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 				eastl::string errMsg = "Invalid character in identifer: ";
 				AddError(token, errMsg + currVal);
 				Reset(tokens);
@@ -346,7 +348,7 @@ struct Tokens
 			}
 			else if (currTokenType == nullptr)
 			{
-				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
+				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 				AddError(token, "Unknown operator");
 			}
 		}
@@ -387,7 +389,7 @@ struct Tokens
 			{
 				if (seenDot)
 				{
-					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
+					token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 					AddError(token, "Unexpected '.' in number litteral");
 					Reset(tokens);
 					return;
@@ -411,7 +413,7 @@ struct Tokens
 				case 2:
 					if (val == "0x" || val == "0X")
 					{
-						token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::Any);
+						token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 						AddError(token, "Incomplete hex literal");
 					}
 					else
@@ -489,7 +491,7 @@ struct Tokens
 			{
 				if (config.comments)
 				{
-					token = tokens->CreateToken(val, pos, TokenType::Comment, UniqueType::Any);
+					token = tokens->CreateToken(val, pos, TokenType::Comment, UniqueType::UniqueUnknown);
 				}
 				else
 				{

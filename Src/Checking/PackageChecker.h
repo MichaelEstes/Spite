@@ -176,8 +176,8 @@ struct PackageChecker
 		{
 			context.currentContext = method;
 			auto& decl = method->method.decl;
-			CheckFunctionDecl(decl, method);
 			CheckType(method->method.returnType, method->start);
+			CheckFunctionDecl(decl, method);
 		}
 	}
 
@@ -187,8 +187,8 @@ struct PackageChecker
 		{
 			context.currentContext = op;
 			auto& decl = op->stateOperator.decl;
-			CheckFunctionDecl(decl, op);
 			CheckType(op->stateOperator.returnType, op->start);
+			CheckFunctionDecl(decl, op);
 		}
 	}
 
@@ -203,8 +203,8 @@ struct PackageChecker
 	{
 		context.currentContext = function;
 		auto& decl = function->function.decl;
-		CheckFunctionDecl(decl, function);
 		CheckType(function->function.returnType, function->start);
+		CheckFunctionDecl(decl, function);
 	}
 
 	void CheckExternalFunctions(Stmnt* function)

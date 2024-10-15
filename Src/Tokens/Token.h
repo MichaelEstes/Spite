@@ -30,7 +30,7 @@ enum TokenType : int
 
 enum UniqueType
 {
-	Any,
+	UniqueUnknown,
 	Name,
 
 	IntLiteral,
@@ -57,6 +57,8 @@ enum UniqueType
 	Public,
 	Private,
 
+	//Any type keyword
+	Any,
 	// PrimitiveKeywords
 	Void,
 	Bool,
@@ -171,7 +173,7 @@ struct Token
 	Token()
 	{
 		type = TokenType::None;
-		uniqueType = UniqueType::Any;
+		uniqueType = UniqueType::UniqueUnknown;
 		index = 0;
 	}
 
