@@ -245,7 +245,7 @@ struct LowerDeclarations
 	{
 		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
-		con->name = BuildConstructorName(state, conStmnt, generics, templates);
+		con->name = BuildConstructorName(conStmnt, generics, templates);
 		con->returnType = context.ir->AllocateType();
 		con->returnType->kind = SpiteIR::TypeKind::StateType;
 		con->returnType->stateType.state = state;
@@ -297,7 +297,7 @@ struct LowerDeclarations
 		}
 
 		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-			BuildMethodName(state, methodStmnt), generics, templates);
+			BuildMethodName(methodStmnt), generics, templates);
 	}
 
 	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt,
@@ -316,7 +316,7 @@ struct LowerDeclarations
 			for (Expr* methodTemplate : *templates) stateAndMethodTemplates.push_back(methodTemplate);
 
 			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-				BuildTemplatedMethodName(state, methodStmnt, templates),
+				BuildTemplatedMethodName(methodStmnt, templates),
 				&stateAndMethodGenerics, &stateAndMethodTemplates);
 		}
 	}

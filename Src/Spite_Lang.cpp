@@ -101,7 +101,6 @@ int main(int argc, char** argv)
 	std::filesystem::path execDir = GetExecutableDir() / "Runtime";
 	FindAllSourceFilesInDir(files, execDir);
 
-
 	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
 		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
 

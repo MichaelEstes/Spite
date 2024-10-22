@@ -154,6 +154,27 @@ struct StateSymbol
 	Stmnt* destructor = nullptr;
 };
 
+inline Stmnt* GetDeclForFunc(Stmnt* func)
+{
+	switch (func->nodeID)
+	{
+	case FunctionStmnt:
+		return func->function.decl;
+	case Method:
+		return func->method.decl;
+	case StateOperator:
+		return func->stateOperator.decl;
+	case Constructor:
+		return func->constructor.decl;
+	case Destructor:
+		return func->destructor.decl;
+	default:
+		break;
+	}
+
+	return nullptr;
+}
+
 inline Stmnt* GetGenerics(Stmnt* node)
 {
 	switch (node->nodeID)
@@ -229,7 +250,6 @@ struct SymbolTable
 {
 	Token* package;
 	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
-	// These need to be arrays with maps that point to their index instead, order matters
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
@@ -434,7 +454,7 @@ struct SymbolTable
 	{
 		auto& name = function->function.name->val;
 		if (functionMap.find(name) != functionMap.end())
-			AddError(function->start, "SymbolTable:AddFunction Function name already declared");
+			AddError(function->start, "SymbolTable:AddFunction Function name already declared for: " + name);
 		functionMap[function->function.name->val] = function;
 	}
 

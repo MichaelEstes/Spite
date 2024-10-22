@@ -27,8 +27,8 @@ struct Lower
 		LowerDefinitions lowerDef = LowerDefinitions(context);
 		lowerDef.BuildDefinitions();
 
-		ir->entry = lowerDef.FindFunctionForFunctionStmnt(context.globalTable->entryFunc);
-
+		Stmnt* entryFunc = context.globalTable->entryFunc;
+		ir->entry = lowerDef.FindFunction(entryFunc->package->val, entryFunc->function.name->ToString());
 		return ir;
 	}
 };

@@ -66,9 +66,15 @@ struct Decompiler
 			return out;
 		}
 		case SpiteIR::TypeKind::StateType:
+			break;
 		case SpiteIR::TypeKind::StructureType:
+			break;
 		case SpiteIR::TypeKind::PointerType:
+			break;
 		case SpiteIR::TypeKind::DynamicArrayType:
+		{
+			return "[]" + WriteType(type->dynamicArray.type);
+		}
 		case SpiteIR::TypeKind::FixedArrayType:
 		{
 			return "[" + eastl::to_string(type->fixedArray.count) + " x " + 

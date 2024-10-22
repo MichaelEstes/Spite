@@ -418,9 +418,14 @@ inline eastl::string BuildPackageName(Token* package)
 	return package->val.ToString();
 }
 
+inline eastl::string _BuildStateName(Token* package, Token* name)
+{
+	return BuildPackageName(package) + '_' + name->val.ToString();
+}
+
 inline eastl::string BuildStateName(Stmnt* state)
 {
-	return BuildPackageName(state->package) + '_' + state->state.name->val.ToString();
+	return _BuildStateName(state->package, state->state.name);
 }
 
 inline eastl::string BuildTemplatedStateName(Stmnt* state, eastl::vector<Expr*>* templates)
@@ -438,26 +443,29 @@ inline eastl::string BuildTemplatedFunctionName(Stmnt* func, eastl::vector<Expr*
 	return BuildFunctionName(func) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildMethodName(SpiteIR::State* state, Stmnt* method)
+inline eastl::string BuildMethodName(Stmnt* method)
 {
-	return state->name + '_' + method->method.name->val.ToString();
+	return  _BuildStateName(method->package, method->method.stateName) + '_' + 
+		method->method.name->val.ToString();
 }
 
-inline eastl::string BuildTemplatedMethodName(SpiteIR::State* state, Stmnt* method, eastl::vector<Expr*>* templates)
+inline eastl::string BuildTemplatedMethodName(Stmnt* method, eastl::vector<Expr*>* templates)
 {
-	return BuildMethodName(state, method) + BuildTemplatedString(templates);
+	return BuildMethodName(method) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildConstructorName(SpiteIR::State* state, Stmnt* con,
+inline eastl::string BuildConstructorName(Stmnt* con,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return "con_" + state->name + '_' + BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
+	return "con_" + _BuildStateName(con->package, con->constructor.stateName) + '_' + 
+		BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
 
 inline eastl::string BuildOperatorMethodName(SpiteIR::State* state, Stmnt* op,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return OperatorToString(op->stateOperator.op) + state->name + '_' +
+	return OperatorToString(op->stateOperator.op) + 
+		_BuildStateName(op->package, op->stateOperator.stateName) + '_' + 
 		BuildConOpParamsTypeString(op->stateOperator.decl);
 }
 
@@ -625,7 +633,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
-		irType->size = config.targetArchBitWidth * 2;
+		irType->size = config.targetArchBitWidth * 4;
 		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, lower, generics, templates);
 		return irType;
 	}

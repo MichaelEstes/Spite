@@ -4,6 +4,7 @@
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerContext.h"
+#include "../Syntax/TypeInference.h"
 
 extern Config config;
 
@@ -53,6 +54,8 @@ struct FunctionContext
 		this->function = function;
 		scopeQueue.clear();
 		scopeUtils.scopeQueue.clear();
+		scopeUtils.globalTable = globalTable;
+		scopeUtils.symbolTable = symbolTable;
 		curr = 0;
 		forCount = 0;
 		ifCount = 0;
@@ -67,13 +70,47 @@ struct LowerDefinitions
 	LowerContext& context;
 	FunctionContext funcContext;
 	SymbolTable* symbolTable = nullptr;
+
+	Stmnt* currentStmnt = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	eastl::vector<Token*>* currGenerics = nullptr;
 	SpiteIR::Package* currPackage = nullptr;
 
+	SpiteIR::State* arrayState = nullptr;
+	SpiteIR::Function* makeArray = nullptr;
 
 	LowerDefinitions(LowerContext& context) : context(context)
-	{}
+	{
+		AssignArrayDeclarations(context.ir);
+		Assert(arrayState && makeArray);
+	}
+
+	void AssignArrayDeclarations(SpiteIR::IR* ir)
+	{
+		SpiteIR::Package* runtime = ir->runtime;
+		arrayState = FindPackageState(runtime, "__array");
+		makeArray = FindPackageFunction(runtime, "__make_array");
+	}
+
+	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
+	{
+		if (MapHas(package->states, name))
+		{
+			return package->states[name];
+		}
+
+		return nullptr;
+	}
+
+	SpiteIR::Function* FindPackageFunction(SpiteIR::Package* package, const eastl::string& name)
+	{
+		if (MapHas(package->functions, name))
+		{
+			return package->functions[name];
+		}
+
+		return nullptr;
+	}
 
 	void SetCurrentGenerics(Stmnt* stmnt)
 	{
@@ -126,6 +163,7 @@ struct LowerDefinitions
 		for (auto& [key, state] : package->states)
 		{
 			ASTContainer& stateContainer = context.stateASTMap[state];
+			currentStmnt = stateContainer.node;
 			currTemplates = stateContainer.templates;
 			SetCurrentGenerics(stateContainer.node);
 			BuildState(state, stateContainer.node);
@@ -134,6 +172,7 @@ struct LowerDefinitions
 		for (auto& [key, function] : package->functions)
 		{
 			ASTContainer& funcContainer = context.functionASTMap[function];
+			currentStmnt = funcContainer.node;
 			currTemplates = funcContainer.templates;
 			SetCurrentGenerics(funcContainer.node);
 			BuildFunction(function, funcContainer.node);
@@ -153,9 +192,10 @@ struct LowerDefinitions
 		funcContext.scopeUtils.PopScope();
 	}
 
-	void AddValueToCurrentScope(const StringView& name, const ScopeValue& value)
+	void AddValueToCurrentScope(const StringView& name, const ScopeValue& value, Stmnt* stmnt)
 	{
 		funcContext.scopeQueue.back().scopeMap[name] = value;
+		funcContext.scopeUtils.AddToTopScope(name, stmnt);
 	}
 
 	ScopeValue FindScopeValue(StringView& name)
@@ -192,27 +232,6 @@ struct LowerDefinitions
 		return irType;
 	}
 
-	Stmnt* GetDeclForFunc(Stmnt* func)
-	{
-		switch (func->nodeID)
-		{
-		case FunctionStmnt:
-			return func->function.decl;
-		case Method:
-			return func->method.decl;
-		case StateOperator:
-			return func->stateOperator.decl;
-		case Constructor:
-			return func->constructor.decl;
-		case Destructor:
-			return func->destructor.decl;
-		default:
-			break;
-		}
-
-		return nullptr;
-	}
-
 	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
 		Assert(function);
@@ -236,11 +255,17 @@ struct LowerDefinitions
 
 	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
-		for (SpiteIR::Argument* arg : function->arguments)
+		Stmnt* decl = GetDeclForFunc(funcStmnt);
+		Assert(decl->functionDecl.parameters->size() == function->arguments.size());
+
+		for (size_t i = 0; i < function->arguments.size(); i++)
 		{
+			SpiteIR::Argument* arg = function->arguments.at(i);
+			Stmnt* param = decl->functionDecl.parameters->at(i);
+
 			SpiteIR::Instruction* alloc = BuildAllocate(arg->value->type);
 			StringView name = StringView(arg->value->name.c_str());
-			AddValueToCurrentScope(name, { alloc->allocate.result, alloc->allocate.type });
+			AddValueToCurrentScope(name, { alloc->allocate.result, alloc->allocate.type }, param);
 		}
 	}
 
@@ -345,7 +370,7 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
-		AddValueToCurrentScope(def.name->val, value);
+		AddValueToCurrentScope(def.name->val, value, stmnt);
 		funcContext.scopeUtils.AddToTopScope(def.name->val, stmnt);
 	}
 
@@ -429,7 +454,8 @@ struct LowerDefinitions
 	{
 		Assert(stmnt->forStmnt.isDeclaration);
 		auto& for_ = stmnt->forStmnt;
-		auto& def = for_.iterated.declaration->definition;
+		Stmnt* defStmnt = for_.iterated.declaration;
+		auto& def = defStmnt->definition;
 
 		eastl::string forStartName = "for_cond" + eastl::to_string(funcContext.forCount);
 		eastl::string forLoopName = "for_body" + eastl::to_string(funcContext.forCount);
@@ -449,7 +475,7 @@ struct LowerDefinitions
 
 		}
 
-		AddValueToCurrentScope(def.name->val, init);
+		AddValueToCurrentScope(def.name->val, init, defStmnt);
 
 		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
@@ -565,7 +591,7 @@ struct LowerDefinitions
 		case PrimitiveExpr:
 			return BuildPrimitive(expr);
 		case SelectorExpr:
-			break;
+			return BuildSelector(expr, stmnt);
 		case IndexExpr:
 			return BuildIndexExpr(expr, stmnt);
 		case FunctionCallExpr:
@@ -619,6 +645,56 @@ struct LowerDefinitions
 		UniqueType primEnum = expr->primitiveExpr.primitive->uniqueType;
 		SpiteIR::Type* primType = ToIRType(symbolTable->CreatePrimitive(primEnum));
 		return { InvalidRegister, primType };
+	}
+
+	ScopeValue FindStateMember(SpiteIR::State* state, StringView& ident)
+	{
+		size_t offset = 0;
+		eastl::vector<SpiteIR::Member*>& members = state->members;
+		for (SpiteIR::Member* member : members)
+		{
+			if (member->value->name == ident)
+			{
+				return { offset, member->value->type };
+			}
+			offset += member->value->type->size;
+		}
+
+		return InvalidScopeValue;
+	}
+
+	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
+	{
+		Assert(selected->typeID == ExprID::IdentifierExpr);
+
+		StringView& ident = selected->identifierExpr.identifier->val;
+
+		// Package selector
+		if (!value.type)
+		{
+			return InvalidScopeValue;
+		}
+
+		if (value.type->kind == SpiteIR::TypeKind::StateType)
+		{
+			SpiteIR::State* state = value.type->stateType.state;
+			ScopeValue offsetValue = FindStateMember(state, ident);
+			if (offsetValue.type)
+			{
+				return { value.reg + offsetValue.reg, offsetValue.type };
+			}
+		}
+
+		return InvalidScopeValue;
+	}
+
+	ScopeValue BuildSelector(Expr* expr, Stmnt* stmnt)
+	{
+		Expr* left = expr->selectorExpr.on;
+		Expr* right = expr->selectorExpr.select;
+		ScopeValue leftVal = BuildExpr(left, stmnt);
+
+		return BuildSelected(leftVal, right);
 	}
 
 	ScopeValue BuildDefaultValue(SpiteIR::Type* type, size_t dst, SpiteIR::Label* label)
@@ -742,6 +818,23 @@ struct LowerDefinitions
 		SpiteIR::Instruction* allocate = BuildAllocate(irType);
 		SpiteIR::Instruction* store = BuildStore(label, allocate->allocate.result, literalOp);
 		return { store->store.dst, irType };
+	}
+
+	ScopeValue BuildLiteralInt(size_t value)
+	{
+		SpiteIR::Operand literalOp = SpiteIR::Operand();
+		literalOp.kind = SpiteIR::OperandKind::Literal;
+		SpiteIR::Literal& literal = literalOp.literal;
+		literal.kind = SpiteIR::PrimitiveKind::Int;
+		literal.intLiteral = value;
+
+		SpiteIR::Type* intType = CreateIntType(context.ir);
+		literalOp.type = intType;
+
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Instruction* allocate = BuildAllocate(intType);
+		SpiteIR::Instruction* store = BuildStore(label, allocate->allocate.result, literalOp);
+		return { store->store.dst, intType };
 	}
 
 	void BuildStoreArrayCount(size_t reg, size_t count)
@@ -927,32 +1020,27 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
-	void MakeDynamicArray(Type* type, size_t dst)
+	void MakeDynamicArray(SpiteIR::Type* irType, size_t dst, Type* type)
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
-		if (!type->arrayType.size)
-		{
-			SpiteIR::Type* intType = CreateIntType(context.ir);
-			BuildDefaultValue(intType, dst, label);
-
-			size_t arrayPtrDst = dst + intType->size;
-			SpiteIR::Type* voidPtrType = CreateVoidPtrType(context.ir);
-			BuildDefaultValue(voidPtrType, arrayPtrDst, label);
-			return;
-		}
-
-
+		size_t arrayItemSize = irType->dynamicArray.type->size;
+		ScopeValue itemSize = BuildLiteralInt(arrayItemSize);
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+		params->push_back(BuildRegisterOperand(itemSize));
+		BuildCall(makeArray, dst, params, label);
 	}
 
 	ScopeValue BuildTypeExpr(Expr* expr, Stmnt* stmnt)
 	{
 		Type* type = expr->typeExpr.type;
 		SpiteIR::Instruction* alloc = BuildAllocateForType(type);
+		SpiteIR::Type* irType = alloc->allocate.type;
+		size_t reg = alloc->allocate.result;
 
-		if (type->typeID == TypeID::ArrayType)
+		if (irType->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
-			MakeDynamicArray(type, alloc->allocate.result);
-			return { alloc->allocate.result, alloc->allocate.type };
+			MakeDynamicArray(irType, reg, type);
+			return { reg, irType };
 		}
 
 		return BuildDefaultValue(alloc->allocate.type, alloc->allocate.result, GetCurrentLabel());
@@ -1005,6 +1093,7 @@ struct LowerDefinitions
 		case ConstructorCall:
 			break;
 		case MemberMethodCall:
+			irFunction = FindFunctionForMemberCall(expr);
 			break;
 		case UniformMethodCall:
 			break;
@@ -1054,27 +1143,36 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	SpiteIR::Function* FindFunctionForFunctionStmnt(Stmnt* func, eastl::vector<Expr*>* templates = nullptr)
+	SpiteIR::Function* FindFunction(const StringView& packageName, 
+		const eastl::string& functionName)
 	{
-		Assert(func);
-		StringView& packageName = func->package->val;
-		eastl::string functionName;
-		if (templates)
-		{
-			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
-			functionName = BuildTemplatedFunctionName(func, &expandedTemplates);
-		}
-		else
-		{
-			functionName = BuildFunctionName(func);
-		}
-
 		Assert(MapHas(context.packageMap, packageName));
 		SpiteIR::Package* package = context.packageMap[packageName];
 		Assert(MapHas(package->functions, functionName));
 		SpiteIR::Function* function = package->functions[functionName];
 
 		return function;
+	}
+
+	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* methodStmnt = funcContext.scopeUtils.GetDeclarationStmntForExpr(caller);
+		StringView& packageName = methodStmnt->package->val;
+		eastl::string methodName;
+
+		if (caller->typeID == ExprID::TemplateExpr)
+		{
+			eastl::vector<Expr*>* templates = caller->templateExpr.templateArgs;
+			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
+			methodName = BuildTemplatedMethodName(methodStmnt, &expandedTemplates);
+		}
+		else
+		{
+			methodName = BuildMethodName(methodStmnt);
+		}
+		
+		return FindFunction(packageName, methodName);
 	}
 
 	SpiteIR::Function* FindExternalFunctionForFunctionCall(Expr* expr)
@@ -1095,14 +1193,22 @@ struct LowerDefinitions
 	{
 		Assert(expr);
 		Expr* caller = expr->functionCallExpr.function;
-		Stmnt* stmnt = FindFunctionStmnt(caller);
-		eastl::vector<Expr*>* templates = nullptr;
+		Stmnt* func = FindFunctionStmnt(caller);
+		StringView& packageName = func->package->val;
+		eastl::string functionName;
+
 		if (caller->typeID == ExprID::TemplateExpr)
 		{
-			templates = caller->templateExpr.templateArgs;
+			eastl::vector<Expr*>* templates = caller->templateExpr.templateArgs;
+			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
+			functionName = BuildTemplatedFunctionName(func, &expandedTemplates);
+		}
+		else
+		{
+			functionName = BuildFunctionName(func);
 		}
 
-		return FindFunctionForFunctionStmnt(stmnt, templates);
+		return FindFunction(packageName, functionName);
 	}
 
 	SpiteIR::Instruction* BuildAllocate(SpiteIR::Type* type)

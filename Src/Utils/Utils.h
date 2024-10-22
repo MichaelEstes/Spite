@@ -38,7 +38,7 @@ DeferCall<Func> createDefer(Func&& callback) { return DeferCall<Func>(std::forwa
 #define defer(statement) auto deferFuncName = createDefer([&]()->void{statement;})
 
 template<typename Map, typename Value>
-inline bool MapHas(Map& map, Value& value)
+inline bool MapHas(Map& map, const Value& value)
 {
 	return map.find(value) != map.end();
 }

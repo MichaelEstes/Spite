@@ -30,7 +30,7 @@ struct ScopeUtils
 		return MapHas(back, name);
 	}
 
-	void AddToTopScope(StringView& name, Stmnt* stmnt)
+	void AddToTopScope(const StringView& name, Stmnt* stmnt)
 	{
 		eastl::hash_map<StringView, Stmnt*, StringViewHash>& back = scopeQueue.back();
 		back[name] = stmnt;

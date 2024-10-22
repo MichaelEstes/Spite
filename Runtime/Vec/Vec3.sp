@@ -28,17 +28,10 @@ float Vec3::SqrLength() => x * x + y * y + z * z;
 
 float Vec3::Length() => Math.Sqrt(this.SqrLength());
 
-float Vec3::Dot(right: Vec3)
-{
-    return this.x * right.x + this.y * right.y + this.z * right.z;
-}
+float Vec3::Dot(right: Vec3) => this.x * right.x + this.y * right.y + this.z * right.z;
 
-Vec3 Vec3::Cross(right: Vec3)
-{
-	return Vec3(
-	    this.y * right.z - right.y * this.z,
+Vec3 Vec3::Cross(right: Vec3) =>
+	Vec3(this.y * right.z - right.y * this.z,
 	    -(this.x * right.z - right.x * this.z),
-	    this.x * right.y - right.x * this.y
-	);
-}
+	    this.x * right.y - right.x * this.y);
 
