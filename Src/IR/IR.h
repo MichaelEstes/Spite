@@ -136,10 +136,8 @@ namespace SpiteIR
 		ExternCall,
 		TailCall,
 		Allocate,
-		HeapAllocate,
 		Load,
 		Store,
-		Free,
 		Cast,
 		Switch,
 		BinOp,
@@ -162,6 +160,7 @@ namespace SpiteIR
 		StateType,
 		StructureType,
 		PointerType,
+		ReferenceType,
 		DynamicArrayType,
 		FixedArrayType,
 		FunctionType
@@ -333,6 +332,11 @@ namespace SpiteIR
 			{
 				Type* type;
 			} pointer;
+
+			struct
+			{
+				Type* type;
+			} reference;
 
 			struct
 			{

@@ -223,6 +223,8 @@ struct LowerDeclarations
 		{
 			BuildConstructorDeclaration(package, state, con, generics, templates);
 		}
+		BuildDefaultConstructor(package, state, stateSymbol.state, templates);
+
 
 		for (Stmnt* method : stateSymbol.methods)
 		{
@@ -240,6 +242,49 @@ struct LowerDeclarations
 		}
 	}
 
+	SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type)
+	{
+		SpiteIR::Type* refType = context.ir->AllocateType();
+		refType->kind = SpiteIR::TypeKind::ReferenceType;
+		refType->size = config.targetArchBitWidth;
+		refType->reference.type = type;
+		return refType;
+	}
+
+	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, SpiteIR::IR* ir)
+	{
+		SpiteIR::Argument* arg = ir->AllocateArgument();
+		arg->value = ir->AllocateValue();
+		arg->value->parent = SpiteIR::Parent(state);
+		arg->value->name = "this";
+		arg->parent = method;
+
+		SpiteIR::Type* thisType = ir->AllocateType();
+		thisType->kind = SpiteIR::TypeKind::StateType;
+		thisType->stateType.state = state;
+		arg->value->type = MakeReferenceType(thisType);
+
+		method->arguments.push_back(arg);
+	}
+
+	void BuildDefaultConstructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* stateStmnt,
+		eastl::vector<Expr*>* templates = nullptr)
+	{
+		SpiteIR::Function* con = context.ir->AllocateFunction();
+		con->parent = package;
+
+		con->name = BuildDefaultConstructorName(stateStmnt, templates);
+		con->returnType = context.ir->AllocateType();
+		con->returnType->kind = SpiteIR::TypeKind::StateType;
+		con->returnType->stateType.state = state;
+
+		BuildMethodThisArgument(state, con, context.ir);
+		state->constructors.push_back(con);
+		context.functionMap[con->name] = con;
+		package->functions[con->name] = con;
+		context.functionASTMap[con] = { stateStmnt, templates };
+	}
+
 	void BuildConstructorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* conStmnt,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
@@ -251,7 +296,7 @@ struct LowerDeclarations
 		con->returnType->stateType.state = state;
 
 		// First argument is this argument
-		BuildMethodThisArgument(state, con, conStmnt);
+		BuildMethodThisArgument(state, con, context.ir);
 		for (size_t i = 1; i < conStmnt->constructor.decl->functionDecl.parameters->size(); i++)
 		{
 			Stmnt* param = conStmnt->constructor.decl->functionDecl.parameters->at(i);
@@ -274,7 +319,7 @@ struct LowerDeclarations
 			generics, templates);
 
 		// First argument is this argument
-		BuildMethodThisArgument(state, op, opStmnt);
+		BuildMethodThisArgument(state, op, context.ir);
 		for (size_t i = 1; i < opStmnt->stateOperator.decl->functionDecl.parameters->size(); i++)
 		{
 			Stmnt* param = opStmnt->stateOperator.decl->functionDecl.parameters->at(i);
@@ -331,7 +376,7 @@ struct LowerDeclarations
 		method->returnType = TypeToIRType(context.ir, methodStmnt->method.returnType, this, generics, templates);
 
 		// First argument is this argument
-		BuildMethodThisArgument(state, method, methodStmnt);
+		BuildMethodThisArgument(state, method, context.ir);
 		for (size_t i = 1; i < methodStmnt->method.decl->functionDecl.parameters->size(); i++)
 		{
 			Stmnt* param = methodStmnt->method.decl->functionDecl.parameters->at(i);
@@ -342,22 +387,6 @@ struct LowerDeclarations
 		context.functionMap[method->name] = method;
 		context.functionASTMap[method] = { methodStmnt, templates };
 		package->functions[method->name] = method;
-	}
-
-	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, Stmnt* methodStmnt)
-	{
-		SpiteIR::Argument* arg = context.ir->AllocateArgument();
-		arg->value = context.ir->AllocateValue();
-		arg->value->parent = SpiteIR::Parent(state);
-		arg->value->name = "this";
-		arg->parent = method;
-
-		SpiteIR::Type* thisType = context.ir->AllocateType();
-		thisType->kind = SpiteIR::TypeKind::StateType;
-		thisType->stateType.state = state;
-		arg->value->type = thisType;
-
-		method->arguments.push_back(arg);
 	}
 
 	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt,
@@ -373,7 +402,7 @@ struct LowerDeclarations
 		destructor->returnType->primitive.isSigned = false;
 
 		// First argument is this argument
-		BuildMethodThisArgument(state, destructor, destructorStmnt);
+		BuildMethodThisArgument(state, destructor, context.ir);
 
 		state->destructor = destructor;
 		context.functionMap[destructor->name] = destructor;
@@ -425,10 +454,14 @@ struct LowerDeclarations
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
+		
+		SpiteIR::Type* argType = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
+		if (!argType->byValue) argType = MakeReferenceType(argType);
+
 		SpiteIR::Argument* arg = context.ir->AllocateArgument();
 		arg->value = context.ir->AllocateValue();
 		arg->value->parent = SpiteIR::Parent(arg);
-		arg->value->type = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
+		arg->value->type = argType;
 		arg->value->name = param->definition.name->val.ToString();
 		arg->parent = function;
 		function->arguments.push_back(arg);

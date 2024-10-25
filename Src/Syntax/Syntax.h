@@ -1969,6 +1969,7 @@ struct Syntax
 		funcCall->functionCallExpr.callKind = FunctionCallKind::UnknownCall;
 		funcCall->functionCallExpr.function = of;
 		funcCall->functionCallExpr.lParen = lParen;
+		funcCall->functionCallExpr.functionStmnt = nullptr;
 		Advance();
 		funcCall->functionCallExpr.params = ParseExprList();
 

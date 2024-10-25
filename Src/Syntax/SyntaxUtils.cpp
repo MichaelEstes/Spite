@@ -1,5 +1,15 @@
 #include "SyntaxUtils.h"
 
+Expr* GetCallerExprMethodCall(Expr* expr)
+{
+	if (expr->typeID == ExprID::TemplateExpr)
+	{
+		return GetCallerExprMethodCall(expr->templateExpr.expr);
+	}
+
+	return expr->selectorExpr.on;
+}
+
 size_t IntLiteralStringToInt(StringView& str)
 {
 	size_t count = str.count;

@@ -15,7 +15,7 @@ struct PackageChecker
 	ExprChecker exprChecker;
 
 	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable, DeferredContainer& deferred)
-		: context(globalTable, symbolTable, deferred), typeChecker(context), exprChecker(context) {}
+		: context(globalTable, symbolTable), typeChecker(context), exprChecker(context, deferred) {}
 
 	void Check()
 	{

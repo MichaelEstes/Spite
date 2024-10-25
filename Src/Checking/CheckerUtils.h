@@ -19,6 +19,39 @@ struct CheckerUtils
 		return nullptr;
 	}
 
+	bool CheckValidFunctionCallParams(Stmnt* calledFor, eastl::vector<Stmnt*>* funcParams,
+		eastl::vector<Expr*>* params)
+	{
+
+		size_t paramCount = params->size();
+		size_t requiredParamCount = RequiredFunctionParamCount(funcParams);
+		if (requiredParamCount > paramCount) return false;
+
+		for (size_t i = 0; i < paramCount; i++)
+		{
+			Expr* exprParam = params->at(i);
+			Stmnt* funcParam = funcParams->at(i);
+			Type* defType = funcParam->definition.type;
+			if (!IsAssignable(defType, InferType(exprParam), calledFor))
+				return false;
+		}
+
+		return true;
+	}
+
+	size_t RequiredFunctionParamCount(eastl::vector<Stmnt*>* params)
+	{
+		size_t count = 0;
+
+		for (Stmnt* param : *params)
+		{
+			if (param->definition.assignment) return count;
+			count++;
+		}
+
+		return count;
+	}
+
 	inline Type* GetReturnType(Stmnt* node)
 	{
 		switch (node->nodeID)

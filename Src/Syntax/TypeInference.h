@@ -179,7 +179,6 @@ struct TypeInferer
 		switch (stmnt->nodeID)
 		{
 		case Definition:
-			// Check if type hasn't been inferred yet?
 			return stmnt->definition.type;
 		case FunctionStmnt:
 			return FunctionToFunctionType(stmnt);
@@ -192,6 +191,114 @@ struct TypeInferer
 
 		AddError(of->start, "TypeInferer:GetImportedTypeForSelector Unable to infer type for selector expression");
 		return type;
+	}
+
+	Type* DereferenceType(Type* type)
+	{
+		switch (type->typeID)
+		{
+		case PointerType:
+			return DereferenceType(type->pointerType.type);
+		case ValueType:
+			return DereferenceType(type->valueType.type);
+		default:
+			break;
+		}
+
+		return type;
+	}
+
+	Type* CreateTypeFromTemplates(Type* toExpand, eastl::vector<Token*>* genericNames,
+		eastl::vector<Expr*>* templateArgs)
+	{
+		Type* expanded = symbolTable->CreateTypePtr(TypeID::InvalidType);
+		*expanded = *toExpand;
+
+		switch (expanded->typeID)
+		{
+		case NamedType:
+		{
+			Token* name = expanded->namedType.typeName;
+			for (size_t i = 0; i < templateArgs->size(); i++)
+			{
+				Token* genericName = genericNames->at(i);
+				if (genericName->val == name->val)
+				{
+					Expr* templ = templateArgs->at(i);
+					if (templ->typeID == ExprID::TypeExpr)
+					{
+						expanded = templ->typeExpr.type;
+					}
+					else
+					{
+						// Error?
+					}
+				}
+			}
+		}
+		case ExplicitType:
+			break;
+		case PointerType:
+			expanded->pointerType.type = CreateTypeFromTemplates(expanded->pointerType.type,
+				genericNames, templateArgs);
+			break;
+		case ValueType:
+			expanded->valueType.type = CreateTypeFromTemplates(expanded->valueType.type,
+				genericNames, templateArgs);
+			break;
+		case ArrayType:
+			expanded->arrayType.type = CreateTypeFromTemplates(expanded->arrayType.type,
+				genericNames, templateArgs);
+			break;
+		case FixedArrayType:
+			expanded->fixedArrayType.type = CreateTypeFromTemplates(expanded->fixedArrayType.type,
+				genericNames, templateArgs);
+			break;
+		case TemplatedType:
+			break;
+		case FunctionType:
+		{
+			eastl::vector<Type*>* paramTypes = symbolTable->CreateVectorPtr<Type>();
+			for (Type* param : *expanded->functionType.paramTypes)
+			{
+				paramTypes->push_back(CreateTypeFromTemplates(param, genericNames, templateArgs));
+			}
+			expanded->functionType.paramTypes = paramTypes;
+			expanded->functionType.returnType = CreateTypeFromTemplates(expanded->functionType.returnType,
+				genericNames, templateArgs);
+			break;
+		}
+		case AnonymousType:
+		{
+			eastl::vector<Type*>* paramTypes = symbolTable->CreateVectorPtr<Type>();
+			for (Type* param : *expanded->anonType.types)
+			{
+				paramTypes->push_back(CreateTypeFromTemplates(param, genericNames, templateArgs));
+			}
+			expanded->anonType.types = paramTypes;
+			break;
+		}
+		default:
+			break;
+		}
+
+		return expanded;
+	}
+
+	Type* ExpandTypeTemplates(Type* toExpand, Stmnt* state, Type* expandFrom)
+	{
+		Type* derefExpandFrom = DereferenceType(expandFrom);
+		if (derefExpandFrom->typeID != TypeID::TemplatedType) return toExpand;
+
+		eastl::vector<Token*>* genericNames = state->state.generics->generics.names;
+		eastl::vector<Expr*>* templateArgs = derefExpandFrom->templatedType.templates->templateExpr.templateArgs;
+		if (templateArgs->size() > genericNames->size())
+		{
+			AddError(derefExpandFrom->templatedType.templates->start,
+				"TypeInference:ExpandTypeTemplates More template arguments provided than generic names for state: " + state->state.name->val);
+			return toExpand;
+		}
+		return CreateTypeFromTemplates(toExpand, genericNames, templateArgs);
 	}
 
 	inline Type* GetSelectorType(Expr* of, Type* type)
@@ -210,12 +317,7 @@ struct TypeInferer
 			return explicitMember->definition.type;
 		}
 
-		Stmnt* state = nullptr;
-		if (type->typeID == TypeID::ArrayType)
-		{
-			state = globalTable->GetArrayState();
-		}
-		else state = globalTable->FindStateForType(type, symbolTable);
+		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
 			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
@@ -225,6 +327,7 @@ struct TypeInferer
 		Stmnt* member = FindStateMember(state, name);
 		if (member)
 		{
+			if (state->state.generics) return ExpandTypeTemplates(member->definition.type, state, type);
 			return member->definition.type;
 		}
 		else

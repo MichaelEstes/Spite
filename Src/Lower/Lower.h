@@ -28,7 +28,8 @@ struct Lower
 		lowerDef.BuildDefinitions();
 
 		Stmnt* entryFunc = context.globalTable->entryFunc;
-		ir->entry = lowerDef.FindFunction(entryFunc->package->val, entryFunc->function.name->ToString());
+		eastl::string entryFuncName = BuildFunctionName(entryFunc);
+		ir->entry = lowerDef.FindFunction(entryFunc->package->val, entryFuncName);
 		return ir;
 	}
 };

@@ -141,15 +141,11 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Allocate:
 			InterpretAllocate(inst);
 			break;
-		case SpiteIR::InstructionKind::HeapAllocate:
-			break;
 		case SpiteIR::InstructionKind::Load:
 			InterpretLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
 			InterpretStore(inst);
-			break;
-		case SpiteIR::InstructionKind::Free:
 			break;
 		case SpiteIR::InstructionKind::Cast:
 			InterpretCast(inst);

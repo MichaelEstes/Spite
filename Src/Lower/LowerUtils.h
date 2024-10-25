@@ -217,6 +217,7 @@ SpiteIR::UnaryOpKind UnaryOpToIR(UniqueType type)
 
 eastl::string BuildTemplatedString(eastl::vector<Expr*>* templates)
 {
+	if (!templates || !templates->size()) return "";
 	eastl::string str = "__";
 
 	size_t size = templates->size();
@@ -452,6 +453,11 @@ inline eastl::string BuildMethodName(Stmnt* method)
 inline eastl::string BuildTemplatedMethodName(Stmnt* method, eastl::vector<Expr*>* templates)
 {
 	return BuildMethodName(method) + BuildTemplatedString(templates);
+}
+
+inline eastl::string BuildDefaultConstructorName(Stmnt* state, eastl::vector<Expr*>* templates = nullptr)
+{
+	return "default_" + BuildStateName(state) + BuildTemplatedString(templates);
 }
 
 inline eastl::string BuildConstructorName(Stmnt* con,

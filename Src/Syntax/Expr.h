@@ -40,6 +40,7 @@ enum FunctionCallKind
 {
 	UnknownCall,
 	FunctionCall,
+	PrimitiveCall,
 	ConstructorCall,
 	MemberMethodCall,
 	UniformMethodCall,
@@ -91,6 +92,7 @@ struct Expr
 			Token* lParen;
 			Token* rParen;
 			FunctionCallKind callKind;
+			Stmnt* functionStmnt;
 		} functionCallExpr;
 
 		struct

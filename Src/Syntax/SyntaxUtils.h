@@ -2,6 +2,7 @@
 
 #include "Stmnt.h"
 
+Expr* GetCallerExprMethodCall(Expr* expr);
 Token* GetTokenForTemplate(Expr* expr);
 size_t IntLiteralStringToInt(StringView& str);
 

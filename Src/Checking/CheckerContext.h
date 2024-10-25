@@ -9,9 +9,13 @@ struct CheckerContext
 	SymbolTable* symbolTable;
 	Stmnt* currentContext = nullptr;
 	ScopeUtils scopeUtils;
-	DeferredContainer& deferred;
 
-	CheckerContext(GlobalTable* globalTable, SymbolTable* symbolTable, DeferredContainer& deferred):
-		globalTable(globalTable), symbolTable(symbolTable), scopeUtils(globalTable, symbolTable), 
-		deferred(deferred) {}
+	CheckerContext(GlobalTable* globalTable, SymbolTable* symbolTable):
+		globalTable(globalTable), symbolTable(symbolTable), scopeUtils(globalTable, symbolTable)
+	{}
+
+	CheckerContext(GlobalTable* globalTable, SymbolTable* symbolTable, Stmnt* currentContext, 
+		const ScopeUtils& scopeUtils) : globalTable(globalTable), symbolTable(symbolTable), 
+		currentContext(currentContext), scopeUtils(scopeUtils)
+	{}
 };

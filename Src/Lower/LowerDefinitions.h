@@ -218,11 +218,7 @@ struct LowerDefinitions
 
 	void BuildState(SpiteIR::State* state, Stmnt* stateStmnt)
 	{
-		BuildStateDefault(state, stateStmnt);
-	}
 
-	void BuildStateDefault(SpiteIR::State* state, Stmnt* stateStmnt)
-	{
 	}
 
 	SpiteIR::Type* ToIRType(Type* type)
@@ -235,6 +231,13 @@ struct LowerDefinitions
 	void BuildFunction(SpiteIR::Function* function, Stmnt* funcStmnt)
 	{
 		Assert(function);
+
+		if (funcStmnt->nodeID == StmntID::StateStmnt)
+		{
+			//Default state constructor
+			return;
+		}
+
 		Stmnt* decl = GetDeclForFunc(funcStmnt);
 
 		function->block = context.ir->AllocateBlock();
@@ -684,6 +687,11 @@ struct LowerDefinitions
 				return { value.reg + offsetValue.reg, offsetValue.type };
 			}
 		}
+		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
+			value.type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+
+		}
 
 		return InvalidScopeValue;
 	}
@@ -748,11 +756,11 @@ struct LowerDefinitions
 			defaultOp.type = type;
 			defaultOp.kind = SpiteIR::OperandKind::Literal;
 			defaultOp.literal.kind = SpiteIR::PrimitiveKind::Int;
-			defaultOp.literal.intLiteral =  0;
+			defaultOp.literal.intLiteral = 0;
 
 			SpiteIR::Instruction* store = BuildStore(label, dst, defaultOp);
 		}
-			break;
+		break;
 		case SpiteIR::TypeKind::DynamicArrayType:
 			break;
 		case SpiteIR::TypeKind::FixedArrayType:
@@ -1071,7 +1079,7 @@ struct LowerDefinitions
 		binOp->binOp.result = funcContext.curr;
 
 		ScopeValue value;
-		if (kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, CreateBoolType(context.ir)};
+		if (kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, CreateBoolType(context.ir) };
 		else value = { binOp->binOp.result, leftVal.type };
 
 		BuildAllocate(value.type);
@@ -1091,6 +1099,7 @@ struct LowerDefinitions
 			irFunction = FindFunctionForFunctionCall(expr);
 			break;
 		case ConstructorCall:
+			irFunction = FindFunctionForConstructor(expr);
 			break;
 		case MemberMethodCall:
 			irFunction = FindFunctionForMemberCall(expr);
@@ -1111,6 +1120,43 @@ struct LowerDefinitions
 		if (!irFunction) return { InvalidRegister, nullptr };
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+		if (funcCall.callKind == MemberMethodCall)
+		{
+			Expr* caller = GetCallerExprMethodCall(funcCall.function);
+			ScopeValue thisValue = BuildExpr(caller, stmnt);
+			params->push_back(BuildRegisterOperand(thisValue));
+		}
+		else if (funcCall.callKind == ConstructorCall)
+		{
+			Stmnt* state = funcCall.functionStmnt;
+			if (state->nodeID != StmntID::StateStmnt)
+			{
+				Token* stateName = state->constructor.stateName;
+				state = context.globalTable->FindScopedState(stateName, symbolTable);
+			}
+
+			eastl::string stateName;
+			if (funcCall.function->typeID == ExprID::TemplateExpr)
+			{
+				eastl::vector<Expr*> templates = ExpandTemplates(funcCall.function->templateExpr.templateArgs);
+				stateName = BuildTemplatedStateName(state, &templates);
+			}
+			else
+			{
+				stateName = BuildStateName(state);
+			}
+
+			SpiteIR::State* irState = context.FindState(stateName);
+
+			SpiteIR::Type* type = context.ir->AllocateType();
+			type->kind = SpiteIR::TypeKind::StateType;
+			type->size = irState->size;
+			type->stateType.state = irState;
+
+			SpiteIR::Instruction* alloc = BuildAllocate(type);
+			params->push_back(BuildRegisterOperand({ alloc->allocate.result, alloc->allocate.type }));
+		}
+
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
 		for (size_t i = 0; i < exprParams->size(); i++)
 		{
@@ -1143,7 +1189,7 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	SpiteIR::Function* FindFunction(const StringView& packageName, 
+	SpiteIR::Function* FindFunction(const StringView& packageName,
 		const eastl::string& functionName)
 	{
 		Assert(MapHas(context.packageMap, packageName));
@@ -1157,7 +1203,7 @@ struct LowerDefinitions
 	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr)
 	{
 		Expr* caller = expr->functionCallExpr.function;
-		Stmnt* methodStmnt = funcContext.scopeUtils.GetDeclarationStmntForExpr(caller);
+		Stmnt* methodStmnt = expr->functionCallExpr.functionStmnt;
 		StringView& packageName = methodStmnt->package->val;
 		eastl::string methodName;
 
@@ -1171,8 +1217,32 @@ struct LowerDefinitions
 		{
 			methodName = BuildMethodName(methodStmnt);
 		}
-		
+
 		return FindFunction(packageName, methodName);
+	}
+
+
+	SpiteIR::Function* FindFunctionForConstructor(Expr* expr)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* constructorStmnt = expr->functionCallExpr.functionStmnt;
+		Stmnt* stateStmnt = constructorStmnt->nodeID == StmntID::StateStmnt ? constructorStmnt :
+			context.globalTable->FindScopedState(constructorStmnt->constructor.stateName, symbolTable);
+
+		StringView& packageName = stateStmnt->package->val;
+		eastl::vector<Token*>* generics = stateStmnt->state.generics ?
+			stateStmnt->state.generics->generics.names : nullptr;
+		eastl::vector<Expr*> templates;
+		if (caller->typeID == ExprID::TemplateExpr)
+		{
+			templates = ExpandTemplates(caller->templateExpr.templateArgs);
+		}
+
+		eastl::string constructorName = constructorStmnt->nodeID == StmntID::StateStmnt ?
+			BuildDefaultConstructorName(constructorStmnt, &templates) :
+			BuildConstructorName(constructorStmnt, generics, &templates);
+
+		return FindFunction(packageName, constructorName);
 	}
 
 	SpiteIR::Function* FindExternalFunctionForFunctionCall(Expr* expr)
@@ -1193,7 +1263,7 @@ struct LowerDefinitions
 	{
 		Assert(expr);
 		Expr* caller = expr->functionCallExpr.function;
-		Stmnt* func = FindFunctionStmnt(caller);
+		Stmnt* func = expr->functionCallExpr.functionStmnt;
 		StringView& packageName = func->package->val;
 		eastl::string functionName;
 

@@ -66,11 +66,23 @@ struct Decompiler
 			return out;
 		}
 		case SpiteIR::TypeKind::StateType:
-			break;
+			return type->stateType.state->name;
 		case SpiteIR::TypeKind::StructureType:
-			break;
+		{
+			eastl::string out = "{ ";
+			for (SpiteIR::Type* member : *type->structureType.types)
+			{
+				out += WriteType(member);
+				out += ",";
+			}
+			out.back() = ' ';
+			out += "}";
+			return out;
+		}
 		case SpiteIR::TypeKind::PointerType:
-			break;
+			return "*" + WriteType(type->pointer.type);
+		case SpiteIR::TypeKind::ReferenceType:
+			return "ref" + WriteType(type->reference.type);
 		case SpiteIR::TypeKind::DynamicArrayType:
 		{
 			return "[]" + WriteType(type->dynamicArray.type);
@@ -201,17 +213,14 @@ struct Decompiler
 		case SpiteIR::InstructionKind::Allocate:
 			DecompileAllocate(inst);
 			break;
-		case SpiteIR::InstructionKind::HeapAllocate:
-			break;
 		case SpiteIR::InstructionKind::Load:
 			DecompileLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
 			DecompileStore(inst);
 			break;
-		case SpiteIR::InstructionKind::Free:
-			break;
 		case SpiteIR::InstructionKind::Cast:
+			DecompileCast(inst);
 			break;
 		case SpiteIR::InstructionKind::Switch:
 			break;
@@ -260,6 +269,11 @@ struct Decompiler
 	{
 		Write("r" + eastl::to_string(storeInst.store.dst) + " = store " + 
 			WriteOperand(storeInst.store.src));
+	}
+
+	void DecompileCast(SpiteIR::Instruction& castInst)
+	{
+		Write("cast " + WriteOperand(castInst.cast.from) + " " + WriteOperand(castInst.cast.to));
 	}
 
 	void DecompileExternCall(SpiteIR::Instruction& callInst)
