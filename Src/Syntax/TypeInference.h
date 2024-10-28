@@ -228,16 +228,31 @@ struct TypeInferer
 					if (templ->typeID == ExprID::TypeExpr)
 					{
 						expanded = templ->typeExpr.type;
+						break;
 					}
 					else
 					{
 						// Error?
+						break;
 					}
 				}
 			}
+			break;
 		}
 		case ExplicitType:
+		{
+			eastl::vector<Stmnt*>* decls = symbolTable->CreateVectorPtr<Stmnt>();
+			for (Stmnt* decl : *expanded->explicitType.declarations)
+			{
+				Stmnt* clonedDecl = symbolTable->CreateStmnt(decl->start, decl->nodeID, decl->package, decl->scope);
+				*clonedDecl = *decl;
+				clonedDecl->definition.type = CreateTypeFromTemplates(clonedDecl->definition.type,
+					genericNames, templateArgs);
+				decls->push_back(clonedDecl);
+			}
+			expanded->explicitType.declarations = decls;
 			break;
+		}
 		case PointerType:
 			expanded->pointerType.type = CreateTypeFromTemplates(expanded->pointerType.type,
 				genericNames, templateArgs);
@@ -255,6 +270,8 @@ struct TypeInferer
 				genericNames, templateArgs);
 			break;
 		case TemplatedType:
+			expanded->templatedType.type = CreateTypeFromTemplates(expanded->templatedType.type,
+				genericNames, templateArgs);
 			break;
 		case FunctionType:
 		{

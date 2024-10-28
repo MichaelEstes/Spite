@@ -32,10 +32,7 @@ struct Interpreter
 			eastl::vector<SpiteIR::Instruction*>& instructions = currentLabel->values;
 			SpiteIR::Instruction* terminator = currentLabel->terminator;
 			currentLabel = nullptr;
-			for (SpiteIR::Instruction* inst : instructions)
-			{
-				InterpretInstruction(*inst, currentLabel);
-			}
+			for (SpiteIR::Instruction* inst : instructions) InterpretInstruction(*inst, currentLabel);
 			InterpretInstruction(*terminator, currentLabel);
 		}
 	}
@@ -43,11 +40,7 @@ struct Interpreter
 	void InterpretBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label*& entry = block->labels.front();
-		for (SpiteIR::Instruction* inst : block->allocations)
-		{
-			Assert(inst->kind == SpiteIR::InstructionKind::Allocate);
-			InterpretAllocate(*inst);
-		}
+		for (SpiteIR::Instruction* inst : block->allocations) InterpretAllocate(*inst);
 		InterpretLabel(entry);
 	}
 
@@ -144,8 +137,20 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Load:
 			InterpretLoad(inst);
 			break;
+		case SpiteIR::InstructionKind::LoadPtrOffset:
+			InterpretLoadPtrOffset(inst);
+			break;
 		case SpiteIR::InstructionKind::Store:
 			InterpretStore(inst);
+			break;
+		case SpiteIR::InstructionKind::StorePtr:
+			InterpretStorePtr(inst);
+			break;
+		case SpiteIR::InstructionKind::Reference:
+			InterpretReference(inst);
+			break;
+		case SpiteIR::InstructionKind::Dereference:
+			InterpretDereference(inst);
 			break;
 		case SpiteIR::InstructionKind::Cast:
 			InterpretCast(inst);
@@ -180,27 +185,11 @@ struct Interpreter
 
 	void InterpretJump(SpiteIR::Instruction& jumpInst, SpiteIR::Label*& label)
 	{
-		Assert(jumpInst.jump.label);
 		label = jumpInst.jump.label;
-	}
-
-	void InterpretLoad(SpiteIR::Instruction& loadInst)
-	{
-		Assert(loadInst.load.offset.kind == SpiteIR::OperandKind::Register);
-		Assert(loadInst.load.offset.type->kind == SpiteIR::TypeKind::PrimitiveType);
-
-		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
-		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
-			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
 	}
 
 	void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
-		Assert(branchInst.branch.true_ && branchInst.branch.false_ &&
-			branchInst.branch.test.kind == SpiteIR::OperandKind::Register &&
-			branchInst.branch.test.type->kind == SpiteIR::TypeKind::PrimitiveType &&
-			branchInst.branch.test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
-
 		if (*(bool*)(stackFrameStart + branchInst.branch.test.reg))
 			label = branchInst.branch.true_;
 		else
@@ -214,9 +203,24 @@ struct Interpreter
 		IncrementStackPointer(allocateInst.allocate.type->size);
 	}
 
+	void InterpretLoad(SpiteIR::Instruction& loadInst)
+	{
+		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
+		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
+			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
+	}
+
+	void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
+	{
+		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg);
+		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
+		char* indexed = start + offset;
+		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
+	}
+
 	void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
-		void* dst = stackFrameStart + storeInst.store.dst;
+		void* dst = stackFrameStart + storeInst.store.dst.reg;
 		SpiteIR::Operand& src = storeInst.store.src;
 
 		switch (src.kind)
@@ -253,6 +257,32 @@ struct Interpreter
 			break;
 		default:
 			break;
+		}
+	}
+
+	void InterpretStorePtr(SpiteIR::Instruction& storeInst)
+	{
+		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
+		char* src = stackFrameStart + storeInst.store.src.reg;
+		for (size_t i = 0; i < storeInst.store.src.type->size; i++)
+		{
+			ptr[i] = src[i];
+		}
+	}
+
+	void InterpretReference(SpiteIR::Instruction& storeInst)
+	{
+		void* ref = (stackFrameStart + storeInst.store.src.reg);
+		*(size_t*)(stackFrameStart + storeInst.store.dst.reg) = (size_t)ref;
+	}
+
+	void InterpretDereference(SpiteIR::Instruction& storeInst)
+	{
+		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
+		char* dst = stackFrameStart + storeInst.store.dst.reg;
+		for (size_t i = 0; i < storeInst.store.dst.type->size; i++)
+		{
+			dst[i] = ptr[i];
 		}
 	}
 
@@ -343,15 +373,10 @@ struct Interpreter
 			return;
 		}
 		case SpiteIR::TypeKind::StateType:
-			return;
 		case SpiteIR::TypeKind::StructureType:
-			return;
 		case SpiteIR::TypeKind::PointerType:
-			return;
 		case SpiteIR::TypeKind::DynamicArrayType:
-			return;
 		case SpiteIR::TypeKind::FixedArrayType:
-			return;
 		case SpiteIR::TypeKind::FunctionType:
 			return;
 		default:

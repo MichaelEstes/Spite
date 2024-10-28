@@ -153,6 +153,17 @@ SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 	return type;
 }
 
+SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
+{
+	SpiteIR::Type* refType = ir->AllocateType();
+	refType->kind = SpiteIR::TypeKind::ReferenceType;
+	refType->size = config.targetArchBitWidth;
+	refType->byValue = true;
+	refType->reference.type = type;
+	return refType;
+}
+
+
 SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
 {
 	switch (type)
@@ -479,7 +490,6 @@ inline eastl::string BuildDestructorName(SpiteIR::State* state)
 {
 	return "dest_" + state->name;
 }
-
 
 inline eastl::string BuildGlobalVariableName(Stmnt* global)
 {

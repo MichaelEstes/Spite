@@ -137,7 +137,11 @@ namespace SpiteIR
 		TailCall,
 		Allocate,
 		Load,
+		LoadPtrOffset,
 		Store,
+		StorePtr,
+		Reference,
+		Dereference,
 		Cast,
 		Switch,
 		BinOp,
@@ -246,7 +250,7 @@ namespace SpiteIR
 	struct Store
 	{
 		Operand src;
-		size_t dst;
+		Operand dst;
 	};
 
 	struct Free
@@ -281,9 +285,16 @@ namespace SpiteIR
 		size_t result;
 	};
 
+	struct InstructionMetadata
+	{
+		InstructionKind kind = InstructionKind::None;
+
+	};
+
 	struct Instruction
 	{
 		InstructionKind kind = InstructionKind::None;
+		size_t metadata = 0;
 
 		union 
 		{

@@ -82,7 +82,7 @@ struct Decompiler
 		case SpiteIR::TypeKind::PointerType:
 			return "*" + WriteType(type->pointer.type);
 		case SpiteIR::TypeKind::ReferenceType:
-			return "ref" + WriteType(type->reference.type);
+			return "ref " + WriteType(type->reference.type);
 		case SpiteIR::TypeKind::DynamicArrayType:
 		{
 			return "[]" + WriteType(type->dynamicArray.type);
@@ -170,7 +170,20 @@ struct Decompiler
 
 	void DecompileFunction(SpiteIR::Function* func)
 	{	
-		Write(func->name);
+		eastl::string decl = func->name;
+		if (func->arguments.size())
+		{
+			eastl::string args = "(";
+			for (SpiteIR::Argument* arg : func->arguments)
+			{
+
+				args += WriteType(arg->value->type);
+				args += ",";
+			}
+			args.back() = ')';
+			decl += args;
+		}
+		Write(decl);
 		Write("{");
 		DecompileBlock(func->block);
 		Write("}\n");
@@ -217,6 +230,9 @@ struct Decompiler
 			DecompileLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
+		case SpiteIR::InstructionKind::StorePtr:
+		case SpiteIR::InstructionKind::Reference:
+		case SpiteIR::InstructionKind::Dereference:
 			DecompileStore(inst);
 			break;
 		case SpiteIR::InstructionKind::Cast:
@@ -267,7 +283,25 @@ struct Decompiler
 
 	void DecompileStore(SpiteIR::Instruction& storeInst)
 	{
-		Write("r" + eastl::to_string(storeInst.store.dst) + " = store " + 
+		eastl::string storeString = "";
+		switch (storeInst.kind)
+		{
+		case SpiteIR::InstructionKind::Store:
+			storeString = " = store ";
+			break;
+		case SpiteIR::InstructionKind::StorePtr:
+			storeString = " = store* ";
+			break;
+		case SpiteIR::InstructionKind::Reference:
+			storeString = " = store @";
+			break;
+		case SpiteIR::InstructionKind::Dereference:
+			storeString = " = store ~";
+			break;
+		default:
+			break;
+		}
+		Write("r" + eastl::to_string(storeInst.store.dst.reg) + storeString +
 			WriteOperand(storeInst.store.src));
 	}
 
@@ -293,6 +327,7 @@ struct Decompiler
 	{
 		eastl::string callStr = "r" + eastl::to_string(callInst.call.result) + " = call " + 
 			WriteType(callInst.call.function->returnType) + " " + callInst.call.function->name + "(";
+
 		for (SpiteIR::Operand& param : *callInst.call.params)
 		{
 			callStr += WriteOperand(param);

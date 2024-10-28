@@ -50,6 +50,21 @@ struct LowerDeclarations
 			BuildStateDeclarations(package, value);
 		}
 
+		for (auto& [key, value] : symbolTable->functionMap)
+		{
+			BuildFunctionDeclaration(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->globalValMap)
+		{
+			BuildGlobalVariableDeclaration(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->externFunctionMap)
+		{
+			BuildExternalFunctionDeclarations(package, value);
+		}
+
 		while (context.toResolveStateType.size() > 0)
 		{
 			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
@@ -69,21 +84,6 @@ struct LowerDeclarations
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
 			context.toResolveStateSize.pop_back();
-		}
-
-		for (auto& [key, value] : symbolTable->functionMap)
-		{
-			BuildFunctionDeclaration(package, value);
-		}
-
-		for (auto& [key, value] : symbolTable->globalValMap)
-		{
-			BuildGlobalVariableDeclaration(package, value);
-		}
-
-		for (auto& [key, value] : symbolTable->externFunctionMap)
-		{
-			BuildExternalFunctionDeclarations(package, value);
 		}
 
 		return package;
@@ -242,15 +242,6 @@ struct LowerDeclarations
 		}
 	}
 
-	SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type)
-	{
-		SpiteIR::Type* refType = context.ir->AllocateType();
-		refType->kind = SpiteIR::TypeKind::ReferenceType;
-		refType->size = config.targetArchBitWidth;
-		refType->reference.type = type;
-		return refType;
-	}
-
 	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, SpiteIR::IR* ir)
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();
@@ -262,7 +253,9 @@ struct LowerDeclarations
 		SpiteIR::Type* thisType = ir->AllocateType();
 		thisType->kind = SpiteIR::TypeKind::StateType;
 		thisType->stateType.state = state;
-		arg->value->type = MakeReferenceType(thisType);
+		if (state->size) thisType->size = state->size;
+		else context.toResolveStateSize.push_back(thisType);
+		arg->value->type = MakeReferenceType(thisType, context.ir);
 
 		method->arguments.push_back(arg);
 	}
@@ -272,11 +265,8 @@ struct LowerDeclarations
 	{
 		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
-
 		con->name = BuildDefaultConstructorName(stateStmnt, templates);
-		con->returnType = context.ir->AllocateType();
-		con->returnType->kind = SpiteIR::TypeKind::StateType;
-		con->returnType->stateType.state = state;
+		con->returnType = CreateVoidType(context.ir);
 
 		BuildMethodThisArgument(state, con, context.ir);
 		state->constructors.push_back(con);
@@ -291,9 +281,7 @@ struct LowerDeclarations
 		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
 		con->name = BuildConstructorName(conStmnt, generics, templates);
-		con->returnType = context.ir->AllocateType();
-		con->returnType->kind = SpiteIR::TypeKind::StateType;
-		con->returnType->stateType.state = state;
+		con->returnType = CreateVoidType(context.ir);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, con, context.ir);
@@ -456,7 +444,7 @@ struct LowerDeclarations
 	{
 		
 		SpiteIR::Type* argType = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
-		if (!argType->byValue) argType = MakeReferenceType(argType);
+		if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
 
 		SpiteIR::Argument* arg = context.ir->AllocateArgument();
 		arg->value = context.ir->AllocateValue();
