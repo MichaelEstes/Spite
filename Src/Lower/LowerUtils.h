@@ -110,8 +110,6 @@ SpiteIR::Type* CreateVoidType(SpiteIR::IR* ir)
 	return type;
 }
 
-
-
 SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();

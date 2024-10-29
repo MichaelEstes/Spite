@@ -399,7 +399,39 @@ struct LowerDefinitions
 	{
 		ScopeValue assignTo = BuildExpr(stmnt->assignmentStmnt.assignTo, stmnt);
 		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
-		BuildStore(GetCurrentLabel(), BuildRegisterOperand(assignTo), BuildRegisterOperand(assignment));
+
+		if (!assignTo.type || !assignment.type) return;
+
+		if (assignTo.type->kind == SpiteIR::TypeKind::ReferenceType || 
+			assignment.type->kind == SpiteIR::TypeKind::ReferenceType)
+			BuildReferenceAssignment(assignTo, assignment);
+		else 
+			BuildStore(GetCurrentLabel(), BuildRegisterOperand(assignTo), BuildRegisterOperand(assignment));
+	}
+
+	void BuildReferenceAssignment(const ScopeValue& to, const ScopeValue& from)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+
+		// value = ref - Dereference pointer into value
+		if (to.type->kind != SpiteIR::TypeKind::ReferenceType && 
+			from.type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			BuildDereference(label, BuildRegisterOperand(to), BuildRegisterOperand(from));
+		}
+		// ref = value - StorePtr
+		else if (to.type->kind == SpiteIR::TypeKind::ReferenceType &&
+			from.type->kind != SpiteIR::TypeKind::ReferenceType)
+		{
+			BuildStorePtr(label, BuildRegisterOperand(to), BuildRegisterOperand(from));
+		}
+		// ref = ref - dereference src onto stack and StorePtr
+		else
+		{
+			SpiteIR::Operand alloc = AllocateToOperand(BuildAllocate(from.type->reference.type));
+			BuildDereference(label, alloc, BuildRegisterOperand(from));
+			BuildStorePtr(label, BuildRegisterOperand(to), alloc);
+		}
 	}
 
 	SpiteIR::Label* BuildCondition(const eastl::string& thenName, const eastl::string& elseName, Stmnt* stmnt)
@@ -1046,17 +1078,6 @@ struct LowerDefinitions
 		return dst;
 	}
 
-	ScopeValue BuildValueTypeDereference(ScopeValue& value)
-	{
-		if (value.type->kind != SpiteIR::TypeKind::ReferenceType && 
-			!value.type->reference.type->byValue) return value;
-
-		SpiteIR::Type* valueType = value.type->reference.type;
-		SpiteIR::Instruction* alloc = BuildAllocate(valueType);
-
-
-	}
-
 	ScopeValue BuildBinaryOpValue(const ScopeValue& left, const ScopeValue& right, SpiteIR::BinaryOpKind op)
 	{
 		if (!left.type || !right.type) return InvalidScopeValue;
@@ -1165,6 +1186,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildTypeDereference(SpiteIR::Label* label, const ScopeValue& value)
 	{
+		Assert(value.type->kind == SpiteIR::TypeKind::ReferenceType);
 		SpiteIR::Type* valType = GetDereferencedType(value.type);
 		SpiteIR::Instruction* alloc = BuildAllocate(valType);
 		SpiteIR::Instruction* reference = BuildDereference(label, AllocateToOperand(alloc),
