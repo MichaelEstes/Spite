@@ -58,7 +58,6 @@ struct Expr
 		struct
 		{
 			Token* val;
-			UniqueType type;
 		} literalExpr;
 
 		struct
@@ -81,16 +80,12 @@ struct Expr
 		{
 			Expr* of;
 			Expr* index;
-			Token* lBrack;
-			Token* rBrack;
 		} indexExpr;
 
 		struct
 		{
 			Expr* function;
 			eastl::vector<Expr*>* params;
-			Token* lParen;
-			Token* rParen;
 			FunctionCallKind callKind;
 			Stmnt* functionStmnt;
 		} functionCallExpr;
@@ -100,33 +95,27 @@ struct Expr
 			Expr* left;
 			Expr* right;
 			Token* op;
-			UniqueType opType;
 		} binaryExpr;
 
 		struct
 		{
 			Expr* expr;
 			Token* op;
-			UniqueType opType;
 		} unaryExpr;
 
 		struct
 		{
 			Expr* expr;
-			Token* lParen;
-			Token* rParen;
 		} groupedExpr;
 
 		struct
 		{
-			Token* newIndex;
 			Expr* primaryExpr;
 			Expr* atExpr;
 		} newExpr;
 
 		struct
 		{
-			Token* fixed;
 			Expr* atExpr;
 		} fixedExpr;
 
@@ -207,7 +196,6 @@ struct Expr
 		typeID = ExprID::BinaryExpr;
 		this->start = start;
 		this->binaryExpr.op = op;
-		this->binaryExpr.opType = op->uniqueType;
 		this->binaryExpr.left = left;
 		this->binaryExpr.right = right;
 	}

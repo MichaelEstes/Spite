@@ -354,6 +354,12 @@ struct PackageChecker
 		case CompileDebugStmnt:
 			CheckFuncBody(node->compileDebugStmnt.body);
 			break;
+		case LogStmnt:
+			CheckExpr(node->logStmnt.expr);
+			break;
+		case AssertStmnt:
+			CheckExpr(node->assertStmnt.expr);
+			break;
 		default:
 			break;
 		}
@@ -473,15 +479,15 @@ struct PackageChecker
 			break;
 		}
 		case PointerType:
-			CheckType(type->pointerType.type, type->pointerType.ptr);
+			CheckType(type->pointerType.type, start);
 			break;
 		case ValueType:
-			CheckType(type->valueType.type, type->valueType.valueOp);
+			CheckType(type->valueType.type, start);
 			break;
 		case ArrayType:
 		{
-			CheckType(type->arrayType.type, type->arrayType.arr);
-			typeChecker.CheckArrayType(type);
+			CheckType(type->arrayType.type, start);
+			typeChecker.CheckArrayType(type, start);
 			break;
 		}
 		case TemplatedType:

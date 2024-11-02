@@ -74,8 +74,7 @@ bool operator==(const Type& left, const Type& right)
 		return *l.type == *r.type;
 	}
 	case ValueType:
-		// Should never get here, value types are just a signal to copy a type's memory into a new location
-		// Essentially the opposite of a reference type, since everything defaults to a reference
+		// Will never get here from checks above
 		return false;
 	case ArrayType:
 		return *left.arrayType.type == *right.arrayType.type;
@@ -133,8 +132,7 @@ bool operator==(const Expr& left, const Expr& right)
 		//Maybe this should return false?
 		return true;
 	case LiteralExpr:
-		return left.literalExpr.val->val == right.literalExpr.val->val &&
-			left.literalExpr.type == right.literalExpr.type;
+		return left.literalExpr.val->val == right.literalExpr.val->val;
 	case IdentifierExpr:
 		return left.identifierExpr.identifier->val == right.identifierExpr.identifier->val;
 	case PrimitiveExpr:
@@ -182,11 +180,11 @@ bool operator==(const Expr& left, const Expr& right)
 	case BinaryExpr:
 		return *left.binaryExpr.left == *right.binaryExpr.left &&
 			*left.binaryExpr.right == *right.binaryExpr.right &&
-			left.binaryExpr.opType == right.binaryExpr.opType;
+			left.binaryExpr.op->uniqueType == right.binaryExpr.op->uniqueType;
 		break;
 	case UnaryExpr:
 		return *left.unaryExpr.expr == *right.unaryExpr.expr &&
-			left.unaryExpr.opType == right.unaryExpr.opType;
+			left.unaryExpr.op->uniqueType == right.unaryExpr.op->uniqueType;
 	case GroupedExpr:
 		return *left.groupedExpr.expr == *right.groupedExpr.expr;
 	case TemplateExpr:
@@ -359,9 +357,9 @@ inline size_t HashExpr(const Expr* expr)
 	case ReferenceExpr:
 		return HashExpr(expr->referenceExpr.of) + UniqueType::AtOp;
 	case BinaryExpr:
-		return HashExpr(expr->binaryExpr.left) + HashExpr(expr->binaryExpr.right) + expr->binaryExpr.opType;
+		return HashExpr(expr->binaryExpr.left) + HashExpr(expr->binaryExpr.right) + expr->binaryExpr.op->uniqueType;
 	case UnaryExpr:
-		return HashExpr(expr->unaryExpr.expr) + expr->unaryExpr.opType;
+		return HashExpr(expr->unaryExpr.expr) + expr->unaryExpr.op->uniqueType;
 	case GroupedExpr:
 		return HashExpr(expr->groupedExpr.expr) + UniqueType::Lparen + UniqueType::Rparen;
 	case TemplateExpr:
@@ -637,17 +635,17 @@ eastl::string ToString(Expr* expr)
 		}
 
 		return ToString(expr->functionCallExpr.function) +
-			expr->functionCallExpr.lParen->ToString() +
+			"(" +
 			params +
-			expr->functionCallExpr.rParen->ToString();
+			")";
 	}
 	break;
 	case NewExpr:
-		return expr->newExpr.newIndex->ToString() + " " +
+		return "new " +
 			ToString(expr->newExpr.primaryExpr) +
 			(expr->newExpr.atExpr != nullptr ? " at " + ToString(expr->newExpr.atExpr) : "");
 	case FixedExpr:
-		return expr->fixedExpr.fixed->ToString() + " " +
+		return "fixed " +
 			ToString(expr->fixedExpr.atExpr);
 	case TypeLiteralExpr:
 	{
@@ -686,9 +684,7 @@ eastl::string ToString(Expr* expr)
 		return expr->unaryExpr.op->ToString() +
 			ToString(expr->unaryExpr.expr);
 	case GroupedExpr:
-		return expr->groupedExpr.lParen->ToString() +
-			ToString(expr->groupedExpr.expr) +
-			expr->groupedExpr.rParen->ToString();
+		return "(" + ToString(expr->groupedExpr.expr) + ")";
 	case TemplateExpr:
 	{
 		eastl::string templateArgs = "";

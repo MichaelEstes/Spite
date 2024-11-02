@@ -22,6 +22,7 @@ static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
 	{ "global", TokenType::Keyword, UniqueType::Global },
 	{ "extern", TokenType::Keyword, UniqueType::Extern },
 	{ "assert", TokenType::Keyword, UniqueType::AssertTok },
+	{ "log", TokenType::Keyword, UniqueType::LogTok },
 	{ "where", TokenType::Keyword, UniqueType::Where },
 	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },

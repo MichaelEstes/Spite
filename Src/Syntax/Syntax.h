@@ -841,10 +841,53 @@ struct Syntax
 			return ParseBreak();
 		case UniqueType::Return:
 			return ParseReturn();
+		case UniqueType::LogTok:
+			return ParseLogStmnt();
+		case UniqueType::AssertTok:
+			return ParseAssertStmnt();
+
 
 		default:
 			return ParseExprStmnt();
 		}
+	}
+
+	Stmnt* ParseLogStmnt()
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::LogStmnt);
+		Advance();
+
+		Expr* expr = ParseExpr();
+		if (expr->typeID != ExprID::InvalidExpr)
+		{
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->logStmnt.expr = expr;
+			node->end = curr;
+			return node;
+		}
+
+		AddError(node->start, "Syntax:ParseLogStmnt Invalid expression");
+		node->nodeID = StmntID::InvalidStmnt;
+		return node;
+	}
+
+	Stmnt* ParseAssertStmnt()
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::AssertStmnt);
+		Advance();
+
+		Expr* expr = ParseExpr();
+		if (expr->typeID != ExprID::InvalidExpr)
+		{
+			if (Expect(UniqueType::Semicolon)) Advance();
+			node->assertStmnt.expr = expr;
+			node->end = curr;
+			return node;
+		}
+
+		AddError(node->start, "Syntax:ParseAssertStmnt Invalid expression");
+		node->nodeID = StmntID::InvalidStmnt;
+		return node;
 	}
 
 	Stmnt* ParseIdentifierStmnt()
@@ -892,6 +935,7 @@ struct Syntax
 	Stmnt* ParseExprStmnt()
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::ExpressionStmnt);
+
 		Expr* expr = ParseExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
@@ -1401,7 +1445,6 @@ struct Syntax
 	Type* ParsePointerType()
 	{
 		Type* ptrType = CreateTypePtr(TypeID::PointerType);
-		ptrType->pointerType.ptr = curr;
 		Advance();
 		ptrType->pointerType.type = ParseType();
 		return ptrType;
@@ -1410,7 +1453,6 @@ struct Syntax
 	Type* ParseValueType()
 	{
 		Type* valueType = CreateTypePtr(TypeID::ValueType);
-		valueType->valueType.valueOp = curr;
 		Advance();
 		Type* type = ParseType();
 		if (type->typeID == TypeID::ValueType)
@@ -1422,7 +1464,6 @@ struct Syntax
 	Type* ParseArrayType()
 	{
 		Type* arrType = CreateTypePtr(TypeID::ArrayType);
-		arrType->arrayType.arr = curr;
 		Advance();
 		arrType->arrayType.type = ParseType();
 		arrType->arrayType.size = nullptr;
@@ -1432,7 +1473,6 @@ struct Syntax
 	Type* ParseSizedArrayType()
 	{
 		Type* arrType = CreateTypePtr(TypeID::ArrayType);
-		arrType->arrayType.arr = curr;
 		Advance();
 		arrType->arrayType.size = ParseExpr();
 		if (Expect(UniqueType::Rbrack, "Expected closing bracket for sized array"))
@@ -1595,7 +1635,6 @@ struct Syntax
 	{
 		Token* newIndex = curr;
 		Expr* newExpr = CreateExpr(newIndex, ExprID::NewExpr);
-		newExpr->newExpr.newIndex = newIndex;
 		Advance();
 		newExpr->newExpr.primaryExpr = ParsePrimaryExpr();
 		if (Expect(UniqueType::At))
@@ -1789,7 +1828,6 @@ struct Syntax
 	Expr* ParseLiteralExpr()
 	{
 		Expr* primLit = CreateExpr(curr, ExprID::LiteralExpr);
-		primLit->literalExpr.type = curr->uniqueType;
 		primLit->literalExpr.val = curr;
 		Advance();
 		return primLit;
@@ -1799,13 +1837,11 @@ struct Syntax
 	{
 		Token* lParen = curr;
 		Expr* groupExpr = CreateExpr(curr, ExprID::GroupedExpr);
-		groupExpr->groupedExpr.lParen = lParen;
 		Advance();
 		Expr* innerExpr = ParseExpr();
 		groupExpr->groupedExpr.expr = innerExpr;
 		if (Expect(UniqueType::Rparen, "Expected ')' after group expression"))
 		{
-			groupExpr->groupedExpr.rParen = curr;
 			Advance();
 		}
 		return groupExpr;
@@ -1814,7 +1850,6 @@ struct Syntax
 	Expr* ParseFixedExpr()
 	{
 		Expr* fixed = CreateExpr(curr, ExprID::FixedExpr);
-		fixed->fixedExpr.fixed = curr;
 		Advance();
 		fixed->fixedExpr.atExpr = ParsePrimaryExpr();
 		return fixed;
@@ -1932,12 +1967,10 @@ struct Syntax
 	{
 		Token* currToken = curr;
 		Expr* indexExpr = CreateExpr(currToken, ExprID::IndexExpr);
-		indexExpr->indexExpr.lBrack = currToken;
 
 		Advance();
 		if (curr->uniqueType == UniqueType::Rbrack)
 		{
-			indexExpr->indexExpr.rBrack = curr;
 			AddError(curr, "Unexpected empty index ('[]') in expression");
 			indexExpr->typeID = ExprID::InvalidExpr;
 			return indexExpr;
@@ -1948,7 +1981,6 @@ struct Syntax
 			indexExpr->indexExpr.index = expr;
 			if (Expect(UniqueType::Rbrack, "Expected ']' after index expression"))
 			{
-				indexExpr->indexExpr.rBrack = curr;
 				Advance();
 			}
 			else
@@ -1968,14 +2000,12 @@ struct Syntax
 		Token* lParen = curr;
 		funcCall->functionCallExpr.callKind = FunctionCallKind::UnknownCall;
 		funcCall->functionCallExpr.function = of;
-		funcCall->functionCallExpr.lParen = lParen;
 		funcCall->functionCallExpr.functionStmnt = nullptr;
 		Advance();
 		funcCall->functionCallExpr.params = ParseExprList();
 
 		if (Expect(UniqueType::Rparen, "Missing ')' at end of function call"))
 		{
-			funcCall->functionCallExpr.rParen = curr;
 			Advance();
 		}
 

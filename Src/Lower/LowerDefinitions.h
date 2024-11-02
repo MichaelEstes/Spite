@@ -219,11 +219,19 @@ struct LowerDefinitions
 
 	ScopeValue HandleAutoCast(const ScopeValue& from, SpiteIR::Type* to)
 	{
+		if (!from.type || !to) return InvalidScopeValue;
+
 		SpiteIR::Type* fromType = from.type;
 		if (to->kind == SpiteIR::TypeKind::ReferenceType &&
 			fromType->kind != SpiteIR::TypeKind::ReferenceType)
 		{
 			return HandleAutoCast(BuildTypeReference(GetCurrentLabel(), from), to);
+		}
+
+		if (from.type->kind == SpiteIR::TypeKind::ReferenceType &&
+			to->kind != SpiteIR::TypeKind::ReferenceType)
+		{
+			return HandleAutoCast(BuildTypeDereference(GetCurrentLabel(), from), to);
 		}
 
 		return from;
@@ -373,6 +381,11 @@ struct LowerDefinitions
 		case Block:
 			BuildBlock(stmnt);
 			break;
+		case LogStmnt:
+		{
+			ScopeValue value = BuildExpr(stmnt->logStmnt.expr, stmnt);
+			SpiteIR::Instruction* logInst = BuildLog(GetCurrentLabel(), BuildRegisterOperand(value));
+		}
 		default:
 			Logger::Error("LowerDefinitions:BuildStmnt Invalid Statement");
 			break;
@@ -402,10 +415,10 @@ struct LowerDefinitions
 
 		if (!assignTo.type || !assignment.type) return;
 
-		if (assignTo.type->kind == SpiteIR::TypeKind::ReferenceType || 
+		if (assignTo.type->kind == SpiteIR::TypeKind::ReferenceType ||
 			assignment.type->kind == SpiteIR::TypeKind::ReferenceType)
 			BuildReferenceAssignment(assignTo, assignment);
-		else 
+		else
 			BuildStore(GetCurrentLabel(), BuildRegisterOperand(assignTo), BuildRegisterOperand(assignment));
 	}
 
@@ -414,7 +427,7 @@ struct LowerDefinitions
 		SpiteIR::Label* label = GetCurrentLabel();
 
 		// value = ref - Dereference pointer into value
-		if (to.type->kind != SpiteIR::TypeKind::ReferenceType && 
+		if (to.type->kind != SpiteIR::TypeKind::ReferenceType &&
 			from.type->kind == SpiteIR::TypeKind::ReferenceType)
 		{
 			BuildDereference(label, BuildRegisterOperand(to), BuildRegisterOperand(from));
@@ -542,7 +555,7 @@ struct LowerDefinitions
 		if (for_.rangeFor)
 		{
 			SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forIncLabel, init));
-			SpiteIR::Instruction* storeInc = BuildStore(forIncLabel, BuildRegisterOperand(init), 
+			SpiteIR::Instruction* storeInc = BuildStore(forIncLabel, BuildRegisterOperand(init),
 				incremented);
 		}
 		else
@@ -692,21 +705,18 @@ struct LowerDefinitions
 		return { InvalidRegister, primType };
 	}
 
-	struct { size_t offset; SpiteIR::Member* member; }
-	FindStateMember(SpiteIR::State* state, StringView& ident)
+	SpiteIR::Member* FindStateMember(SpiteIR::State* state, StringView& ident)
 	{
-		size_t offset = 0;
 		eastl::vector<SpiteIR::Member*>& members = state->members;
 		for (SpiteIR::Member* member : members)
 		{
 			if (member->value->name == ident)
 			{
-				return { offset, member };
+				return member;
 			}
-			offset += member->value->type->size;
 		}
 
-		return { InvalidRegister, nullptr };
+		return nullptr;
 	}
 
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
@@ -724,9 +734,9 @@ struct LowerDefinitions
 		if (value.type->kind == SpiteIR::TypeKind::StateType)
 		{
 			SpiteIR::State* state = value.type->stateType.state;
-			auto offsetValue = FindStateMember(state, ident);
-			Assert(offsetValue.member);
-			return { value.reg + offsetValue.offset, offsetValue.member->value->type };
+			SpiteIR::Member* member = FindStateMember(state, ident);
+			Assert(member);
+			return { value.reg + member->offset, member->value->type };
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
 			value.type->kind == SpiteIR::TypeKind::ReferenceType)
@@ -735,13 +745,13 @@ struct LowerDefinitions
 			if (derefed->kind == SpiteIR::TypeKind::StateType)
 			{
 				SpiteIR::State* state = derefed->stateType.state;
-				auto offsetValue = FindStateMember(state, ident);
-				Assert(offsetValue.member);
-				SpiteIR::Type* referencedMember = MakeReferenceType(offsetValue.member->value->type,
+				SpiteIR::Member* member = FindStateMember(state, ident);
+				Assert(member);
+				SpiteIR::Type* referencedMember = MakeReferenceType(member->value->type,
 					context.ir);
 				SpiteIR::Instruction* alloc = BuildAllocate(referencedMember);
 				ScopeValue dstValue = { alloc->allocate.result, referencedMember };
-				SpiteIR::Operand offset = BuildRegisterOperand(BuildLiteralInt(offsetValue.offset));
+				SpiteIR::Operand offset = BuildRegisterOperand(BuildLiteralInt(member->offset));
 				SpiteIR::Operand src = BuildRegisterOperand(value);
 				SpiteIR::Operand dst = BuildRegisterOperand(dstValue);
 				SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(GetCurrentLabel(), dst, src, offset);
@@ -799,17 +809,15 @@ struct LowerDefinitions
 				break;
 			}
 
-			SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ dst, type }), 
+			SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ dst, type }),
 				defaultOp);
 			break;
 		}
 		case SpiteIR::TypeKind::StateType:
 		{
-			size_t offset = 0;
 			for (SpiteIR::Member* memberType : type->stateType.state->members)
 			{
-				BuildDefaultValue(memberType->value->type, dst + offset, label);
-				offset += memberType->value->type->size;
+				BuildDefaultValue(memberType->value->type, dst + memberType->offset, label);
 			}
 			break;
 		}
@@ -847,7 +855,7 @@ struct LowerDefinitions
 		literalOp.kind = SpiteIR::OperandKind::Literal;
 		SpiteIR::Literal& literal = literalOp.literal;
 
-		switch (lit.type)
+		switch (lit.val->uniqueType)
 		{
 		case UniqueType::IntLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Int;
@@ -928,7 +936,7 @@ struct LowerDefinitions
 		literalOp.type = irType;
 
 		SpiteIR::Label* label = GetCurrentLabel();
-		SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ reg, irType }), 
+		SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ reg, irType }),
 			literalOp);
 	}
 
@@ -1003,79 +1011,71 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	bool arrCompleted = true;
-	ScopeValue BuildForwardIndexExpr(Expr* expr, Stmnt* stmnt)
-	{
-		bool isCompleted = arrCompleted;
-		arrCompleted = false;
-
-		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
-
-		ScopeValue ret = InvalidScopeValue;
-		if (funcContext.scopeUtils.IsConstantIntExpr(expr->indexExpr.index))
-		{
-			size_t count = funcContext.scopeUtils.EvaluateConstantIntExpr(expr->indexExpr.index);
-			SpiteIR::Type* fixedArray = BuildFixedArray(context.ir, count, toIndex.type);
-			ret.type = fixedArray;
-		}
-		else
-		{
-			ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
-		}
-
-		// Only allocate the array on the first entrance for multidimensional arrays
-		if (isCompleted)
-		{
-			arrCompleted = true;
-			SpiteIR::Instruction* alloc = BuildAllocate(ret.type);
-			ret.reg = alloc->allocate.result;
-
-			if (ret.type->kind == SpiteIR::TypeKind::FixedArrayType)
-			{
-
-			}
-
-
-			return ret;
-		}
-		else return ret;
-
-		return InvalidScopeValue;
-	}
-
 	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
 		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
 
-		ScopeValue dst = InvalidScopeValue;
-
 		switch (toIndex.type->kind)
 		{
+		case SpiteIR::TypeKind::ReferenceType:
+		{
+			SpiteIR::Type* derefedType = toIndex.type->reference.type;
+			switch (derefedType->kind)
+			{
+			case SpiteIR::TypeKind::StateType:
+				return BuildStateOperatorCall(toIndex, UniqueType::Array, &index);
+			case SpiteIR::TypeKind::DynamicArrayType:
+			case SpiteIR::TypeKind::PointerType:
+			case SpiteIR::TypeKind::FixedArrayType:
+				break;
+			case SpiteIR::TypeKind::PrimitiveType:
+			case SpiteIR::TypeKind::StructureType:
+			case SpiteIR::TypeKind::FunctionType:
+				Assert(false);
+				break;
+			default:
+				break;
+			}
+
+			break;
+		}
 		case SpiteIR::TypeKind::StateType:
+			return BuildStateOperatorCall(toIndex, UniqueType::Array, &index);
+			break;
+		case SpiteIR::TypeKind::DynamicArrayType:
 			break;
 		case SpiteIR::TypeKind::PointerType:
-		case SpiteIR::TypeKind::DynamicArrayType:
+			break;
 		case SpiteIR::TypeKind::FixedArrayType:
 		{
 			SpiteIR::Type* type = GetDereferencedType(toIndex.type);
-			SpiteIR::Instruction* alloc = BuildAllocate(type);
-			dst = { alloc->allocate.result, type };
-			SpiteIR::Operand src = BuildRegisterOperand(toIndex);
-			SpiteIR::Operand offset = BuildRegisterOperand(index);
-			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), src, offset);
+			if (type->byValue)
+			{
+				SpiteIR::Instruction* alloc = BuildAllocate(type);
+				ScopeValue dst = { alloc->allocate.result, type };
+				SpiteIR::Operand src = BuildRegisterOperand(toIndex);
+				SpiteIR::Operand offset = BuildRegisterOperand(index);
+				SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), src, offset);
+				return dst;
+			}
+			else
+			{
+
+			}
 			break;
 		}
 		case SpiteIR::TypeKind::PrimitiveType:
 		case SpiteIR::TypeKind::StructureType:
 		case SpiteIR::TypeKind::FunctionType:
+			Assert(false);
 			break;
 		default:
 			break;
 		}
 
-		return dst;
+		return InvalidScopeValue;
 	}
 
 	ScopeValue BuildBinaryOpValue(const ScopeValue& left, const ScopeValue& right, SpiteIR::BinaryOpKind op)
@@ -1109,7 +1109,7 @@ struct LowerDefinitions
 	{
 		Expr* left = expr->binaryExpr.left;
 		Expr* right = expr->binaryExpr.right;
-		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.opType);
+		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.op->uniqueType);
 
 		ScopeValue leftVal = BuildExpr(left, stmnt);
 		ScopeValue rightVal = BuildExpr(right, stmnt);
@@ -1194,6 +1194,60 @@ struct LowerDefinitions
 		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
+	SpiteIR::Function* FindStateOperator(SpiteIR::State* state, UniqueType op, SpiteIR::Type* rhs = nullptr)
+	{
+		eastl::string opStr = OperatorToString(op);
+		eastl::vector<SpiteIR::Function*>& stateOperators = state->operators;
+		SpiteIR::Function* opFunc = nullptr;
+		for (SpiteIR::Function* func : stateOperators)
+		{
+			if (func->name.rfind(opStr, 0) == 0)
+			{
+				if (rhs)
+				{
+					eastl::vector<SpiteIR::Argument*>& args = func->arguments;
+					SpiteIR::Type* argType = args.at(1)->value->type;
+					int match = IsIRTypeAssignable(argType, rhs);
+					if (match == 2 && !opFunc) opFunc = func;
+					else if (match == 1)
+					{
+						opFunc = func;
+						break;
+					}
+				}
+				else
+				{
+					opFunc = func;
+					break;
+				}
+			}
+		}
+
+		Assert(opFunc);
+		return opFunc;
+	}
+
+	ScopeValue BuildStateOperatorCall(const ScopeValue& of, UniqueType op, ScopeValue* rhs = nullptr)
+	{
+		SpiteIR::State* state = of.type->kind == SpiteIR::TypeKind::ReferenceType ?
+			of.type->reference.type->stateType.state : of.type->stateType.state;
+
+		SpiteIR::Type* rhsType = rhs ? rhs->type : nullptr;
+		SpiteIR::Function* operatorFunc = FindStateOperator(state, op, rhsType);
+
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+
+		if (rhs)
+		{
+			params->push_back(BuildRegisterOperand(HandleAutoCast(*rhs, 
+				operatorFunc->arguments.at(1)->value->type)));
+		}
+
+		SpiteIR::Instruction* alloc = BuildAllocate(operatorFunc->returnType);
+		SpiteIR::Instruction* call = BuildCall(operatorFunc, alloc->allocate.result, params, GetCurrentLabel());
+		return { alloc->allocate.result, alloc->allocate.type };
+	}
+
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
@@ -1228,6 +1282,7 @@ struct LowerDefinitions
 
 		if (!irFunction) return { InvalidRegister, nullptr };
 
+		SpiteIR::Instruction* alloc = nullptr;
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		if (funcCall.callKind == MemberMethodCall)
 		{
@@ -1262,8 +1317,8 @@ struct LowerDefinitions
 			type->size = irState->size;
 			type->stateType.state = irState;
 
-			SpiteIR::Instruction* alloc = BuildAllocate(type);
-			SpiteIR::Operand ref = BuildRegisterOperand(BuildTypeReference(label, 
+			alloc = BuildAllocate(type);
+			SpiteIR::Operand ref = BuildRegisterOperand(BuildTypeReference(label,
 				{ alloc->allocate.result, alloc->allocate.type }));
 			params->push_back(ref);
 		}
@@ -1278,9 +1333,9 @@ struct LowerDefinitions
 			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 		}
 
-		SpiteIR::Instruction* alloc = BuildAllocate(irFunction->returnType);
+		if (!alloc) alloc = BuildAllocate(irFunction->returnType);
 		SpiteIR::Instruction* call = BuildCall(irFunction, alloc->allocate.result, params, label);
-		return { call->call.result, irFunction->returnType };
+		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
 	Stmnt* FindFunctionStmnt(Expr* expr)
@@ -1416,7 +1471,7 @@ struct LowerDefinitions
 		return BuildAllocate(irType);
 	}
 
-	SpiteIR::Instruction* BuildStore(SpiteIR::Label* label, const SpiteIR::Operand& dst, 
+	SpiteIR::Instruction* BuildStore(SpiteIR::Label* label, const SpiteIR::Operand& dst,
 		const SpiteIR::Operand& src)
 	{
 		SpiteIR::Instruction* store = CreateInstruction(label);
@@ -1534,5 +1589,13 @@ struct LowerDefinitions
 		ret->kind = SpiteIR::InstructionKind::Return;
 		ret->return_.operand = operand;
 		return ret;
+	}
+
+	SpiteIR::Instruction* BuildLog(SpiteIR::Label* label, const SpiteIR::Operand& operand)
+	{
+		SpiteIR::Instruction* log = CreateInstruction(label);
+		log->kind = SpiteIR::InstructionKind::Log;
+		log->log.operand = operand;
+		return log;
 	}
 };

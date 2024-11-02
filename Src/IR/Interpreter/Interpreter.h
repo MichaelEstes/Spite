@@ -13,8 +13,6 @@ struct Interpreter
 	char* stackFrameStart;
 	char* stackTop;
 
-	int branchCount = 0;
-
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
@@ -162,6 +160,9 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::UnOp:
 			break;
+		case SpiteIR::InstructionKind::Log:
+			InterpretLog(inst);
+			break;
 		default:
 			break;
 		}
@@ -194,8 +195,6 @@ struct Interpreter
 			label = branchInst.branch.true_;
 		else
 			label = branchInst.branch.false_;
-
-		branchCount += 1;
 	}
 
 	void InterpretAllocate(SpiteIR::Instruction& allocateInst)
@@ -368,7 +367,7 @@ struct Interpreter
 			}
 			else
 			{
-				
+
 			}
 			return;
 		}
@@ -666,5 +665,122 @@ struct Interpreter
 	void InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
 
+	}
+
+	void InterpretLog(SpiteIR::Instruction& logInst)
+	{
+		void* stackValue = (stackFrameStart + logInst.log.operand.reg);
+		LogValue(stackValue, logInst.log.operand.type);
+	}
+
+	void Print(const eastl::string& output, bool newline = true)
+	{
+		Logger::Log(output, newline);
+	}
+
+	void LogValue(void* start, SpiteIR::Type* type)
+	{
+		switch (type->kind)
+		{
+		case SpiteIR::TypeKind::PrimitiveType:
+		{
+			switch (type->primitive.kind)
+			{
+			case SpiteIR::PrimitiveKind::Bool:
+				if (*(bool*)start) Print("true");
+				else Print("false");
+				return;
+			case SpiteIR::PrimitiveKind::Byte:
+			case SpiteIR::PrimitiveKind::Int:
+			{
+				if (type->primitive.isSigned)
+				{
+					switch (type->size)
+					{
+					case 1:
+						Print(eastl::to_string(*(char*)start));
+						break;
+					case 2:
+						Print(eastl::to_string(*(int16_t*)start));
+						break;
+					case 4:
+						Print(eastl::to_string(*(int32_t*)start));
+						break;
+					case 8:
+						Print(eastl::to_string(*(int64_t*)start));
+						break;
+					case 16:
+						Print(eastl::to_string(*(intmax_t*)start));
+						break;
+					default:
+						break;
+					}
+				}
+				else
+				{
+					switch (type->size)
+					{
+					case 1:
+						Print(eastl::to_string(*(uint8_t*)start));
+						break;
+					case 2:
+						Print(eastl::to_string(*(uint16_t*)start));
+						break;
+					case 4:
+						Print(eastl::to_string(*(uint32_t*)start));
+						break;
+					case 8:
+						Print(eastl::to_string(*(uint64_t*)start));
+						break;
+					case 16:
+						Print(eastl::to_string(*(uintmax_t*)start));
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			return;
+			case SpiteIR::PrimitiveKind::Float:
+			{
+				switch (type->size)
+				{
+				case 4:
+					Print(eastl::to_string(*(float*)start));
+					break;
+				case 8:
+					Print(eastl::to_string(*(double*)start));
+					break;
+				default:
+					break;
+				}
+			}
+			case SpiteIR::PrimitiveKind::String:
+				return;
+			default:
+				break;
+			}
+		}
+		case SpiteIR::TypeKind::StateType:
+		{
+			Print(type->stateType.state->name);
+			for (SpiteIR::Member* member : type->stateType.state->members)
+			{
+				eastl::string memberStr = member->value->name + ": ";
+				void* memberStart = ((char*)start) + member->offset;
+				Print(memberStr, false);
+				LogValue(memberStart, member->value->type);
+			}
+			return;
+		}
+		case SpiteIR::TypeKind::StructureType:
+		case SpiteIR::TypeKind::PointerType:
+		case SpiteIR::TypeKind::ReferenceType:
+		case SpiteIR::TypeKind::DynamicArrayType:
+		case SpiteIR::TypeKind::FixedArrayType:
+		case SpiteIR::TypeKind::FunctionType:
+		default:
+			break;
+		}
 	}
 };

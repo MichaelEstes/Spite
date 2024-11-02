@@ -6,10 +6,114 @@
 extern Config config;
 
 eastl::string BuildExprString(Expr* expr);
+int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right);
 
-inline eastl::string OperatorToString(Token* op)
+eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
-	switch (op->uniqueType)
+	eastl::vector<SpiteIR::Type*> types;
+	for (SpiteIR::Member* member : state->members)
+	{
+		types.push_back(member->value->type);
+	}
+
+	return types;
+}
+
+bool IRTypesAssignable(const eastl::vector<SpiteIR::Type*>& left, const eastl::vector<SpiteIR::Type*>& right)
+{
+	if (left.size() != right.size()) return false;
+
+	for (size_t i = 0; i < left.size(); i++)
+	{
+		if (IsIRTypeAssignable(left.at(i), right.at(i)) == 0) return false;
+	}
+
+	return true;
+}
+
+bool IsStructuredType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::StateType || type->kind == SpiteIR::TypeKind::StructureType;
+}
+
+eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
+{
+	if (type->kind == SpiteIR::TypeKind::StateType) return GetStateTypes(type->stateType.state);
+	else return *type->structureType.types;
+}
+
+int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
+{
+	if (left->kind == SpiteIR::TypeKind::ReferenceType) return IsIRTypeAssignable(left->reference.type, right);
+	if (right->kind == SpiteIR::TypeKind::ReferenceType) return IsIRTypeAssignable(left, right->reference.type);
+
+	if (left->kind == SpiteIR::TypeKind::PrimitiveType &&
+		right->kind == SpiteIR::TypeKind::PrimitiveType)
+	{
+		if (left->primitive.isSigned == right->primitive.isSigned &&
+			left->primitive.kind == right->primitive.kind &&
+			left->size == right->size) return 1;
+
+		//Both types must be strings to be assignable, which would have been caught in the above check
+		if (left->primitive.kind == SpiteIR::PrimitiveKind::String ||
+			right->primitive.kind == SpiteIR::PrimitiveKind::String)
+			return 0;
+
+		return 2;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::StateType &&
+		right->kind == SpiteIR::TypeKind::StateType)
+	{
+		if (left->stateType.state == right->stateType.state) return 1;
+	}
+
+	if (IsStructuredType(left) && IsStructuredType(right))
+	{
+		if (IRTypesAssignable(GetStructuredTypes(left), GetStructuredTypes(right)))
+			return 1;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::DynamicArrayType &&
+		right->kind == SpiteIR::TypeKind::DynamicArrayType)
+	{
+		if (IsIRTypeAssignable(left->dynamicArray.type, right->dynamicArray.type) == 1) return 1;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::FixedArrayType &&
+		right->kind == SpiteIR::TypeKind::FixedArrayType)
+	{
+		if (left->fixedArray.count == right->fixedArray.count &&
+			IsIRTypeAssignable(left->fixedArray.type, right->fixedArray.type) == 1) return 1;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::PointerType &&
+		right->kind == SpiteIR::TypeKind::PointerType)
+	{
+		if (IsIRTypeAssignable(left->pointer.type, right->pointer.type) == 1) return 1;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::FunctionType &&
+		right->kind == SpiteIR::TypeKind::FunctionType)
+	{
+		if (IsIRTypeAssignable(left->function.returnType, right->function.returnType) != 1) return 0;
+		if (left->function.params->size() != right->function.params->size()) return 0;
+		for (size_t i = 0; i < left->function.params->size(); i++)
+		{
+			if (IsIRTypeAssignable(left->function.params->at(i), right->function.params->at(i)) != 1)
+				return 0;
+		}
+
+		return 1;
+	}
+
+
+	return 0;
+}
+
+inline eastl::string OperatorToString(UniqueType op)
+{
+	switch (op)
 	{
 	case UniqueType::Add:
 		return "add";
@@ -91,7 +195,7 @@ inline eastl::string OperatorToString(Token* op)
 		break;
 	}
 
-	AddError(op, "LowerUtils:OperatorToString Invalid operator");
+	AddError("LowerUtils:OperatorToString Invalid operator");
 	return "";
 }
 
@@ -160,7 +264,6 @@ SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 	refType->reference.type = type;
 	return refType;
 }
-
 
 SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
 {
@@ -260,9 +363,12 @@ eastl::string BuildTypeString(Type* type)
 	case PointerType:
 		return "ptr_" + BuildTypeString(type->pointerType.type);
 	case ValueType:
-		return "val_" + BuildTypeString(type->valueType.type);
+		return BuildTypeString(type->valueType.type);
 	case ArrayType:
 		return "arr_" + BuildTypeString(type->arrayType.type);
+	case FixedArrayType:
+		return "arr_" + eastl::to_string(type->fixedArrayType.size) + "_" +
+			BuildTypeString(type->fixedArrayType.type);
 	case TemplatedType:
 		return BuildTypeString(type->templatedType.type) +
 			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
@@ -360,10 +466,10 @@ eastl::string BuildExprString(Expr* expr)
 	case ReferenceExpr:
 		return "ref_" + BuildExprString(expr->referenceExpr.of);
 	case BinaryExpr:
-		return BuildExprString(expr->binaryExpr.left) + '_' + OperatorToString(expr->binaryExpr.op) + '_' +
-			BuildExprString(expr->binaryExpr.right);
+		return BuildExprString(expr->binaryExpr.left) + '_' + OperatorToString(expr->binaryExpr.op->uniqueType)
+			+ '_' + BuildExprString(expr->binaryExpr.right);
 	case UnaryExpr:
-		return OperatorToString(expr->unaryExpr.op) + '_' + BuildExprString(expr->unaryExpr.expr);
+		return OperatorToString(expr->unaryExpr.op->uniqueType) + '_' + BuildExprString(expr->unaryExpr.expr);
 	case GroupedExpr:
 		return "group_" + BuildExprString(expr->groupedExpr.expr);
 	case TemplateExpr:
@@ -455,7 +561,7 @@ inline eastl::string BuildTemplatedFunctionName(Stmnt* func, eastl::vector<Expr*
 
 inline eastl::string BuildMethodName(Stmnt* method)
 {
-	return  _BuildStateName(method->package, method->method.stateName) + '_' + 
+	return  _BuildStateName(method->package, method->method.stateName) + '_' +
 		method->method.name->val.ToString();
 }
 
@@ -472,16 +578,16 @@ inline eastl::string BuildDefaultConstructorName(Stmnt* state, eastl::vector<Exp
 inline eastl::string BuildConstructorName(Stmnt* con,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return "con_" + _BuildStateName(con->package, con->constructor.stateName) + '_' + 
+	return "con_" + _BuildStateName(con->package, con->constructor.stateName) + '_' +
 		BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
 
-inline eastl::string BuildOperatorMethodName(SpiteIR::State* state, Stmnt* op,
+inline eastl::string BuildOperatorMethodName(Stmnt* op,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return OperatorToString(op->stateOperator.op) + 
-		_BuildStateName(op->package, op->stateOperator.stateName) + '_' + 
-		BuildConOpParamsTypeString(op->stateOperator.decl);
+	return OperatorToString(op->stateOperator.op->uniqueType) +
+		_BuildStateName(op->package, op->stateOperator.stateName) + '_' +
+		BuildConOpParamsTypeString(op->stateOperator.decl, generics, templates);
 }
 
 inline eastl::string BuildDestructorName(SpiteIR::State* state)

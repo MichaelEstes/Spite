@@ -84,7 +84,7 @@ struct TypeChecker
 		*type = *inferredType;
 	}
 
-	void CheckArrayType(Type* type)
+	void CheckArrayType(Type* type, Token* tok)
 	{
 		auto& arr = type->arrayType;
 		if (arr.size)
@@ -101,7 +101,7 @@ struct TypeChecker
 				}
 				else
 				{
-					AddError(arr.arr, "TypeChecker:CheckArrayType Array size expression must evaluate to a positive number");
+					AddError(tok, "TypeChecker:CheckArrayType Array size expression must evaluate to a positive number");
 				}
 			}
 		}

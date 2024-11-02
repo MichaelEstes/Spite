@@ -45,6 +45,7 @@ enum UniqueType
 	Package,
 	State,
 	AssertTok,
+	LogTok,
 	Extern,
 	Global,
 	Where,

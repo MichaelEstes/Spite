@@ -145,7 +145,8 @@ namespace SpiteIR
 		Cast,
 		Switch,
 		BinOp,
-		UnOp
+		UnOp,
+		Log
 	};
 
 	enum class CompareKind
@@ -285,10 +286,14 @@ namespace SpiteIR
 		size_t result;
 	};
 
+	struct Log
+	{
+		Operand operand;
+	};
+
 	struct InstructionMetadata
 	{
 		InstructionKind kind = InstructionKind::None;
-
 	};
 
 	struct Instruction
@@ -310,6 +315,7 @@ namespace SpiteIR
 			Switch switch_;
 			BinaryOp binOp;
 			UnaryOp unOp;
+			Log log;
 		};
 	};
 
@@ -420,6 +426,7 @@ namespace SpiteIR
 	{
 		State* parent;
 		Value* value;
+		size_t offset;
 	};
 
 	enum StateFlags: int

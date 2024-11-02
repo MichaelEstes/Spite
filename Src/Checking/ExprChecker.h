@@ -13,7 +13,7 @@ struct ExprChecker
 	CheckerUtils utils;
 	DeferredContainer& deferred;
 
-	ExprChecker(CheckerContext& context, DeferredContainer& deferred): 
+	ExprChecker(CheckerContext& context, DeferredContainer& deferred) :
 		context(context), utils(context), deferred(deferred) {}
 
 	bool TemplateIsForwardedGeneric(eastl::vector<Expr*>* templates)
@@ -164,7 +164,7 @@ struct ExprChecker
 
 				for (Expr* param : *params) methodParams.push_back(param);
 
-				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters, 
+				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters,
 					&methodParams))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");

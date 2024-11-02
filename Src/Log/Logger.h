@@ -80,6 +80,12 @@ public:
 		std::cout << "INFO: " << msg << '\n';
 	}
 
+	static void Log(const eastl::string& msg, bool newLine = true)
+	{
+		std::cout << msg;
+		if (newLine) std::cout << '\n';
+	}
+
 	static void AddMessage(LogLevel logLevel, Position pos, size_t tokenIndex, const eastl::string& msg)
 	{
 		switch (logLevel)
@@ -116,7 +122,7 @@ public:
 	}
 
 	inline static eastl::vector<LogMessage> errors = eastl::vector<LogMessage>();
-	
+
 	inline static size_t errorRollback = 0;
 	static void SetErrorRollback()
 	{

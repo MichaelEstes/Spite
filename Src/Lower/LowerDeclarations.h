@@ -96,6 +96,7 @@ struct LowerDeclarations
 		size_t size = 0;
 		for (SpiteIR::Member* member : state->members)
 		{
+			member->offset = size;
 			size += GetSizeForType(member->value->type, outer);
 		}
 
@@ -242,15 +243,6 @@ struct LowerDeclarations
 		}
 	}
 
-	SpiteIR::Type* BuildConstructorReturnType(SpiteIR::State* state)
-	{
-		SpiteIR::Type* type = context.ir->AllocateType();
-		type->kind = SpiteIR::TypeKind::StateType;
-		type->stateType.state = state;
-		if (!state->size) context.toResolveStateSize.push_back(type);
-		return MakeReferenceType(type, context.ir);
-	}
-
 	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, SpiteIR::IR* ir)
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();
@@ -275,7 +267,7 @@ struct LowerDeclarations
 		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
 		con->name = BuildDefaultConstructorName(stateStmnt, templates);
-		con->returnType = BuildConstructorReturnType(state);
+		con->returnType = CreateVoidType(context.ir);
 
 		BuildMethodThisArgument(state, con, context.ir);
 		state->constructors.push_back(con);
@@ -290,7 +282,7 @@ struct LowerDeclarations
 		SpiteIR::Function* con = context.ir->AllocateFunction();
 		con->parent = package;
 		con->name = BuildConstructorName(conStmnt, generics, templates);
-		con->returnType = BuildConstructorReturnType(state);
+		con->returnType = CreateVoidType(context.ir);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, con, context.ir);
@@ -311,7 +303,7 @@ struct LowerDeclarations
 	{
 		SpiteIR::Function* op = context.ir->AllocateFunction();
 		op->parent = package;
-		op->name = BuildOperatorMethodName(state, opStmnt, generics, templates);
+		op->name = BuildOperatorMethodName(opStmnt, generics, templates);
 		op->returnType = TypeToIRType(context.ir, opStmnt->stateOperator.returnType, this,
 			generics, templates);
 

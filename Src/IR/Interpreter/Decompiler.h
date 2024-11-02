@@ -245,6 +245,9 @@ struct Decompiler
 			break;
 		case SpiteIR::InstructionKind::UnOp:
 			break;
+		case SpiteIR::InstructionKind::Log:
+			DecompileLog(inst);
+			break;
 		default:
 			break;
 		}
@@ -416,5 +419,10 @@ struct Decompiler
 	void DecompileUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
 
+	}
+
+	void DecompileLog(SpiteIR::Instruction& logInst)
+	{
+		Write("log " + WriteOperand(logInst.log.operand));
 	}
 };

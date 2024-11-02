@@ -41,8 +41,8 @@ struct ScopeUtils
 		switch (expr->typeID)
 		{
 		case LiteralExpr:
-			return expr->literalExpr.type == UniqueType::IntLiteral ||
-					expr->literalExpr.type == UniqueType::HexLiteral;
+			return expr->literalExpr.val->uniqueType == UniqueType::IntLiteral ||
+					expr->literalExpr.val->uniqueType == UniqueType::HexLiteral;
 		// Need to add reassignment check
 		case IdentifierExpr:
 		{
@@ -78,11 +78,11 @@ struct ScopeUtils
 		case LiteralExpr:
 		{
 			StringView& str = expr->literalExpr.val->val;
-			if (expr->literalExpr.type == UniqueType::IntLiteral)
+			if (expr->literalExpr.val->uniqueType == UniqueType::IntLiteral)
 			{
 				return IntLiteralStringToInt(str);
 			}
-			else if (expr->literalExpr.type == UniqueType::HexLiteral)
+			else if (expr->literalExpr.val->uniqueType == UniqueType::HexLiteral)
 			{
 				return std::stoi(str.ToString().c_str());
 			}
@@ -101,7 +101,7 @@ struct ScopeUtils
 		{
 			int left = EvaluateConstantIntExpr(expr->binaryExpr.left);
 			int right = EvaluateConstantIntExpr(expr->binaryExpr.right);
-			switch (expr->binaryExpr.opType)
+			switch (expr->binaryExpr.op->uniqueType)
 			{
 			case UniqueType::Add:
 				return left + right;
@@ -150,7 +150,7 @@ struct ScopeUtils
 		case UnaryExpr:
 		{
 			int value = EvaluateConstantIntExpr(expr->unaryExpr.expr);
-			switch (expr->unaryExpr.opType)
+			switch (expr->unaryExpr.op->uniqueType)
 			{
 			case UniqueType::Subtract:
 				return -value;

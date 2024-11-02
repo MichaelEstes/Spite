@@ -58,19 +58,16 @@ struct Type
 
 		struct
 		{
-			Token* ptr;
 			Type* type;
 		} pointerType;
 
 		struct
 		{
-			Token* valueOp;
 			Type* type;
 		} valueType;
 
 		struct
 		{
-			Token* arr;
 			Type* type;
 			Expr* size;
 		} arrayType;

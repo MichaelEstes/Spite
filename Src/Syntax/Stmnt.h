@@ -44,6 +44,8 @@ enum StmntID
 	CompileStmnt,
 	CompileDebugStmnt,
 	Block,
+	LogStmnt,
+	AssertStmnt,
 };
 
 enum InsetID
@@ -292,6 +294,16 @@ struct Stmnt
 		{
 			eastl::vector<Stmnt*>* inner;
 		} block;
+
+		struct
+		{
+			Expr* expr;
+		} logStmnt;
+
+		struct
+		{
+			Expr* expr;
+		} assertStmnt;
 	};
 
 	Stmnt()
@@ -419,6 +431,12 @@ struct Stmnt
 			break;
 		case Block:
 			block = copy.block;
+			break;
+		case LogStmnt:
+			logStmnt = copy.logStmnt;
+			break;
+		case AssertStmnt:
+			assertStmnt = copy.assertStmnt;
 			break;
 		default:
 			break;
