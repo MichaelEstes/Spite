@@ -80,8 +80,9 @@ public:
 		std::cout << "INFO: " << msg << '\n';
 	}
 
-	static void Log(const eastl::string& msg, bool newLine = true)
+	static void Log(const eastl::string& msg, bool newLine = true, int depth = 0)
 	{
+		for (int i = 0; i < depth; i++) std::cout << '\t';
 		std::cout << msg;
 		if (newLine) std::cout << '\n';
 	}

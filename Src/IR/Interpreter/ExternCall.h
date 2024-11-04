@@ -150,7 +150,7 @@ void CopyValue(size_t size, const void* ptr, char* dst)
 	}
 }
 
-void* CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
+void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 {
 	switch (type->kind)
 	{
@@ -227,7 +227,11 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 	case SpiteIR::TypeKind::StructureType:
 		break;
 	case SpiteIR::TypeKind::PointerType:
+	{
+		void* ret = dcCallPointer(dynCallVM, func);
+		CopyValue(type->size, &ret, dst);
 		break;
+	}
 	case SpiteIR::TypeKind::DynamicArrayType:
 		break;
 	case SpiteIR::TypeKind::FixedArrayType:
@@ -238,7 +242,6 @@ void* CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 		break;
 	}
 
-	return nullptr;
 }
 
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst)

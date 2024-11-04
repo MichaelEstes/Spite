@@ -331,11 +331,14 @@ struct Decompiler
 		eastl::string callStr = "r" + eastl::to_string(callInst.call.result) + " = call " + 
 			WriteType(callInst.call.function->returnType) + " " + callInst.call.function->name + "(";
 
-		for (SpiteIR::Operand& param : *callInst.call.params)
+		if (callInst.call.params->size())
 		{
-			callStr += WriteOperand(param);
-		}
-		callStr += ")";
+			for (SpiteIR::Operand& param : *callInst.call.params)
+			{
+				callStr += WriteOperand(param) + ",";
+			}
+			callStr.back() = ')';
+		} else callStr += ")";
 
 		Write(callStr);
 

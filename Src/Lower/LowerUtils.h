@@ -245,6 +245,21 @@ SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
 	return type;
 }
 
+SpiteIR::Type* CreateUnsignedIntType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	*type = {
+		(size_t)config.targetArchBitWidth,
+		SpiteIR::TypeKind::PrimitiveType,
+		true,
+		{
+			false,
+			SpiteIR::PrimitiveKind::Int
+		}
+	};
+	return type;
+}
+
 SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
@@ -777,6 +792,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::FunctionType;
 		irType->size = config.targetArchBitWidth;
+		irType->byValue = true;
 		irType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, lower, generics, templates);
 		for (Type* param : *type->functionType.paramTypes)
@@ -788,10 +804,10 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	case AnyType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::PointerType;
+		irType->kind = SpiteIR::TypeKind::ReferenceType;
 		irType->size = config.targetArchBitWidth;
 		irType->byValue = true;
-		irType->pointer.type = nullptr;
+		irType->pointer.type = CreateVoidType(ir);
 		return irType;
 	}
 	default:

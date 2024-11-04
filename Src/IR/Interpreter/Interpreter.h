@@ -204,7 +204,7 @@ struct Interpreter
 
 	void InterpretLoad(SpiteIR::Instruction& loadInst)
 	{
-		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
+		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg * loadInst.load.dst.type->size);
 		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
 			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
 	}
@@ -670,15 +670,16 @@ struct Interpreter
 	void InterpretLog(SpiteIR::Instruction& logInst)
 	{
 		void* stackValue = (stackFrameStart + logInst.log.operand.reg);
-		LogValue(stackValue, logInst.log.operand.type);
+		eastl::string out = LogValue(stackValue, logInst.log.operand.type);
+		Logger::Log(out);
 	}
 
-	void Print(const eastl::string& output, bool newline = true)
+	void Print(const eastl::string& output, bool newline = true, int depth = 0)
 	{
-		Logger::Log(output, newline);
+		Logger::Log(output, newline, depth);
 	}
 
-	void LogValue(void* start, SpiteIR::Type* type)
+	eastl::string LogValue(void* start, SpiteIR::Type* type)
 	{
 		switch (type->kind)
 		{
@@ -686,10 +687,11 @@ struct Interpreter
 		{
 			switch (type->primitive.kind)
 			{
+			case SpiteIR::PrimitiveKind::Void:
+				return "void";
 			case SpiteIR::PrimitiveKind::Bool:
-				if (*(bool*)start) Print("true");
-				else Print("false");
-				return;
+				if (*(bool*)start) return "true";
+				else return "false";
 			case SpiteIR::PrimitiveKind::Byte:
 			case SpiteIR::PrimitiveKind::Int:
 			{
@@ -698,20 +700,15 @@ struct Interpreter
 					switch (type->size)
 					{
 					case 1:
-						Print(eastl::to_string(*(char*)start));
-						break;
+						return eastl::to_string(*(char*)start);
 					case 2:
-						Print(eastl::to_string(*(int16_t*)start));
-						break;
+						return eastl::to_string(*(int16_t*)start);
 					case 4:
-						Print(eastl::to_string(*(int32_t*)start));
-						break;
+						return eastl::to_string(*(int32_t*)start);
 					case 8:
-						Print(eastl::to_string(*(int64_t*)start));
-						break;
+						return eastl::to_string(*(int64_t*)start);
 					case 16:
-						Print(eastl::to_string(*(intmax_t*)start));
-						break;
+						return eastl::to_string(*(intmax_t*)start);
 					default:
 						break;
 					}
@@ -721,66 +718,119 @@ struct Interpreter
 					switch (type->size)
 					{
 					case 1:
-						Print(eastl::to_string(*(uint8_t*)start));
-						break;
+						return eastl::to_string(*(uint8_t*)start);
 					case 2:
-						Print(eastl::to_string(*(uint16_t*)start));
-						break;
+						return eastl::to_string(*(uint16_t*)start);
 					case 4:
-						Print(eastl::to_string(*(uint32_t*)start));
-						break;
+						return eastl::to_string(*(uint32_t*)start);
 					case 8:
-						Print(eastl::to_string(*(uint64_t*)start));
-						break;
+						return eastl::to_string(*(uint64_t*)start);
 					case 16:
-						Print(eastl::to_string(*(uintmax_t*)start));
-						break;
+						return eastl::to_string(*(uintmax_t*)start);
 					default:
 						break;
 					}
 				}
+				break;
 			}
-			return;
 			case SpiteIR::PrimitiveKind::Float:
 			{
 				switch (type->size)
 				{
 				case 4:
-					Print(eastl::to_string(*(float*)start));
-					break;
+					return eastl::to_string(*(float*)start);
 				case 8:
-					Print(eastl::to_string(*(double*)start));
-					break;
+					return eastl::to_string(*(double*)start);
 				default:
 					break;
 				}
 			}
 			case SpiteIR::PrimitiveKind::String:
-				return;
+			{
+				size_t count = *(size_t*)start;
+				char* str = *(char**)((size_t*)start + 1);
+				return eastl::string(str, count);
+			}
 			default:
 				break;
 			}
+			break;
 		}
 		case SpiteIR::TypeKind::StateType:
 		{
-			Print(type->stateType.state->name);
+			eastl::string out = type->stateType.state->name + " {";
 			for (SpiteIR::Member* member : type->stateType.state->members)
 			{
-				eastl::string memberStr = member->value->name + ": ";
+				out += " " + member->value->name + ": ";
 				void* memberStart = ((char*)start) + member->offset;
-				Print(memberStr, false);
-				LogValue(memberStart, member->value->type);
+				out += LogValue(memberStart, member->value->type);
+				out += ",";
 			}
-			return;
+			out.back() = ' ';
+			out += "}";
+			return out;
 		}
 		case SpiteIR::TypeKind::StructureType:
+			break;
 		case SpiteIR::TypeKind::PointerType:
+		{
+			void* ptr = (void*)*(size_t*)start;
+			size_t ptrVal = (size_t)ptr;
+			return "Ptr (" + eastl::to_string(ptrVal) + ") " + LogValue(ptr, type->pointer.type);
+		}
 		case SpiteIR::TypeKind::ReferenceType:
+		{
+			void* ptr = (void*)*(size_t*)start;
+			return "Ref " + LogValue(ptr, type->reference.type);
+		}
 		case SpiteIR::TypeKind::DynamicArrayType:
+		{
+			SpiteIR::Type* itemType = type->dynamicArray.type;
+			size_t itemSize = itemType->size;
+			size_t count = *(size_t*)start;
+			if (count == 0) return "[]";
+
+			size_t capacity = *((size_t*)start + 2);
+			void* data = (char*)*((size_t*)start + 1);
+
+			eastl::string out = "[";
+			for (size_t i = 0; i < count; i++)
+			{
+				size_t offset = i * itemSize;
+				void* itemStart = ((char*)data) + offset;
+				out += " " + LogValue(itemStart, itemType) + ",";
+			}
+			out.back() = ' ';
+			out += "]";
+			return out;
+		}
 		case SpiteIR::TypeKind::FixedArrayType:
+		{
+			SpiteIR::Type* itemType = type->fixedArray.type;
+			size_t itemSize = itemType->size;
+			size_t count = type->fixedArray.count;
+
+			eastl::string out = "[";
+			for (size_t i = 0; i < count; i++)
+			{
+				size_t offset = i * itemSize;
+				void* itemStart = ((char*)start) + offset;
+				out += " " + LogValue(itemStart, itemType) + ",";
+			}
+			out.back() = ' ';
+			out += "]";
+			return out;
+		}
 		case SpiteIR::TypeKind::FunctionType:
+		{
+			void* ptr = (void*)*(size_t*)start;
+			size_t ptrVal = (size_t)ptr;
+			return "func (" + eastl::to_string(ptrVal) + ")";
+		}
 		default:
 			break;
 		}
+
+		return "";
 	}
 };

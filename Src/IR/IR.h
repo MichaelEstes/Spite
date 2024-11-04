@@ -308,8 +308,8 @@ namespace SpiteIR
 			Branch branch;
 			Call call;
 			Allocate allocate;
-			Load load; // x := y~ or x := y[2]
-			Store store; // x := 0 or implicitTypeTest := { x := 0.0, y: float = 0.0, z: float }
+			Load load;
+			Store store;
 			Free free;
 			Cast cast;
 			Switch switch_;

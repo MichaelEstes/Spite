@@ -20,7 +20,7 @@ state array
 	itemBytes: int,
 }
 
-any array::operator::[](index: int)
+*any array::operator::[](index: int)
 {
 	return this.start[index * this.itemBytes];	
 }
@@ -32,10 +32,12 @@ array::delete
 
 array::Add(item: any)
 {
-	if(this.count >= this.capacity) this.Expand();
-	
+	if(this.count >= this.capacity) this.Expand();	
+
+	log "Add";
 	copy_bytes(this[this.count], item, this.itemBytes);
 	this.count = this.count + 1;
+	log "Add End";
 }
 
 array::AddAll(items: []any)
@@ -52,7 +54,7 @@ array::AddAll(items: []any)
 
 array::Expand()
 {
-	this.capacity = this.capacity * 2;
+	this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
 	this.start = newStart;
