@@ -20,7 +20,7 @@ state array
 	itemBytes: int,
 }
 
-*any array::operator::[](index: int)
+any array::operator::[](index: int)
 {
 	return this.start[index * this.itemBytes];	
 }
@@ -30,14 +30,15 @@ array::delete
 	delete[] this.start;
 }
 
-array::Add(item: any)
+// Returns the index of the item added
+int array::Add(item: any)
 {
 	if(this.count >= this.capacity) this.Expand();	
 
-	log "Add";
+	index := this.count;
 	copy_bytes(this[this.count], item, this.itemBytes);
 	this.count = this.count + 1;
-	log "Add End";
+	return index;
 }
 
 array::AddAll(items: []any)

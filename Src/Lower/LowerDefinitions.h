@@ -223,16 +223,17 @@ struct LowerDefinitions
 
 		SpiteIR::Type* fromType = from.type;
 		if (to->kind == SpiteIR::TypeKind::ReferenceType &&
-			fromType->kind != SpiteIR::TypeKind::ReferenceType &&
-			fromType->kind != SpiteIR::TypeKind::PointerType)
+			fromType->kind != SpiteIR::TypeKind::ReferenceType)
 		{
+			if (IsAnyType(to) && fromType->kind == SpiteIR::TypeKind::PointerType) return from;
 			return HandleAutoCast(BuildTypeReference(GetCurrentLabel(), from), to);
 		}
 
 		if (from.type->kind == SpiteIR::TypeKind::ReferenceType &&
-			to->kind != SpiteIR::TypeKind::ReferenceType &&
-			to->kind != SpiteIR::TypeKind::PointerType)
+			to->kind != SpiteIR::TypeKind::ReferenceType)
 		{
+			// Can't dereference any type
+			if (IsAnyType(from.type)) return from;
 			return HandleAutoCast(BuildTypeDereference(GetCurrentLabel(), from), to);
 		}
 
@@ -595,7 +596,7 @@ struct LowerDefinitions
 		else
 		{
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
-			if (value.type) BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value, 
+			if (value.type) BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value,
 				funcContext.function->returnType)));
 		}
 	}
@@ -721,6 +722,40 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
+	ScopeValue FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
+	{
+		Assert(type->structureType.names);
+
+		size_t offset = 0;
+		eastl::vector<eastl::string>* names = type->structureType.names;
+		for (size_t i = 0; i < names->size(); i++)
+		{
+			eastl::string& name = names->at(i);
+			SpiteIR::Type* memberType = type->structureType.types->at(i);
+			if (name == ident)
+			{
+				return { offset, memberType };
+			}
+			offset += memberType->size;
+		}
+
+		return InvalidScopeValue;
+	}
+
+	SpiteIR::State* GetStateForType(SpiteIR::Type* type)
+	{
+		if (type->kind == SpiteIR::TypeKind::StateType)
+		{
+			return type->stateType.state;
+		}
+		else if (type->kind == SpiteIR::TypeKind::DynamicArrayType)
+		{
+			return arrayState;
+		}
+
+		return nullptr;
+	}
+
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
 	{
 		Assert(selected->typeID == ExprID::IdentifierExpr);
@@ -733,32 +768,46 @@ struct LowerDefinitions
 			return InvalidScopeValue;
 		}
 
-		if (value.type->kind == SpiteIR::TypeKind::StateType)
+		if (value.type->kind == SpiteIR::TypeKind::StateType ||
+			value.type->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
-			SpiteIR::State* state = value.type->stateType.state;
+			SpiteIR::State* state = GetStateForType(value.type);
 			SpiteIR::Member* member = FindStateMember(state, ident);
 			Assert(member);
 			return { value.reg + member->offset, member->value->type };
+		}
+		else if (value.type->kind == SpiteIR::TypeKind::StructureType)
+		{
+			ScopeValue offsetAndType = FindStructureTypeMember(value.type, ident);
+			Assert(offsetAndType.type);
+			return { value.reg + offsetAndType.reg, offsetAndType.type };
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
 			value.type->kind == SpiteIR::TypeKind::ReferenceType)
 		{
 			SpiteIR::Type* derefed = GetDereferencedType(value.type);
-			if (derefed->kind == SpiteIR::TypeKind::StateType)
+			ScopeValue offsetAndType = InvalidScopeValue;
+			if (derefed->kind == SpiteIR::TypeKind::StructureType)
 			{
-				SpiteIR::State* state = derefed->stateType.state;
+				offsetAndType = FindStructureTypeMember(derefed, ident);
+				Assert(offsetAndType.type);
+			}
+			else
+			{
+				SpiteIR::State* state = GetStateForType(derefed);
 				SpiteIR::Member* member = FindStateMember(state, ident);
 				Assert(member);
-				SpiteIR::Type* referencedMember = MakeReferenceType(member->value->type,
-					context.ir);
-				SpiteIR::Instruction* alloc = BuildAllocate(referencedMember);
-				ScopeValue dstValue = { alloc->allocate.result, referencedMember };
-				SpiteIR::Operand offset = BuildRegisterOperand(BuildLiteralInt(member->offset));
-				SpiteIR::Operand src = BuildRegisterOperand(value);
-				SpiteIR::Operand dst = BuildRegisterOperand(dstValue);
-				SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(GetCurrentLabel(), dst, src, offset);
-				return dstValue;
+				offsetAndType = { member->offset, member->value->type };
 			}
+
+			SpiteIR::Type* referencedMember = MakeReferenceType(offsetAndType.type, context.ir);
+			SpiteIR::Instruction* alloc = BuildAllocate(referencedMember);
+			ScopeValue dstValue = { alloc->allocate.result, referencedMember };
+			SpiteIR::Operand offset = BuildRegisterOperand(BuildLiteralInt(offsetAndType.reg));
+			SpiteIR::Operand src = BuildRegisterOperand(value);
+			SpiteIR::Operand dst = BuildRegisterOperand(dstValue);
+			SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(GetCurrentLabel(), dst, src, offset);
+			return dstValue;
 		}
 
 		return InvalidScopeValue;
@@ -1034,7 +1083,7 @@ struct LowerDefinitions
 			{
 				SpiteIR::Type* type = derefedType->pointer.type;
 				SpiteIR::Instruction* alloc = BuildAllocate(derefedType);
-				ScopeValue dst = { alloc->allocate.result, type };
+				ScopeValue dst = { alloc->allocate.result, derefedType };
 				ScopeValue value = BuildTypeDereference(label, toIndex);
 				ScopeValue offset = BuildLiteralInt(type->size);
 				ScopeValue sizedOffset = BuildBinaryOp(index, offset, SpiteIR::BinaryOpKind::Multiply, label);
@@ -1064,7 +1113,7 @@ struct LowerDefinitions
 		{
 			SpiteIR::Type* type = toIndex.type->pointer.type;
 			SpiteIR::Instruction* alloc = BuildAllocate(toIndex.type);
-			ScopeValue dst = { alloc->allocate.result, type };
+			ScopeValue dst = { alloc->allocate.result, toIndex.type };
 
 			SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(label, BuildRegisterOperand(dst),
 				BuildRegisterOperand(toIndex), BuildRegisterOperand(index));
@@ -1109,10 +1158,11 @@ struct LowerDefinitions
 		// This looks wrong since we're making the type a reference type in a function called dereference
 		// But a reference type signals to treat operations against it as a value
 		// which is what we want when we dereference a pointer
-		SpiteIR::Type* innerType = value.type->pointer.type;
-		value.type->kind = SpiteIR::TypeKind::ReferenceType;
-		value.type->reference.type = innerType;
-		return value;
+		SpiteIR::Type* type = MakeReferenceType(value.type->pointer.type, context.ir);
+		SpiteIR::Instruction* alloc = BuildAllocate(type);
+		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
+			BuildRegisterOperand(value));
+		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
 	ScopeValue BuildReferenceExpr(Expr* expr, Stmnt* stmnt)
@@ -1124,9 +1174,22 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	// Pointer int conversions do a copy to avoid register-type clashes
 	ScopeValue PointerToInt(const ScopeValue& pointer)
 	{
+		SpiteIR::Type* ptrInt = CreateUnsignedIntType(context.ir);
+		SpiteIR::Instruction* alloc = BuildAllocate(ptrInt);
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(pointer),
+			AllocateToOperand(alloc));
+		return { alloc->allocate.result, alloc->allocate.type };
+	}
 
+	ScopeValue IntToPointer(const ScopeValue& value, SpiteIR::Type* type)
+	{
+		SpiteIR::Instruction* alloc = BuildAllocate(type);
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(value),
+			AllocateToOperand(alloc));
+		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
 	ScopeValue BuildBinaryOpValue(const ScopeValue& left, const ScopeValue& right, SpiteIR::BinaryOpKind op)
@@ -1155,12 +1218,15 @@ struct LowerDefinitions
 
 		if (left.type->kind == SpiteIR::TypeKind::PointerType)
 		{
-			return BuildBinaryOp(PointerToInt(left), right, op, label);
+			ScopeValue value = BuildBinaryOpValue(PointerToInt(left), right, op);
+			return IntToPointer(value, left.type);
 		}
 
 		if (right.type->kind == SpiteIR::TypeKind::PointerType)
 		{
-			return BuildBinaryOp(left, PointerToInt(right), op, label);
+
+			ScopeValue value = BuildBinaryOpValue(left, PointerToInt(right), op);
+			return IntToPointer(value, right.type);
 		}
 
 		return InvalidScopeValue;
@@ -1218,21 +1284,160 @@ struct LowerDefinitions
 		return inst;
 	}
 
+	bool IsIntLike(SpiteIR::Type* type)
+	{
+		return type->primitive.kind == SpiteIR::PrimitiveKind::Bool ||
+			type->primitive.kind == SpiteIR::PrimitiveKind::Byte ||
+			type->primitive.kind == SpiteIR::PrimitiveKind::Int;
+	}
+
+	bool AreSamePrimitive(SpiteIR::Type* left, SpiteIR::Type* right)
+	{
+		return left->size == right->size &&
+			left->primitive.kind == right->primitive.kind &&
+			left->primitive.isSigned == right->primitive.isSigned;
+	}
+
+	int primitiveSizes[5] = { 1, 2, 4, 8, 16 };
+
+	ScopeValue BuildPrimitiveCast(const ScopeValue& from, SpiteIR::Type* to)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Instruction* alloc = BuildAllocate(to);
+		SpiteIR::Instruction* cast = BuildCast(label, BuildRegisterOperand(from), AllocateToOperand(alloc));
+		return { cast->cast.to.reg, cast->cast.to.type };
+	}
+
 	void HandlePrimitivePromotion(ScopeValue& left, ScopeValue& right)
 	{
+		if (left.type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			ScopeValue value = BuildTypeDereference(GetCurrentLabel(), left);
+			left.reg = value.reg;
+			left.type = value.type;
+		}
+
+		if (right.type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			ScopeValue value = BuildTypeDereference(GetCurrentLabel(), right);
+			right.reg = value.reg;
+			right.type = value.type;
+		}
+
 		Assert(left.type->kind == SpiteIR::TypeKind::PrimitiveType &&
 			right.type->kind == SpiteIR::TypeKind::PrimitiveType);
+		Assert(left.type->primitive.kind != SpiteIR::PrimitiveKind::Void &&
+			right.type->primitive.kind != SpiteIR::PrimitiveKind::Void);
 
-		// Types are same, return
-		if (left.type->size == right.type->size &&
-			left.type->primitive.kind == right.type->primitive.kind &&
-			left.type->primitive.isSigned == right.type->primitive.isSigned) return;
+		if (AreSamePrimitive(left.type, right.type)) return;
+
+		SpiteIR::Type* castTo = context.ir->AllocateType();
+		castTo->kind = SpiteIR::TypeKind::PrimitiveType;
+		// Int to int 
+		if (IsIntLike(left.type) && IsIntLike(right.type))
+		{
+			// Same size, but one type is signed and the other isn't
+			if (left.type->size == right.type->size)
+			{
+				if (left.type->primitive.isSigned)
+				{
+					castTo->primitive.kind = right.type->primitive.kind;
+					castTo->size = right.type->size;
+					castTo->primitive.isSigned = false;
+
+					ScopeValue casted = BuildPrimitiveCast(left, castTo);
+					left.reg = casted.reg;
+					left.type = casted.type;
+				}
+				else
+				{
+					castTo->primitive.kind = left.type->primitive.kind;
+					castTo->size = left.type->size;
+					castTo->primitive.isSigned = false;
+
+					ScopeValue casted = BuildPrimitiveCast(right, castTo);
+					right.reg = casted.reg;
+					right.type = casted.type;
+				}
+			}
+			// One type is larger than the other type, widen to the larger type, including signed conversions
+			else if (left.type->size > right.type->size)
+			{
+				castTo->primitive.kind = left.type->primitive.kind;
+				castTo->size = left.type->size;
+				castTo->primitive.isSigned = left.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(right, castTo);
+				right.reg = casted.reg;
+				right.type = casted.type;
+			}
+			else
+			{
+				castTo->primitive.kind = right.type->primitive.kind;
+				castTo->size = right.type->size;
+				castTo->primitive.isSigned = right.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(left, castTo);
+				left.reg = casted.reg;
+				left.type = casted.type;
+			}
+		}
+		// Both types are floating point, widen to larger type
+		else if (left.type->primitive.kind == SpiteIR::PrimitiveKind::Float &&
+			right.type->primitive.kind == SpiteIR::PrimitiveKind::Float)
+		{
+			if (left.type->size > right.type->size)
+			{
+				castTo->primitive.kind = left.type->primitive.kind;
+				castTo->size = left.type->size;
+				castTo->primitive.isSigned = left.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(right, castTo);
+				right.reg = casted.reg;
+				right.type = casted.type;
+			}
+			else
+			{
+				castTo->primitive.kind = right.type->primitive.kind;
+				castTo->size = right.type->size;
+				castTo->primitive.isSigned = right.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(left, castTo);
+				left.reg = casted.reg;
+				left.type = casted.type;
+			}
+		}
+		// One type is floating point and one is int, cast int to floating point
+		else
+		{
+			if (left.type->primitive.kind == SpiteIR::PrimitiveKind::Float)
+			{
+				castTo->primitive.kind = left.type->primitive.kind;
+				castTo->size = left.type->size;
+				castTo->primitive.isSigned = left.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(right, castTo);
+				right.reg = casted.reg;
+				right.type = casted.type;
+			}
+			else
+			{
+				castTo->primitive.kind = right.type->primitive.kind;
+				castTo->size = right.type->size;
+				castTo->primitive.isSigned = right.type->primitive.isSigned;
+
+				ScopeValue casted = BuildPrimitiveCast(left, castTo);
+				left.reg = casted.reg;
+				left.type = casted.type;
+			}
+		}
 
 	}
 
 	ScopeValue BuildBinaryOp(ScopeValue leftVal, ScopeValue rightVal, SpiteIR::BinaryOpKind kind,
 		SpiteIR::Label* label)
 	{
+		HandlePrimitivePromotion(leftVal, rightVal);
 		SpiteIR::Instruction* binOp = CreateInstruction(label);
 		binOp->kind = SpiteIR::InstructionKind::BinOp;
 		binOp->binOp.kind = kind;
@@ -1313,7 +1518,7 @@ struct LowerDefinitions
 		params->push_back(BuildRegisterOperand(HandleAutoCast(of, operatorFunc->arguments.at(0)->value->type)));
 		if (rhs)
 		{
-			params->push_back(BuildRegisterOperand(HandleAutoCast(*rhs, 
+			params->push_back(BuildRegisterOperand(HandleAutoCast(*rhs,
 				operatorFunc->arguments.at(1)->value->type)));
 		}
 

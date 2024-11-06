@@ -365,15 +365,20 @@ struct Interpreter
 					break;
 				}
 			}
-			else
+			else if (castInst.cast.to.type->kind == SpiteIR::TypeKind::PointerType)
 			{
-
+				void* dst = stackFrameStart + castInst.cast.to.reg;
+				CopyRegValue(castInst.cast.from, dst, stackFrameStart);
 			}
 			return;
 		}
+		case SpiteIR::TypeKind::PointerType:
+		{
+			void* dst = stackFrameStart + castInst.cast.to.reg;
+			CopyRegValue(castInst.cast.from, dst, stackFrameStart);
+		}
 		case SpiteIR::TypeKind::StateType:
 		case SpiteIR::TypeKind::StructureType:
-		case SpiteIR::TypeKind::PointerType:
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::FixedArrayType:
 		case SpiteIR::TypeKind::FunctionType:
@@ -776,12 +781,13 @@ struct Interpreter
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
-			return "Ptr (" + eastl::to_string(ptrVal) + ") " + LogValue(ptr, type->pointer.type);
+			return "Ptr @" + eastl::to_string(ptrVal) + " " + LogValue(ptr, type->pointer.type);
 		}
 		case SpiteIR::TypeKind::ReferenceType:
 		{
 			void* ptr = (void*)*(size_t*)start;
-			return "Ref " + LogValue(ptr, type->reference.type);
+			size_t ptrVal = (size_t)ptr;
+			return "Ref @" + eastl::to_string(ptrVal) + " " + LogValue(ptr, type->reference.type);
 		}
 		case SpiteIR::TypeKind::DynamicArrayType:
 		{
@@ -791,7 +797,7 @@ struct Interpreter
 			if (count == 0) return "[]";
 
 			size_t capacity = *((size_t*)start + 2);
-			void* data = (char*)*((size_t*)start + 1);
+			void* data = (void*)*((size_t*)start + 1);
 
 			eastl::string out = "[";
 			for (size_t i = 0; i < count; i++)

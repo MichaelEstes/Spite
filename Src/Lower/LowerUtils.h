@@ -36,6 +36,13 @@ bool IsStructuredType(SpiteIR::Type* type)
 	return type->kind == SpiteIR::TypeKind::StateType || type->kind == SpiteIR::TypeKind::StructureType;
 }
 
+bool IsAnyType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::ReferenceType &&
+		type->reference.type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->reference.type->primitive.kind == SpiteIR::PrimitiveKind::Void;
+}
+
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 {
 	if (type->kind == SpiteIR::TypeKind::StateType) return GetStateTypes(type->stateType.state);

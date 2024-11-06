@@ -227,6 +227,7 @@ struct Decompiler
 			DecompileAllocate(inst);
 			break;
 		case SpiteIR::InstructionKind::Load:
+		case SpiteIR::InstructionKind::LoadPtrOffset:
 			DecompileLoad(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
@@ -280,8 +281,9 @@ struct Decompiler
 
 	void DecompileLoad(SpiteIR::Instruction& loadInst)
 	{
-		Write(WriteOperand(loadInst.load.dst) + " = " +
-			"load " + WriteOperand(loadInst.load.src) + " " + WriteOperand(loadInst.load.offset));
+		eastl::string loadString = loadInst.kind == SpiteIR::InstructionKind::Load ? "load " : "load* ";
+		Write(WriteOperand(loadInst.load.dst) + " = " + loadString + 
+			WriteOperand(loadInst.load.src) + " " + WriteOperand(loadInst.load.offset));
 	}
 
 	void DecompileStore(SpiteIR::Instruction& storeInst)
@@ -296,10 +298,10 @@ struct Decompiler
 			storeString = " = store* ";
 			break;
 		case SpiteIR::InstructionKind::Reference:
-			storeString = " = store @";
+			storeString = " = store@ ";
 			break;
 		case SpiteIR::InstructionKind::Dereference:
-			storeString = " = store ~";
+			storeString = " = store~ ";
 			break;
 		default:
 			break;
