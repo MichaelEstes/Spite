@@ -204,14 +204,15 @@ struct Interpreter
 
 	void InterpretLoad(SpiteIR::Instruction& loadInst)
 	{
-		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg * loadInst.load.dst.type->size);
-		CopyValue(loadInst.load.src.reg + offset, loadInst.load.dst.type,
-			stackFrameStart + loadInst.load.dst.reg, stackFrameStart);
+		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
+		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
+		char* indexed = start + offset;
+		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
 
 	void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
 	{
-		size_t offset = *(size_t*)(void*)(stackFrameStart + loadInst.load.offset.reg);
+		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg);
 		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;

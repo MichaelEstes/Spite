@@ -15,10 +15,10 @@ public:
 	class TokenNode
 	{
 	public:
-		char val;
 		T2 type;
 		T3 uniqueType;
 		TokenNode* children[size];
+		char val;
 		bool completed;
 
 		TokenNode(char val)

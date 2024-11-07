@@ -645,6 +645,7 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	fixedArray->fixedArray.count = count;
 	fixedArray->fixedArray.type = type;
 	fixedArray->size = (type->size * count);
+	fixedArray->byValue = true;
 	return fixedArray;
 }
 

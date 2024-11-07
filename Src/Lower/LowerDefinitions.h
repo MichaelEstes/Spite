@@ -390,7 +390,7 @@ struct LowerDefinitions
 			SpiteIR::Instruction* logInst = BuildLog(GetCurrentLabel(), BuildRegisterOperand(value));
 		}
 		default:
-			Logger::Error("LowerDefinitions:BuildStmnt Invalid Statement");
+			//Logger::Error("LowerDefinitions:BuildStmnt Invalid Statement");
 			break;
 		}
 	}
@@ -399,6 +399,10 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
+		if (value.type->kind == SpiteIR::TypeKind::ReferenceType && value.type->reference.type->byValue)
+		{
+			value = BuildTypeDereference(GetCurrentLabel(), value);
+		}
 		AddValueToCurrentScope(def.name->val, value, stmnt);
 		funcContext.scopeUtils.AddToTopScope(def.name->val, stmnt);
 	}
@@ -944,6 +948,7 @@ struct LowerDefinitions
 		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
 			config.targetArchBitWidth * 2 : config.targetArchBitWidth;
 		irType->primitive.isSigned = true;
+		irType->byValue = true;
 
 		literalOp.type = irType;
 
@@ -1114,28 +1119,25 @@ struct LowerDefinitions
 			SpiteIR::Type* type = toIndex.type->pointer.type;
 			SpiteIR::Instruction* alloc = BuildAllocate(toIndex.type);
 			ScopeValue dst = { alloc->allocate.result, toIndex.type };
-
+			ScopeValue offset = BuildLiteralInt(type->size);
+			ScopeValue sizedOffset = BuildBinaryOp(index, offset, SpiteIR::BinaryOpKind::Multiply, label);
 			SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(label, BuildRegisterOperand(dst),
-				BuildRegisterOperand(toIndex), BuildRegisterOperand(index));
+				BuildRegisterOperand(toIndex), BuildRegisterOperand(sizedOffset));
 			return dst;
 		}
 		case SpiteIR::TypeKind::FixedArrayType:
 		{
-			SpiteIR::Type* type = GetDereferencedType(toIndex.type);
-			if (type->byValue)
-			{
-				SpiteIR::Instruction* alloc = BuildAllocate(type);
-				ScopeValue dst = { alloc->allocate.result, type };
-				SpiteIR::Operand src = BuildRegisterOperand(toIndex);
-				SpiteIR::Operand offset = BuildRegisterOperand(index);
-				SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), src, offset);
-				return dst;
-			}
-			else
-			{
 
-			}
-			break;
+			ScopeValue arrRef = BuildTypeReference(label, toIndex);
+			SpiteIR::Type* type = GetDereferencedType(toIndex.type);
+			SpiteIR::Type* returnType = MakeReferenceType(type, context.ir);
+			SpiteIR::Instruction* alloc = BuildAllocate(returnType);
+			ScopeValue dst = { alloc->allocate.result, returnType };
+
+			SpiteIR::Operand offset = BuildRegisterOperand(index);
+			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), 
+				BuildRegisterOperand(arrRef), offset);
+			return dst;
 		}
 		case SpiteIR::TypeKind::PrimitiveType:
 		case SpiteIR::TypeKind::StructureType:
@@ -1297,8 +1299,6 @@ struct LowerDefinitions
 			left->primitive.kind == right->primitive.kind &&
 			left->primitive.isSigned == right->primitive.isSigned;
 	}
-
-	int primitiveSizes[5] = { 1, 2, 4, 8, 16 };
 
 	ScopeValue BuildPrimitiveCast(const ScopeValue& from, SpiteIR::Type* to)
 	{
