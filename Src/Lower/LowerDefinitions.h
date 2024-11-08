@@ -30,6 +30,7 @@ struct FunctionContext
 	ScopeUtils scopeUtils = ScopeUtils(nullptr, nullptr);
 	size_t curr = 0;
 	size_t forCount = 0;
+	size_t whileCount = 0;
 	size_t ifCount = 0;
 	size_t blockCount = 0;
 
@@ -47,6 +48,7 @@ struct FunctionContext
 		scopeUtils.symbolTable = symbolTable;
 		curr = 0;
 		forCount = 0;
+		whileCount = 0;
 		ifCount = 0;
 		blockCount = 0;
 	}
@@ -363,6 +365,7 @@ struct LowerDefinitions
 			BuildForStmnt(stmnt);
 			break;
 		case WhileStmnt:
+			BuildWhileStmnt(stmnt);
 			break;
 		case SwitchStmnt:
 			break;
@@ -526,7 +529,7 @@ struct LowerDefinitions
 		eastl::string forLoopName = "for_body" + eastl::to_string(funcContext.forCount);
 		eastl::string forIncName = "for_inc" + eastl::to_string(funcContext.forCount);
 		eastl::string forEndName = "for_end" + eastl::to_string(funcContext.forCount);
-		funcContext.forCount++;
+		funcContext.forCount += 1;
 
 		SpiteIR::Label* fromLabel = GetCurrentLabel();
 		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
@@ -575,6 +578,36 @@ struct LowerDefinitions
 		SpiteIR::Label* forEndLabel = BuildLabel(forEndName);
 		branch->branch.true_ = forLoopLabel;
 		branch->branch.false_ = forEndLabel;
+	}
+
+	void BuildWhileStmnt(Stmnt* stmnt)
+	{
+		auto& while_ = stmnt->whileStmnt;
+		auto& condition = while_.conditional->conditional;
+
+		eastl::string whileCondName = "while_cond" + eastl::to_string(funcContext.whileCount);
+		eastl::string whileBodyName = "while_body" + eastl::to_string(funcContext.whileCount);
+		eastl::string whileEndName = "while_end" + eastl::to_string(funcContext.whileCount);
+		funcContext.whileCount += 1;
+
+		SpiteIR::Label* fromLabel = GetCurrentLabel();
+
+		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
+		SpiteIR::Label* whileCondLabel = BuildLabel(whileCondName);
+		toCond->jump.label = whileCondLabel;
+
+		ScopeValue test = BuildExpr(condition.condition, stmnt);
+		SpiteIR::Instruction* branch = BuildBranch(whileCondLabel, BuildRegisterOperand(test));
+
+		SpiteIR::Label* whileBodyLabel = BuildLabelBody(whileBodyName, condition.body);
+
+		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
+		SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel);
+		bodyToCond->jump.label = whileCondLabel;
+
+		SpiteIR::Label* whileEndLabel = BuildLabel(whileBodyName);
+		branch->branch.true_ = whileBodyLabel;
+		branch->branch.false_ = whileEndLabel;
 	}
 
 	inline void BuildVoidReturn(SpiteIR::Label* label)

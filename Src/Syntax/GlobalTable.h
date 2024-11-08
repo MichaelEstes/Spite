@@ -10,6 +10,7 @@ struct GlobalTable
 	Stmnt* entryFunc;
 
 	StringView runtimePackage = StringView("_");
+	eastl::vector<SymbolTable*> merged;
 
 	GlobalTable()
 	{
@@ -21,6 +22,11 @@ struct GlobalTable
 		for (auto& [key, value] : packageToSymbolTable)
 		{
 			delete value;
+		}
+
+		for (SymbolTable* mergedTable : merged)
+		{
+			delete mergedTable;
 		}
 	}
 
@@ -54,6 +60,7 @@ struct GlobalTable
 		else
 		{
 			packageToSymbolTable[package]->Merge(symbolTable);
+			merged.push_back(symbolTable);
 		}
 	}
 
@@ -209,7 +216,7 @@ struct GlobalTable
 		Stmnt* stmnt = symbolTable->FindExternalFunction(externFuncName);
 		if (stmnt) return stmnt;
 
-		for (Stmnt * import : symbolTable->imports)
+		for (Stmnt* import : symbolTable->imports)
 		{
 			StringView & package = import->importStmnt.packageName->val;
 			SymbolTable* symbolTable = FindSymbolTable(package);
@@ -218,7 +225,7 @@ struct GlobalTable
 			if (stmnt) return stmnt;
 		}
 
-		return runtimeTable->FindExternalFunction(externFuncName);;
+		return runtimeTable->FindExternalFunction(externFuncName);
 	}
 
 	inline Stmnt* FindScopedValue(Token* name, SymbolTable* symbolTable)

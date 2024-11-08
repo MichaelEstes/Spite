@@ -11,4 +11,3 @@ Value Map::operator::[](key: Key)
 {
 	hash: int = Hash(key);
 }
-

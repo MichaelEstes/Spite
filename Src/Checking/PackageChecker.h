@@ -6,7 +6,6 @@
 #include "DeferredChecker.h"
 #include "CheckerContext.h"
 
-
 struct PackageChecker
 {
 	CheckerContext context;

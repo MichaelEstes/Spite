@@ -46,7 +46,7 @@ struct CheckerUtils
 		for (Stmnt* param : *params)
 		{
 			if (param->definition.assignment) return count;
-			count++;
+			count += 1;
 		}
 
 		return count;

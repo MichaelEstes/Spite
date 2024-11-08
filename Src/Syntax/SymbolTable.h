@@ -365,6 +365,11 @@ struct SymbolTable
 			AddGlobalVal(value);
 		}
 
+		for (auto& [key, value] : toMerge->externFunctionMap)
+		{
+			AddExternFunc(value);
+		}
+
 		for (Stmnt* compile : toMerge->onCompiles) AddOnCompile(compile);
 	}
 
