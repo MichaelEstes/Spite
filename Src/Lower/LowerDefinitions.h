@@ -69,18 +69,20 @@ struct LowerDefinitions
 
 	SpiteIR::State* arrayState = nullptr;
 	SpiteIR::Function* makeArray = nullptr;
+	SpiteIR::Function* allocFunc = nullptr;
 
 	LowerDefinitions(LowerContext& context) : context(context)
 	{
-		AssignArrayDeclarations(context.ir);
+		AssignRuntimeDeclarations(context.ir);
 		Assert(arrayState && makeArray);
 	}
 
-	void AssignArrayDeclarations(SpiteIR::IR* ir)
+	void AssignRuntimeDeclarations(SpiteIR::IR* ir)
 	{
 		SpiteIR::Package* runtime = ir->runtime;
 		arrayState = FindPackageState(runtime, "__array");
 		makeArray = FindPackageFunction(runtime, "__make_array");
+		allocFunc = FindPackageFunction(runtime, "__alloc");
 	}
 
 	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
@@ -424,36 +426,40 @@ struct LowerDefinitions
 		ScopeValue assignment = BuildExpr(stmnt->assignmentStmnt.assignment, stmnt);
 
 		if (!assignTo.type || !assignment.type) return;
-
-		if (assignTo.type->kind == SpiteIR::TypeKind::ReferenceType ||
-			assignment.type->kind == SpiteIR::TypeKind::ReferenceType)
-			BuildReferenceAssignment(assignTo, assignment);
-		else
-			BuildStore(GetCurrentLabel(), BuildRegisterOperand(assignTo), BuildRegisterOperand(assignment));
+		AssignValues(assignTo, assignment);
 	}
 
-	void BuildReferenceAssignment(const ScopeValue& to, const ScopeValue& from)
+	void AssignValues(const ScopeValue& dst, const ScopeValue& src)
+	{
+		if (dst.type->kind == SpiteIR::TypeKind::ReferenceType ||
+			src.type->kind == SpiteIR::TypeKind::ReferenceType)
+			BuildReferenceAssignment(dst, src);
+		else
+			BuildStore(GetCurrentLabel(), BuildRegisterOperand(dst), BuildRegisterOperand(src));
+	}
+
+	void BuildReferenceAssignment(const ScopeValue& dst, const ScopeValue& src)
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
 
 		// value = ref - Dereference pointer into value
-		if (to.type->kind != SpiteIR::TypeKind::ReferenceType &&
-			from.type->kind == SpiteIR::TypeKind::ReferenceType)
+		if (dst.type->kind != SpiteIR::TypeKind::ReferenceType &&
+			src.type->kind == SpiteIR::TypeKind::ReferenceType)
 		{
-			BuildDereference(label, BuildRegisterOperand(to), BuildRegisterOperand(from));
+			BuildDereference(label, BuildRegisterOperand(dst), BuildRegisterOperand(src));
 		}
 		// ref = value - StorePtr
-		else if (to.type->kind == SpiteIR::TypeKind::ReferenceType &&
-			from.type->kind != SpiteIR::TypeKind::ReferenceType)
+		else if (dst.type->kind == SpiteIR::TypeKind::ReferenceType &&
+			src.type->kind != SpiteIR::TypeKind::ReferenceType)
 		{
-			BuildStorePtr(label, BuildRegisterOperand(to), BuildRegisterOperand(from));
+			BuildStorePtr(label, BuildRegisterOperand(dst), BuildRegisterOperand(src));
 		}
 		// ref = ref - dereference src onto stack and StorePtr
 		else
 		{
-			SpiteIR::Operand alloc = AllocateToOperand(BuildAllocate(from.type->reference.type));
-			BuildDereference(label, alloc, BuildRegisterOperand(from));
-			BuildStorePtr(label, BuildRegisterOperand(to), alloc);
+			SpiteIR::Operand alloc = AllocateToOperand(BuildAllocate(src.type->reference.type));
+			BuildDereference(label, alloc, BuildRegisterOperand(src));
+			BuildStorePtr(label, BuildRegisterOperand(dst), alloc);
 		}
 	}
 
@@ -696,7 +702,7 @@ struct LowerDefinitions
 		case FunctionCallExpr:
 			return BuildFunctionCall(expr, stmnt);
 		case NewExpr:
-			break;
+			return BuildNewExpr(expr, stmnt);
 		case FixedExpr:
 			break;
 		case TypeLiteralExpr:
@@ -1027,6 +1033,32 @@ struct LowerDefinitions
 		SpiteIR::Label* label = GetCurrentLabel();
 		SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ reg, irType }),
 			literalOp);
+	}
+
+	ScopeValue BuildNewExpr(Expr* expr, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue value = BuildTypeDereference(label, BuildExpr(expr->newExpr.primaryExpr, stmnt));
+
+		if (expr->newExpr.atExpr)
+		{
+			ScopeValue placement = BuildExpr(expr->newExpr.atExpr, stmnt);
+			SpiteIR::Instruction* storePtr = BuildStorePtr(label, BuildRegisterOperand(placement),
+				BuildRegisterOperand(value));
+			return placement;
+		}
+		else
+		{
+			SpiteIR::Type* ptr = MakePointerType(value.type, context.ir);
+			ScopeValue allocSize = BuildLiteralInt(value.type->size);
+			SpiteIR::Instruction* alloc = BuildAllocate(ptr);
+			eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+			params->push_back(BuildRegisterOperand(allocSize));
+			BuildCall(allocFunc, alloc->allocate.result, params, label);
+			SpiteIR::Instruction* storePtr = BuildStorePtr(label, AllocateToOperand(alloc),
+				BuildRegisterOperand(value));
+			return { alloc->allocate.result, ptr };
+		}
 	}
 
 	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
@@ -1498,7 +1530,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildTypeDereference(SpiteIR::Label* label, const ScopeValue& value)
 	{
-		Assert(value.type->kind == SpiteIR::TypeKind::ReferenceType);
+		if (value.type->kind != SpiteIR::TypeKind::ReferenceType) return value;
 		SpiteIR::Type* valType = GetDereferencedType(value.type);
 		SpiteIR::Instruction* alloc = BuildAllocate(valType);
 		SpiteIR::Instruction* reference = BuildDereference(label, AllocateToOperand(alloc),

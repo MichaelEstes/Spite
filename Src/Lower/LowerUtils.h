@@ -287,6 +287,16 @@ SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 	return refType;
 }
 
+SpiteIR::Type* MakePointerType(SpiteIR::Type* type, SpiteIR::IR* ir)
+{
+	SpiteIR::Type* ptrType = ir->AllocateType();
+	ptrType->kind = SpiteIR::TypeKind::PointerType;
+	ptrType->size = config.targetArchBitWidth;
+	ptrType->byValue = true;
+	ptrType->pointer.type = type;
+	return ptrType;
+}
+
 SpiteIR::BinaryOpKind BinaryOpToIR(UniqueType type)
 {
 	switch (type)
