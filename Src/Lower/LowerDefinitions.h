@@ -28,6 +28,8 @@ struct FunctionContext
 	SpiteIR::Function* function;
 	eastl::deque<FunctionScope> scopeQueue;
 	ScopeUtils scopeUtils = ScopeUtils(nullptr, nullptr);
+	eastl::deque<SpiteIR::Label*> breakLabels;
+	eastl::deque<SpiteIR::Label*> continueLabels;
 	size_t curr = 0;
 	size_t forCount = 0;
 	size_t whileCount = 0;
@@ -257,6 +259,7 @@ struct LowerDefinitions
 			SpiteIR::Type* argRefType = function->arguments.front()->value->type;
 			SpiteIR::Type* stateType = argRefType->reference.type;
 			SpiteIR::Label* label = BuildLabel("entry");
+			AddLabel(label);
 			SpiteIR::Instruction* argAlloc = BuildAllocate(argRefType);
 			SpiteIR::Instruction* defaultAlloc = BuildAllocate(stateType);
 			ScopeValue defaultVal = BuildDefaultValue(stateType, defaultAlloc->allocate.result, label);
@@ -308,14 +311,19 @@ struct LowerDefinitions
 	{
 		SpiteIR::Label* label = context.ir->AllocateLabel();
 		label->name = name;
-		funcContext.function->block->labels.push_back(label);
 
 		return label;
+	}
+
+	void AddLabel(SpiteIR::Label* label)
+	{
+		funcContext.function->block->labels.push_back(label);
 	}
 
 	SpiteIR::Label* BuildLabelBody(const eastl::string& name, Body& body)
 	{
 		SpiteIR::Label* label = BuildLabel(name);
+		AddLabel(label);
 		BuildBody(body);
 
 		return label;
@@ -376,9 +384,15 @@ struct LowerDefinitions
 		case DeferStmnt:
 			break;
 		case ContinueStmnt:
+		{
+			BuildJump(GetCurrentLabel(), funcContext.continueLabels.back());
 			break;
+		}
 		case BreakStmnt:
+		{
+			BuildJump(GetCurrentLabel(), funcContext.breakLabels.back());
 			break;
+		}
 		case ReturnStmnt:
 			BuildReturn(stmnt);
 			break;
@@ -475,6 +489,7 @@ struct LowerDefinitions
 		fromBranch->branch.true_ = ifThenLabel;
 
 		SpiteIR::Label* ifElseLabel = BuildLabel(elseName);
+		AddLabel(ifElseLabel);
 		fromBranch->branch.false_ = ifElseLabel;
 
 		return ifThenLabel;
@@ -517,6 +532,7 @@ struct LowerDefinitions
 		{
 			eastl::string ifEndName = "if_end" + eastl::to_string(ifCount);
 			SpiteIR::Label* ifEndLabel = BuildLabel(ifEndName);
+			AddLabel(ifEndLabel);
 			for (SpiteIR::Label* label : nonTerminated)
 			{
 				BuildJump(label, ifEndLabel);
@@ -538,6 +554,12 @@ struct LowerDefinitions
 		funcContext.forCount += 1;
 
 		SpiteIR::Label* fromLabel = GetCurrentLabel();
+		SpiteIR::Label* forIncLabel = BuildLabel(forIncName);
+		SpiteIR::Label* forEndLabel = BuildLabel(forEndName);
+
+		funcContext.breakLabels.push_back(forEndLabel);
+		funcContext.continueLabels.push_back(forIncLabel);
+
 		SpiteIR::Instruction* alloc = BuildAllocateForType(def.type);
 		ScopeValue init = InvalidScopeValue;
 		if (for_.rangeFor)
@@ -555,6 +577,7 @@ struct LowerDefinitions
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
 		SpiteIR::Label* forCondLabel = BuildLabel(forStartName);
+		AddLabel(forCondLabel);
 		toCond->jump.label = forCondLabel;
 
 		ScopeValue cmp = BuildBinaryOp(init, to, SpiteIR::BinaryOpKind::Less, forCondLabel);
@@ -565,7 +588,7 @@ struct LowerDefinitions
 
 		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
 		SpiteIR::Instruction* bodyToInc = BuildJump(currentBodyLabel);
-		SpiteIR::Label* forIncLabel = BuildLabel(forIncName);
+		AddLabel(forIncLabel);
 		bodyToInc->jump.label = forIncLabel;
 
 		if (for_.rangeFor)
@@ -580,10 +603,12 @@ struct LowerDefinitions
 		}
 
 		SpiteIR::Instruction* loopToCond = BuildJump(forIncLabel, forCondLabel);
-
-		SpiteIR::Label* forEndLabel = BuildLabel(forEndName);
+		AddLabel(forEndLabel);
 		branch->branch.true_ = forLoopLabel;
 		branch->branch.false_ = forEndLabel;
+
+		funcContext.breakLabels.pop_back();
+		funcContext.continueLabels.pop_back();
 	}
 
 	void BuildWhileStmnt(Stmnt* stmnt)
@@ -597,9 +622,14 @@ struct LowerDefinitions
 		funcContext.whileCount += 1;
 
 		SpiteIR::Label* fromLabel = GetCurrentLabel();
+		SpiteIR::Label* whileCondLabel = BuildLabel(whileCondName);
+		SpiteIR::Label* whileEndLabel = BuildLabel(whileBodyName);
+
+		funcContext.breakLabels.push_back(whileEndLabel);
+		funcContext.continueLabels.push_back(whileCondLabel);
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
-		SpiteIR::Label* whileCondLabel = BuildLabel(whileCondName);
+		AddLabel(whileCondLabel);
 		toCond->jump.label = whileCondLabel;
 
 		ScopeValue test = BuildExpr(condition.condition, stmnt);
@@ -611,9 +641,12 @@ struct LowerDefinitions
 		SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel);
 		bodyToCond->jump.label = whileCondLabel;
 
-		SpiteIR::Label* whileEndLabel = BuildLabel(whileBodyName);
+		AddLabel(whileEndLabel);
 		branch->branch.true_ = whileBodyLabel;
 		branch->branch.false_ = whileEndLabel;
+
+		funcContext.breakLabels.pop_back();
+		funcContext.continueLabels.pop_back();
 	}
 
 	inline void BuildVoidReturn(SpiteIR::Label* label)
@@ -909,9 +942,19 @@ struct LowerDefinitions
 		}
 		case SpiteIR::TypeKind::StateType:
 		{
-			for (SpiteIR::Member* memberType : type->stateType.state->members)
+			ASTContainer stateAST = context.stateASTMap[type->stateType.state];
+			Stmnt* stateStmnt = stateAST.node;
+			for (size_t  i = 0; i < type->stateType.state->members.size(); i++)
 			{
-				BuildDefaultValue(memberType->value->type, dst + memberType->offset, label);
+				SpiteIR::Member* memberType = type->stateType.state->members.at(i);
+				Stmnt* memberDecl = stateStmnt->state.members->at(i);
+				if (memberDecl->definition.assignment)
+				{
+					ScopeValue value = BuildExpr(memberDecl->definition.assignment, stateStmnt);
+					ScopeValue dstValue = { dst + memberType->offset, memberType->value->type };
+					AssignValues(dstValue, value);
+				}
+				else BuildDefaultValue(memberType->value->type, dst + memberType->offset, label);
 			}
 			break;
 		}
