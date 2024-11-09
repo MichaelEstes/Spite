@@ -129,6 +129,9 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Call:
 			InterpretCall(inst);
 			break;
+		case SpiteIR::InstructionKind::CallPtr:
+			InterpretCallPtr(inst);
+			break;
 		case SpiteIR::InstructionKind::Allocate:
 			InterpretAllocate(inst);
 			break;
@@ -143,6 +146,9 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::StorePtr:
 			InterpretStorePtr(inst);
+			break;
+		case SpiteIR::InstructionKind::StoreFunc:
+			InterpretStoreFunc(inst);
 			break;
 		case SpiteIR::InstructionKind::Reference:
 			InterpretReference(inst);
@@ -268,6 +274,13 @@ struct Interpreter
 		{
 			ptr[i] = src[i];
 		}
+	}
+
+	void InterpretStoreFunc(SpiteIR::Instruction& storeInst)
+	{
+		Assert(storeInst.store.src.kind == SpiteIR::OperandKind::Function);
+		size_t* ptr = (size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
+		*ptr = (size_t)storeInst.store.src.function;
 	}
 
 	void InterpretReference(SpiteIR::Instruction& storeInst)
@@ -493,6 +506,15 @@ struct Interpreter
 		InterpretFunction(callInst.call.function, callInst.call.params);
 		CopyValue(stackTop - stackFrameStart, callInst.call.function->returnType,
 			stackFrameStart + callInst.call.result, stackFrameStart);
+	}
+
+	void InterpretCallPtr(SpiteIR::Instruction& callPtrInst)
+	{
+		size_t reg = callPtrInst.callPtr.funcPtr.reg;
+		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
+		InterpretFunction(func, callPtrInst.callPtr.params);
+		CopyValue(stackTop - stackFrameStart, callPtrInst.callPtr.funcPtr.type->function.returnType,
+			stackFrameStart + callPtrInst.callPtr.result, stackFrameStart);
 	}
 
 #define boolOpTypeMacro(left, right, result, op, lType, rType)				\

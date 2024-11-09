@@ -35,6 +35,7 @@ struct FunctionContext
 	size_t whileCount = 0;
 	size_t ifCount = 0;
 	size_t blockCount = 0;
+	size_t anonFuncCount = 0;
 
 	void IncrementRegister(SpiteIR::Type* type)
 	{
@@ -48,11 +49,14 @@ struct FunctionContext
 		scopeUtils.scopeQueue.clear();
 		scopeUtils.globalTable = globalTable;
 		scopeUtils.symbolTable = symbolTable;
+		breakLabels.clear();
+		continueLabels.clear();
 		curr = 0;
 		forCount = 0;
 		whileCount = 0;
 		ifCount = 0;
 		blockCount = 0;
+		anonFuncCount = 0;
 	}
 };
 
@@ -272,27 +276,31 @@ struct LowerDefinitions
 
 		if (!function->metadata.externFunc)
 		{
-			AddScope();
-			BuildFunctionArguments(function, funcStmnt);
-			BuildEntryLabel(function, funcStmnt, decl);
-			SpiteIR::Label* lastLabel = GetCurrentLabel();
-			if (!lastLabel->terminator && IsVoidType(function->returnType))
-			{
-				BuildVoidReturn(lastLabel);
-			}
-			PopScope();
+			BuildFunctionDecl(function, decl);
 		}
 	}
 
-	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcStmnt)
+	void BuildFunctionDecl(SpiteIR::Function* function, Stmnt* funcDecl)
 	{
-		Stmnt* decl = GetDeclForFunc(funcStmnt);
-		Assert(decl->functionDecl.parameters->size() == function->arguments.size());
+		AddScope();
+		BuildFunctionArguments(function, funcDecl);
+		BuildEntryLabel(function, funcDecl);
+		SpiteIR::Label* lastLabel = GetCurrentLabel();
+		if (!lastLabel->terminator && IsVoidType(function->returnType))
+		{
+			BuildVoidReturn(lastLabel);
+		}
+		PopScope();
+	}
+
+	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcDecl)
+	{
+		Assert(funcDecl->functionDecl.parameters->size() == function->arguments.size());
 
 		for (size_t i = 0; i < function->arguments.size(); i++)
 		{
 			SpiteIR::Argument* arg = function->arguments.at(i);
-			Stmnt* param = decl->functionDecl.parameters->at(i);
+			Stmnt* param = funcDecl->functionDecl.parameters->at(i);
 
 			SpiteIR::Instruction* alloc = BuildAllocate(arg->value->type);
 			StringView name = StringView(arg->value->name.c_str());
@@ -300,7 +308,7 @@ struct LowerDefinitions
 		}
 	}
 
-	void BuildEntryLabel(SpiteIR::Function* function, Stmnt* funcStmnt, Stmnt* funcDecl)
+	void BuildEntryLabel(SpiteIR::Function* function, Stmnt* funcDecl)
 	{
 		auto& decl = funcDecl->functionDecl;
 		Body& body = decl.body;
@@ -358,12 +366,6 @@ struct LowerDefinitions
 			break;
 		case InlineDefinition:
 			BuildInlineDefinition(stmnt);
-			break;
-		case FunctionStmnt:
-			break;
-		case AnonFunction:
-			break;
-		case Conditional:
 			break;
 		case AssignmentStmnt:
 			BuildAssignment(stmnt);
@@ -759,7 +761,7 @@ struct LowerDefinitions
 		case TypeExpr:
 			return BuildTypeExpr(expr, stmnt);
 		case FunctionTypeDeclExpr:
-			break;
+			return BuildAnonFunction(expr, stmnt);
 		case CompileExpr:
 			break;
 		case ConstantIntExpr:
@@ -944,7 +946,7 @@ struct LowerDefinitions
 		{
 			ASTContainer stateAST = context.stateASTMap[type->stateType.state];
 			Stmnt* stateStmnt = stateAST.node;
-			for (size_t  i = 0; i < type->stateType.state->members.size(); i++)
+			for (size_t i = 0; i < type->stateType.state->members.size(); i++)
 			{
 				SpiteIR::Member* memberType = type->stateType.state->members.at(i);
 				Stmnt* memberDecl = stateStmnt->state.members->at(i);
@@ -1243,7 +1245,7 @@ struct LowerDefinitions
 			ScopeValue dst = { alloc->allocate.result, returnType };
 
 			SpiteIR::Operand offset = BuildRegisterOperand(index);
-			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst), 
+			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst),
 				BuildRegisterOperand(arrRef), offset);
 			return dst;
 		}
@@ -1378,6 +1380,58 @@ struct LowerDefinitions
 		}
 
 		return BuildDefaultValue(alloc->allocate.type, alloc->allocate.result, GetCurrentLabel());
+	}
+
+	void BuildAnonFunctionName(eastl::string& name)
+	{
+		name = "_anon_" + funcContext.function->name + "_" + eastl::to_string(funcContext.anonFuncCount);
+		funcContext.anonFuncCount += 1;
+	}
+
+	ScopeValue BuildAnonFunction(Expr* expr, Stmnt* stmnt)
+	{
+		Stmnt* funcStmnt = expr->functionTypeDeclExpr.anonFunction;
+		SpiteIR::Type* returnType = ToIRType(funcStmnt->anonFunction.returnType);
+		auto& funcDecl = funcStmnt->anonFunction.decl->functionDecl;
+
+		SpiteIR::Function* func = context.ir->AllocateFunction();
+		BuildAnonFunctionName(func->name);
+		func->parent = funcContext.function->parent;
+		func->returnType = returnType;
+		func->block = context.ir->AllocateBlock();
+
+		for (size_t i = 0; i < funcDecl.parameters->size(); i++)
+		{
+			Stmnt* param = funcDecl.parameters->at(i);
+			SpiteIR::Type* argType = ToIRType(param->definition.type);
+			if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
+
+			SpiteIR::Argument* arg = context.ir->AllocateArgument();
+			arg->value = context.ir->AllocateValue();
+			arg->value->parent = SpiteIR::Parent(arg);
+			arg->value->type = argType;
+			arg->value->name = param->definition.name->val.ToString();
+			arg->parent = func;
+			func->arguments.push_back(arg);
+		}
+
+		FunctionContext prev = funcContext;
+		funcContext = FunctionContext();
+		funcContext.Reset(func, symbolTable, context.globalTable);
+		BuildFunctionDecl(func, funcStmnt->anonFunction.decl);
+		funcContext = prev;
+
+		SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
+		SpiteIR::Instruction* alloc = BuildAllocate(funcType);
+
+		SpiteIR::Operand funcOperand = SpiteIR::Operand();
+		funcOperand.kind = SpiteIR::OperandKind::Function;
+		funcOperand.type = funcType;
+		funcOperand.function = func;
+
+		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
+			funcOperand);
+		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
 	SpiteIR::Instruction* CreateInstruction(SpiteIR::Label* label)
@@ -1635,6 +1689,30 @@ struct LowerDefinitions
 		return { alloc->allocate.result, alloc->allocate.type };
 	}
 
+	ScopeValue BuildFunctionTypeCall(Expr* expr, Stmnt* stmnt)
+	{
+		ScopeValue funcValue = BuildExpr(expr->functionCallExpr.function, stmnt);
+		Assert(funcValue.type->kind == SpiteIR::TypeKind::FunctionType &&
+			expr->functionCallExpr.params->size() == funcValue.type->function.params->size());
+
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+		SpiteIR::Type* funcType = funcValue.type;
+
+		for (size_t i = 0; i < funcType->function.params->size(); i++)
+		{
+			SpiteIR::Type* argType = funcType->function.params->at(i);
+			Expr* param = expr->functionCallExpr.params->at(i);
+			ScopeValue value = BuildExpr(param, stmnt);
+			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
+		}
+
+		SpiteIR::Instruction* alloc = BuildAllocate(funcType->function.returnType);
+		ScopeValue ret = { alloc->allocate.result, alloc->allocate.type };
+		SpiteIR::Instruction* callPtr = BuildCallPtr(BuildRegisterOperand(funcValue), ret.reg, params, 
+			GetCurrentLabel());
+		return ret;
+	}
+
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
@@ -1656,8 +1734,10 @@ struct LowerDefinitions
 			break;
 		case UniformMethodCall:
 			break;
-		case FunctionTypeCall:
+		case PrimitiveCall:
 			break;
+		case FunctionTypeCall:
+			return BuildFunctionTypeCall(expr, stmnt);
 		case UnresolvedGenericCall:
 			break;
 		case ExternalCall:
@@ -1882,6 +1962,14 @@ struct LowerDefinitions
 		return store;
 	}
 
+	SpiteIR::Instruction* BuildStoreFunc(SpiteIR::Label* label, const SpiteIR::Operand& dst,
+		const SpiteIR::Operand& src)
+	{
+		SpiteIR::Instruction* store = BuildStore(label, dst, src);
+		store->kind = SpiteIR::InstructionKind::StoreFunc;
+		return store;
+	}
+
 	SpiteIR::Instruction* BuildDereference(SpiteIR::Label* label, const SpiteIR::Operand& dst,
 		const SpiteIR::Operand& src)
 	{
@@ -1952,6 +2040,17 @@ struct LowerDefinitions
 		call->call.params = params;
 		call->call.result = returnReg;
 		return call;
+	}
+
+	SpiteIR::Instruction* BuildCallPtr(const SpiteIR::Operand& funcPtr, size_t returnReg,
+		eastl::vector<SpiteIR::Operand>* params, SpiteIR::Label* label)
+	{
+		SpiteIR::Instruction* callPtr = CreateInstruction(label);
+		callPtr->kind = SpiteIR::InstructionKind::CallPtr;
+		callPtr->callPtr.funcPtr = funcPtr;
+		callPtr->callPtr.params = params;
+		callPtr->callPtr.result = returnReg;
+		return callPtr;
 	}
 
 	SpiteIR::Instruction* BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)

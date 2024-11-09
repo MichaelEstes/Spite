@@ -124,6 +124,7 @@ namespace SpiteIR
 		Register,
 		Literal,
 		StructLiteral,
+		Function,
 	};
 
 	enum class InstructionKind
@@ -133,6 +134,7 @@ namespace SpiteIR
 		Jump,
 		Branch,
 		Call,
+		CallPtr,
 		ExternCall,
 		TailCall,
 		Allocate,
@@ -140,6 +142,7 @@ namespace SpiteIR
 		LoadPtrOffset,
 		Store,
 		StorePtr,
+		StoreFunc,
 		Reference,
 		Dereference,
 		Cast,
@@ -208,6 +211,7 @@ namespace SpiteIR
 			size_t reg;
 			Literal literal;
 			Array<Operand>* structLiteral;
+			Function* function;
 		};
 	};
 
@@ -231,6 +235,13 @@ namespace SpiteIR
 	struct Call
 	{
 		Function* function;
+		Array<Operand>* params;
+		size_t result;
+	};
+
+	struct CallPtr
+	{
+		Operand funcPtr;
 		Array<Operand>* params;
 		size_t result;
 	};
@@ -307,6 +318,7 @@ namespace SpiteIR
 			Jump jump;
 			Branch branch;
 			Call call;
+			CallPtr callPtr;
 			Allocate allocate;
 			Load load;
 			Store store;

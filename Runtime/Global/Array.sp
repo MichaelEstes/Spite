@@ -30,6 +30,11 @@ array::delete
 	delete[] this.start;
 }
 
+array::Clear()
+{
+	this.count = 0;
+}
+
 // Returns the index of the item added
 int array::Add(item: any)
 {

@@ -648,6 +648,22 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	return state;
 }
 
+SpiteIR::Type* IRFunctionToFunctionType(SpiteIR::IR* ir, SpiteIR::Function* function)
+{
+	SpiteIR::Type* funcType = ir->AllocateType();
+	funcType->kind = SpiteIR::TypeKind::FunctionType;
+	funcType->size = config.targetArchBitWidth;
+	funcType->byValue = true;
+	funcType->function.params = ir->AllocateArray<SpiteIR::Type*>();
+	funcType->function.returnType = function->returnType;
+
+	for (SpiteIR::Argument* arg : function->arguments)
+	{
+		funcType->function.params->push_back(arg->value->type);
+	}
+	return funcType;
+}
+
 SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* type)
 {
 	SpiteIR::Type* fixedArray = ir->AllocateType();
@@ -657,14 +673,6 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	fixedArray->size = (type->size * count);
 	fixedArray->byValue = true;
 	return fixedArray;
-}
-
-SpiteIR::Type* BuildDynamicArray(SpiteIR::IR* ir, SpiteIR::Type* type)
-{
-	SpiteIR::Type* dynamicArray = ir->AllocateType();
-	dynamicArray->kind = SpiteIR::TypeKind::DynamicArrayType;
-	dynamicArray->dynamicArray.type = type;
-	return dynamicArray;
 }
 
 template<typename Low>
