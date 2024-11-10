@@ -42,12 +42,15 @@ struct Interpreter
 		InterpretLabel(entry);
 	}
 
-	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params, char* frame)
+	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params,
+		eastl::vector<SpiteIR::Argument*>& args, char* frame)
 	{
 		size_t offset = 0;
-		for (SpiteIR::Operand& param : *params)
+		for (size_t i = 0; i < params->size(); i++)
 		{
-			CopyRegValue(param, stackTop + offset, frame);
+			SpiteIR::Operand& param = params->at(i);
+			SpiteIR::Argument* arg = args.at(i);
+			CopyValue(param.reg, arg->value->type, stackTop + offset, frame);
 			offset += param.type->size;
 		}
 	}
@@ -59,7 +62,7 @@ struct Interpreter
 
 		if (params)
 		{
-			MoveParams(params, prevStackStart);
+			MoveParams(params, func->arguments, prevStackStart);
 		}
 
 		InterpretBlock(func->block);
@@ -102,11 +105,12 @@ struct Interpreter
 		}
 	}
 
-	void CopyRegValue(SpiteIR::Operand& src, void* dst, char* frame)
+	void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, char* frame)
 	{
-		for (size_t i = 0; i < src.type->size; i++)
+		void* dstPtr = stackFrameStart + dst.reg;
+		for (size_t i = 0; i < dst.type->size; i++)
 		{
-			((char*)dst)[i] = (frame + src.reg)[i];
+			((char*)dstPtr)[i] = (frame + src.reg)[i];
 		}
 	}
 
@@ -147,6 +151,9 @@ struct Interpreter
 		case SpiteIR::InstructionKind::StorePtr:
 			InterpretStorePtr(inst);
 			break;
+		case SpiteIR::InstructionKind::Move:
+			InterpretMove(inst);
+			break;
 		case SpiteIR::InstructionKind::StoreFunc:
 			InterpretStoreFunc(inst);
 			break;
@@ -179,7 +186,8 @@ struct Interpreter
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyRegValue(inst.return_.operand, stackFrameStart, stackFrameStart);
+			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, 
+				stackFrameStart, stackFrameStart);
 			break;
 		case SpiteIR::OperandKind::Literal:
 			break;
@@ -226,17 +234,18 @@ struct Interpreter
 
 	void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
-		void* dst = stackFrameStart + storeInst.store.dst.reg;
 		SpiteIR::Operand& src = storeInst.store.src;
 
 		switch (src.kind)
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-			CopyRegValue(src, dst, stackFrameStart);
+			CopyRegValue(src, storeInst.store.dst, stackFrameStart);
 			break;
 		}
 		case SpiteIR::OperandKind::Literal:
+		{
+			void* dst = stackFrameStart + storeInst.store.dst.reg;
 			switch (src.literal.kind)
 			{
 			case SpiteIR::PrimitiveKind::Byte:
@@ -259,6 +268,7 @@ struct Interpreter
 				break;
 			}
 			break;
+		}
 		case SpiteIR::OperandKind::StructLiteral:
 			break;
 		default:
@@ -281,6 +291,16 @@ struct Interpreter
 		Assert(storeInst.store.src.kind == SpiteIR::OperandKind::Function);
 		size_t* ptr = (size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		*ptr = (size_t)storeInst.store.src.function;
+	}
+
+	void InterpretMove(SpiteIR::Instruction& storeInst)
+	{
+		char* dst = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
+		char* src = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
+		for (size_t i = 0; i < storeInst.store.dst.type->size; i++)
+		{
+			dst[i] = src[i];
+		}
 	}
 
 	void InterpretReference(SpiteIR::Instruction& storeInst)
@@ -381,15 +401,13 @@ struct Interpreter
 			}
 			else if (castInst.cast.to.type->kind == SpiteIR::TypeKind::PointerType)
 			{
-				void* dst = stackFrameStart + castInst.cast.to.reg;
-				CopyRegValue(castInst.cast.from, dst, stackFrameStart);
+				CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
 			}
 			return;
 		}
 		case SpiteIR::TypeKind::PointerType:
 		{
-			void* dst = stackFrameStart + castInst.cast.to.reg;
-			CopyRegValue(castInst.cast.from, dst, stackFrameStart);
+			CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
 		}
 		case SpiteIR::TypeKind::StateType:
 		case SpiteIR::TypeKind::StructureType:

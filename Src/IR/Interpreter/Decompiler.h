@@ -223,6 +223,9 @@ struct Decompiler
 		case SpiteIR::InstructionKind::Call:
 			DecompileCall(inst);
 			break;
+		case SpiteIR::InstructionKind::CallPtr:
+			DecompileCallPtr(inst);
+			break;
 		case SpiteIR::InstructionKind::Allocate:
 			DecompileAllocate(inst);
 			break;
@@ -234,6 +237,8 @@ struct Decompiler
 		case SpiteIR::InstructionKind::StorePtr:
 		case SpiteIR::InstructionKind::Reference:
 		case SpiteIR::InstructionKind::Dereference:
+		case SpiteIR::InstructionKind::StoreFunc:
+		case SpiteIR::InstructionKind::Move:
 			DecompileStore(inst);
 			break;
 		case SpiteIR::InstructionKind::Cast:
@@ -292,6 +297,7 @@ struct Decompiler
 		switch (storeInst.kind)
 		{
 		case SpiteIR::InstructionKind::Store:
+		case SpiteIR::InstructionKind::StoreFunc:
 			storeString = " = store ";
 			break;
 		case SpiteIR::InstructionKind::StorePtr:
@@ -302,6 +308,9 @@ struct Decompiler
 			break;
 		case SpiteIR::InstructionKind::Dereference:
 			storeString = " = store~ ";
+			break;
+		case SpiteIR::InstructionKind::Move:
+			storeString = " = move ";
 			break;
 		default:
 			break;
@@ -349,6 +358,24 @@ struct Decompiler
 			seenFunctions.insert(callInst.call.function);
 			functionQueue.push_back(callInst.call.function);
 		}
+	}
+
+	void DecompileCallPtr(SpiteIR::Instruction& callPtrInst)
+	{
+		eastl::string callStr = "r" + eastl::to_string(callPtrInst.callPtr.result) + " = call* " +
+			WriteType(callPtrInst.callPtr.funcPtr.type->function.returnType) + "(";
+
+		if (callPtrInst.callPtr.params->size())
+		{
+			for (SpiteIR::Operand& param : *callPtrInst.callPtr.params)
+			{
+				callStr += WriteOperand(param) + ",";
+			}
+			callStr.back() = ')';
+		}
+		else callStr += ")";
+
+		Write(callStr);
 	}
 
 	void DecompileBinaryOp(SpiteIR::Instruction& binOpInst)

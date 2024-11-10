@@ -16,10 +16,16 @@ struct ScopeValue
 	SpiteIR::Type* type = nullptr;
 };
 
+struct DeferredBody
+{
+	ScopeValue runTest;
+	Body body;
+};
+
 struct FunctionScope
 {
 	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeMap;
-	eastl::vector<Expr*> deferred;
+	eastl::vector<DeferredBody> deferred;
 	eastl::vector<size_t> toDestroy;
 };
 
@@ -36,6 +42,7 @@ struct FunctionContext
 	size_t ifCount = 0;
 	size_t blockCount = 0;
 	size_t anonFuncCount = 0;
+	size_t deferCount = 0;
 
 	void IncrementRegister(SpiteIR::Type* type)
 	{
@@ -57,6 +64,7 @@ struct FunctionContext
 		ifCount = 0;
 		blockCount = 0;
 		anonFuncCount = 0;
+		deferCount = 0;
 	}
 };
 
@@ -187,6 +195,8 @@ struct LowerDefinitions
 	void PopScope()
 	{
 		FunctionScope scope = funcContext.scopeQueue.back();
+		for (DeferredBody& deferred : scope.deferred) BuildDeferred(deferred);
+
 		funcContext.scopeQueue.pop_back();
 		funcContext.scopeUtils.PopScope();
 	}
@@ -246,6 +256,8 @@ struct LowerDefinitions
 			if (IsAnyType(from.type)) return from;
 			return HandleAutoCast(BuildTypeDereference(GetCurrentLabel(), from), to);
 		}
+
+		// Handle primitive casting
 
 		return from;
 	}
@@ -384,6 +396,7 @@ struct LowerDefinitions
 		case DeleteStmnt:
 			break;
 		case DeferStmnt:
+			BuildDefer(stmnt);
 			break;
 		case ContinueStmnt:
 		{
@@ -445,7 +458,7 @@ struct LowerDefinitions
 		AssignValues(assignTo, assignment);
 	}
 
-	void AssignValues(const ScopeValue& dst, const ScopeValue& src)
+	void AssignValues(ScopeValue& dst, ScopeValue& src)
 	{
 		if (dst.type->kind == SpiteIR::TypeKind::ReferenceType ||
 			src.type->kind == SpiteIR::TypeKind::ReferenceType)
@@ -454,7 +467,7 @@ struct LowerDefinitions
 			BuildStore(GetCurrentLabel(), BuildRegisterOperand(dst), BuildRegisterOperand(src));
 	}
 
-	void BuildReferenceAssignment(const ScopeValue& dst, const ScopeValue& src)
+	void BuildReferenceAssignment(ScopeValue& dst, ScopeValue& src)
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
 
@@ -473,9 +486,7 @@ struct LowerDefinitions
 		// ref = ref - dereference src onto stack and StorePtr
 		else
 		{
-			SpiteIR::Operand alloc = AllocateToOperand(BuildAllocate(src.type->reference.type));
-			BuildDereference(label, alloc, BuildRegisterOperand(src));
-			BuildStorePtr(label, BuildRegisterOperand(dst), alloc);
+			BuildMove(label, BuildRegisterOperand(dst), BuildRegisterOperand(src));
 		}
 	}
 
@@ -625,7 +636,7 @@ struct LowerDefinitions
 
 		SpiteIR::Label* fromLabel = GetCurrentLabel();
 		SpiteIR::Label* whileCondLabel = BuildLabel(whileCondName);
-		SpiteIR::Label* whileEndLabel = BuildLabel(whileBodyName);
+		SpiteIR::Label* whileEndLabel = BuildLabel(whileEndName);
 
 		funcContext.breakLabels.push_back(whileEndLabel);
 		funcContext.continueLabels.push_back(whileCondLabel);
@@ -649,6 +660,55 @@ struct LowerDefinitions
 
 		funcContext.breakLabels.pop_back();
 		funcContext.continueLabels.pop_back();
+	}
+
+	void BuildDefer(Stmnt* stmnt)
+	{
+		auto& deferStmnt = stmnt->deferStmnt;
+		DeferredBody deferred;
+
+		if (deferStmnt.deferIf)
+		{
+			deferred.runTest = BuildExpr(deferStmnt.conditional->conditional.condition, stmnt);
+			deferred.body = deferStmnt.conditional->conditional.body;
+			funcContext.scopeQueue.back().deferred.push_back(deferred);
+		}
+		else
+		{
+			deferred.runTest = InvalidScopeValue;
+			deferred.body = deferStmnt.body;
+			funcContext.scopeQueue.back().deferred.push_back(deferred);
+		}
+	}
+
+	void BuildDeferred(DeferredBody& deferred)
+	{
+		if (deferred.runTest.reg != InvalidRegister)
+		{
+			SpiteIR::Label* currentLabel = GetCurrentLabel();
+			//Move label terminator to defer end label
+			SpiteIR::Instruction* term = currentLabel->terminator;
+			currentLabel->terminator = nullptr;
+
+			eastl::string deferStartName = "defer_" + eastl::to_string(funcContext.deferCount);
+			eastl::string deferEndName = "defer_end_" + eastl::to_string(funcContext.deferCount);
+			SpiteIR::Label* deferEndLabel = BuildLabel(deferEndName);
+			SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(),
+				BuildRegisterOperand(deferred.runTest));
+
+			SpiteIR::Label* deferBodyLabel = BuildLabelBody(deferStartName, deferred.body);
+			SpiteIR::Instruction* bodyToEnd = BuildJump(deferBodyLabel);
+			bodyToEnd->jump.label = deferEndLabel;
+
+			AddLabel(deferEndLabel);
+			branch->branch.true_ = deferBodyLabel;
+			branch->branch.false_ = deferEndLabel;
+			deferEndLabel->terminator = term;
+		}
+		else
+		{
+			BuildBody(deferred.body);
+		}
 	}
 
 	inline void BuildVoidReturn(SpiteIR::Label* label)
@@ -963,6 +1023,7 @@ struct LowerDefinitions
 		case SpiteIR::TypeKind::StructureType:
 			break;
 		case SpiteIR::TypeKind::PointerType:
+		case SpiteIR::TypeKind::FunctionType:
 		{
 			SpiteIR::Operand defaultOp = SpiteIR::Operand();
 			defaultOp.type = type;
@@ -972,13 +1033,11 @@ struct LowerDefinitions
 
 			SpiteIR::Instruction* store = BuildStore(label, BuildRegisterOperand({ dst, type }),
 				defaultOp);
+			break;
 		}
-		break;
 		case SpiteIR::TypeKind::DynamicArrayType:
-			break;
 		case SpiteIR::TypeKind::FixedArrayType:
-			break;
-		case SpiteIR::TypeKind::FunctionType:
+		case SpiteIR::TypeKind::ReferenceType:
 			break;
 		default:
 			break;
@@ -1708,7 +1767,7 @@ struct LowerDefinitions
 
 		SpiteIR::Instruction* alloc = BuildAllocate(funcType->function.returnType);
 		ScopeValue ret = { alloc->allocate.result, alloc->allocate.type };
-		SpiteIR::Instruction* callPtr = BuildCallPtr(BuildRegisterOperand(funcValue), ret.reg, params, 
+		SpiteIR::Instruction* callPtr = BuildCallPtr(BuildRegisterOperand(funcValue), ret.reg, params,
 			GetCurrentLabel());
 		return ret;
 	}
@@ -1861,7 +1920,6 @@ struct LowerDefinitions
 		return FindFunction(packageName, methodName);
 	}
 
-
 	SpiteIR::Function* FindFunctionForConstructor(Expr* expr)
 	{
 		Expr* caller = expr->functionCallExpr.function;
@@ -1967,6 +2025,30 @@ struct LowerDefinitions
 	{
 		SpiteIR::Instruction* store = BuildStore(label, dst, src);
 		store->kind = SpiteIR::InstructionKind::StoreFunc;
+		return store;
+	}
+
+	SpiteIR::Type* GetMoveType(SpiteIR::Type* type)
+	{
+		switch (type->kind)
+		{
+		case SpiteIR::TypeKind::PointerType:
+			return type->pointer.type;
+		case SpiteIR::TypeKind::ReferenceType:
+			return type->reference.type;
+		default:
+			break;
+		}
+
+		return type;
+	}
+
+	SpiteIR::Instruction* BuildMove(SpiteIR::Label* label, SpiteIR::Operand dst,
+		const SpiteIR::Operand& src)
+	{
+		dst.type = GetMoveType(dst.type);
+		SpiteIR::Instruction* store = BuildStore(label, dst, src);
+		store->kind = SpiteIR::InstructionKind::Move;
 		return store;
 	}
 

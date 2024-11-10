@@ -143,6 +143,7 @@ namespace SpiteIR
 		Store,
 		StorePtr,
 		StoreFunc,
+		Move,
 		Reference,
 		Dereference,
 		Cast,
