@@ -9,6 +9,8 @@ typedef void (*func_ptr)();
 
 DCCallVM* dynCallVM;
 
+eastl::hash_map<SpiteIR::Function*, func_ptr> funcCache;
+
 #ifdef WIN32
 
 const char* platform = "windows";
@@ -255,11 +257,16 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		BuildDCArg(type, value);
 	}
 
-	eastl::string& name = function->metadata.externFunc->callName;
-	eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
-	func_ptr func = FindFunction(name, *lib);
-	if (!func) Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-		name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+	func_ptr func = funcCache[function];
+	if (!func)
+	{
+		eastl::string& name = function->metadata.externFunc->callName;
+		eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
+		func = FindFunction(name, *lib);
+		if (!func) Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+				name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+		funcCache[function] = func;
+	}
 
 	CallDCFunc(function->returnType, func, dst);
 }

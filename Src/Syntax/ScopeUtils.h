@@ -179,66 +179,6 @@ struct ScopeUtils
 			globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val);
 	}
 
-	Stmnt* GetDeclarationStmntForExpr(Expr* expr, Token* package = nullptr)
-	{
-		switch (expr->typeID)
-		{
-		case IdentifierExpr:
-		{
-			Token* ident = expr->identifierExpr.identifier;
-			Stmnt* stmnt = nullptr;
-			if (package)
-			{
-				stmnt = globalTable->FindStatementForPackage(package, ident);
-			}
-			else
-			{
-				stmnt = FindForName(ident);
-			}
-			if (!stmnt) return stmnt;
-
-			switch (stmnt->nodeID)
-			{
-			case Definition:
-				return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
-			case FunctionStmnt:
-			case StateStmnt:
-			case ExternFunctionDecl:
-				return stmnt;
-			default:
-				return nullptr;
-			}
-		}
-		case SelectorExpr:
-		{
-			Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
-			if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
-			{
-				return globalTable->FindStateMemberOrMethodStmnt(stmnt,
-					expr->selectorExpr.select->identifierExpr.identifier,
-					symbolTable);
-			}
-			else if (IsPackageExpr(expr))
-			{
-				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
-				return GetDeclarationStmntForExpr(expr->selectorExpr.select, package);
-			}
-			else
-			{
-				return nullptr;
-			}
-		}
-		case TemplateExpr:
-			return GetDeclarationStmntForExpr(expr->templateExpr.expr);
-		case TypeExpr:
-			return globalTable->FindStateForType(expr->typeExpr.type, symbolTable);
-		default:
-			break;
-		}
-
-		return nullptr;
-	}
-
 	inline Stmnt* FindInScope(StringView& val)
 	{
 		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)

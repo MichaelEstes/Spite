@@ -160,9 +160,9 @@ struct Decompiler
 	void DecompileBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label* entry = block->labels.front();
-		for (SpiteIR::Instruction* inst : block->allocations)
+		for (SpiteIR::Allocate& alloc : block->allocations)
 		{
-			DecompileInstruction(*inst);
+			DecompileAllocate(alloc);
 		}
 		DecompileLabel(entry);
 	}
@@ -226,9 +226,6 @@ struct Decompiler
 		case SpiteIR::InstructionKind::CallPtr:
 			DecompileCallPtr(inst);
 			break;
-		case SpiteIR::InstructionKind::Allocate:
-			DecompileAllocate(inst);
-			break;
 		case SpiteIR::InstructionKind::Load:
 		case SpiteIR::InstructionKind::LoadPtrOffset:
 			DecompileLoad(inst);
@@ -250,6 +247,7 @@ struct Decompiler
 			DecompileBinaryOp(inst);
 			break;
 		case SpiteIR::InstructionKind::UnOp:
+			DecompileUnaryOp(inst);
 			break;
 		case SpiteIR::InstructionKind::Log:
 			DecompileLog(inst);
@@ -278,10 +276,9 @@ struct Decompiler
 		DecompileLabel(branchInst.branch.false_);
 	}
 
-	void DecompileAllocate(SpiteIR::Instruction& allocateInst)
+	void DecompileAllocate(SpiteIR::Allocate& alloc)
 	{
-		Write("r" + eastl::to_string(allocateInst.allocate.result) + " = " + 
-			"allocate " + WriteType(allocateInst.allocate.type));
+		Write("r" + eastl::to_string(alloc.result) + " = " + "allocate " + WriteType(alloc.type));
 	}
 
 	void DecompileLoad(SpiteIR::Instruction& loadInst)
@@ -450,11 +447,34 @@ struct Decompiler
 
 	void DecompileUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
+		eastl::string out = "r" + eastl::to_string(unOpInst.unOp.result) + " = ";
+		switch (unOpInst.unOp.kind)
+		{
+		case SpiteIR::UnaryOpKind::Not:
+			out += "not ";
+			break;
+		case SpiteIR::UnaryOpKind::Subtract:
+			out += "neg ";
+			break;
+		case SpiteIR::UnaryOpKind::XOr:
+			out += "bnot ";
+			break;
+		default:
+			break;
+		}
 
+		out += WriteOperand(unOpInst.unOp.operand);
+		Write(out);
 	}
 
 	void DecompileLog(SpiteIR::Instruction& logInst)
 	{
-		Write("log " + WriteOperand(logInst.log.operand));
+		eastl::string out = "log ";
+		for (SpiteIR::Operand& operand : *logInst.log.operands)
+		{
+			out += WriteOperand(operand) + ",";
+		}
+		out.pop_back();
+		Write(out);
 	}
 };

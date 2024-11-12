@@ -32,7 +32,7 @@ struct ExprChecker
 		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
 		Expr* ofExpr = templateExpr.expr;
 
-		Stmnt* stmnt = context.scopeUtils.GetDeclarationStmntForExpr(ofExpr);
+		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
 		if (!stmnt)
 		{
 			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
@@ -78,7 +78,7 @@ struct ExprChecker
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
 		size_t paramCount = params->size();
-		Stmnt* functionStmnt = context.scopeUtils.GetDeclarationStmntForExpr(function);
+		Stmnt* functionStmnt = utils.GetDeclarationStmntForExpr(function);
 
 		if (functionStmnt)
 		{
@@ -149,16 +149,18 @@ struct ExprChecker
 				Expr* caller = GetCallerExprMethodCall(function);
 
 				Expr thisIdent = Expr(ExprID::TypeExpr, functionStmnt->method.stateName);
-				if (CallerIsReceiver(caller))
+				if (IsUniformCall(caller, functionStmnt))
 				{
-					Type* type = utils.InferType(caller);
-					thisIdent.typeExpr.type = type;
-					methodParams.push_back(&thisIdent);
-					functionCall.callKind = FunctionCallKind::MemberMethodCall;
+					functionCall.callKind = FunctionCallKind::UniformMethodCall;
 				}
 				else
 				{
-					functionCall.callKind = FunctionCallKind::UniformMethodCall;
+					Type* type = utils.InferType(caller);
+					// Methods can be called from the . syntax for pointers since 'this' param is always a reference
+					if (type->typeID == TypeID::PointerType) type = type->pointerType.type;
+					thisIdent.typeExpr.type = type;
+					methodParams.push_back(&thisIdent);
+					functionCall.callKind = FunctionCallKind::MemberMethodCall;
 				}
 				functionCall.functionStmnt = functionStmnt;
 
@@ -242,15 +244,17 @@ struct ExprChecker
 		}
 	}
 
-	bool CallerIsReceiver(Expr* caller)
+	bool IsUniformCall(Expr* caller, Stmnt* method)
 	{
-		if (caller->typeID == ExprID::SelectorExpr)
+		StringView& stateName = method->method.stateName->val;
+
+		if (caller->typeID == ExprID::IdentifierExpr)
 		{
-			return CallerIsReceiver(caller->selectorExpr.on);
+			return caller->identifierExpr.identifier->val == stateName;
 		}
-		else if (caller->typeID == ExprID::IdentifierExpr)
+		else if (caller->typeID == ExprID::SelectorExpr)
 		{
-			return context.scopeUtils.FindInScope(caller->identifierExpr.identifier->val) != nullptr;
+			return caller->selectorExpr.select->identifierExpr.identifier->val == stateName;
 		}
 
 		return false;

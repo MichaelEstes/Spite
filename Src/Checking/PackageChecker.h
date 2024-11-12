@@ -31,7 +31,6 @@ struct PackageChecker
 
 		for (auto& [key, value] : context.symbolTable->stateMap)
 		{
-			AddScope();
 			// Keep in state in context for method checking
 			context.currentContext = value.state;
 			CheckState(key, value);
@@ -39,7 +38,6 @@ struct PackageChecker
 			CheckMethods(value.methods);
 			CheckOperators(value.operators);
 			CheckDestructor(value.destructor);
-			PopScope();
 		}
 
 		for (auto& [key, value] : context.symbolTable->functionMap)
@@ -147,6 +145,7 @@ struct PackageChecker
 			return;
 		}
 
+		AddScope();
 		if (state->state.generics)
 		{
 			CheckStateGenerics(stateSymbol);
@@ -157,6 +156,7 @@ struct PackageChecker
 		{
 			CheckDefinition(member);
 		}
+		PopScope();
 	}
 
 	void CheckConstructors(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& constructors)
@@ -354,8 +354,13 @@ struct PackageChecker
 			CheckFuncBody(node->compileDebugStmnt.body);
 			break;
 		case LogStmnt:
-			CheckExpr(node->logStmnt.expr);
+		{
+			for (Expr* expr : *node->logStmnt.exprs)
+			{
+				CheckExpr(expr);
+			}
 			break;
+		}
 		case AssertStmnt:
 			CheckExpr(node->assertStmnt.expr);
 			break;

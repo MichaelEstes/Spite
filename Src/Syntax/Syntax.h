@@ -807,6 +807,7 @@ struct Syntax
 		{
 			block->end = curr;
 			Advance();
+			if (Expect(UniqueType::Semicolon)) Advance();
 		}
 
 		EndScope();
@@ -856,18 +857,8 @@ struct Syntax
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::LogStmnt);
 		Advance();
-
-		Expr* expr = ParseExpr();
-		if (expr->typeID != ExprID::InvalidExpr)
-		{
-			if (Expect(UniqueType::Semicolon)) Advance();
-			node->logStmnt.expr = expr;
-			node->end = curr;
-			return node;
-		}
-
-		AddError(node->start, "Syntax:ParseLogStmnt Invalid expression");
-		node->nodeID = StmntID::InvalidStmnt;
+		node->logStmnt.exprs = ParseExprList(UniqueType::Semicolon, false);
+		if (Expect(UniqueType::Semicolon)) Advance();
 		return node;
 	}
 
@@ -2133,7 +2124,7 @@ struct Syntax
 		return expr;
 	}
 
-	eastl::vector<Expr*>* ParseExprList(UniqueType end = UniqueType::Rparen)
+	eastl::vector<Expr*>* ParseExprList(UniqueType end = UniqueType::Rparen, bool endRequired = true)
 	{
 		eastl::vector<Expr*>* exprs = CreateVectorPtr<Expr>();
 
@@ -2141,6 +2132,7 @@ struct Syntax
 		{
 			exprs->push_back(ParseExpr());
 			if (Expect(UniqueType::Comma)) Advance();
+			else if (!endRequired) break;
 		}
 
 		return exprs;

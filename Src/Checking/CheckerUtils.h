@@ -52,27 +52,6 @@ struct CheckerUtils
 		return count;
 	}
 
-	inline Type* GetReturnType(Stmnt* node)
-	{
-		switch (node->nodeID)
-		{
-		case StmntID::FunctionStmnt:
-			return node->function.returnType;
-		case StmntID::Method:
-			return node->method.returnType;
-		case StmntID::StateOperator:
-			return node->stateOperator.returnType;
-		case StmntID::AnonFunction:
-			return node->anonFunction.returnType;
-		case StmntID::CompileStmnt:
-			return node->compileStmnt.returnType;
-		default:
-			break;
-		}
-
-		return nullptr;
-	}
-
 	inline bool IsOuterScope(Stmnt* node)
 	{
 		StmntID nodeID = node->nodeID;
@@ -156,6 +135,12 @@ struct CheckerUtils
 	{
 		return TypeInferer(context.globalTable, context.symbolTable, 
 			context.scopeUtils, context.currentContext).InferType(of);
+	}
+
+	Stmnt* GetDeclarationStmntForExpr(Expr* expr)
+	{
+		return TypeInferer(context.globalTable, context.symbolTable,
+			context.scopeUtils, context.currentContext).GetDeclarationStmntForExpr(expr);
 	}
 
 	bool IsAssignable(Type* left, Type* right, Stmnt* stmntContext = nullptr)

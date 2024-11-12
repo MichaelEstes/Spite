@@ -175,6 +175,29 @@ inline Stmnt* GetDeclForFunc(Stmnt* func)
 	return nullptr;
 }
 
+inline Type* GetReturnType(Stmnt* node)
+{
+	switch (node->nodeID)
+	{
+	case StmntID::FunctionStmnt:
+		return node->function.returnType;
+	case StmntID::Method:
+		return node->method.returnType;
+	case StmntID::StateOperator:
+		return node->stateOperator.returnType;
+	case StmntID::AnonFunction:
+		return node->anonFunction.returnType;
+	case StmntID::CompileStmnt:
+		return node->compileStmnt.returnType;
+	case StmntID::ExternFunctionDecl:
+		return node->externFunction.returnType;
+	default:
+		break;
+	}
+
+	return nullptr;
+}
+
 inline Stmnt* GetGenerics(Stmnt* node)
 {
 	switch (node->nodeID)

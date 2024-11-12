@@ -297,7 +297,7 @@ struct Stmnt
 
 		struct
 		{
-			Expr* expr;
+			eastl::vector<Expr*>* exprs;
 		} logStmnt;
 
 		struct

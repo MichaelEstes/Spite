@@ -684,7 +684,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	case InvalidType:
 	case UnknownType:
 	case ImplicitType:
-		AddError("Lower:TypeToIRType Invalid type for conversion");
+		AddError("Lower:TypeToIRType Invalid type for conversion: " + eastl::to_string(type->typeID));
 		break;
 	case PrimitiveType:
 	{
@@ -746,7 +746,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			}
 		}
 
-		AddError("Lower:ReplaceTypeWithTemplateType Named types should have been qualified by now");
+		AddError(type->namedType.typeName, "Lower:ReplaceTypeWithTemplateType Named types should have been qualified by now");
 		return nullptr;
 	}
 	case ImportedType:

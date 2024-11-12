@@ -15,11 +15,8 @@ struct Checker
 
 	void Check()
 	{
-#ifdef NDEBUG
-#else
 		PackageChecker packageChecker = PackageChecker(globalTable, globalTable->runtimeTable, deferred);
 		packageChecker.Check();
-#endif
 
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{

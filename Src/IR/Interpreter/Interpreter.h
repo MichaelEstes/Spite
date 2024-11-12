@@ -38,7 +38,7 @@ struct Interpreter
 	void InterpretBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label*& entry = block->labels.front();
-		for (SpiteIR::Instruction* inst : block->allocations) InterpretAllocate(*inst);
+		InterpretAllocations(block->allocations);
 		InterpretLabel(entry);
 	}
 
@@ -136,9 +136,6 @@ struct Interpreter
 		case SpiteIR::InstructionKind::CallPtr:
 			InterpretCallPtr(inst);
 			break;
-		case SpiteIR::InstructionKind::Allocate:
-			InterpretAllocate(inst);
-			break;
 		case SpiteIR::InstructionKind::Load:
 			InterpretLoad(inst);
 			break;
@@ -172,6 +169,7 @@ struct Interpreter
 			InterpretBinaryOp(inst);
 			break;
 		case SpiteIR::InstructionKind::UnOp:
+			InterpretUnaryOp(inst);
 			break;
 		case SpiteIR::InstructionKind::Log:
 			InterpretLog(inst);
@@ -186,7 +184,7 @@ struct Interpreter
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, 
+			CopyValue(inst.return_.operand.reg, inst.return_.operand.type,
 				stackFrameStart, stackFrameStart);
 			break;
 		case SpiteIR::OperandKind::Literal:
@@ -211,9 +209,11 @@ struct Interpreter
 			label = branchInst.branch.false_;
 	}
 
-	void InterpretAllocate(SpiteIR::Instruction& allocateInst)
+	void InterpretAllocations(eastl::vector<SpiteIR::Allocate>& allocInsts)
 	{
-		IncrementStackPointer(allocateInst.allocate.type->size);
+		size_t amount = 0;
+		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
+		IncrementStackPointer(amount);
 	}
 
 	void InterpretLoad(SpiteIR::Instruction& loadInst)
@@ -535,7 +535,7 @@ struct Interpreter
 			stackFrameStart + callPtrInst.callPtr.result, stackFrameStart);
 	}
 
-#define boolOpTypeMacro(left, right, result, op, lType, rType)				\
+#define binaryBoolOpTypeMacro(left, right, result, op, lType, rType)		\
 {																			\
 	*(bool*)(void*)(stackFrameStart + result) =								\
 	*(lType*)(void*)(stackFrameStart + left.reg) op							\
@@ -624,9 +624,6 @@ struct Interpreter
 
 	void InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
-		Assert(binOpInst.binOp.left.kind == SpiteIR::OperandKind::Register);
-		Assert(binOpInst.binOp.right.kind == SpiteIR::OperandKind::Register);
-
 		SpiteIR::Operand& left = binOpInst.binOp.left;
 		SpiteIR::Operand& right = binOpInst.binOp.right;
 		size_t result = binOpInst.binOp.result;
@@ -671,36 +668,36 @@ struct Interpreter
 			binaryOpMacroI(left, right, result, &~, binaryOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::LogicAnd:
-			binaryOpMacroI(left, right, result, &&, boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, &&, boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, &&, binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, &&, binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::LogicOr:
-			binaryOpMacroI(left, right, result, || , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, || , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, || , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, || , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::Equal:
-			binaryOpMacroI(left, right, result, == , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, == , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, == , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, == , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::NotEql:
-			binaryOpMacroI(left, right, result, != , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, != , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, != , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, != , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::Less:
-			binaryOpMacroI(left, right, result, < , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, < , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, < , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, < , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::Greater:
-			binaryOpMacroI(left, right, result, > , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, > , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, > , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, > , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::LessEqual:
-			binaryOpMacroI(left, right, result, <= , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, <= , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, <= , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, <= , binaryBoolOpTypeMacro)
 				break;
 		case SpiteIR::BinaryOpKind::GreaterEqual:
-			binaryOpMacroI(left, right, result, >= , boolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, >= , boolOpTypeMacro)
+			binaryOpMacroI(left, right, result, >= , binaryBoolOpTypeMacro)
+				binaryOpMacroFP(left, right, result, >= , binaryBoolOpTypeMacro)
 				break;
 		default:
 			Logger::FatalError("Interpreter:InterpretBinaryOp Invalid operation");
@@ -708,21 +705,123 @@ struct Interpreter
 		}
 	}
 
+#define unaryBoolOpTypeMacro(left, result, op, lType)						\
+{																			\
+	*(bool*)(void*)(stackFrameStart + result) =								\
+	op *(lType*)(void*)(stackFrameStart + left.reg); 						\
+}															
+
+#define unaryOpTypeMacro(left, result, op, lType)							\
+{																			\
+	*(lType*)(void*)(stackFrameStart + result) =							\
+	op *(lType*)(void*)(stackFrameStart + left.reg); 						\
+}		
+
+#define unaryOpMacroI(left, result, op, assignMacro)						\
+	if (left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Int ||							\
+		left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Bool ||							\
+		left.type->primitive.kind ==										\
+					SpiteIR::PrimitiveKind::Byte)							\
+	{																		\
+		if (left.type->primitive.isSigned)									\
+		{																	\
+			switch (left.type->size)										\
+			{																\
+			case 1:															\
+				assignMacro(left, result, op, char);						\
+				break;														\
+			case 2:															\
+				assignMacro(left, result, op, int16_t);						\
+				break;														\
+			case 4:															\
+				assignMacro(left, result, op, int32_t);						\
+				break;														\
+			case 8:															\
+				assignMacro(left, result, op, int64_t);						\
+				break;														\
+			case 16:														\
+				assignMacro(left, result, op, intmax_t);					\
+				break;														\
+			default:														\
+				break;														\
+			}																\
+		}																	\
+		else																\
+		{																	\
+			switch (left.type->size)										\
+			{																\
+			case 1:															\
+				assignMacro(left, result, op, uint8_t);						\
+				break;														\
+			case 2:															\
+				assignMacro(left, result, op, uint16_t);					\
+				break;														\
+			case 4:															\
+				assignMacro(left, result, op, uint32_t);					\
+				break;														\
+			case 8:															\
+				assignMacro(left, result, op, uint64_t);					\
+				break;														\
+			case 16:														\
+				assignMacro(left, result, op, uintmax_t);					\
+				break;														\
+			default:														\
+				break;														\
+			}																\
+		}																	\
+	}																		\
+
+#define unaryOpMacroFP(left, result, op, assignMacro)						\
+	else if (left.type->primitive.kind ==									\
+				SpiteIR::PrimitiveKind::Float)								\
+	{																		\
+		switch (left.type->size)											\
+		{																	\
+		case 4:																\
+			assignMacro(left, result, op, float);							\
+			break;															\
+		case 8:																\
+			assignMacro(left, result, op, double);							\
+			break;															\
+		default:															\
+			break;															\
+		}																	\
+	}		
+
 	void InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
+		SpiteIR::Operand& left = unOpInst.unOp.operand;
+		size_t result = unOpInst.unOp.result;
 
+		switch (unOpInst.unOp.kind)
+		{
+		case SpiteIR::UnaryOpKind::Subtract:
+			unaryOpMacroI(left, result, -, unaryOpTypeMacro)
+				unaryOpMacroFP(left, result, -, unaryOpTypeMacro)
+				break;
+		case SpiteIR::UnaryOpKind::Not:
+			unaryOpMacroI(left, result, !, unaryBoolOpTypeMacro)
+				unaryOpMacroFP(left, result, !, unaryOpTypeMacro)
+				break;
+		case SpiteIR::UnaryOpKind::XOr:
+			unaryOpMacroI(left, result, ~, unaryOpTypeMacro)
+				break;
+		default:
+			break;
+		}
 	}
 
 	void InterpretLog(SpiteIR::Instruction& logInst)
 	{
-		void* stackValue = (stackFrameStart + logInst.log.operand.reg);
-		eastl::string out = LogValue(stackValue, logInst.log.operand.type);
+		eastl::string out = "";
+		for (SpiteIR::Operand& operand : *logInst.log.operands)
+		{
+			void* stackValue = (stackFrameStart + operand.reg);
+			out += LogValue(stackValue, operand.type);
+		}
 		Logger::Log(out);
-	}
-
-	void Print(const eastl::string& output, bool newline = true, int depth = 0)
-	{
-		Logger::Log(output, newline, depth);
 	}
 
 	eastl::string LogValue(void* start, SpiteIR::Type* type)

@@ -17,11 +17,83 @@ struct TypeInferer
 	{
 	}
 
+	Stmnt* GetDeclarationStmntForExpr(Expr* expr, Token* package = nullptr)
+	{
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+		{
+			Token* ident = expr->identifierExpr.identifier;
+			Stmnt* stmnt = nullptr;
+			if (package)
+			{
+				stmnt = globalTable->FindStatementForPackage(package, ident);
+			}
+			else
+			{
+				stmnt = scopeUtils.FindForName(ident);
+			}
+			if (!stmnt) return stmnt;
+
+			switch (stmnt->nodeID)
+			{
+			case Definition:
+				return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
+			case FunctionStmnt:
+			case StateStmnt:
+			case ExternFunctionDecl:
+				return stmnt;
+			default:
+				return nullptr;
+			}
+		}
+		case SelectorExpr:
+		{
+			Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
+			if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
+			{
+				return globalTable->FindStateMemberOrMethodStmnt(stmnt,
+					expr->selectorExpr.select->identifierExpr.identifier,
+					symbolTable);
+			}
+			else if (scopeUtils.IsPackageExpr(expr))
+			{
+				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
+				return GetDeclarationStmntForExpr(expr->selectorExpr.select, package);
+			}
+			else
+			{
+				return nullptr;
+			}
+		}
+		case TemplateExpr:
+			return GetDeclarationStmntForExpr(expr->templateExpr.expr);
+		case GroupedExpr:
+			return GetDeclarationStmntForExpr(expr->groupedExpr.expr);
+		case TypeExpr:
+			return globalTable->FindStateForType(expr->typeExpr.type, symbolTable);
+		case FunctionCallExpr:
+		case IndexExpr:
+		case BinaryExpr:
+		case UnaryExpr:
+		case DereferenceExpr:
+		case ReferenceExpr:
+		{
+			Type* inferred = InferType(expr);
+			return globalTable->FindStateForType(inferred, symbolTable);
+		}
+		default:
+			break;
+		}
+
+		return nullptr;
+	}
+
 	inline Type* GetGenericsType(Expr* expr, Type* of)
 	{
 		if (of->typeID == TypeID::FunctionType)
 		{
-			Stmnt* func = scopeUtils.GetDeclarationStmntForExpr(expr->templateExpr.expr);
+			Stmnt* func = GetDeclarationStmntForExpr(expr->templateExpr.expr);
 			if (!func)
 			{
 				AddError(expr->start, "TypeInferer:GetGenericsType No function found for expression");
@@ -624,7 +696,8 @@ struct TypeInferer
 		case NamedType:
 			return GetStateOperatorType(op, op->uniqueType, type);
 		case PointerType:
-			return GetUnaryType(op, type->pointerType.type);
+			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
+			return type;
 		case ValueType:
 			return GetUnaryType(op, type->valueType.type);
 		case TemplatedType:

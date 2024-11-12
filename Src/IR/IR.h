@@ -137,7 +137,6 @@ namespace SpiteIR
 		CallPtr,
 		ExternCall,
 		TailCall,
-		Allocate,
 		Load,
 		LoadPtrOffset,
 		Store,
@@ -182,10 +181,16 @@ namespace SpiteIR
 		Instruction* terminator = nullptr;
 	};
 
+	struct Allocate
+	{
+		size_t result;
+		Type* type;
+	};
+
 	struct Block
 	{
 		Parent parent;
-		Array<Instruction*> allocations;
+		Array<Allocate> allocations;
 		Array<Label*> labels;
 	};
 
@@ -247,12 +252,6 @@ namespace SpiteIR
 		size_t result;
 	};
 
-	struct Allocate
-	{
-		Type* type;
-		size_t result;
-	};
-
 	struct Load
 	{
 		Operand dst;
@@ -300,7 +299,7 @@ namespace SpiteIR
 
 	struct Log
 	{
-		Operand operand;
+		Array<Operand>* operands;
 	};
 
 	struct InstructionMetadata
@@ -320,7 +319,6 @@ namespace SpiteIR
 			Branch branch;
 			Call call;
 			CallPtr callPtr;
-			Allocate allocate;
 			Load load;
 			Store store;
 			Free free;
