@@ -160,6 +160,11 @@ void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 	{
 		switch (type->primitive.kind)
 		{
+		case SpiteIR::PrimitiveKind::Void:
+		{
+			dcCallVoid(dynCallVM, func);
+			break;
+		}
 		case SpiteIR::PrimitiveKind::Bool:
 		{
 			bool ret = dcCallBool(dynCallVM, func);
@@ -268,5 +273,9 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		funcCache[function] = func;
 	}
 
+	if (function->name == "free")
+	{
+		int i = 2;
+	}
 	CallDCFunc(function->returnType, func, dst);
 }

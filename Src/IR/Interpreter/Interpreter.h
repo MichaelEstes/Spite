@@ -921,13 +921,17 @@ struct Interpreter
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
-			return "Ptr @" + eastl::to_string(ptrVal) + " " + LogValue(ptr, type->pointer.type);
+			eastl::string out = "Ptr @" + eastl::to_string(ptrVal) + " ";
+			if (ptrVal) return out + LogValue(ptr, type->pointer.type);
+			else return out + "null";
 		}
 		case SpiteIR::TypeKind::ReferenceType:
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
-			return "Ref @" + eastl::to_string(ptrVal) + " " + LogValue(ptr, type->reference.type);
+			eastl::string out = "Ref @" + eastl::to_string(ptrVal) + " ";
+			if (ptrVal) return out + LogValue(ptr, type->pointer.type);
+			else return out + "nullref (error)";
 		}
 		case SpiteIR::TypeKind::DynamicArrayType:
 		{
