@@ -84,6 +84,7 @@ struct LowerDefinitions
 	SpiteIR::State* arrayState = nullptr;
 	SpiteIR::Function* makeArray = nullptr;
 	SpiteIR::Function* allocFunc = nullptr;
+	SpiteIR::Function* deallocFunc = nullptr;
 
 	SpiteIR::Type* castBool;
 
@@ -100,6 +101,7 @@ struct LowerDefinitions
 		arrayState = FindPackageState(runtime, "__array");
 		makeArray = FindPackageFunction(runtime, "__make_array");
 		allocFunc = FindPackageFunction(runtime, "__alloc");
+		deallocFunc = FindPackageFunction(runtime, "__dealloc");
 	}
 
 	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
@@ -397,6 +399,7 @@ struct LowerDefinitions
 		case SwitchStmnt:
 			break;
 		case DeleteStmnt:
+			BuildDelete(stmnt);
 			break;
 		case DeferStmnt:
 			BuildDefer(stmnt);
@@ -668,6 +671,41 @@ struct LowerDefinitions
 
 		funcContext.breakLabels.pop_back();
 		funcContext.continueLabels.pop_back();
+	}
+
+	SpiteIR::Function* GetDeleteOperator(SpiteIR::Type* type)
+	{
+		if (type->kind == SpiteIR::TypeKind::PointerType &&
+			type->pointer.type->kind == SpiteIR::TypeKind::StateType)
+		{
+			SpiteIR::State* state = type->pointer.type->stateType.state;
+			eastl::string destructorName = BuildDestructorName(state);
+			SpiteIR::Package* package = state->parent;
+			if (MapHas(package->functions, destructorName))
+			{
+				return package->functions[destructorName];
+			}
+		}
+
+		return nullptr;
+	}
+
+	void BuildDelete(Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue ptrValue = BuildTypeDereference(label, BuildExpr(stmnt->deleteStmnt.primaryExpr, stmnt));
+		
+
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+		params->push_back(BuildRegisterOperand(ptrValue));
+
+		SpiteIR::Function* deleteOp = GetDeleteOperator(ptrValue.type);
+		if (deleteOp)
+		{
+			BuildCall(deleteOp, funcContext.curr, params, label);
+		}
+
+		BuildCall(deallocFunc, funcContext.curr, params, label);
 	}
 
 	void BuildDefer(Stmnt* stmnt)

@@ -195,7 +195,7 @@ struct PackageChecker
 	{
 		context.currentContext = nullptr;
 		if (!destructor) return; // Destructor not required
-		CheckBody(destructor->destructor.decl->functionDecl.body);
+		CheckFunctionDecl(destructor->destructor.decl, destructor);
 	}
 
 	void CheckFunction(Stmnt* function)
@@ -321,7 +321,7 @@ struct PackageChecker
 		}
 		case DeleteStmnt:
 		{
-			auto& deleteStmnt = node->deleteStmnt;
+			CheckExpr(node->deleteStmnt.primaryExpr);
 			break;
 		}
 		case DeferStmnt:

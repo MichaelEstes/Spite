@@ -162,7 +162,10 @@ struct Syntax
 	inline bool ToExpect(size_t toCheck, size_t checkAginst, const eastl::string& errMsg)
 	{
 		bool expected = toCheck == checkAginst;
-		if (!expected && errMsg != "") AddError(curr, errMsg);
+		if (!expected && errMsg != "")
+		{
+			AddError(curr, errMsg);
+		}
 		return toCheck == checkAginst;
 	}
 
@@ -274,7 +277,7 @@ struct Syntax
 
 		Token* start = curr;
 		if (Expect(UniqueType::Import) &&
-			ThenExpect(TokenType::Identifier, "Expected an identifier after 'using' token"))
+			ThenExpect(TokenType::Identifier, "Expected an identifier after 'import'"))
 		{
 			Stmnt* node = CreateStmnt(start, StmntID::ImportStmnt);
 			node->importStmnt.packageName = curr;
@@ -663,6 +666,7 @@ struct Syntax
 			del->destructor.del = curr;
 			del->destructor.decl = CreateStmnt(start, StmntID::FunctionDecl);
 			del->destructor.decl->functionDecl.parameters = CreateVectorPtr<Stmnt>();
+			AddUniformCallParam(del->destructor.decl->functionDecl.parameters, del->destructor.stateName);
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
 			del->destructor.decl->functionDecl.body = ParseBody(del);
