@@ -1401,7 +1401,6 @@ struct LowerDefinitions
 	{
 		Expr* toRef = expr->referenceExpr.of;
 		ScopeValue value = BuildExpr(toRef, stmnt);
-		Assert(value.type->kind == SpiteIR::TypeKind::PointerType);
 
 		return InvalidScopeValue;
 	}

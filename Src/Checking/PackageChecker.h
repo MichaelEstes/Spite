@@ -322,6 +322,7 @@ struct PackageChecker
 		case DeleteStmnt:
 		{
 			CheckExpr(node->deleteStmnt.primaryExpr);
+			exprChecker.CheckDelete(node->deleteStmnt.primaryExpr);
 			break;
 		}
 		case DeferStmnt:

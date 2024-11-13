@@ -72,6 +72,14 @@ struct ExprChecker
 		//CheckExpr(expr->newExpr.atExpr, node, expr);
 	}
 
+	void CheckDelete(Expr* expr)
+	{
+		if (utils.InferType(expr)->typeID != TypeID::PointerType)
+		{
+			AddError(expr->start, "ExprChecker::CheckDelete Delete called on non pointer type");
+		}
+	}
+
 	void CheckFunctionCallExpr(Expr* expr)
 	{
 		auto& functionCall = expr->functionCallExpr;

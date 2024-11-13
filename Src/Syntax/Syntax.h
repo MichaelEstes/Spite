@@ -129,7 +129,6 @@ struct Syntax
 
 		ParseComments();
 		ParsePackage();
-		symbolTable->package = package;
 
 		while (!IsEOF())
 		{
