@@ -92,14 +92,6 @@ int main(int argc, char** argv)
 
 	config = ParseConfig(argc, argv);
 
-	
-	eastl::string test = "C:\\Users\\Flynn\\Documents\\Spite_Lang\\Runtime\\Global\\Map.sp";
-	for (size_t i = 0; i < 1000; i++)
-	{
-		Parser parser = Parser(test);
-		SymbolTable* symbolTable = parser.Parse();
-	}
-
 	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (config.dir.length() > 0)
 	{

@@ -15,7 +15,7 @@
 
 extern Config config;
 
-static TokenTree<eastl::string, TokenType, UniqueType> tokenTypeLookup = {
+static TokenTree tokenTypeLookup = {
 	{ "import", TokenType::Keyword, UniqueType::Import },
 	{ "package", TokenType::Keyword, UniqueType::Package },
 	{ "state", TokenType::Keyword, UniqueType::State },
@@ -281,7 +281,7 @@ struct Tokens
 	struct IdentifierParser
 	{
 		StringView val;
-		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType = nullptr;
+		TokenTree::TokenNode* currTokenType = nullptr;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{
@@ -330,7 +330,7 @@ struct Tokens
 	struct OperatorParser
 	{
 		StringView val;
-		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* currTokenType = nullptr;
+		TokenTree::TokenNode* currTokenType = nullptr;
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
 		{

@@ -71,7 +71,7 @@ struct CheckerUtils
 		// Early out if string is longer than any primitive names
 		if (name.count > 8) return false;
 
-		TokenTree<eastl::string, TokenType, UniqueType>::TokenNode* node = tokenTypeLookup.Find(name);
+		TokenTree::TokenNode* node = tokenTypeLookup.Find(name);
 		if (!node) return false;
 		else return node->type == TokenType::Primitive;
 	}

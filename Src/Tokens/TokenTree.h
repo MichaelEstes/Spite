@@ -5,18 +5,16 @@
 #include "EASTL/memory.h"
 #include "EASTL/tuple.h"
 
-const int offset = 32;
-const int size = 128 - offset;
+const int size = 128;
 
-template<typename T, typename T2, typename T3>
 class TokenTree
 {
 public:
 	class TokenNode
 	{
 	public:
-		T2 type;
-		T3 uniqueType;
+		TokenType type;
+		UniqueType uniqueType;
 		TokenNode* children[size];
 		char val;
 		bool completed;
@@ -30,30 +28,30 @@ public:
 
 		TokenNode* GetChild(char c)
 		{
-			char index = c - offset;
+			char index = c;
 			return children[index] != nullptr ? children[index] : nullptr;
 		}
 
 		bool NextCompleted(char c)
 		{
-			char index = c - offset;
+			char index = c;
 			return children[index] != nullptr && children[index]->completed;
 		}
 	};
 
-	TokenTree(std::initializer_list<eastl::tuple<T, T2, T3>> list)
+	TokenTree(std::initializer_list<eastl::tuple<eastl::string, TokenType, UniqueType>> list)
 	{
 		this->root = new TokenNode('\0');
 
 		for (const auto& val : list)
 		{
-			T key = eastl::get<0>(val);
-			T2 type = eastl::get<1>(val);
-			T3 uniqueType = eastl::get<2>(val);
+			const eastl::string key = eastl::get<0>(val);
+			const TokenType type = eastl::get<1>(val);
+			const UniqueType uniqueType = eastl::get<2>(val);
 
 			TokenNode* current = root;
 			for (char c : key) {
-				char index = c - offset;
+				char index = c;
 				if (current->children[index] == nullptr) {
 					current->children[index] = new TokenNode(c);
 				}
