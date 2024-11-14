@@ -150,6 +150,8 @@ struct Tokens
 		operatorParser.Reset(this);
 	}
 
+	~Tokens() = default;
+
 	void Init(size_t fileSize)
 	{
 		tokens.reserve(fileSize / 20);

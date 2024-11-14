@@ -111,11 +111,11 @@ int main(int argc, char** argv)
 
 	{
 		GlobalTable globalTable = GlobalTable();
-		eastl::vector<Parser> parsers = eastl::vector<Parser>();
+		Arena parserArena = Arena((files.size() + 1 ) * sizeof Parser);
 		for (const string& file : files)
 		{
-			Parser& parser = parsers.emplace_back(file);
-			SymbolTable* symbolTable = parser.Parse();
+			Parser* parser = parserArena.EmplaceScalar<Parser>(file);
+			SymbolTable* symbolTable = parser->Parse();
 			if (!symbolTable)
 			{
 				Logger::PrintErrors();
@@ -124,8 +124,8 @@ int main(int argc, char** argv)
 			globalTable.InsertTable(symbolTable);
 		}
 
-		Parser& parser = parsers.emplace_back(entry);
-		SymbolTable* entryTable = parser.Parse();
+		Parser* parser = parserArena.EmplaceScalar<Parser>(entry);
+		SymbolTable* entryTable = parser->Parse();
 		if (!entryTable)
 		{
 			Logger::PrintErrors();

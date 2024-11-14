@@ -27,7 +27,7 @@ any array::operator::[](index: int)
 
 array::delete 
 {
-	delete[] this.start;
+	delete this.start;
 }
 
 array::Clear()

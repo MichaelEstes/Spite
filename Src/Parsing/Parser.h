@@ -14,4 +14,6 @@ struct Parser
 	}
 
 	SymbolTable* Parse();
+
+	~Parser() = default;
 };

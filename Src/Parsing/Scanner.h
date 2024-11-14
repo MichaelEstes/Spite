@@ -17,6 +17,9 @@ public:
 		index = 0;
 	}
 
+	~Scanner() = default;
+
+
 	size_t Init(const eastl::string& fileLoc)
 	{
 		Profiler profiler = Profiler();
