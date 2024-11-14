@@ -8,17 +8,14 @@
 struct Interpreter
 {
 	char* stack;
-	eastl::deque<char*> stackFrameStartQueue;
-	eastl::deque<char*> stackFrameTopQueue;
 	char* stackFrameStart;
-	char* stackTop;
+	char* stackFrameTop;
 
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
 		stackFrameStart = stack;
-		stackTop = stack;
-		IncrementStackFrame();
+		stackFrameTop = stack;
 		CreateDynCallVM();
 	}
 
@@ -42,6 +39,13 @@ struct Interpreter
 		InterpretLabel(entry);
 	}
 
+	inline void InterpretAllocations(eastl::vector<SpiteIR::Allocate>& allocInsts)
+	{
+		size_t amount = 0;
+		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
+		stackFrameTop += amount;
+	}
+
 	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params,
 		eastl::vector<SpiteIR::Argument*>& args, char* frame)
 	{
@@ -50,7 +54,7 @@ struct Interpreter
 		{
 			SpiteIR::Operand& param = params->at(i);
 			SpiteIR::Argument* arg = args.at(i);
-			CopyValue(param.reg, arg->value->type, stackTop + offset, frame);
+			CopyValue(param.reg, arg->value->type, stackFrameTop + offset, frame);
 			offset += param.type->size;
 		}
 	}
@@ -58,7 +62,8 @@ struct Interpreter
 	void* InterpretFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params = nullptr)
 	{
 		char* prevStackStart = stackFrameStart;
-		IncrementStackFrame();
+		char* prevStackTop = stackFrameTop;
+		stackFrameStart = stackFrameTop;
 
 		if (params)
 		{
@@ -66,35 +71,15 @@ struct Interpreter
 		}
 
 		InterpretBlock(func->block);
-		return DecrementStackFrame();
+		stackFrameStart = prevStackStart;
+		stackFrameTop = prevStackTop;
+		return stackFrameStart;
 	}
 
 	void* Interpret(SpiteIR::IR* ir)
 	{
 		SpiteIR::Function* entry = ir->entry;
 		return InterpretFunction(entry);
-	}
-
-	inline void IncrementStackFrame()
-	{
-		stackFrameStartQueue.push_back(stackTop);
-		stackFrameTopQueue.push_back(stackTop);
-		stackFrameStart = stackTop;
-	}
-
-	inline char* DecrementStackFrame()
-	{
-		stackFrameStartQueue.pop_back();
-		stackFrameTopQueue.pop_back();
-		stackFrameStart = stackFrameStartQueue.back();
-		stackTop = stackFrameTopQueue.back();
-		return stackFrameStart;
-	}
-
-	inline void IncrementStackPointer(size_t amount)
-	{
-		stackTop += amount;
-		stackFrameTopQueue.back() = stackTop;
 	}
 
 	void CopyValue(size_t src, SpiteIR::Type* type, void* dst, char* frame)
@@ -207,13 +192,6 @@ struct Interpreter
 			label = branchInst.branch.true_;
 		else
 			label = branchInst.branch.false_;
-	}
-
-	void InterpretAllocations(eastl::vector<SpiteIR::Allocate>& allocInsts)
-	{
-		size_t amount = 0;
-		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
-		IncrementStackPointer(amount);
 	}
 
 	void InterpretLoad(SpiteIR::Instruction& loadInst)
@@ -522,7 +500,7 @@ struct Interpreter
 	void InterpretCall(SpiteIR::Instruction& callInst)
 	{
 		InterpretFunction(callInst.call.function, callInst.call.params);
-		CopyValue(stackTop - stackFrameStart, callInst.call.function->returnType,
+		CopyValue(stackFrameTop - stackFrameStart, callInst.call.function->returnType,
 			stackFrameStart + callInst.call.result, stackFrameStart);
 	}
 
@@ -531,7 +509,7 @@ struct Interpreter
 		size_t reg = callPtrInst.callPtr.funcPtr.reg;
 		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
 		InterpretFunction(func, callPtrInst.callPtr.params);
-		CopyValue(stackTop - stackFrameStart, callPtrInst.callPtr.funcPtr.type->function.returnType,
+		CopyValue(stackFrameTop - stackFrameStart, callPtrInst.callPtr.funcPtr.type->function.returnType,
 			stackFrameStart + callPtrInst.callPtr.result, stackFrameStart);
 	}
 

@@ -92,7 +92,6 @@ struct LowerDefinitions
 	{
 		castBool = CreateBoolType(context.ir);
 		AssignRuntimeDeclarations(context.ir);
-		Assert(arrayState && makeArray);
 	}
 
 	void AssignRuntimeDeclarations(SpiteIR::IR* ir)
@@ -1301,7 +1300,7 @@ struct LowerDefinitions
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
 		ScopeValue toIndex = BuildExpr(expr->indexExpr.of, stmnt);
-		ScopeValue index = BuildExpr(expr->indexExpr.index, stmnt);
+		ScopeValue index = BuildTypeDereference(label, BuildExpr(expr->indexExpr.index, stmnt));
 
 		switch (toIndex.type->kind)
 		{
@@ -1311,9 +1310,13 @@ struct LowerDefinitions
 			switch (derefedType->kind)
 			{
 			case SpiteIR::TypeKind::StateType:
-				return BuildStateOperatorCall(toIndex, UniqueType::Array, &index);
+				return BuildStateOperatorCallForType(toIndex, UniqueType::Array, &index);
 			case SpiteIR::TypeKind::DynamicArrayType:
-				break;
+			{
+				ScopeValue ret = BuildStateOperatorCall(arrayState, toIndex, UniqueType::Array, &index);
+				ret.type->reference.type = derefedType->dynamicArray.type;
+				return ret;
+			}
 			case SpiteIR::TypeKind::PointerType:
 			{
 				SpiteIR::Type* type = derefedType->pointer.type;
@@ -1327,7 +1330,16 @@ struct LowerDefinitions
 				return dst;
 			}
 			case SpiteIR::TypeKind::FixedArrayType:
-				break;
+			{
+				SpiteIR::Type* type = derefedType->fixedArray.type;
+				SpiteIR::Type* returnType = MakeReferenceType(type, context.ir);
+				SpiteIR::Allocate alloc = BuildAllocate(returnType);
+				ScopeValue dst = { alloc.result, returnType };
+				SpiteIR::Operand offset = BuildRegisterOperand(index);
+				SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst),
+					BuildRegisterOperand(toIndex), offset);
+				return dst;
+			}
 			case SpiteIR::TypeKind::PrimitiveType:
 			case SpiteIR::TypeKind::StructureType:
 			case SpiteIR::TypeKind::FunctionType:
@@ -1340,10 +1352,13 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::StateType:
-			return BuildStateOperatorCall(toIndex, UniqueType::Array, &index);
-			break;
+			return BuildStateOperatorCallForType(toIndex, UniqueType::Array, &index);
 		case SpiteIR::TypeKind::DynamicArrayType:
-			break;
+		{
+			ScopeValue ret = BuildStateOperatorCall(arrayState, toIndex, UniqueType::Array, &index);
+			ret.type->reference.type = toIndex.type->dynamicArray.type;
+			return ret;
+		}
 		case SpiteIR::TypeKind::PointerType:
 		{
 			SpiteIR::Type* type = toIndex.type->pointer.type;
@@ -1357,13 +1372,11 @@ struct LowerDefinitions
 		}
 		case SpiteIR::TypeKind::FixedArrayType:
 		{
-
 			ScopeValue arrRef = BuildTypeReference(label, toIndex);
-			SpiteIR::Type* type = GetInnerType(toIndex.type);
+			SpiteIR::Type* type = toIndex.type->fixedArray.type;
 			SpiteIR::Type* returnType = MakeReferenceType(type, context.ir);
 			SpiteIR::Allocate alloc = BuildAllocate(returnType);
 			ScopeValue dst = { alloc.result, returnType };
-
 			SpiteIR::Operand offset = BuildRegisterOperand(index);
 			SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst),
 				BuildRegisterOperand(arrRef), offset);
@@ -1845,11 +1858,9 @@ struct LowerDefinitions
 		return opFunc;
 	}
 
-	ScopeValue BuildStateOperatorCall(const ScopeValue& of, UniqueType op, ScopeValue* rhs = nullptr)
+	ScopeValue BuildStateOperatorCall(SpiteIR::State* state, const ScopeValue& of, UniqueType op, 
+		ScopeValue* rhs = nullptr)
 	{
-		SpiteIR::State* state = of.type->kind == SpiteIR::TypeKind::ReferenceType ?
-			of.type->reference.type->stateType.state : of.type->stateType.state;
-
 		SpiteIR::Type* rhsType = rhs ? rhs->type : nullptr;
 		SpiteIR::Function* operatorFunc = FindStateOperator(state, op, rhsType);
 
@@ -1866,9 +1877,18 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	ScopeValue BuildStateOperatorCallForType(const ScopeValue& of, UniqueType op, ScopeValue* rhs = nullptr)
+	{
+		SpiteIR::State* state = of.type->kind == SpiteIR::TypeKind::ReferenceType ?
+			of.type->reference.type->stateType.state : of.type->stateType.state;
+
+		return BuildStateOperatorCall(state, of, op, rhs);
+	}
+
 	ScopeValue BuildFunctionTypeCall(Expr* expr, Stmnt* stmnt)
 	{
-		ScopeValue funcValue = BuildExpr(expr->functionCallExpr.function, stmnt);
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue funcValue = BuildTypeDereference(label, BuildExpr(expr->functionCallExpr.function, stmnt));
 		Assert(funcValue.type->kind == SpiteIR::TypeKind::FunctionType &&
 			expr->functionCallExpr.params->size() == funcValue.type->function.params->size());
 
@@ -1885,8 +1905,7 @@ struct LowerDefinitions
 
 		SpiteIR::Allocate alloc = BuildAllocate(funcType->function.returnType);
 		ScopeValue ret = { alloc.result, alloc.type };
-		SpiteIR::Instruction* callPtr = BuildCallPtr(BuildRegisterOperand(funcValue), ret.reg, params,
-			GetCurrentLabel());
+		SpiteIR::Instruction* callPtr = BuildCallPtr(BuildRegisterOperand(funcValue), ret.reg, params, label);
 		return ret;
 	}
 

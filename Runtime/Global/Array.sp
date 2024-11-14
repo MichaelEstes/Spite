@@ -49,18 +49,23 @@ int array::Add(item: any)
 array::AddAll(items: []any)
 {
 	newCount := this.count + items.count;
-	if(newCount >= this.capacity) this.Expand();
+	if(newCount >= this.capacity) this.ExpandAtLeastTo(newCount);
 	
-	for(i .. items.count)
-	{
-		this.start[this.count] = items[i];
-	}
+	copy_bytes(this[this.count], items.start, items.count * this.itemBytes);
 	this.count = newCount;
 }
 
 array::Expand()
 {
 	this.capacity = (this.capacity + 1) * 2;
+	newStart := alloc_array(this.capacity, this.itemBytes);
+	copy_bytes(newStart, this.start, this.count * this.itemBytes);
+	this.start = newStart;
+}
+
+array::ExpandAtLeastTo(size: int)
+{
+	while (this.capacity < size) this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
 	this.start = newStart;
