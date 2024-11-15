@@ -188,6 +188,8 @@ struct LowerDefinitions
 			SetCurrentGenerics(funcContainer.node);
 			BuildFunction(function, funcContainer.node);
 		}
+
+		BuildGlobalVariables(package);
 	}
 
 	void AddScope()
@@ -227,6 +229,47 @@ struct LowerDefinitions
 	SpiteIR::Label* GetCurrentLabel()
 	{
 		return funcContext.function->block->labels.back();
+	}
+
+	void BuildPackageInitializerName(eastl::string& out, SpiteIR::Package* package)
+	{
+		out = package->name + "___global";
+	}
+
+	void BuildGlobalVariables(SpiteIR::Package* package)
+	{
+		if (!package->globalVariables.size()) return;
+		SpiteIR::Function* func = context.ir->AllocateFunction();
+		BuildPackageInitializerName(func->name, package);
+		func->parent = package;
+		func->returnType = CreateVoidType(context.ir);
+		func->block = context.ir->AllocateBlock();
+		funcContext.Reset(func, symbolTable, context.globalTable);
+
+		SpiteIR::Label* entry = BuildLabel("entry");
+		AddLabel(entry);
+		
+		for (auto& [key, globalVar] : package->globalVariables)
+		{
+			Stmnt* globalVarStmnt = context.globalVarASTMap[globalVar];
+			BuildGlobalVariable(globalVar, globalVarStmnt);
+		}
+
+		SpiteIR::Label* lastLabel = GetCurrentLabel();
+		BuildVoidReturn(lastLabel);
+		package->initializer = func;
+	}
+
+	void BuildGlobalVariable(SpiteIR::GlobalVariable* globalVar, Stmnt* globalVarStmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue value = BuildTypeDereference(GetCurrentLabel(), 
+			BuildExpr(globalVarStmnt->definition.assignment, globalVarStmnt));
+
+		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(value.type, context.ir));
+		SpiteIR::Operand globalRef = AllocateToOperand(alloc);
+		SpiteIR::Instruction* loadGlobal = BuildLoadGlobal(label, globalRef, globalVar->index);
+		SpiteIR::Instruction* storeGlobal = BuildStorePtr(label, globalRef, BuildRegisterOperand(value));
 	}
 
 	void BuildState(SpiteIR::State* state, Stmnt* stateStmnt)
@@ -878,10 +921,31 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	ScopeValue FindGlobalVar(SpiteIR::Package* package, Stmnt* globalVarStmnt)
+	{
+		eastl::string globalVarName = BuildGlobalVariableName(globalVarStmnt);
+		SpiteIR::GlobalVariable* globalVar = package->globalVariables[globalVarName];
+		SpiteIR::Type* globalRef = MakeReferenceType(globalVar->type, context.ir);
+		SpiteIR::Allocate alloc = BuildAllocate(globalRef);
+		SpiteIR::Instruction* loadGlobal = BuildLoadGlobal(GetCurrentLabel(), AllocateToOperand(alloc),
+			globalVar->index);
+		return { alloc.result, alloc.type };
+	}
+
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
-		return BuildTypeReference(GetCurrentLabel(), FindScopeValue(ident));
+		ScopeValue identVal = FindScopeValue(ident);
+		if(identVal.type) return BuildTypeReference(GetCurrentLabel(), FindScopeValue(ident));
+
+		Stmnt* globalVar = context.globalTable->FindScopedGlobalVar(expr->identifierExpr.identifier, symbolTable);
+		if (globalVar)
+		{
+			SpiteIR::Package* package = context.packageMap[globalVar->package->val];
+			return FindGlobalVar(package, globalVar);
+		}
+
+		return InvalidScopeValue;
 	}
 
 	ScopeValue BuildPrimitive(Expr* expr)
@@ -2227,6 +2291,15 @@ struct LowerDefinitions
 	{
 		SpiteIR::Instruction* load = BuildLoad(label, dst, src, offset);
 		load->kind = SpiteIR::InstructionKind::LoadPtrOffset;
+		return load;
+	}
+
+	SpiteIR::Instruction* BuildLoadGlobal(SpiteIR::Label* label, const SpiteIR::Operand dst, size_t src)
+	{
+		SpiteIR::Instruction* load = CreateInstruction(label);
+		load->kind = SpiteIR::InstructionKind::LoadGlobal;
+		load->loadGlobal.dst = dst;
+		load->loadGlobal.src = src;
 		return load;
 	}
 

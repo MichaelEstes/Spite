@@ -19,6 +19,7 @@ struct LowerContext
 	eastl::hash_map<eastl::string, SpiteIR::Function*> functionMap;
 	eastl::hash_map<SpiteIR::State*, ASTContainer> stateASTMap;
 	eastl::hash_map<SpiteIR::Function*, ASTContainer> functionASTMap;
+	eastl::hash_map<SpiteIR::GlobalVariable*, Stmnt*> globalVarASTMap;
 
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
 	eastl::vector<SpiteIR::Type*> toResolveStateSize;

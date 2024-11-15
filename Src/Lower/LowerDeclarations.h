@@ -56,11 +56,6 @@ struct LowerDeclarations
 			BuildFunctionDeclaration(package, value);
 		}
 
-		for (auto& [key, value] : symbolTable->globalValMap)
-		{
-			BuildGlobalVariableDeclaration(package, value);
-		}
-
 		for (auto& [key, value] : symbolTable->externFunctionMap)
 		{
 			BuildExternalFunctionDeclarations(package, value);
@@ -85,6 +80,11 @@ struct LowerDeclarations
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
 			context.toResolveStateSize.pop_back();
+		}
+
+		for (auto& [key, value] : symbolTable->globalValMap)
+		{
+			BuildGlobalVariableDeclaration(package, value);
 		}
 
 		return package;
@@ -460,11 +460,14 @@ struct LowerDeclarations
 	void BuildGlobalVariableDeclaration(SpiteIR::Package* package, Stmnt* globalVarStmnt)
 	{
 		auto& def = globalVarStmnt->definition;
-		SpiteIR::Value* globalVar = context.ir->AllocateValue();
-		globalVar->parent = SpiteIR::Parent(package);
+		SpiteIR::GlobalVariable* globalVar = context.ir->AllocateGlobalVariable();
+		globalVar->parent = package;
 		globalVar->name = BuildGlobalVariableName(globalVarStmnt);
 		globalVar->type = TypeToIRType(context.ir, def.type, this);
+		globalVar->index = context.ir->globalSize;
+		context.ir->IncremementGlobalSize(globalVar->type);
 		package->globalVariables[globalVar->name] = globalVar;
+		context.globalVarASTMap[globalVar] = globalVarStmnt;
 	}
 
 	eastl::vector<SpiteIR::PlatformLib>* GetPlatformLibs(eastl::vector<Stmnt*>* links)

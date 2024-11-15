@@ -11,12 +11,31 @@ struct Interpreter
 	char* stackFrameStart;
 	char* stackFrameTop;
 
+	char* global = nullptr;
+
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
 		stackFrameStart = stack;
 		stackFrameTop = stack;
 		CreateDynCallVM();
+	}
+
+	~Interpreter()
+	{
+		delete stack;
+		delete global;
+	}
+
+	void* Interpret(SpiteIR::IR* ir)
+	{
+		SpiteIR::Function* entry = ir->entry;
+		global = new char[ir->globalSize];
+		for (SpiteIR::Package* package : ir->packages)
+		{
+			if (package->initializer) InterpretFunction(package->initializer);
+		}
+		return InterpretFunction(entry);
 	}
 
 	void InterpretLabel(SpiteIR::Label* label)
@@ -76,27 +95,15 @@ struct Interpreter
 		return stackFrameStart;
 	}
 
-	void* Interpret(SpiteIR::IR* ir)
-	{
-		SpiteIR::Function* entry = ir->entry;
-		return InterpretFunction(entry);
-	}
-
 	void CopyValue(size_t src, SpiteIR::Type* type, void* dst, char* frame)
 	{
-		for (size_t i = 0; i < type->size; i++)
-		{
-			((char*)dst)[i] = (frame + src)[i];
-		}
+		memcpy(dst, frame + src, type->size);
 	}
 
 	void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, char* frame)
 	{
 		void* dstPtr = stackFrameStart + dst.reg;
-		for (size_t i = 0; i < dst.type->size; i++)
-		{
-			((char*)dstPtr)[i] = (frame + src.reg)[i];
-		}
+		memcpy(dstPtr, frame + src.reg, dst.type->size);
 	}
 
 	void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
@@ -126,6 +133,9 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::LoadPtrOffset:
 			InterpretLoadPtrOffset(inst);
+			break;
+		case SpiteIR::InstructionKind::LoadGlobal:
+			InterpretLoadGlobal(inst);
 			break;
 		case SpiteIR::InstructionKind::Store:
 			InterpretStore(inst);
@@ -210,6 +220,12 @@ struct Interpreter
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
 
+	void InterpretLoadGlobal(SpiteIR::Instruction& loadGlobalInst)
+	{
+		size_t globalPtr = (size_t)(void*)(global + loadGlobalInst.loadGlobal.src);
+		*(size_t*)(void*)(stackFrameStart + loadGlobalInst.loadGlobal.dst.reg) = globalPtr;
+	}
+
 	void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
 		SpiteIR::Operand& src = storeInst.store.src;
@@ -258,10 +274,7 @@ struct Interpreter
 	{
 		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = stackFrameStart + storeInst.store.src.reg;
-		for (size_t i = 0; i < storeInst.store.src.type->size; i++)
-		{
-			ptr[i] = src[i];
-		}
+		memcpy(ptr, src, storeInst.store.src.type->size);
 	}
 
 	void InterpretStoreFunc(SpiteIR::Instruction& storeInst)
@@ -275,10 +288,7 @@ struct Interpreter
 	{
 		char* dst = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
-		for (size_t i = 0; i < storeInst.store.dst.type->size; i++)
-		{
-			dst[i] = src[i];
-		}
+		memcpy(dst, src, storeInst.store.dst.type->size);
 	}
 
 	void InterpretReference(SpiteIR::Instruction& storeInst)
@@ -291,10 +301,7 @@ struct Interpreter
 	{
 		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
 		char* dst = stackFrameStart + storeInst.store.dst.reg;
-		for (size_t i = 0; i < storeInst.store.dst.type->size; i++)
-		{
-			dst[i] = ptr[i];
-		}
+		memcpy(dst, ptr, storeInst.store.dst.type->size);
 	}
 
 	void InterpretCast(SpiteIR::Instruction& castInst)

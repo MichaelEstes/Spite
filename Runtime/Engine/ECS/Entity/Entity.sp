@@ -1,7 +1,7 @@
 package Entity
 
 // Get MAX_ENTITY_COUNT from properties somewhere
-MAX_ENTITY_COUNT := #compile int => 100000;
+//MAX_ENTITY_COUNT := #compile int => 100000;
 
 state Entity 
 {

@@ -139,6 +139,7 @@ namespace SpiteIR
 		TailCall,
 		Load,
 		LoadPtrOffset,
+		LoadGlobal,
 		Store,
 		StorePtr,
 		StoreFunc,
@@ -259,6 +260,12 @@ namespace SpiteIR
 		Operand offset;
 	};
 
+	struct LoadGlobal
+	{
+		Operand dst;
+		size_t src;
+	};
+
 	struct Store
 	{
 		Operand src;
@@ -320,6 +327,7 @@ namespace SpiteIR
 			Call call;
 			CallPtr callPtr;
 			Load load;
+			LoadGlobal loadGlobal;
 			Store store;
 			Free free;
 			Cast cast;
@@ -390,6 +398,14 @@ namespace SpiteIR
 		Parent parent;
 		Type* type;
 		Block* block = nullptr;
+		string name;
+	};
+
+	struct GlobalVariable
+	{
+		Package* parent;
+		size_t index;
+		Type* type;
 		string name;
 	};
 
@@ -480,11 +496,12 @@ namespace SpiteIR
 		string file;
 		string name;
 		Array<Package*> imports;
-		HashMap<string, Value*> globalVariables;
+		HashMap<string, GlobalVariable*> globalVariables;
 		HashMap<string, State*> states;
 		HashMap<string, Function*> functions;
 		Array<CompileFunction*> debugFunctions;
 		Array<CompileFunction*> compileFunctions;
+		Function* initializer = nullptr;
 	};
 
 	struct IR
@@ -494,6 +511,7 @@ namespace SpiteIR
 		Function* entry;
 		Arena arena;
 		Arena instructions;
+		size_t globalSize = 0;
 
 		IR(size_t initialSize) : arena(initialSize * 256) {}
 
@@ -517,6 +535,11 @@ namespace SpiteIR
 		inline void SetRuntimePackage(Package* package)
 		{
 			runtime = package;
+		}
+
+		inline void IncremementGlobalSize(Type* type)
+		{
+			this->globalSize += type->size;
 		}
 
 		inline Package* AllocatePackage()
@@ -552,6 +575,11 @@ namespace SpiteIR
 		inline Value* AllocateValue()
 		{
 			return arena.Emplace<Value>();
+		}
+
+		inline GlobalVariable* AllocateGlobalVariable()
+		{
+			return arena.Emplace<GlobalVariable>();
 		}
 
 		inline Block* AllocateBlock()
