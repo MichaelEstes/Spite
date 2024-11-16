@@ -1279,9 +1279,10 @@ struct LowerDefinitions
 		{
 			SpiteIR::Type* ptr = MakePointerType(value.type, context.ir);
 			ScopeValue allocSize = BuildLiteralInt(value.type->size);
-			SpiteIR::Allocate alloc = BuildAllocate(ptr);
 			eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 			params->push_back(BuildRegisterOperand(allocSize));
+
+			SpiteIR::Allocate alloc = BuildAllocate(ptr);
 			BuildCall(allocFunc, alloc.result, params, label);
 			SpiteIR::Instruction* storePtr = BuildStorePtr(label, AllocateToOperand(alloc),
 				BuildRegisterOperand(value));

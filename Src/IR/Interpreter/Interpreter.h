@@ -9,7 +9,6 @@ struct Interpreter
 {
 	char* stack;
 	char* stackFrameStart;
-	char* stackFrameTop;
 
 	char* global = nullptr;
 
@@ -17,7 +16,6 @@ struct Interpreter
 	{
 		stack = new char[stackSize];
 		stackFrameStart = stack;
-		stackFrameTop = stack;
 		CreateDynCallVM();
 	}
 
@@ -33,12 +31,12 @@ struct Interpreter
 		global = new char[ir->globalSize];
 		for (SpiteIR::Package* package : ir->packages)
 		{
-			if (package->initializer) InterpretFunction(package->initializer);
+			if (package->initializer) InterpretFunction(package->initializer, 0);
 		}
-		return InterpretFunction(entry);
+		return InterpretFunction(entry, 0);
 	}
 
-	void InterpretLabel(SpiteIR::Label* label)
+	inline void InterpretLabel(SpiteIR::Label* label)
 	{
 		SpiteIR::Label* currentLabel = label;
 		while (currentLabel)
@@ -51,10 +49,10 @@ struct Interpreter
 		}
 	}
 
-	void InterpretBlock(SpiteIR::Block* block)
+	inline void InterpretBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label*& entry = block->labels.front();
-		InterpretAllocations(block->allocations);
+		//InterpretAllocations(block->allocations);
 		InterpretLabel(entry);
 	}
 
@@ -62,7 +60,6 @@ struct Interpreter
 	{
 		size_t amount = 0;
 		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
-		stackFrameTop += amount;
 	}
 
 	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params,
@@ -73,16 +70,15 @@ struct Interpreter
 		{
 			SpiteIR::Operand& param = params->at(i);
 			SpiteIR::Argument* arg = args.at(i);
-			CopyValue(param.reg, arg->value->type, stackFrameTop + offset, frame);
+			CopyValue(param.reg, arg->value->type, stackFrameStart + offset, frame);
 			offset += param.type->size;
 		}
 	}
 
-	void* InterpretFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params = nullptr)
+	void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
 	{
 		char* prevStackStart = stackFrameStart;
-		char* prevStackTop = stackFrameTop;
-		stackFrameStart = stackFrameTop;
+		stackFrameStart = stackFrameStart + start;
 
 		if (params)
 		{
@@ -91,22 +87,21 @@ struct Interpreter
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
-		stackFrameTop = prevStackTop;
 		return stackFrameStart;
 	}
 
-	void CopyValue(size_t src, SpiteIR::Type* type, void* dst, char* frame)
+	inline void CopyValue(size_t src, SpiteIR::Type* type, void* dst, char* frame)
 	{
 		memcpy(dst, frame + src, type->size);
 	}
 
-	void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, char* frame)
+	inline void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, char* frame)
 	{
 		void* dstPtr = stackFrameStart + dst.reg;
 		memcpy(dstPtr, frame + src.reg, dst.type->size);
 	}
 
-	void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
+	inline void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
 	{
 		switch (inst.kind)
 		{
@@ -174,13 +169,13 @@ struct Interpreter
 		}
 	}
 
-	void InterpretReturn(SpiteIR::Instruction& inst)
+	inline void InterpretReturn(SpiteIR::Instruction& inst)
 	{
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyValue(inst.return_.operand.reg, inst.return_.operand.type,
-				stackFrameStart, stackFrameStart);
+			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, stackFrameStart, 
+				stackFrameStart);
 			break;
 		case SpiteIR::OperandKind::Literal:
 			break;
@@ -191,12 +186,12 @@ struct Interpreter
 		}
 	}
 
-	void InterpretJump(SpiteIR::Instruction& jumpInst, SpiteIR::Label*& label)
+	inline void InterpretJump(SpiteIR::Instruction& jumpInst, SpiteIR::Label*& label)
 	{
 		label = jumpInst.jump.label;
 	}
 
-	void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
+	inline void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
 		if (*(bool*)(stackFrameStart + branchInst.branch.test.reg))
 			label = branchInst.branch.true_;
@@ -204,7 +199,7 @@ struct Interpreter
 			label = branchInst.branch.false_;
 	}
 
-	void InterpretLoad(SpiteIR::Instruction& loadInst)
+	inline void InterpretLoad(SpiteIR::Instruction& loadInst)
 	{
 		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
 		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
@@ -212,7 +207,7 @@ struct Interpreter
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
 
-	void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
+	inline void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
 	{
 		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg);
 		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
@@ -220,13 +215,13 @@ struct Interpreter
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
 
-	void InterpretLoadGlobal(SpiteIR::Instruction& loadGlobalInst)
+	inline void InterpretLoadGlobal(SpiteIR::Instruction& loadGlobalInst)
 	{
 		size_t globalPtr = (size_t)(void*)(global + loadGlobalInst.loadGlobal.src);
 		*(size_t*)(void*)(stackFrameStart + loadGlobalInst.loadGlobal.dst.reg) = globalPtr;
 	}
 
-	void InterpretStore(SpiteIR::Instruction& storeInst)
+	inline void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
 		SpiteIR::Operand& src = storeInst.store.src;
 
@@ -270,41 +265,41 @@ struct Interpreter
 		}
 	}
 
-	void InterpretStorePtr(SpiteIR::Instruction& storeInst)
+	inline void InterpretStorePtr(SpiteIR::Instruction& storeInst)
 	{
 		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = stackFrameStart + storeInst.store.src.reg;
 		memcpy(ptr, src, storeInst.store.src.type->size);
 	}
 
-	void InterpretStoreFunc(SpiteIR::Instruction& storeInst)
+	inline void InterpretStoreFunc(SpiteIR::Instruction& storeInst)
 	{
 		Assert(storeInst.store.src.kind == SpiteIR::OperandKind::Function);
 		size_t* ptr = (size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		*ptr = (size_t)storeInst.store.src.function;
 	}
 
-	void InterpretMove(SpiteIR::Instruction& storeInst)
+	inline void InterpretMove(SpiteIR::Instruction& storeInst)
 	{
 		char* dst = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
 		memcpy(dst, src, storeInst.store.dst.type->size);
 	}
 
-	void InterpretReference(SpiteIR::Instruction& storeInst)
+	inline void InterpretReference(SpiteIR::Instruction& storeInst)
 	{
 		void* ref = (stackFrameStart + storeInst.store.src.reg);
 		*(size_t*)(stackFrameStart + storeInst.store.dst.reg) = (size_t)ref;
 	}
 
-	void InterpretDereference(SpiteIR::Instruction& storeInst)
+	inline void InterpretDereference(SpiteIR::Instruction& storeInst)
 	{
 		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
 		char* dst = stackFrameStart + storeInst.store.dst.reg;
 		memcpy(dst, ptr, storeInst.store.dst.type->size);
 	}
 
-	void InterpretCast(SpiteIR::Instruction& castInst)
+	inline void InterpretCast(SpiteIR::Instruction& castInst)
 	{
 		switch (castInst.cast.from.type->kind)
 		{
@@ -406,7 +401,7 @@ struct Interpreter
 	}
 
 	template<typename Left = int, typename Right = int>
-	void BitCast(SpiteIR::Operand& from, SpiteIR::Operand& to)
+	inline void BitCast(SpiteIR::Operand& from, SpiteIR::Operand& to)
 	{
 		Left left = *(Left*)(void*)(stackFrameStart + from.reg);
 		Right* right = (Right*)(void*)(stackFrameStart + to.reg);
@@ -414,7 +409,7 @@ struct Interpreter
 	}
 
 	template<typename Left = int>
-	void CastPrimitive(SpiteIR::Operand& from, SpiteIR::Operand& to)
+	inline void CastPrimitive(SpiteIR::Operand& from, SpiteIR::Operand& to)
 	{
 		Assert(from.kind == SpiteIR::OperandKind::Register);
 		Assert(to.kind == SpiteIR::OperandKind::Register);
@@ -492,7 +487,7 @@ struct Interpreter
 		}
 	}
 
-	void InterpretExternCall(SpiteIR::Instruction& callInst)
+	inline void InterpretExternCall(SpiteIR::Instruction& callInst)
 	{
 		eastl::vector<void*> params;
 		for (SpiteIR::Operand& param : *callInst.call.params)
@@ -504,20 +499,16 @@ struct Interpreter
 		CallExternalFunction(callInst.call.function, params, stackFrameStart + callInst.call.result);
 	}
 
-	void InterpretCall(SpiteIR::Instruction& callInst)
+	inline void InterpretCall(SpiteIR::Instruction& callInst)
 	{
-		InterpretFunction(callInst.call.function, callInst.call.params);
-		CopyValue(stackFrameTop - stackFrameStart, callInst.call.function->returnType,
-			stackFrameStart + callInst.call.result, stackFrameStart);
+		InterpretFunction(callInst.call.function, callInst.call.result, callInst.call.params);
 	}
 
-	void InterpretCallPtr(SpiteIR::Instruction& callPtrInst)
+	inline void InterpretCallPtr(SpiteIR::Instruction& callPtrInst)
 	{
 		size_t reg = callPtrInst.callPtr.funcPtr.reg;
 		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
-		InterpretFunction(func, callPtrInst.callPtr.params);
-		CopyValue(stackFrameTop - stackFrameStart, callPtrInst.callPtr.funcPtr.type->function.returnType,
-			stackFrameStart + callPtrInst.callPtr.result, stackFrameStart);
+		InterpretFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
 	}
 
 #define binaryBoolOpTypeMacro(left, right, result, op, lType, rType)		\
@@ -607,7 +598,7 @@ struct Interpreter
 		}																	\
 	}																		\
 
-	void InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
+	inline void InterpretBinaryOp(SpiteIR::Instruction& binOpInst)
 	{
 		SpiteIR::Operand& left = binOpInst.binOp.left;
 		SpiteIR::Operand& right = binOpInst.binOp.right;
@@ -775,7 +766,7 @@ struct Interpreter
 		}																	\
 	}		
 
-	void InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
+	inline void InterpretUnaryOp(SpiteIR::Instruction& unOpInst)
 	{
 		SpiteIR::Operand& left = unOpInst.unOp.operand;
 		size_t result = unOpInst.unOp.result;
@@ -798,7 +789,7 @@ struct Interpreter
 		}
 	}
 
-	void InterpretLog(SpiteIR::Instruction& logInst)
+	inline void InterpretLog(SpiteIR::Instruction& logInst)
 	{
 		eastl::string out = "";
 		for (SpiteIR::Operand& operand : *logInst.log.operands)
@@ -809,7 +800,7 @@ struct Interpreter
 		Logger::Log(out);
 	}
 
-	eastl::string LogValue(void* start, SpiteIR::Type* type)
+	inline eastl::string LogValue(void* start, SpiteIR::Type* type)
 	{
 		switch (type->kind)
 		{
