@@ -870,7 +870,7 @@ struct Interpreter
 			{
 				size_t count = *(size_t*)start;
 				char* str = *(char**)((size_t*)start + 1);
-				return eastl::string(str, count);
+				return "\"" + eastl::string(str, count) + "\"";
 			}
 			default:
 				break;
@@ -892,8 +892,20 @@ struct Interpreter
 			return out;
 		}
 		case SpiteIR::TypeKind::StructureType:
-			break;
-		case SpiteIR::TypeKind::PointerType:
+		{
+			eastl::string out = "{";
+			size_t offset = 0;
+			for (SpiteIR::Type* inner : *type->structureType.types)
+			{
+				void* memberStart = ((char*)start) + offset;
+				out += " " + LogValue(memberStart, inner);
+				out += ",";
+				offset += inner->size;
+			}
+			out.back() = ' ';
+			out += "}";
+			return out;
+		}		case SpiteIR::TypeKind::PointerType:
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
@@ -936,7 +948,7 @@ struct Interpreter
 			size_t itemSize = itemType->size;
 			size_t count = type->fixedArray.count;
 
-			eastl::string out = "[";
+			eastl::string out = "fixed [";
 			for (size_t i = 0; i < count; i++)
 			{
 				size_t offset = i * itemSize;

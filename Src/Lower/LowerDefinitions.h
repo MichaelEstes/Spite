@@ -83,6 +83,7 @@ struct LowerDefinitions
 
 	SpiteIR::State* arrayState = nullptr;
 	SpiteIR::Function* makeArray = nullptr;
+	SpiteIR::Function* makeArrayFrom = nullptr;
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
 
@@ -99,6 +100,7 @@ struct LowerDefinitions
 		SpiteIR::Package* runtime = ir->runtime;
 		arrayState = FindPackageState(runtime, "__array");
 		makeArray = FindPackageFunction(runtime, "__make_array");
+		makeArrayFrom = FindPackageFunction(runtime, "__make_array_from");
 		allocFunc = FindPackageFunction(runtime, "__alloc");
 		deallocFunc = FindPackageFunction(runtime, "__dealloc");
 	}
@@ -891,7 +893,7 @@ struct LowerDefinitions
 		case TypeLiteralExpr:
 			return BuildTypeLiteral(expr, stmnt);
 		case ExplicitTypeExpr:
-			break;
+			return BuildExplicitTypeExpr(expr, stmnt);
 		case AsExpr:
 			return BuildCastExpr(expr, stmnt);
 		case DereferenceExpr:
@@ -1297,7 +1299,7 @@ struct LowerDefinitions
 		eastl::vector<ScopeValue> values;
 		for (Expr* val : *expr->typeLiteralExpr.values)
 		{
-			values.push_back(BuildExpr(val, stmnt));
+			values.push_back(BuildTypeDereference(label, BuildExpr(val, stmnt)));
 		}
 
 		SpiteIR::Type* derivedType = nullptr;
@@ -1323,12 +1325,44 @@ struct LowerDefinitions
 		size_t offset = 0;
 		for (ScopeValue& value : values)
 		{
-			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, alloc.type });
+			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, value.type });
 			BuildStore(label, dstOp, BuildRegisterOperand(value));
 			offset += value.type->size;
 		}
 
 		return { alloc.result, derivedType };
+	}
+
+	ScopeValue BuildExplicitTypeExpr(Expr* expr, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		auto& explicitType = expr->explicitTypeExpr;
+
+		SpiteIR::Type* structType = context.ir->AllocateType();
+		structType->kind = SpiteIR::TypeKind::StructureType;
+		structType->structureType.names = context.ir->AllocateArray<eastl::string>();
+		structType->structureType.types = context.ir->AllocateArray<SpiteIR::Type*>();
+
+		eastl::vector<ScopeValue> values;
+		for (Stmnt* def : *explicitType.values)
+		{
+			structType->structureType.names->push_back(def->definition.name->ToString());
+			ScopeValue value = BuildTypeDereference(label, BuildExpr(def->definition.assignment, def));
+			structType->structureType.types->push_back(value.type);
+			structType->size += value.type->size;
+			values.push_back(value);
+		}
+
+		SpiteIR::Allocate alloc = BuildAllocate(structType);
+		size_t offset = 0;
+		for (ScopeValue& value : values)
+		{
+			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, value.type });
+			BuildStore(label, dstOp, BuildRegisterOperand(value));
+			offset += value.type->size;
+		}
+
+		return { alloc.result, structType };
 	}
 
 	ScopeValue BuildCastExpr(Expr* expr, Stmnt* stmnt)
@@ -1400,13 +1434,17 @@ struct LowerDefinitions
 				SpiteIR::Type* returnType = MakeReferenceType(type, context.ir);
 				SpiteIR::Allocate alloc = BuildAllocate(returnType);
 				ScopeValue dst = { alloc.result, returnType };
-				SpiteIR::Operand offset = BuildRegisterOperand(index);
-				SpiteIR::Instruction* load = BuildLoad(label, BuildRegisterOperand(dst),
-					BuildRegisterOperand(toIndex), offset);
+				ScopeValue offset = BuildLiteralInt(type->size);
+				ScopeValue sizedOffset = BuildBinaryOp(index, offset, SpiteIR::BinaryOpKind::Multiply, label);
+				SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(label, BuildRegisterOperand(dst),
+					BuildRegisterOperand(toIndex), BuildRegisterOperand(sizedOffset));
 				return dst;
 			}
-			case SpiteIR::TypeKind::PrimitiveType:
 			case SpiteIR::TypeKind::StructureType:
+			{
+
+			}
+			case SpiteIR::TypeKind::PrimitiveType:
 			case SpiteIR::TypeKind::FunctionType:
 				Assert(false);
 				break;

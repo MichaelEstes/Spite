@@ -273,9 +273,5 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		funcCache[function] = func;
 	}
 
-	if (function->name == "free")
-	{
-		int i = 2;
-	}
 	CallDCFunc(function->returnType, func, dst);
 }

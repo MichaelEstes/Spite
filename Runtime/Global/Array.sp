@@ -12,6 +12,16 @@ array make_array(itemBytes: int)
 	return arr;
 }
 
+array make_array_from(itemBytes: int, start: *any, count: int)
+{
+	arr: array = array();
+	arr.itemBytes = itemBytes;
+	arr.start = start;
+	arr.count = count;
+	arr.capacity = count;
+	return arr;
+}
+
 state array
 {
 	count: int,
