@@ -484,16 +484,17 @@ struct LowerDefinitions
 		}
 	}
 
-	void BuildVarDefinition(Stmnt* stmnt)
+	ScopeValue BuildVarDefinition(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
-		ScopeValue value = BuildExpr(def.assignment, stmnt);
+		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt));
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType && value.type->reference.type->byValue)
 		{
 			value = BuildTypeDereference(GetCurrentLabel(), value);
 		}
 		AddValueToCurrentScope(def.name->val, value, stmnt);
 		funcContext.scopeUtils.AddToTopScope(def.name->val, stmnt);
+		return value;
 	}
 
 	void BuildInlineDefinition(Stmnt* stmnt)
@@ -1326,6 +1327,7 @@ struct LowerDefinitions
 		for (ScopeValue& value : values)
 		{
 			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, value.type });
+			
 			BuildStore(label, dstOp, BuildRegisterOperand(value));
 			offset += value.type->size;
 		}
@@ -1347,7 +1349,7 @@ struct LowerDefinitions
 		for (Stmnt* def : *explicitType.values)
 		{
 			structType->structureType.names->push_back(def->definition.name->ToString());
-			ScopeValue value = BuildTypeDereference(label, BuildExpr(def->definition.assignment, def));
+			ScopeValue value = BuildVarDefinition(def);
 			structType->structureType.types->push_back(value.type);
 			structType->size += value.type->size;
 			values.push_back(value);

@@ -87,6 +87,12 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 		if (IsIRTypeAssignable(left->dynamicArray.type, right->dynamicArray.type) == 1) return 1;
 	}
 
+	if (left->kind == SpiteIR::TypeKind::DynamicArrayType &&
+		right->kind == SpiteIR::TypeKind::FixedArrayType)
+	{
+		if (IsIRTypeAssignable(left->dynamicArray.type, right->fixedArray.type) == 1) return 2;
+	}
+
 	if (left->kind == SpiteIR::TypeKind::FixedArrayType &&
 		right->kind == SpiteIR::TypeKind::FixedArrayType)
 	{
@@ -671,7 +677,6 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	fixedArray->fixedArray.count = count;
 	fixedArray->fixedArray.type = type;
 	fixedArray->size = (type->size * count);
-	fixedArray->byValue = true;
 	return fixedArray;
 }
 
