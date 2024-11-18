@@ -51,6 +51,7 @@ eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 
 int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 {
+	if (IsAnyType(left)) return 1;
 	if (left->kind == SpiteIR::TypeKind::ReferenceType) return IsIRTypeAssignable(left->reference.type, right);
 	if (right->kind == SpiteIR::TypeKind::ReferenceType) return IsIRTypeAssignable(left, right->reference.type);
 
@@ -60,6 +61,11 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 		if (left->primitive.isSigned == right->primitive.isSigned &&
 			left->primitive.kind == right->primitive.kind &&
 			left->size == right->size) return 1;
+
+		//Both types must be void to be assignable, which would have been caught in the above check
+		if (left->primitive.kind == SpiteIR::PrimitiveKind::Void ||
+			right->primitive.kind == SpiteIR::PrimitiveKind::Void)
+			return 0;
 
 		//Both types must be strings to be assignable, which would have been caught in the above check
 		if (left->primitive.kind == SpiteIR::PrimitiveKind::String ||

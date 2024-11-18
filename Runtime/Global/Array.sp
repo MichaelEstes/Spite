@@ -12,13 +12,14 @@ array make_array(itemBytes: int)
 	return arr;
 }
 
-array make_array_from(itemBytes: int, start: *any, count: int)
+array make_array_from(itemBytes: int, count: int, start: *byte)
 {
 	arr: array = array();
 	arr.itemBytes = itemBytes;
 	arr.start = start;
 	arr.count = count;
 	arr.capacity = count;
+	log start, arr;
 	return arr;
 }
 

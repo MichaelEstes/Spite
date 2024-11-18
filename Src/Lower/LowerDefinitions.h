@@ -282,28 +282,81 @@ struct LowerDefinitions
 	SpiteIR::Type* ToIRType(Type* type)
 	{
 		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
-		Assert(irType);
+		//Assert(irType);
 		return irType;
 	}
 
-	ScopeValue HandleAutoCast(const ScopeValue& from, SpiteIR::Type* to)
+	inline SpiteIR::Type* GetConversionType(SpiteIR::Type* type)
+	{
+		return type->kind == SpiteIR::TypeKind::ReferenceType ? type->reference.type : type;
+	}
+
+	ScopeValue CastFixedArrayToDynamic(const ScopeValue& fixedArr, SpiteIR::Type* dynArr)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Type* fixedArrType = GetConversionType(fixedArr.type);
+		SpiteIR::Type* dynArrType = GetConversionType(dynArr);
+	
+		ScopeValue itemSize = BuildLiteralInt(fixedArrType->fixedArray.type->size);
+		ScopeValue count = BuildLiteralInt(fixedArrType->fixedArray.count);
+		ScopeValue start = BuildTypeReference(label, fixedArr);
+		
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+		params->push_back(BuildRegisterOperand(itemSize));
+		params->push_back(BuildRegisterOperand(count));
+		params->push_back(BuildRegisterOperand(start));
+
+		SpiteIR::Allocate alloc = BuildAllocate(dynArrType);
+		SpiteIR::Instruction* call = BuildCall(makeArrayFrom, alloc.result, params, label);
+		if (dynArr->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			ScopeValue arrRef = BuildTypeReference(label, { alloc.result, dynArrType });
+			return arrRef;
+		}
+
+		return { alloc.result, dynArrType };
+	}
+
+	ScopeValue HandleAutoCast(const ScopeValue& from, SpiteIR::Type* to, bool skipRefCheck = false)
 	{
 		if (!from.type || !to) return InvalidScopeValue;
 
-		SpiteIR::Type* fromType = from.type;
-		if (to->kind == SpiteIR::TypeKind::ReferenceType &&
-			fromType->kind != SpiteIR::TypeKind::ReferenceType)
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Type* fromConversionType = GetConversionType(from.type);
+		SpiteIR::Type* toConversionType = GetConversionType(to);
+
+		if (IsIRTypeAssignable(toConversionType, fromConversionType) == 2)
 		{
-			if (IsAnyType(to) && fromType->kind == SpiteIR::TypeKind::PointerType) return from;
-			return HandleAutoCast(BuildTypeReference(GetCurrentLabel(), from), to);
+			if (toConversionType->kind == SpiteIR::TypeKind::PrimitiveType &&
+				fromConversionType->kind == SpiteIR::TypeKind::PrimitiveType)
+			{
+				ScopeValue toCast = BuildTypeDereference(label, from);
+				return HandleAutoCast(BuildTypeCast(toCast, toConversionType), to, skipRefCheck);
+			}
+			else if (fromConversionType->kind == SpiteIR::TypeKind::FixedArrayType &&
+				toConversionType->kind == SpiteIR::TypeKind::DynamicArrayType)
+			{
+				return CastFixedArrayToDynamic(from, to);
+			}
 		}
 
-		if (from.type->kind == SpiteIR::TypeKind::ReferenceType &&
-			to->kind != SpiteIR::TypeKind::ReferenceType)
+		if (!skipRefCheck)
 		{
-			// Can't dereference any type
-			if (IsAnyType(from.type)) return from;
-			return HandleAutoCast(BuildTypeDereference(GetCurrentLabel(), from), to);
+			SpiteIR::Type* fromType = from.type;
+			if (to->kind == SpiteIR::TypeKind::ReferenceType &&
+				fromType->kind != SpiteIR::TypeKind::ReferenceType)
+			{
+				if (IsAnyType(to) && fromType->kind == SpiteIR::TypeKind::PointerType) return from;
+				return HandleAutoCast(BuildTypeReference(label, from), to);
+			}
+
+			if (from.type->kind == SpiteIR::TypeKind::ReferenceType &&
+				to->kind != SpiteIR::TypeKind::ReferenceType)
+			{
+				// Can't dereference any type
+				if (IsAnyType(from.type)) return from;
+				return HandleAutoCast(BuildTypeDereference(label, from), to);
+			}
 		}
 
 		// Handle primitive casting
@@ -487,7 +540,8 @@ struct LowerDefinitions
 	ScopeValue BuildVarDefinition(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
-		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt));
+		//ScopeValue value = BuildExpr(def.assignment, stmnt);
+		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt), ToIRType(def.type), true);
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType && value.type->reference.type->byValue)
 		{
 			value = BuildTypeDereference(GetCurrentLabel(), value);
@@ -825,8 +879,7 @@ struct LowerDefinitions
 		else
 		{
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
-			if (value.type) BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value,
-				funcContext.function->returnType)));
+			BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value, funcContext.function->returnType)));
 		}
 	}
 
@@ -1372,11 +1425,18 @@ struct LowerDefinitions
 		auto& as = expr->asExpr;
 		ScopeValue toCast = BuildExpr(as.of, stmnt);
 		SpiteIR::Type* toType = ToIRType(as.to);
+		
+		// Add check to see if bit cast is needed
+
+		return BuildTypeCast(toCast, toType);
+	}
+
+	ScopeValue BuildTypeCast(const ScopeValue& from, SpiteIR::Type* toType)
+	{
 		SpiteIR::Allocate alloc = BuildAllocate(toType);
-		ScopeValue to = { alloc.result, toType };
-		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(toCast),
-			BuildRegisterOperand(to));
-		return to;
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(from),
+			AllocateToOperand(alloc));
+		return { alloc.result, toType };
 	}
 
 	SpiteIR::Type* GetInnerType(SpiteIR::Type* type)

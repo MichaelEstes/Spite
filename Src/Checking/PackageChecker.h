@@ -409,11 +409,11 @@ struct PackageChecker
 			for (Expr* e : *expr->typeLiteralExpr.values) CheckExpr(e);
 			break;
 		}
-		//case ExplicitTypeExpr:
-		//{
-		//	for (Stmnt* stmnt : *expr->explicitTypeExpr.values) CheckStmnt(stmnt);
-		//	break;
-		//}
+		case ExplicitTypeExpr:
+		{
+			for (Stmnt* stmnt : *expr->explicitTypeExpr.values) CheckDefinition(stmnt, false);
+			break;
+		}
 		case AsExpr:
 			CheckExpr(expr->asExpr.of);
 			CheckType(expr->asExpr.to, expr->start);
