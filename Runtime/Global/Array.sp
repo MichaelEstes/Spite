@@ -19,7 +19,6 @@ array make_array_from(itemBytes: int, count: int, start: *byte)
 	arr.start = start;
 	arr.count = count;
 	arr.capacity = count;
-	log start, arr;
 	return arr;
 }
 

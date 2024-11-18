@@ -496,7 +496,8 @@ namespace SpiteIR
 		string file;
 		string name;
 		Array<Package*> imports;
-		HashMap<string, GlobalVariable*> globalVariables;
+		Array<GlobalVariable*> globalVariables;
+		HashMap<string, size_t> globalVariableLookup;
 		HashMap<string, State*> states;
 		HashMap<string, Function*> functions;
 		Array<CompileFunction*> debugFunctions;

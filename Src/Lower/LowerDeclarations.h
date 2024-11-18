@@ -82,7 +82,7 @@ struct LowerDeclarations
 			context.toResolveStateSize.pop_back();
 		}
 
-		for (auto& [key, value] : symbolTable->globalValMap)
+		for (Stmnt* value : symbolTable->globalVals)
 		{
 			BuildGlobalVariableDeclaration(package, value);
 		}
@@ -466,7 +466,8 @@ struct LowerDeclarations
 		globalVar->type = TypeToIRType(context.ir, def.type, this);
 		globalVar->index = context.ir->globalSize;
 		context.ir->IncremementGlobalSize(globalVar->type);
-		package->globalVariables[globalVar->name] = globalVar;
+		package->globalVariables.push_back(globalVar);
+		package->globalVariableLookup[globalVar->name] = package->globalVariables.size() - 1;
 		context.globalVarASTMap[globalVar] = globalVarStmnt;
 	}
 

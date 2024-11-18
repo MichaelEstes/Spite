@@ -275,7 +275,8 @@ struct SymbolTable
 	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
-	eastl::hash_map<StringView, Stmnt*, StringViewHash> globalValMap;
+	eastl::vector<Stmnt*> globalVals;
+	eastl::hash_map<StringView, size_t, StringViewHash> globalValMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> externFunctionMap;
 	eastl::vector<Stmnt*> onCompiles;
 	Arena* arena;
@@ -317,9 +318,9 @@ struct SymbolTable
 			toPrint += '\n';
 		}
 
-		for (auto& [key, value] : globalValMap)
+		for (Stmnt* var : globalVals)
 		{
-			toPrint += ToString(value);
+			toPrint += ToString(var);
 			toPrint += '\n';
 		}
 
@@ -383,7 +384,7 @@ struct SymbolTable
 			AddFunction(value);
 		}
 
-		for (auto& [key, value] : toMerge->globalValMap)
+		for (Stmnt* value : toMerge->globalVals)
 		{
 			AddGlobalVal(value);
 		}
@@ -491,7 +492,9 @@ struct SymbolTable
 		auto& name = globalVal->definition.name->val;
 		if (globalValMap.find(name) != globalValMap.end())
 			AddError(globalVal->start, "SymbolTable:AddGlobalVal Package scoped values with name already declared");
-		globalValMap[globalVal->definition.name->val] = globalVal;
+
+		globalVals.push_back(globalVal);
+		globalValMap[globalVal->definition.name->val] = globalVals.size() - 1;
 	}
 
 	void AddOnCompile(Stmnt* compile)
@@ -549,7 +552,7 @@ struct SymbolTable
 	{
 		if (auto entry = globalValMap.find(val); entry != globalValMap.end())
 		{
-			return entry->second;
+			return globalVals[entry->second];
 		}
 
 		return nullptr;

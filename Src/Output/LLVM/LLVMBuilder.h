@@ -316,8 +316,9 @@ struct LLVMBuilder
 
 	void BuildGlobals()
 	{
-		for (auto& [key, value] : symbolTable->globalValMap)
+		for (auto& [key, index] : symbolTable->globalValMap)
 		{
+			Stmnt* value = symbolTable->globalVals[index];
 			auto& decl = value->definition;
 			LType* type = TypeToLType(decl.type);
 			Constant* initialValue = ConstantInt::get(type, 42);

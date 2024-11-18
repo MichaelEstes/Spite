@@ -251,7 +251,7 @@ struct LowerDefinitions
 		SpiteIR::Label* entry = BuildLabel("entry");
 		AddLabel(entry);
 		
-		for (auto& [key, globalVar] : package->globalVariables)
+		for (SpiteIR::GlobalVariable* globalVar : package->globalVariables)
 		{
 			Stmnt* globalVarStmnt = context.globalVarASTMap[globalVar];
 			BuildGlobalVariable(globalVar, globalVarStmnt);
@@ -980,7 +980,8 @@ struct LowerDefinitions
 	ScopeValue FindGlobalVar(SpiteIR::Package* package, Stmnt* globalVarStmnt)
 	{
 		eastl::string globalVarName = BuildGlobalVariableName(globalVarStmnt);
-		SpiteIR::GlobalVariable* globalVar = package->globalVariables[globalVarName];
+		size_t index = package->globalVariableLookup[globalVarName];
+		SpiteIR::GlobalVariable* globalVar = package->globalVariables.at(index);
 		SpiteIR::Type* globalRef = MakeReferenceType(globalVar->type, context.ir);
 		SpiteIR::Allocate alloc = BuildAllocate(globalRef);
 		SpiteIR::Instruction* loadGlobal = BuildLoadGlobal(GetCurrentLabel(), AllocateToOperand(alloc),

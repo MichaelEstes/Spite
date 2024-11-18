@@ -24,7 +24,7 @@ struct PackageChecker
 		}
 
 		AddScope();
-		for (auto& [key, value] : context.symbolTable->globalValMap)
+		for (Stmnt* value : context.symbolTable->globalVals)
 		{
 			CheckGlobalVal(value);
 		}
