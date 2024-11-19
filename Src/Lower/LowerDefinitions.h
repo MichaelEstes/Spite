@@ -248,6 +248,7 @@ struct LowerDefinitions
 		func->block = context.ir->AllocateBlock();
 		funcContext.Reset(func, symbolTable, context.globalTable);
 
+		AddScope();
 		SpiteIR::Label* entry = BuildLabel("entry");
 		AddLabel(entry);
 		
@@ -259,6 +260,7 @@ struct LowerDefinitions
 
 		SpiteIR::Label* lastLabel = GetCurrentLabel();
 		BuildVoidReturn(lastLabel);
+		PopScope();
 		package->initializer = func;
 	}
 
@@ -943,7 +945,7 @@ struct LowerDefinitions
 		case NewExpr:
 			return BuildNewExpr(expr, stmnt);
 		case FixedExpr:
-			break;
+			return BuildFixedExpr(expr, stmnt);
 		case TypeLiteralExpr:
 			return BuildTypeLiteral(expr, stmnt);
 		case ExplicitTypeExpr:
@@ -967,8 +969,6 @@ struct LowerDefinitions
 		case FunctionTypeDeclExpr:
 			return BuildAnonFunction(expr, stmnt);
 		case CompileExpr:
-			break;
-		case ConstantIntExpr:
 			break;
 		default:
 			break;
@@ -1347,6 +1347,15 @@ struct LowerDefinitions
 		}
 	}
 
+	ScopeValue BuildFixedExpr(Expr* expr, Stmnt* stmnt)
+	{
+		ScopeValue value = BuildExpr(expr->fixedExpr.atExpr, stmnt);
+		Assert(value.type->kind == SpiteIR::TypeKind::FixedArrayType);
+		ScopeValue ref = BuildTypeReference(GetCurrentLabel(), value);
+		SpiteIR::Type* pointer = MakePointerType(value.type->fixedArray.type, context.ir);
+		return { ref.reg, pointer };
+	}
+
 	ScopeValue BuildTypeLiteral(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr->typeLiteralExpr.values->size());
@@ -1503,11 +1512,8 @@ struct LowerDefinitions
 					BuildRegisterOperand(toIndex), BuildRegisterOperand(sizedOffset));
 				return dst;
 			}
-			case SpiteIR::TypeKind::StructureType:
-			{
-
-			}
 			case SpiteIR::TypeKind::PrimitiveType:
+			case SpiteIR::TypeKind::StructureType:
 			case SpiteIR::TypeKind::FunctionType:
 				Assert(false);
 				break;
@@ -1772,6 +1778,11 @@ struct LowerDefinitions
 		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
 			funcOperand);
 		return { alloc.result, alloc.type };
+	}
+
+	ScopeValue BuildCompileExpr(Expr* expr, Stmnt* stmnt)
+	{
+
 	}
 
 	SpiteIR::Instruction* CreateInstruction(SpiteIR::Label* label)
