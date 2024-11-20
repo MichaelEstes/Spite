@@ -70,11 +70,20 @@ struct FunctionContext
 
 const ScopeValue InvalidScopeValue = { InvalidRegister, nullptr };
 
+struct DeferredCompile
+{
+	SpiteIR::Function* compileFunc;
+	SpiteIR::Instruction* storeInst = nullptr;
+};
+
 struct LowerDefinitions
 {
 	LowerContext& context;
 	FunctionContext funcContext;
 	SymbolTable* symbolTable = nullptr;
+
+	eastl::hash_set<SpiteIR::Package*> loweredPackages;
+	eastl::deque<DeferredCompile> deferredCompiles;
 
 	Stmnt* currentStmnt = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
@@ -91,6 +100,7 @@ struct LowerDefinitions
 
 	LowerDefinitions(LowerContext& context) : context(context)
 	{
+		context.interpreter->Initialize(context.ir);
 		castBool = CreateBoolType(context.ir);
 		AssignRuntimeDeclarations(context.ir);
 	}
@@ -171,6 +181,12 @@ struct LowerDefinitions
 
 	void BuildPackageDefinitions(SpiteIR::Package* package)
 	{
+		if (MapHas(loweredPackages, package)) return;
+		loweredPackages.insert(package);
+
+		for (SpiteIR::Package* importPkg : package->imports)
+			BuildPackageDefinitions(importPkg);
+
 		currPackage = package;
 		symbolTable = context.packageToSymbolTableMap[package];
 		for (auto& [key, state] : package->states)
@@ -192,6 +208,20 @@ struct LowerDefinitions
 		}
 
 		BuildGlobalVariables(package);
+
+		if (deferredCompiles.size())
+		{
+			while (deferredCompiles.size() > 0)
+			{
+				DeferredCompile comp = deferredCompiles.back();
+				SpiteIR::Function* func = comp.compileFunc;
+				SpiteIR::Instruction* store = comp.storeInst;
+
+				void* ret = context.interpreter->InterpretFunction(func, 0);
+
+				deferredCompiles.pop_back();
+			}
+		}
 	}
 
 	void AddScope()
@@ -284,7 +314,7 @@ struct LowerDefinitions
 	SpiteIR::Type* ToIRType(Type* type)
 	{
 		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
-		//Assert(irType);
+		Assert(irType);
 		return irType;
 	}
 
@@ -360,8 +390,6 @@ struct LowerDefinitions
 				return HandleAutoCast(BuildTypeDereference(label, from), to);
 			}
 		}
-
-		// Handle primitive casting
 
 		return from;
 	}
@@ -969,7 +997,7 @@ struct LowerDefinitions
 		case FunctionTypeDeclExpr:
 			return BuildAnonFunction(expr, stmnt);
 		case CompileExpr:
-			break;
+			return BuildCompileExpr(expr, stmnt);
 		default:
 			break;
 		}
@@ -1270,7 +1298,7 @@ struct LowerDefinitions
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->primitive.kind = literal.kind;
 		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
-			config.targetArchBitWidth * 2 : config.targetArchBitWidth;
+			config.targetArchByteWidth * 2 : config.targetArchByteWidth;
 		irType->primitive.isSigned = true;
 		irType->byValue = true;
 
@@ -1309,7 +1337,7 @@ struct LowerDefinitions
 
 		SpiteIR::Type* irType = context.ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
-		irType->size = config.targetArchBitWidth;
+		irType->size = config.targetArchByteWidth;
 		irType->primitive.kind = literal.kind;
 		irType->primitive.isSigned = false;
 
@@ -1780,9 +1808,49 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	SpiteIR::Function* BuildAnonBlockFunction(SpiteIR::Type* returnType, Body& body)
+	{
+		SpiteIR::Function* func = context.ir->AllocateFunction();
+		BuildAnonFunctionName(func->name);
+		func->parent = funcContext.function->parent;
+		func->returnType = returnType;
+		func->block = context.ir->AllocateBlock();
+
+		FunctionContext prev = funcContext;
+		funcContext = FunctionContext();
+		funcContext.Reset(func, symbolTable, context.globalTable);
+		AddScope();
+		BuildLabelBody("entry", body);
+		SpiteIR::Label* lastLabel = GetCurrentLabel();
+		if (!lastLabel->terminator && IsVoidType(func->returnType))
+		{
+			BuildVoidReturn(lastLabel);
+		}
+		PopScope();
+		funcContext = prev;
+
+		return func;
+	}
+
 	ScopeValue BuildCompileExpr(Expr* expr, Stmnt* stmnt)
 	{
+		Stmnt* compileStmnt = expr->compileExpr.compile;
+		SpiteIR::Function* compileFunc = BuildCompileStmnt(compileStmnt);
 
+		SpiteIR::Allocate alloc = BuildAllocate(compileFunc->returnType);
+		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
+			BuildRegisterOperand(InvalidScopeValue));
+
+		deferredCompiles.push_back({ compileFunc, store });
+		return { alloc.result,	alloc.type };
+	}
+
+	SpiteIR::Function* BuildCompileStmnt(Stmnt* stmnt)
+	{
+		SpiteIR::Function* compileFunc = BuildAnonBlockFunction(ToIRType(stmnt->compileStmnt.returnType),
+			stmnt->compileStmnt.body);
+
+		return compileFunc;
 	}
 
 	SpiteIR::Instruction* CreateInstruction(SpiteIR::Label* label)

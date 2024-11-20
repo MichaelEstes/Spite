@@ -108,6 +108,7 @@ int main(int argc, char** argv)
 	files.erase(entry);
 
 	SpiteIR::IR* ir = nullptr;
+	Interpreter interpreter = Interpreter(config.interpreterStackSize);
 
 	{
 		GlobalTable globalTable = GlobalTable();
@@ -157,7 +158,7 @@ int main(int argc, char** argv)
 
 		//globalTable.Print();
 		Profiler lowerProfiler = Profiler();
-		Lower lower = Lower(&globalTable);
+		Lower lower = Lower(&globalTable, &interpreter);
 		ir = lower.BuildIR(entryTable);
 		if (Logger::HasErrors())
 		{
@@ -173,7 +174,6 @@ int main(int argc, char** argv)
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 
 	interpretProfiler.Reset();
-	Interpreter interpreter = Interpreter(2000000);
 	int64_t value = *(int64_t*)interpreter.Interpret(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 

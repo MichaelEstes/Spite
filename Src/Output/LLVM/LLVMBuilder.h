@@ -64,12 +64,12 @@ struct LPrimitives
 		int32Type = LType::getInt32Ty(context);
 		int64Type = LType::getInt64Ty(context);
 		int128Type = LType::getInt128Ty(context);
-		intType = config.targetArchBitWidth == 64 ? int64Type : int32Type;
+		intType = config.targetArchByteWidth == 64 ? int64Type : int32Type;
 
 		float32Type = LType::getFloatTy(context);
 		float64Type = LType::getDoubleTy(context);
 		float128Type = LType::getFP128Ty(context);
-		floatType = config.targetArchBitWidth == 64 ? float64Type : float32Type;
+		floatType = config.targetArchByteWidth == 64 ? float64Type : float32Type;
 	}
 };
 

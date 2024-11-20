@@ -8,10 +8,10 @@ struct Lower
 	SpiteIR::IR* ir;
 	LowerContext context;
 
-
-	Lower(GlobalTable* globalTable)
+	Lower(GlobalTable* globalTable, Interpreter* interpreter)
 	{
 		context.globalTable = globalTable;
+		context.interpreter = interpreter;
 		this->ir = new SpiteIR::IR(globalTable->GetSize());
 		context.ir = this->ir;
 	}
@@ -21,11 +21,13 @@ struct Lower
 		LowerDeclarations lowerDecl = LowerDeclarations(context);
 		SpiteIR::Package* runtime = lowerDecl.BuildPackageDeclarations(context.globalTable->runtimeTable);
 		ir->SetRuntimePackage(runtime);
-		lowerDecl.BuildDeclarations();
-		//lowerDecl.BuildPackageDeclarations(entry);
+		//lowerDecl.BuildDeclarations();
+		SpiteIR::Package* entryPkg = lowerDecl.BuildPackageDeclarations(entry);
 
 		LowerDefinitions lowerDef = LowerDefinitions(context);
-		lowerDef.BuildDefinitions();
+		//lowerDef.BuildDefinitions();
+		lowerDef.BuildPackageDefinitions(runtime);
+		lowerDef.BuildPackageDefinitions(entryPkg);
 
 		Stmnt* entryFunc = context.globalTable->entryFunc;
 		eastl::string entryFuncName = BuildFunctionName(entryFunc);

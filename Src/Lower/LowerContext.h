@@ -1,6 +1,7 @@
 #pragma once
 #include "../Syntax/GlobalTable.h"
 #include "../IR/IR.h"
+#include "../IR/Interpreter/Interpreter.h"
 
 struct ASTContainer
 {
@@ -23,6 +24,8 @@ struct LowerContext
 
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
 	eastl::vector<SpiteIR::Type*> toResolveStateSize;
+
+	Interpreter* interpreter = nullptr;
 
 	SpiteIR::State* FindState(const eastl::string& val)
 	{

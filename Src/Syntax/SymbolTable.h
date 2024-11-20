@@ -591,7 +591,7 @@ struct SymbolTable
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Int:
-			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.size = config.targetArchByteWidth;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Int16:
@@ -611,7 +611,7 @@ struct SymbolTable
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Uint:
-			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.size = config.targetArchByteWidth;
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Uint16:
@@ -631,7 +631,7 @@ struct SymbolTable
 			type->primitiveType.isSigned = false;
 			break;
 		case UniqueType::Float:
-			type->primitiveType.size = config.targetArchBitWidth;
+			type->primitiveType.size = config.targetArchByteWidth;
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::Float32:
@@ -643,7 +643,7 @@ struct SymbolTable
 			type->primitiveType.isSigned = true;
 			break;
 		case UniqueType::String:
-			type->primitiveType.size = config.targetArchBitWidth * 2;
+			type->primitiveType.size = config.targetArchByteWidth * 2;
 			type->primitiveType.isSigned = false;
 			break;
 		default:

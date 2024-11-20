@@ -253,7 +253,7 @@ SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	*type = {
-		(size_t)config.targetArchBitWidth,
+		(size_t)config.targetArchByteWidth,
 		SpiteIR::TypeKind::PrimitiveType,
 		true,
 		{
@@ -268,7 +268,7 @@ SpiteIR::Type* CreateUnsignedIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	*type = {
-		(size_t)config.targetArchBitWidth,
+		(size_t)config.targetArchByteWidth,
 		SpiteIR::TypeKind::PrimitiveType,
 		true,
 		{
@@ -282,7 +282,7 @@ SpiteIR::Type* CreateUnsignedIntType(SpiteIR::IR* ir)
 SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	type->size = (size_t)config.targetArchBitWidth;
+	type->size = (size_t)config.targetArchByteWidth;
 	type->kind = SpiteIR::TypeKind::PointerType;
 	type->byValue = true;
 	type->pointer.type = CreateVoidType(ir);
@@ -293,7 +293,7 @@ SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 {
 	SpiteIR::Type* refType = ir->AllocateType();
 	refType->kind = SpiteIR::TypeKind::ReferenceType;
-	refType->size = config.targetArchBitWidth;
+	refType->size = config.targetArchByteWidth;
 	refType->byValue = true;
 	refType->reference.type = type;
 	return refType;
@@ -303,7 +303,7 @@ SpiteIR::Type* MakePointerType(SpiteIR::Type* type, SpiteIR::IR* ir)
 {
 	SpiteIR::Type* ptrType = ir->AllocateType();
 	ptrType->kind = SpiteIR::TypeKind::PointerType;
-	ptrType->size = config.targetArchBitWidth;
+	ptrType->size = config.targetArchByteWidth;
 	ptrType->byValue = true;
 	ptrType->pointer.type = type;
 	return ptrType;
@@ -664,7 +664,7 @@ SpiteIR::Type* IRFunctionToFunctionType(SpiteIR::IR* ir, SpiteIR::Function* func
 {
 	SpiteIR::Type* funcType = ir->AllocateType();
 	funcType->kind = SpiteIR::TypeKind::FunctionType;
-	funcType->size = config.targetArchBitWidth;
+	funcType->size = config.targetArchByteWidth;
 	funcType->byValue = true;
 	funcType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 	funcType->function.returnType = function->returnType;
@@ -790,7 +790,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PointerType;
-		irType->size = config.targetArchBitWidth;
+		irType->size = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, lower, generics, templates);
 		return irType;
@@ -805,7 +805,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
-		irType->size = config.targetArchBitWidth * 4;
+		irType->size = config.targetArchByteWidth * 4;
 		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, lower, generics, templates);
 		return irType;
 	}
@@ -828,7 +828,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::FunctionType;
-		irType->size = config.targetArchBitWidth;
+		irType->size = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, lower, generics, templates);
@@ -842,7 +842,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::ReferenceType;
-		irType->size = config.targetArchBitWidth;
+		irType->size = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->pointer.type = CreateVoidType(ir);
 		return irType;

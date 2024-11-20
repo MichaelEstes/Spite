@@ -25,14 +25,20 @@ struct Interpreter
 		delete global;
 	}
 
-	void* Interpret(SpiteIR::IR* ir)
+	void Initialize(SpiteIR::IR* ir)
 	{
-		SpiteIR::Function* entry = ir->entry;
+		delete global;
 		global = new char[ir->globalSize];
 		for (SpiteIR::Package* package : ir->packages)
 		{
 			if (package->initializer) InterpretFunction(package->initializer, 0);
 		}
+	}
+
+	void* Interpret(SpiteIR::IR* ir)
+	{
+		SpiteIR::Function* entry = ir->entry;
+		Initialize(ir);
 		return InterpretFunction(entry, 0);
 	}
 
@@ -80,10 +86,7 @@ struct Interpreter
 		char* prevStackStart = stackFrameStart;
 		stackFrameStart = stackFrameStart + start;
 
-		if (params)
-		{
-			MoveParams(params, func->arguments, prevStackStart);
-		}
+		if (params) MoveParams(params, func->arguments, prevStackStart);
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
