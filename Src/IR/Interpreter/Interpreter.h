@@ -227,23 +227,39 @@ struct Interpreter
 	inline void InterpretStore(SpiteIR::Instruction& storeInst)
 	{
 		SpiteIR::Operand& src = storeInst.store.src;
+		StoreOperand(src, stackFrameStart + storeInst.store.dst.reg);
+	}
 
+	inline void StoreOperand(SpiteIR::Operand& src, void* dst)
+	{
 		switch (src.kind)
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-			CopyRegValue(src, storeInst.store.dst, stackFrameStart);
+			CopyValue(src.reg, src.type, dst, stackFrameStart);
 			break;
 		}
 		case SpiteIR::OperandKind::Literal:
 		{
-			void* dst = stackFrameStart + storeInst.store.dst.reg;
 			switch (src.literal.kind)
 			{
 			case SpiteIR::PrimitiveKind::Byte:
 				*(char*)dst = src.literal.byteLiteral;
+				break;
+			case SpiteIR::PrimitiveKind::I16:
+				*(int16_t*)dst = src.literal.i16Literal;
+				break;
+			case SpiteIR::PrimitiveKind::I32:
+				*(int32_t*)dst = src.literal.i32Literal;
+				break;
+			case SpiteIR::PrimitiveKind::I64:
+				*(int64_t*)dst = src.literal.i64Literal;
+				break;
 			case SpiteIR::PrimitiveKind::Int:
-				*(int64_t*)dst = src.literal.intLiteral;
+				*(intmax_t*)dst = src.literal.intLiteral;
+				break;
+			case SpiteIR::PrimitiveKind::F32:
+				*(float*)dst = src.literal.f32Literal;
 				break;
 			case SpiteIR::PrimitiveKind::Float:
 				*(double*)dst = src.literal.floatLiteral;
@@ -262,7 +278,15 @@ struct Interpreter
 			break;
 		}
 		case SpiteIR::OperandKind::StructLiteral:
+		{
+			size_t offset = 0;
+			for (SpiteIR::Operand& op : *src.structLiteral)
+			{
+				StoreOperand(op, (char*)dst + offset);
+				offset += op.type->size;
+			}
 			break;
+		}
 		default:
 			break;
 		}

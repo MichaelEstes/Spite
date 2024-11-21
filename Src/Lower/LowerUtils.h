@@ -650,6 +650,13 @@ inline bool IsVoidType(SpiteIR::Type* type)
 		type->primitive.kind == SpiteIR::PrimitiveKind::Void;
 }
 
+inline bool IsIntType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->primitive.kind == SpiteIR::PrimitiveKind::Int &&
+		type->size == config.targetArchByteWidth;
+}
+
 template<typename Low>
 SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
 {
@@ -783,6 +790,21 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			irType->size += member->size;
 			irType->structureType.types->push_back(member);
 			irType->structureType.names->push_back(def.name->val.ToString());
+		}
+		return irType;
+	}
+	case AnonymousType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::StructureType;
+		irType->size = 0;
+		irType->structureType.names = nullptr;
+		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
+		for (size_t i = 0; i < type->anonType.types->size(); i++)
+		{
+			SpiteIR::Type* member = TypeToIRType(ir, type->anonType.types->at(i), lower, generics, templates);
+			irType->size += member->size;
+			irType->structureType.types->push_back(member);
 		}
 		return irType;
 	}

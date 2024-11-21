@@ -113,7 +113,11 @@ namespace SpiteIR
 		Void,
 		Bool,
 		Byte,
+		I16,
+		I32,
+		I64,
 		Int,
+		F32,
 		Float,
 		String
 	};
@@ -202,7 +206,11 @@ namespace SpiteIR
 		union
 		{
 			char byteLiteral;
-			size_t intLiteral;
+			int16_t i16Literal;
+			int32_t i32Literal;
+			int64_t i64Literal;
+			intmax_t intLiteral;
+			float f32Literal;
 			double floatLiteral;
 			string* stringLiteral;
 		};
