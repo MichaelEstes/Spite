@@ -1137,6 +1137,33 @@ struct LowerDefinitions
 			return FindGlobalVar(package, globalVar);
 		}
 
+		Stmnt* funcStmnt = context.globalTable->FindScopedFunction(expr->identifierExpr.identifier, symbolTable);
+		if (funcStmnt)
+		{
+			SpiteIR::Function* func = nullptr;
+			if (funcStmnt->nodeID == StmntID::ExternFunctionDecl)
+			{
+				func = FindFunction(funcStmnt->package->val, funcStmnt->externFunction.callName->val.ToString());
+			}
+			else
+			{
+				eastl::string funcName = BuildFunctionName(funcStmnt);
+				func = FindFunction(funcStmnt->package->val, funcName);
+			}
+			SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
+			SpiteIR::Allocate alloc = BuildAllocate(funcType);
+
+			SpiteIR::Operand funcOperand = SpiteIR::Operand();
+			funcOperand.kind = SpiteIR::OperandKind::Function;
+			funcOperand.type = funcType;
+			funcOperand.function = func;
+
+			SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
+				funcOperand);
+			return { alloc.result, alloc.type };
+
+		}
+
 		return InvalidScopeValue;
 	}
 

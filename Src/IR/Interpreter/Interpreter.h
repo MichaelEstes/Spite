@@ -516,14 +516,21 @@ struct Interpreter
 
 	inline void InterpretExternCall(SpiteIR::Instruction& callInst)
 	{
-		eastl::vector<void*> params;
-		for (SpiteIR::Operand& param : *callInst.call.params)
+		InterpretExternFunction(callInst.call.function, callInst.call.result, callInst.call.params);
+	}
+
+	inline void InterpretExternFunction(SpiteIR::Function* func, size_t dst,
+		eastl::vector<SpiteIR::Operand>* params)
+	{
+		eastl::vector<void*> paramPtrs;
+		for (SpiteIR::Operand& param : *params)
 		{
 			Assert(param.kind == SpiteIR::OperandKind::Register);
-			params.push_back((void*)(stackFrameStart + param.reg));
+			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		CallExternalFunction(callInst.call.function, params, stackFrameStart + callInst.call.result);
+		CallExternalFunction(func, paramPtrs, stackFrameStart + dst);
+
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)
@@ -535,7 +542,9 @@ struct Interpreter
 	{
 		size_t reg = callPtrInst.callPtr.funcPtr.reg;
 		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
-		InterpretFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
+		if(func->metadata.externFunc) 
+			InterpretExternFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
+		else InterpretFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
 	}
 
 #define binaryBoolOpTypeMacro(left, right, result, op, lType, rType)		\
