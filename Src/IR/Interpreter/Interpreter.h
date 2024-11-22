@@ -308,8 +308,8 @@ struct Interpreter
 
 	inline void InterpretMove(SpiteIR::Instruction& storeInst)
 	{
-		char* dst = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
-		char* src = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
+		void* dst = *(size_t**)(void*)(stackFrameStart + storeInst.store.dst.reg);
+		void* src = *(size_t**)(void*)(stackFrameStart + storeInst.store.src.reg);
 		memcpy(dst, src, storeInst.store.dst.type->size);
 	}
 

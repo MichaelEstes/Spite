@@ -1124,6 +1124,31 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	ScopeValue FindFunctionValue(Stmnt* funcStmnt)
+	{
+		SpiteIR::Function* func = nullptr;
+		if (funcStmnt->nodeID == StmntID::ExternFunctionDecl)
+		{
+			func = FindFunction(funcStmnt->package->val, funcStmnt->externFunction.callName->val.ToString());
+		}
+		else
+		{
+			eastl::string funcName = BuildFunctionName(funcStmnt);
+			func = FindFunction(funcStmnt->package->val, funcName);
+		}
+		SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
+		SpiteIR::Allocate alloc = BuildAllocate(funcType);
+
+		SpiteIR::Operand funcOperand = SpiteIR::Operand();
+		funcOperand.kind = SpiteIR::OperandKind::Function;
+		funcOperand.type = funcType;
+		funcOperand.function = func;
+
+		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
+			funcOperand);
+		return { alloc.result, alloc.type };
+	}
+
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
@@ -1140,28 +1165,7 @@ struct LowerDefinitions
 		Stmnt* funcStmnt = context.globalTable->FindScopedFunction(expr->identifierExpr.identifier, symbolTable);
 		if (funcStmnt)
 		{
-			SpiteIR::Function* func = nullptr;
-			if (funcStmnt->nodeID == StmntID::ExternFunctionDecl)
-			{
-				func = FindFunction(funcStmnt->package->val, funcStmnt->externFunction.callName->val.ToString());
-			}
-			else
-			{
-				eastl::string funcName = BuildFunctionName(funcStmnt);
-				func = FindFunction(funcStmnt->package->val, funcName);
-			}
-			SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
-			SpiteIR::Allocate alloc = BuildAllocate(funcType);
-
-			SpiteIR::Operand funcOperand = SpiteIR::Operand();
-			funcOperand.kind = SpiteIR::OperandKind::Function;
-			funcOperand.type = funcType;
-			funcOperand.function = func;
-
-			SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
-				funcOperand);
-			return { alloc.result, alloc.type };
-
+			return FindFunctionValue(funcStmnt);
 		}
 
 		return InvalidScopeValue;
@@ -1242,12 +1246,6 @@ struct LowerDefinitions
 
 		StringView& ident = selected->identifierExpr.identifier->val;
 
-		// Package selector
-		if (!value.type)
-		{
-			return InvalidScopeValue;
-		}
-
 		if (value.type->kind == SpiteIR::TypeKind::StateType ||
 			value.type->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
@@ -1299,6 +1297,37 @@ struct LowerDefinitions
 		Expr* left = expr->selectorExpr.on;
 		Expr* right = expr->selectorExpr.select;
 		ScopeValue leftVal = BuildExpr(left, stmnt);
+
+		// Package selector
+		if (!leftVal.type)
+		{
+			Token* name = expr->selectorExpr.select->identifierExpr.identifier;
+			if (left->typeID == ExprID::IdentifierExpr)
+			{
+				if (context.globalTable->IsPackage(left->identifierExpr.identifier->val))
+				{
+					Token* package = left->identifierExpr.identifier;
+					Stmnt* stmnt = context.globalTable->FindStatementForPackage(package, name);
+					
+					switch (stmnt->nodeID)
+					{
+					case Definition:
+					{
+						SpiteIR::Package* package = context.packageMap[stmnt->package->val];
+						return FindGlobalVar(package, stmnt);
+					}
+					case FunctionStmnt:
+						return FindFunctionValue(stmnt);
+					case StateStmnt:
+						break;
+					default:
+						break;
+					}
+				}
+
+			}
+			return InvalidScopeValue;
+		}
 
 		return BuildSelected(leftVal, right);
 	}
@@ -2404,8 +2433,12 @@ struct LowerDefinitions
 		{
 			SpiteIR::Allocate alloc = BuildAllocate(irFunction->returnType);
 			ret = { alloc.result, alloc.type };
+			SpiteIR::Instruction* call = BuildCall(irFunction, ret.reg, params, label);
 		}
-		SpiteIR::Instruction* call = BuildCall(irFunction, ret.reg, params, label);
+		else
+		{
+			SpiteIR::Instruction* call = BuildCall(irFunction, funcContext.curr, params, label);
+		}
 		return ret;
 	}
 

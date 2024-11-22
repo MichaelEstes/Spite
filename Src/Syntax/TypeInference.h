@@ -406,6 +406,11 @@ struct TypeInferer
 			return explicitMember->definition.type;
 		}
 
+		if (type->typeID == TypeID::FunctionType)
+		{
+			auto& func = type->functionType;
+		}
+
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
