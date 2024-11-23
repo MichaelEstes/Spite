@@ -1127,15 +1127,23 @@ struct LowerDefinitions
 	ScopeValue FindFunctionValue(Stmnt* funcStmnt)
 	{
 		SpiteIR::Function* func = nullptr;
-		if (funcStmnt->nodeID == StmntID::ExternFunctionDecl)
+
+		switch (funcStmnt->nodeID)
 		{
+		case ExternFunctionDecl:
 			func = FindFunction(funcStmnt->package->val, funcStmnt->externFunction.callName->val.ToString());
-		}
-		else
-		{
+			break;
+		case StateStmnt:
+			break;
+		case Method:
+			break;
+		case FunctionStmnt:
+		default:
 			eastl::string funcName = BuildFunctionName(funcStmnt);
 			func = FindFunction(funcStmnt->package->val, funcName);
+			break;
 		}
+
 		SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
 		SpiteIR::Allocate alloc = BuildAllocate(funcType);
 
@@ -1292,43 +1300,54 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	bool IsPackageSelection(Expr* expr)
+	{
+		while (expr->typeID == ExprID::SelectorExpr)
+		{
+			expr = expr->selectorExpr.on;
+		}
+
+		return expr->typeID == ExprID::IdentifierExpr &&
+			context.globalTable->IsPackage(expr->identifierExpr.identifier->val);
+	}
+
 	ScopeValue BuildSelector(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* left = expr->selectorExpr.on;
 		Expr* right = expr->selectorExpr.select;
-		ScopeValue leftVal = BuildExpr(left, stmnt);
 
-		// Package selector
-		if (!leftVal.type)
+		if (IsPackageSelection(expr))
 		{
-			Token* name = expr->selectorExpr.select->identifierExpr.identifier;
+			Token* name = right->identifierExpr.identifier;
+			
 			if (left->typeID == ExprID::IdentifierExpr)
 			{
-				if (context.globalTable->IsPackage(left->identifierExpr.identifier->val))
+				Token* ident = left->identifierExpr.identifier;
+				Stmnt* stmnt = context.globalTable->FindStatementForPackage(ident, name);
+
+				switch (stmnt->nodeID)
 				{
-					Token* package = left->identifierExpr.identifier;
-					Stmnt* stmnt = context.globalTable->FindStatementForPackage(package, name);
-					
-					switch (stmnt->nodeID)
-					{
-					case Definition:
-					{
-						SpiteIR::Package* package = context.packageMap[stmnt->package->val];
-						return FindGlobalVar(package, stmnt);
-					}
-					case FunctionStmnt:
-						return FindFunctionValue(stmnt);
-					case StateStmnt:
-						break;
-					default:
-						break;
-					}
+				case Definition:
+				{
+					SpiteIR::Package* package = context.packageMap[stmnt->package->val];
+					return FindGlobalVar(package, stmnt);
 				}
+				case StateStmnt:
+				case FunctionStmnt:
+					return FindFunctionValue(stmnt);
+				default:
+					break;
+				}
+			}
+			else
+			{
 
 			}
+
 			return InvalidScopeValue;
 		}
 
+		ScopeValue leftVal = BuildExpr(left, stmnt);
 		return BuildSelected(leftVal, right);
 	}
 
@@ -1628,7 +1647,7 @@ struct LowerDefinitions
 			to->kind == SpiteIR::TypeKind::PrimitiveType)
 		{
 			return from->primitive.kind != SpiteIR::PrimitiveKind::String &&
-						to->primitive.kind != SpiteIR::PrimitiveKind::String;
+				to->primitive.kind != SpiteIR::PrimitiveKind::String;
 		}
 
 		return (IsIntType(from) && to->kind == SpiteIR::TypeKind::PointerType) ||
@@ -2350,6 +2369,7 @@ struct LowerDefinitions
 			irFunction = FindFunctionForMemberCall(expr);
 			break;
 		case UniformMethodCall:
+			irFunction = FindFunctionForMemberCall(expr);
 			break;
 		case PrimitiveCall:
 			break;

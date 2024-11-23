@@ -94,45 +94,14 @@ struct TypeInferer
 		if (of->typeID == TypeID::FunctionType)
 		{
 			Stmnt* func = GetDeclarationStmntForExpr(expr->templateExpr.expr);
-			if (!func)
-			{
-				AddError(expr->start, "TypeInferer:GetGenericsType No function found for expression");
-				return nullptr;
-			}
-			Stmnt* generics = GetGenerics(func);
-			if (!generics)
-			{
-				AddError(expr->start, "TypeInferer:GetGenericsType Template expression used on non-templated function");
-				return nullptr;
-			}
-
 			auto& funcType = of->functionType;
-
-			eastl::vector<Expr*>* templateArgs = expr->templateExpr.templateArgs;
-			if (templateArgs->size() != generics->generics.names->size())
+			Type* templatedFuncType = symbolTable->CreateTypePtr(TypeID::TemplatedType);
+			templatedFuncType->templatedType.templates = expr;
+			funcType.returnType = ExpandTypeTemplates(funcType.returnType, func, templatedFuncType);
+			for (size_t i = 0; i < funcType.paramTypes->size(); i++)
 			{
-				AddError(expr->start, "TypeInferer:GetGenericsType Invalid number of template arguments for generic type");
-				return nullptr;
-			}
-			for (size_t i = 0; i < generics->generics.names->size(); i++)
-			{
-				Token* name = generics->generics.names->at(i);
-				if (funcType.returnType->typeID == TypeID::NamedType &&
-					funcType.returnType->namedType.typeName->val == name->val)
-				{
-					funcType.returnType = InferType(templateArgs->at(i));
-				}
-
-				for (size_t j = 0; j < funcType.paramTypes->size(); j++)
-				{
-					Type*& param = funcType.paramTypes->at(i);
-					if (param->typeID == TypeID::NamedType &&
-						param->namedType.typeName->val == name->val)
-					{
-						param = InferType(templateArgs->at(i));
-					}
-				}
-
+				Type*& param = funcType.paramTypes->at(i);
+				param = ExpandTypeTemplates(param, func, templatedFuncType);
 			}
 
 			return of;
@@ -379,8 +348,17 @@ struct TypeInferer
 		Type* derefExpandFrom = DereferenceType(expandFrom);
 		if (derefExpandFrom->typeID != TypeID::TemplatedType) return toExpand;
 
-		eastl::vector<Token*>* genericNames = state->state.generics->generics.names;
+		Stmnt* stateGenerics = GetGenerics(state);
+		if (!stateGenerics)
+		{
+			AddError(derefExpandFrom->templatedType.templates->start,
+				"TypeInference:ExpandTypeTemplates Templated epression found for state without generics : " + state->state.name->val);
+			return toExpand;
+		}
+
+		eastl::vector<Token*>* genericNames = stateGenerics->generics.names;
 		eastl::vector<Expr*>* templateArgs = derefExpandFrom->templatedType.templates->templateExpr.templateArgs;
+
 		if (templateArgs->size() > genericNames->size())
 		{
 			AddError(derefExpandFrom->templatedType.templates->start,
@@ -406,11 +384,6 @@ struct TypeInferer
 			return explicitMember->definition.type;
 		}
 
-		if (type->typeID == TypeID::FunctionType)
-		{
-			auto& func = type->functionType;
-		}
-
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
@@ -434,7 +407,8 @@ struct TypeInferer
 				return nullptr;
 			}
 
-			return FunctionToFunctionType(method);
+			Type* funcType = FunctionToFunctionType(method);
+			return ExpandTypeTemplates(funcType, state, type);
 		}
 	}
 
