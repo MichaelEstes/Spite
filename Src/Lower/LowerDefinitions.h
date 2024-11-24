@@ -12,8 +12,13 @@ const size_t InvalidRegister = (size_t)-1;
 
 struct ScopeValue
 {
-	size_t reg = 0;
-	SpiteIR::Type* type = nullptr;
+	size_t reg = InvalidRegister;
+
+	union 
+	{
+		SpiteIR::Type* type = nullptr;
+		SpiteIR::Package* package;
+	};
 };
 
 struct DeferredBody
@@ -677,7 +682,6 @@ struct LowerDefinitions
 	ScopeValue BuildVarDefinition(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
-		//ScopeValue value = BuildExpr(def.assignment, stmnt);
 		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt), ToIRType(def.type), true);
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType && value.type->reference.type->byValue)
 		{
@@ -1124,7 +1128,7 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
-	ScopeValue FindFunctionValue(Stmnt* funcStmnt)
+	ScopeValue FindFunctionValue(Stmnt* funcStmnt, eastl::vector<Expr*>* templates = nullptr)
 	{
 		SpiteIR::Function* func = nullptr;
 
@@ -1133,17 +1137,20 @@ struct LowerDefinitions
 		case ExternFunctionDecl:
 			func = FindFunction(funcStmnt->package->val, funcStmnt->externFunction.callName->val.ToString());
 			break;
-		case StateStmnt:
-			break;
-		case Method:
-			break;
 		case FunctionStmnt:
 		default:
-			eastl::string funcName = BuildFunctionName(funcStmnt);
-			func = FindFunction(funcStmnt->package->val, funcName);
+			if (templates)
+				func = FindFunction(funcStmnt->package->val, BuildTemplatedFunctionName(funcStmnt, templates));
+			else
+				func = FindFunction(funcStmnt->package->val, BuildFunctionName(funcStmnt));
 			break;
 		}
 
+		return StoreFunctionValue(func);
+	}
+
+	ScopeValue StoreFunctionValue(SpiteIR::Function* func)
+	{
 		SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
 		SpiteIR::Allocate alloc = BuildAllocate(funcType);
 
@@ -1155,6 +1162,7 @@ struct LowerDefinitions
 		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
 			funcOperand);
 		return { alloc.result, alloc.type };
+
 	}
 
 	ScopeValue FindValueForIndent(Expr* expr)
@@ -1174,6 +1182,13 @@ struct LowerDefinitions
 		if (funcStmnt)
 		{
 			return FindFunctionValue(funcStmnt);
+		}
+
+		if (context.globalTable->IsPackage(ident))
+		{
+			ScopeValue packageValue = InvalidScopeValue;
+			packageValue.package = context.packageMap[ident];
+			return packageValue;
 		}
 
 		return InvalidScopeValue;
@@ -1248,9 +1263,80 @@ struct LowerDefinitions
 		return value;
 	}
 
+	ScopeValue BuildSelectedPackageValue(SpiteIR::Package* package, Expr* selected)
+	{
+		SymbolTable* symbolTable = context.packageToSymbolTableMap[package];
+
+		switch (selected->typeID)
+		{
+		case ExprID::IdentifierExpr:
+		{
+			Stmnt* stmnt = symbolTable->FindStatement(selected->identifierExpr.identifier->val);
+			switch (stmnt->nodeID)
+			{
+			case Definition:
+			{
+				return FindGlobalVar(package, stmnt);
+			}
+			case StateStmnt:
+			{
+				SpiteIR::State* state = FindPackageState(package, BuildStateName(stmnt));
+				SpiteIR::Type* stateType = context.ir->AllocateType();
+				stateType->kind = SpiteIR::TypeKind::StateType;
+				stateType->size = state->size;
+				stateType->stateType.state = state;
+				return { InvalidRegister, stateType };
+			}
+			case FunctionStmnt:
+				return FindFunctionValue(stmnt);
+			default:
+				break;
+			}
+		}
+		break;
+		case ExprID::TemplateExpr:
+			break;
+		default:
+			break;
+		}
+
+		return InvalidScopeValue;
+	}
+
+	ScopeValue BuildSelectedMethodValue(SpiteIR::State* state, Expr* selected)
+	{
+		Stmnt* stateStmnt = context.stateASTMap[state].node;
+		StringView& packageStr = stateStmnt->package->val;
+		SymbolTable* symbolTable = context.globalTable->FindSymbolTable(packageStr);
+		StateSymbol* stateSymbol = symbolTable->FindStateSymbol(stateStmnt->state.name->val);
+
+		switch (selected->typeID)
+		{
+		case ExprID::IdentifierExpr:
+		{
+			Stmnt* methodStmnt = FindStateMethod(stateSymbol, selected->identifierExpr.identifier->val);
+			SpiteIR::Function* method = FindFunction(packageStr, BuildMethodName(state, methodStmnt));
+			return StoreFunctionValue(method);
+		}
+		case ExprID::TemplateExpr:
+			break;
+		default:
+			break;
+		}
+		return InvalidScopeValue;
+	}
+
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
 	{
-		Assert(selected->typeID == ExprID::IdentifierExpr);
+		if (value.reg == InvalidRegister && value.package->parent == context.ir)
+		{
+			return BuildSelectedPackageValue(value.package, selected);
+		}
+		else if (value.reg == InvalidRegister && value.type->kind == SpiteIR::TypeKind::StateType)
+		{
+			SpiteIR::State* state = value.type->stateType.state;
+			return BuildSelectedMethodValue(state, selected);
+		}
 
 		StringView& ident = selected->identifierExpr.identifier->val;
 
@@ -1283,7 +1369,10 @@ struct LowerDefinitions
 			{
 				SpiteIR::State* state = GetStateForType(derefed);
 				SpiteIR::Member* member = FindStateMember(state, ident);
-				Assert(member);
+				if (!member)
+				{
+					Assert(member);
+				}
 				offsetAndType = { member->offset, member->value->type };
 			}
 
@@ -1300,54 +1389,12 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
-	bool IsPackageSelection(Expr* expr)
-	{
-		while (expr->typeID == ExprID::SelectorExpr)
-		{
-			expr = expr->selectorExpr.on;
-		}
-
-		return expr->typeID == ExprID::IdentifierExpr &&
-			context.globalTable->IsPackage(expr->identifierExpr.identifier->val);
-	}
-
 	ScopeValue BuildSelector(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* left = expr->selectorExpr.on;
 		Expr* right = expr->selectorExpr.select;
-
-		if (IsPackageSelection(expr))
-		{
-			Token* name = right->identifierExpr.identifier;
-			
-			if (left->typeID == ExprID::IdentifierExpr)
-			{
-				Token* ident = left->identifierExpr.identifier;
-				Stmnt* stmnt = context.globalTable->FindStatementForPackage(ident, name);
-
-				switch (stmnt->nodeID)
-				{
-				case Definition:
-				{
-					SpiteIR::Package* package = context.packageMap[stmnt->package->val];
-					return FindGlobalVar(package, stmnt);
-				}
-				case StateStmnt:
-				case FunctionStmnt:
-					return FindFunctionValue(stmnt);
-				default:
-					break;
-				}
-			}
-			else
-			{
-
-			}
-
-			return InvalidScopeValue;
-		}
-
 		ScopeValue leftVal = BuildExpr(left, stmnt);
+
 		return BuildSelected(leftVal, right);
 	}
 
@@ -2357,6 +2404,7 @@ struct LowerDefinitions
 		SpiteIR::Function* irFunction = nullptr;
 		SpiteIR::Label* label = GetCurrentLabel();
 
+		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		switch (funcCall.callKind)
 		{
 		case FunctionCall:
@@ -2366,10 +2414,10 @@ struct LowerDefinitions
 			irFunction = FindFunctionForConstructor(expr);
 			break;
 		case MemberMethodCall:
-			irFunction = FindFunctionForMemberCall(expr);
+			irFunction = FindFunctionForMemberCall(expr, stmnt, params);
 			break;
 		case UniformMethodCall:
-			irFunction = FindFunctionForMemberCall(expr);
+			irFunction = FindFunctionForUniformCall(expr, stmnt);
 			break;
 		case PrimitiveCall:
 			break;
@@ -2387,25 +2435,7 @@ struct LowerDefinitions
 		if (!irFunction) return { InvalidRegister, nullptr };
 
 		ScopeValue ret = InvalidScopeValue;
-		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
-		if (funcCall.callKind == MemberMethodCall)
-		{
-			Expr* caller = GetCallerExprMethodCall(funcCall.function);
-			ScopeValue thisValue = BuildExpr(caller, stmnt);
-
-			// Pointer have methods called the same as values (No '.' '->' distiction)
-			if (thisValue.type->kind == SpiteIR::TypeKind::ReferenceType &&
-				thisValue.type->reference.type->kind == SpiteIR::TypeKind::PointerType)
-			{
-				thisValue = BuildTypeDereference(label, thisValue);
-			}
-			if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
-				thisValue = BuildTypeReference(label, thisValue);
-
-			SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
-			params->push_back(ref);
-		}
-		else if (funcCall.callKind == ConstructorCall)
+		if (funcCall.callKind == ConstructorCall)
 		{
 			Stmnt* state = funcCall.functionStmnt;
 			if (state->nodeID != StmntID::StateStmnt)
@@ -2491,22 +2521,60 @@ struct LowerDefinitions
 		return function;
 	}
 
-	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr)
+	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
 	{
-		Expr* caller = expr->functionCallExpr.function;
+		SpiteIR::Label* label = GetCurrentLabel();
+		Expr* functionExpr = expr->functionCallExpr.function;
+		Expr* caller = GetCallerExprMethodCall(functionExpr);
 		Stmnt* methodStmnt = expr->functionCallExpr.functionStmnt;
 		StringView& packageName = methodStmnt->package->val;
 		eastl::string methodName;
 
-		if (caller->typeID == ExprID::TemplateExpr)
+		ScopeValue thisValue = DereferenceToSinglePointer(BuildExpr(caller, stmnt));
+		if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
+			thisValue = BuildTypeReference(label, thisValue);
+
+		SpiteIR::State* state = GetStateForType(GetInnerType(thisValue.type));
+		Assert(state);
+		SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
+		params->push_back(ref);
+
+
+		if (functionExpr->typeID == ExprID::TemplateExpr)
 		{
-			eastl::vector<Expr*>* templates = caller->templateExpr.templateArgs;
+			eastl::vector<Expr*>* templates = functionExpr->templateExpr.templateArgs;
 			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
-			methodName = BuildTemplatedMethodName(methodStmnt, &expandedTemplates);
+			methodName = BuildTemplatedMethodName(state, methodStmnt, &expandedTemplates);
 		}
 		else
 		{
-			methodName = BuildMethodName(methodStmnt);
+			methodName = BuildMethodName(state, methodStmnt);
+		}
+
+		return FindFunction(packageName, methodName);
+	}
+
+	SpiteIR::Function* FindFunctionForUniformCall(Expr* expr, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		Expr* functionExpr = expr->functionCallExpr.function;
+		Expr* caller = GetCallerExprMethodCall(functionExpr);
+		Stmnt* methodStmnt = expr->functionCallExpr.functionStmnt;
+		StringView& packageName = methodStmnt->package->val;
+		eastl::string methodName;
+
+		ScopeValue stateValue = BuildExpr(caller, stmnt);
+		SpiteIR::State* state = GetStateForType(stateValue.type);
+
+		if (functionExpr->typeID == ExprID::TemplateExpr)
+		{
+			eastl::vector<Expr*>* templates = functionExpr->templateExpr.templateArgs;
+			eastl::vector<Expr*> expandedTemplates = ExpandTemplates(templates);
+			methodName = BuildTemplatedMethodName(state, methodStmnt, &expandedTemplates);
+		}
+		else
+		{
+			methodName = BuildMethodName(state, methodStmnt);
 		}
 
 		return FindFunction(packageName, methodName);

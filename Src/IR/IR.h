@@ -486,6 +486,7 @@ namespace SpiteIR
 		Array<Function*> methods;
 		Array<Function*> operators;
 		Array<Function*> constructors;
+		Function* defaultConstructor;
 		Function* destructor = nullptr;
 		string name;
 	};

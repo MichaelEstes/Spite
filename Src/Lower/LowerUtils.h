@@ -603,15 +603,14 @@ inline eastl::string BuildTemplatedFunctionName(Stmnt* func, eastl::vector<Expr*
 	return BuildFunctionName(func) + BuildTemplatedString(templates);
 }
 
-inline eastl::string BuildMethodName(Stmnt* method)
+inline eastl::string BuildMethodName(SpiteIR::State* state, Stmnt* method)
 {
-	return  _BuildStateName(method->package, method->method.stateName) + '_' +
-		method->method.name->val.ToString();
+	return  state->name + '_' + method->method.name->val.ToString();
 }
 
-inline eastl::string BuildTemplatedMethodName(Stmnt* method, eastl::vector<Expr*>* templates)
+inline eastl::string BuildTemplatedMethodName(SpiteIR::State* state, Stmnt* method, eastl::vector<Expr*>* templates)
 {
-	return BuildMethodName(method) + BuildTemplatedString(templates);
+	return BuildMethodName(state, method) + BuildTemplatedString(templates);
 }
 
 inline eastl::string BuildDefaultConstructorName(Stmnt* state, eastl::vector<Expr*>* templates = nullptr)

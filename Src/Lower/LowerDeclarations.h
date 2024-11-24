@@ -271,7 +271,7 @@ struct LowerDeclarations
 		con->returnType = CreateVoidType(context.ir);
 
 		BuildMethodThisArgument(state, con, context.ir);
-		state->constructors.push_back(con);
+		state->defaultConstructor = con;
 		context.functionMap[con->name] = con;
 		package->functions[con->name] = con;
 		context.functionASTMap[con] = { stateStmnt, templates };
@@ -332,7 +332,7 @@ struct LowerDeclarations
 		}
 
 		BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-			BuildMethodName(methodStmnt), generics, templates);
+			BuildMethodName(state, methodStmnt), generics, templates);
 	}
 
 	void BuildGenericMethod(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* methodStmnt,
@@ -351,7 +351,7 @@ struct LowerDeclarations
 			for (Expr* methodTemplate : *templates) stateAndMethodTemplates.push_back(methodTemplate);
 
 			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
-				BuildTemplatedMethodName(methodStmnt, templates),
+				BuildTemplatedMethodName(state, methodStmnt, templates),
 				&stateAndMethodGenerics, &stateAndMethodTemplates);
 		}
 	}
