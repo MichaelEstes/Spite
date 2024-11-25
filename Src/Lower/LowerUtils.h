@@ -855,7 +855,10 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, lower, generics, templates);
 		for (Type* param : *type->functionType.paramTypes)
 		{
-			irType->function.params->push_back(TypeToIRType(ir, param, lower, generics, templates));
+			SpiteIR::Type* paramType = TypeToIRType(ir, param, lower, generics, templates);
+			if (!paramType->byValue)
+				paramType = MakeReferenceType(paramType, ir);
+			irType->function.params->push_back(paramType);
 		}
 		return irType;
 	}

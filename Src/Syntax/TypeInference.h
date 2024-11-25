@@ -249,6 +249,26 @@ struct TypeInferer
 		return type;
 	}
 
+	Expr* CreateExprFromTemplates(Expr* toExpand, eastl::vector<Token*>* genericNames,
+		eastl::vector<Expr*>* templateArgs)
+	{
+		if (toExpand->typeID == ExprID::IdentifierExpr)
+		{
+			Token* name = toExpand->identifierExpr.identifier;
+			for (size_t i = 0; i < templateArgs->size(); i++)
+			{
+				Token* genericName = genericNames->at(i);
+				if (genericName->val == name->val)
+				{
+					return templateArgs->at(i);
+				}
+			}
+
+		}
+
+		return toExpand;
+	}
+
 	Type* CreateTypeFromTemplates(Type* toExpand, eastl::vector<Token*>* genericNames,
 		eastl::vector<Expr*>* templateArgs)
 	{
@@ -305,15 +325,25 @@ struct TypeInferer
 		case ArrayType:
 			expanded->arrayType.type = CreateTypeFromTemplates(expanded->arrayType.type,
 				genericNames, templateArgs);
+			if (expanded->arrayType.size)
+				expanded->arrayType.size = CreateExprFromTemplates(expanded->arrayType.size, genericNames, templateArgs);
 			break;
 		case FixedArrayType:
 			expanded->fixedArrayType.type = CreateTypeFromTemplates(expanded->fixedArrayType.type,
 				genericNames, templateArgs);
 			break;
 		case TemplatedType:
+		{
 			expanded->templatedType.type = CreateTypeFromTemplates(expanded->templatedType.type,
 				genericNames, templateArgs);
+			eastl::vector<Expr*>* newArgs = symbolTable->CreateVectorPtr<Expr>();
+			for (Expr* expr : *expanded->templatedType.templates->templateExpr.templateArgs)
+			{
+				newArgs->push_back(CreateExprFromTemplates(expr, genericNames, templateArgs));
+			}
+			expanded->templatedType.templates->templateExpr.templateArgs = newArgs;
 			break;
+		}
 		case FunctionType:
 		{
 			eastl::vector<Type*>* paramTypes = symbolTable->CreateVectorPtr<Type>();

@@ -11,7 +11,7 @@ struct LowerDeclarations
 {
 	LowerContext& context;
 	eastl::hash_map<eastl::vector<Stmnt*>*, eastl::vector<SpiteIR::PlatformLib>*> linkMap;
-
+	SymbolTable* symbolTable;
 
 	LowerDeclarations(LowerContext& context) : context(context)
 	{}
@@ -45,6 +45,8 @@ struct LowerDeclarations
 			SpiteIR::Package* imported = BuildPackageDeclarations(symbolTable);
 			package->imports.push_back(imported);
 		}
+
+		this->symbolTable = symbolTable;
 
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
@@ -342,17 +344,17 @@ struct LowerDeclarations
 
 		for (eastl::vector<Expr*>* templates : *generics.templatesToExpand)
 		{
-			eastl::vector<Token*> stateAndMethodGenerics = eastl::vector<Token*>();
-			if (stateGenerics) for (Token* stateGeneric : *stateGenerics) stateAndMethodGenerics.push_back(stateGeneric);
-			for (Token* methodGeneric : *generics.names) stateAndMethodGenerics.push_back(methodGeneric);
+			eastl::vector<Token*>* stateAndMethodGenerics = symbolTable->CreateVectorPtr<Token>();
+			if (stateGenerics) for (Token* stateGeneric : *stateGenerics) stateAndMethodGenerics->push_back(stateGeneric);
+			for (Token* methodGeneric : *generics.names) stateAndMethodGenerics->push_back(methodGeneric);
 
-			eastl::vector<Expr*> stateAndMethodTemplates = eastl::vector<Expr*>();
-			if (stateTemplates) for (Expr* stateTemplate : *stateTemplates) stateAndMethodTemplates.push_back(stateTemplate);
-			for (Expr* methodTemplate : *templates) stateAndMethodTemplates.push_back(methodTemplate);
+			eastl::vector<Expr*>* stateAndMethodTemplates = symbolTable->CreateVectorPtr<Expr>();
+			if (stateTemplates) for (Expr* stateTemplate : *stateTemplates) stateAndMethodTemplates->push_back(stateTemplate);
+			for (Expr* methodTemplate : *templates) stateAndMethodTemplates->push_back(methodTemplate);
 
 			BuildMethod(package, state, methodStmnt, methodStmnt->method.decl,
 				BuildTemplatedMethodName(state, methodStmnt, templates),
-				&stateAndMethodGenerics, &stateAndMethodTemplates);
+				stateAndMethodGenerics, stateAndMethodTemplates);
 		}
 	}
 

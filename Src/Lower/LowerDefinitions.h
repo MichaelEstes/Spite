@@ -9,6 +9,9 @@
 extern Config config;
 
 const size_t InvalidRegister = (size_t)-1;
+const size_t PackageRegister = (size_t)-2;
+const size_t StateRegister = (size_t)-3;
+const size_t StmntRegister = (size_t)-4;
 
 struct ScopeValue
 {
@@ -18,6 +21,8 @@ struct ScopeValue
 	{
 		SpiteIR::Type* type = nullptr;
 		SpiteIR::Package* package;
+		SpiteIR::State* state;
+		Stmnt* stmnt;
 	};
 };
 
@@ -37,6 +42,7 @@ struct FunctionScope
 struct FunctionContext
 {
 	SpiteIR::Function* function;
+	SpiteIR::State* templatedMethodState = nullptr;
 	eastl::deque<FunctionScope> scopeQueue;
 	ScopeUtils scopeUtils = ScopeUtils(nullptr, nullptr);
 	eastl::deque<SpiteIR::Label*> breakLabels;
@@ -61,6 +67,7 @@ struct FunctionContext
 		scopeUtils.scopeQueue.clear();
 		scopeUtils.globalTable = globalTable;
 		scopeUtils.symbolTable = symbolTable;
+		templatedMethodState = nullptr;
 		breakLabels.clear();
 		continueLabels.clear();
 		curr = 0;
@@ -92,7 +99,7 @@ struct LowerDefinitions
 
 	Stmnt* currentStmnt = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
-	eastl::vector<Token*>* currGenerics = nullptr;
+	eastl::vector<Token*> currGenerics;
 	SpiteIR::Package* currPackage = nullptr;
 
 	SpiteIR::State* arrayState = nullptr;
@@ -140,11 +147,58 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	void SetCurrentGenerics(Stmnt* stmnt)
+	bool IsStateFunction(Stmnt* stmnt)
+	{
+		switch (stmnt->nodeID)
+		{
+		case Method:
+		case StateOperator:
+		case Destructor:
+		case Constructor:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	Token* GetStateName(Stmnt* stmnt)
+	{
+		switch (stmnt->nodeID)
+		{
+		case Method:
+			return stmnt->method.stateName;
+		case StateOperator:
+			return stmnt->stateOperator.stateName;
+		case Destructor:
+			return stmnt->destructor.stateName;
+		case Constructor:
+			return stmnt->constructor.stateName;
+		default:
+			return nullptr;
+		}
+	}
+
+	void AddGenericsToCurrent(Stmnt* stmnt)
 	{
 		Stmnt* generics = GetGenerics(stmnt);
-		if (generics) currGenerics = generics->generics.names;
-		else currGenerics = nullptr;
+		if (generics)
+		{
+			for (Token* genericName : *generics->generics.names)
+				currGenerics.push_back(genericName);
+		}
+	}
+
+	void SetCurrentGenerics(Stmnt* stmnt)
+	{
+		currGenerics.clear();
+		if (IsStateFunction(stmnt))
+		{
+			Token* stateName = GetStateName(stmnt);
+			Stmnt* state = symbolTable->FindState(stateName->val);
+			AddGenericsToCurrent(state);
+		}
+
+		AddGenericsToCurrent(stmnt);
 	}
 
 	Expr* ExpandTemplate(Expr* expr)
@@ -152,9 +206,9 @@ struct LowerDefinitions
 		Token* exprToken = GetTokenForTemplate(expr);
 		if (exprToken)
 		{
-			for (int i = 0; i < currGenerics->size(); i++)
+			for (int i = 0; i < currGenerics.size(); i++)
 			{
-				Token* token = currGenerics->at(i);
+				Token* token = currGenerics.at(i);
 				if (token->val == exprToken->val)
 				{
 					return currTemplates->at(i);
@@ -425,7 +479,7 @@ struct LowerDefinitions
 
 	SpiteIR::Type* ToIRType(Type* type)
 	{
-		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, currGenerics, currTemplates);
+		SpiteIR::Type* irType = TypeToIRType(context.ir, type, this, &currGenerics, currTemplates);
 		Assert(irType);
 		return irType;
 	}
@@ -1102,7 +1156,7 @@ struct LowerDefinitions
 		case GroupedExpr:
 			return BuildExpr(expr->groupedExpr.expr, stmnt);
 		case TemplateExpr:
-			break;
+			return BuildTemplateExpr(expr, stmnt);
 		case TypeExpr:
 			return BuildTypeExpr(expr, stmnt);
 		case FunctionTypeDeclExpr:
@@ -1184,9 +1238,29 @@ struct LowerDefinitions
 			return FindFunctionValue(funcStmnt);
 		}
 
+		Stmnt* stateStmnt = context.globalTable->FindScopedState(expr->identifierExpr.identifier, symbolTable);
+		if (stateStmnt)
+		{
+			SpiteIR::Package* package = context.packageMap[stateStmnt->package->val];
+			SpiteIR::State* state = FindPackageState(package, BuildStateName(stateStmnt));
+			ScopeValue stateValue = ScopeValue();
+			if (state)
+			{
+				stateValue.reg = StateRegister;
+				stateValue.state = state;
+			}
+			else
+			{
+				stateValue.reg = StmntRegister;
+				stateValue.stmnt = stateStmnt;
+			}
+			return stateValue;
+		}
+
 		if (context.globalTable->IsPackage(ident))
 		{
 			ScopeValue packageValue = InvalidScopeValue;
+			packageValue.reg = PackageRegister;
 			packageValue.package = context.packageMap[ident];
 			return packageValue;
 		}
@@ -1281,11 +1355,20 @@ struct LowerDefinitions
 			case StateStmnt:
 			{
 				SpiteIR::State* state = FindPackageState(package, BuildStateName(stmnt));
-				SpiteIR::Type* stateType = context.ir->AllocateType();
-				stateType->kind = SpiteIR::TypeKind::StateType;
-				stateType->size = state->size;
-				stateType->stateType.state = state;
-				return { InvalidRegister, stateType };
+				ScopeValue value = ScopeValue();
+				// Templated state lookup without templates
+				if (!state)
+				{
+					value.reg = StmntRegister;
+					value.stmnt = stmnt;
+				}
+				else
+				{
+					value.reg = StateRegister;
+					value.state = state;
+				}
+
+				return value;
 			}
 			case FunctionStmnt:
 				return FindFunctionValue(stmnt);
@@ -1315,8 +1398,19 @@ struct LowerDefinitions
 		case ExprID::IdentifierExpr:
 		{
 			Stmnt* methodStmnt = FindStateMethod(stateSymbol, selected->identifierExpr.identifier->val);
-			SpiteIR::Function* method = FindFunction(packageStr, BuildMethodName(state, methodStmnt));
-			return StoreFunctionValue(method);
+			eastl::string methodName = BuildMethodName(state, methodStmnt);
+			if (FunctionExists(packageStr, methodName))
+			{
+				SpiteIR::Function* method = FindFunction(packageStr, methodName);
+				return StoreFunctionValue(method);
+			}
+
+			// Templated method being selected
+			funcContext.templatedMethodState = state;
+			ScopeValue methodValue = ScopeValue();
+			methodValue.reg = StmntRegister;
+			methodValue.stmnt = methodStmnt;
+			return methodValue;
 		}
 		case ExprID::TemplateExpr:
 			break;
@@ -1328,14 +1422,13 @@ struct LowerDefinitions
 
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
 	{
-		if (value.reg == InvalidRegister && value.package->parent == context.ir)
+		if (value.reg == PackageRegister)
 		{
 			return BuildSelectedPackageValue(value.package, selected);
 		}
-		else if (value.reg == InvalidRegister && value.type->kind == SpiteIR::TypeKind::StateType)
+		else if (value.reg == StateRegister)
 		{
-			SpiteIR::State* state = value.type->stateType.state;
-			return BuildSelectedMethodValue(state, selected);
+			return BuildSelectedMethodValue(value.state, selected);
 		}
 
 		StringView& ident = selected->identifierExpr.identifier->val;
@@ -1474,6 +1567,10 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::DynamicArrayType:
+		{
+			MakeDynamicArray(type, dst, label);
+			break;
+		}
 		case SpiteIR::TypeKind::FixedArrayType:
 		case SpiteIR::TypeKind::ReferenceType:
 			break;
@@ -1714,7 +1811,8 @@ struct LowerDefinitions
 	ScopeValue BuildTypeCast(const ScopeValue& from, SpiteIR::Type* toType)
 	{
 		SpiteIR::Allocate alloc = BuildAllocate(toType);
-		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(from),
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), 
+			BuildRegisterOperand(BuildTypeDereference(GetCurrentLabel(), from)),
 			AllocateToOperand(alloc));
 		return { alloc.result, toType };
 	}
@@ -1972,9 +2070,48 @@ struct LowerDefinitions
 		return BuildUnaryOpValue(val, op);
 	}
 
-	void MakeDynamicArray(SpiteIR::Type* irType, size_t dst, Type* type)
+	ScopeValue BuildTemplateExpr(Expr* expr, Stmnt* stmnt)
 	{
-		SpiteIR::Label* label = GetCurrentLabel();
+		auto& templated = expr->templateExpr;
+		Expr* of = templated.expr;
+		eastl::vector<Expr*>* templateArgs = templated.templateArgs;
+
+		ScopeValue ofValue = BuildExpr(of, stmnt);
+		if (ofValue.reg == StmntRegister)
+		{
+			Stmnt* templStmnt = ofValue.stmnt;
+			switch (templStmnt->nodeID)
+			{
+			case StmntID::StateStmnt:
+			{
+				SpiteIR::Package* package = context.packageMap[templStmnt->package->val];
+				SpiteIR::State* state = FindPackageState(package,
+					BuildTemplatedStateName(templStmnt, templateArgs));
+				ScopeValue stateValue = ScopeValue();
+				stateValue.reg = StateRegister;
+				stateValue.state = state;
+				return stateValue;
+			}
+			case StmntID::Method:
+			{
+				SpiteIR::State* state = funcContext.templatedMethodState;
+				Assert(state);
+				SpiteIR::Function* method = FindFunction(templStmnt->package->val,
+					BuildTemplatedMethodName(state, templStmnt, templateArgs));
+				funcContext.templatedMethodState = nullptr;
+				return StoreFunctionValue(method);
+			}
+			case StmntID::FunctionStmnt:
+			default:
+				break;
+			}
+		}
+		
+		return ofValue;
+	}
+
+	void MakeDynamicArray(SpiteIR::Type* irType, size_t dst, SpiteIR::Label* label)
+	{
 		size_t arrayItemSize = irType->dynamicArray.type->size;
 		ScopeValue itemSize = BuildLiteralInt(arrayItemSize);
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
@@ -1984,6 +2121,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildTypeExpr(Expr* expr, Stmnt* stmnt)
 	{
+		SpiteIR::Label* label = GetCurrentLabel();
 		Type* type = expr->typeExpr.type;
 		SpiteIR::Allocate alloc = BuildAllocateForType(type);
 		SpiteIR::Type* irType = alloc.type;
@@ -1991,11 +2129,11 @@ struct LowerDefinitions
 
 		if (irType->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
-			MakeDynamicArray(irType, reg, type);
+			MakeDynamicArray(irType, reg, label);
 			return { reg, irType };
 		}
 
-		return BuildDefaultValue(irType, reg, GetCurrentLabel());
+		return BuildDefaultValue(irType, reg, label);
 	}
 
 	void BuildAnonFunctionName(eastl::string& name)
@@ -2437,33 +2575,17 @@ struct LowerDefinitions
 		ScopeValue ret = InvalidScopeValue;
 		if (funcCall.callKind == ConstructorCall)
 		{
-			Stmnt* state = funcCall.functionStmnt;
-			if (state->nodeID != StmntID::StateStmnt)
-			{
-				Token* stateName = state->constructor.stateName;
-				state = context.globalTable->FindScopedState(stateName, symbolTable);
-			}
+			ScopeValue stateValue = BuildExpr(funcCall.function, stmnt);
+			Assert(stateValue.reg == StateRegister);
 
-			eastl::string stateName;
-			if (funcCall.function->typeID == ExprID::TemplateExpr)
-			{
-				eastl::vector<Expr*> templates = ExpandTemplates(funcCall.function->templateExpr.templateArgs);
-				stateName = BuildTemplatedStateName(state, &templates);
-			}
-			else
-			{
-				stateName = BuildStateName(state);
-			}
-
-			SpiteIR::State* irState = context.FindState(stateName);
+			SpiteIR::State* irState = stateValue.state;
 			SpiteIR::Type* type = context.ir->AllocateType();
 			type->kind = SpiteIR::TypeKind::StateType;
 			type->size = irState->size;
 			type->stateType.state = irState;
 
 			SpiteIR::Allocate alloc = BuildAllocate(type);
-			SpiteIR::Operand ref = BuildRegisterOperand(BuildTypeReference(label,
-				{ alloc.result, alloc.type }));
+			SpiteIR::Operand ref = BuildRegisterOperand(BuildTypeReference(label, { alloc.result, alloc.type }));
 			params->push_back(ref);
 			ret = { ref.reg, ref.type };
 		}
@@ -2508,6 +2630,18 @@ struct LowerDefinitions
 		}
 
 		return nullptr;
+	}
+
+	bool FunctionExists(const StringView& packageName,
+		const eastl::string& functionName)
+	{
+		if (MapHas(context.packageMap, packageName))
+		{
+			SpiteIR::Package* package = context.packageMap[packageName];
+			return MapHas(package->functions, functionName);
+		}
+		
+		return false;
 	}
 
 	SpiteIR::Function* FindFunction(const StringView& packageName,
@@ -2564,7 +2698,7 @@ struct LowerDefinitions
 		eastl::string methodName;
 
 		ScopeValue stateValue = BuildExpr(caller, stmnt);
-		SpiteIR::State* state = GetStateForType(stateValue.type);
+		SpiteIR::State* state = stateValue.state;
 
 		if (functionExpr->typeID == ExprID::TemplateExpr)
 		{
