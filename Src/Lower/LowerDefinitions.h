@@ -147,37 +147,6 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	bool IsStateFunction(Stmnt* stmnt)
-	{
-		switch (stmnt->nodeID)
-		{
-		case Method:
-		case StateOperator:
-		case Destructor:
-		case Constructor:
-			return true;
-		default:
-			return false;
-		}
-	}
-
-	Token* GetStateName(Stmnt* stmnt)
-	{
-		switch (stmnt->nodeID)
-		{
-		case Method:
-			return stmnt->method.stateName;
-		case StateOperator:
-			return stmnt->stateOperator.stateName;
-		case Destructor:
-			return stmnt->destructor.stateName;
-		case Constructor:
-			return stmnt->constructor.stateName;
-		default:
-			return nullptr;
-		}
-	}
-
 	void AddGenericsToCurrent(Stmnt* stmnt)
 	{
 		Stmnt* generics = GetGenerics(stmnt);
@@ -987,19 +956,19 @@ struct LowerDefinitions
 	void BuildDelete(Stmnt* stmnt)
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
-		ScopeValue ptrValue = BuildTypeDereference(label, BuildExpr(stmnt->deleteStmnt.primaryExpr, stmnt));
-
+		ScopeValue value = BuildTypeDereference(label, BuildExpr(stmnt->deleteStmnt.primaryExpr, stmnt));
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
-		params->push_back(BuildRegisterOperand(ptrValue));
+		params->push_back(BuildRegisterOperand(value));
 
-		SpiteIR::Function* deleteOp = GetDeleteOperator(ptrValue.type);
+		SpiteIR::Function* deleteOp = GetDeleteOperator(value.type);
 		if (deleteOp)
 		{
 			BuildCall(deleteOp, funcContext.curr, params, label);
 		}
 
-		BuildCall(deallocFunc, funcContext.curr, params, label);
+		if(value.type->kind == SpiteIR::TypeKind::PointerType) 
+			BuildCall(deallocFunc, funcContext.curr, params, label);
 	}
 
 	void BuildDefer(Stmnt* stmnt)

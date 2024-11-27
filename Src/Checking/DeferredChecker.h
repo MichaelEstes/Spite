@@ -9,7 +9,14 @@ struct DeferredTemplateInstantiation
 	eastl::vector<Expr*>* templatesToForward;
 };
 
+struct DeferredTemplateForwarded
+{
+	Token* genericName;
+	eastl::vector<Expr*>* templatesToForward;
+};
+
 struct DeferredContainer
 {
 	eastl::hash_map<Stmnt*, eastl::vector<DeferredTemplateInstantiation>> deferredTemplates;
+	eastl::hash_map<Stmnt*, eastl::vector<DeferredTemplateForwarded>> deferredForwardedTemplates;
 };

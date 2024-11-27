@@ -1026,6 +1026,10 @@ struct TypeInferer
 
 		if (left->typeID == TypeID::AnyType || right->typeID == TypeID::AnyType) return true;
 
+		if ((left->typeID == TypeID::TemplatedType && left->templatedType.type->typeID == TypeID::AnyType) ||
+			(right->typeID == TypeID::TemplatedType && right->templatedType.type->typeID == TypeID::AnyType))
+			return true;
+
 		return false;
 	}
 };

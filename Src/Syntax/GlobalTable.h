@@ -250,28 +250,9 @@ struct GlobalTable
 		return stmnt;
 	}
 
-	Token* GetStateNameForStmnt(Stmnt* stmnt)
-	{
-		switch (stmnt->nodeID)
-		{
-		case Method:
-			return stmnt->method.stateName;
-		case StateOperator:
-			return stmnt->stateOperator.stateName;
-		case Destructor:
-			return stmnt->destructor.stateName;
-		case Constructor:
-			return stmnt->constructor.stateName;
-		default:
-			break;
-		}
-
-		return nullptr;
-	}
-
 	Stmnt* FindStateForStmnt(Stmnt* stmnt, SymbolTable* symbolTable)
 	{
-		Token* stateName = GetStateNameForStmnt(stmnt);
+		Token* stateName = GetStateName(stmnt);
 		if (!stateName) return nullptr;
 
 		return FindScopedState(stateName, symbolTable);

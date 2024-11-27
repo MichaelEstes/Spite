@@ -107,7 +107,7 @@ struct PackageChecker
 		Type* stateType = context.symbolTable->CreateTypePtr(TypeID::ImportedType);
 		stateType->importedType.packageName = stateSymbol.state->package;
 		stateType->importedType.typeName = stateSymbol.state->state.name;
-		
+
 		templated->templatedType.templates = templates;
 		templated->templatedType.type = stateType;
 
@@ -208,7 +208,7 @@ struct PackageChecker
 
 	void CheckExternalFunctions(Stmnt* function)
 	{
-		
+
 	}
 
 	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)
@@ -440,7 +440,36 @@ struct PackageChecker
 		case TemplateExpr:
 		{
 			CheckExpr(expr->templateExpr.expr);
-			for (Expr* templArg : *expr->templateExpr.templateArgs) CheckExpr(templArg);
+			for (Expr*& templArg : *expr->templateExpr.templateArgs)
+			{
+				if (templArg->typeID == ExprID::TypeExpr)
+				{
+					Type* type = templArg->typeExpr.type;
+					switch (type->typeID)
+					{
+					case NamedType:
+					{
+						if (!typeChecker.CheckNamedType(type, nullptr, false))
+						{
+							templArg = context.symbolTable->TypeExprToExpr(templArg);
+						}
+						break;
+					}
+					case ImportedType:
+					{
+						if (!typeChecker.CheckImportedType(type, nullptr, false))
+						{
+							templArg = context.symbolTable->TypeExprToExpr(templArg);
+						}
+						break;
+					}
+					default:
+						break;
+					}
+
+				}
+				CheckExpr(templArg);
+			}
 			exprChecker.CheckGenerics(expr);
 			break;
 		}
@@ -526,7 +555,7 @@ struct PackageChecker
 
 		if (definition.assignment) CheckExpr(definition.assignment);
 
-		if(stmnt->definition.type->typeID == UnknownType) 
+		if (stmnt->definition.type->typeID == UnknownType)
 			typeChecker.InferUnknownType(stmnt->definition.type, definition.assignment);
 		CheckType(stmnt->definition.type, stmnt->start);
 		typeChecker.CheckDefinitionType(stmnt);

@@ -13,64 +13,71 @@ struct TypeChecker
 
 	TypeChecker(CheckerContext& context) : context(context), utils(context) {}
 
-	void CheckTypeGenerics(Stmnt* state, Expr* templates, Token* token)
+	bool CheckTypeGenerics(Stmnt* state, Expr* templates, Token* token, bool error = true)
 	{
 		Stmnt* generics = GetGenerics(state);
 		if (generics)
 		{
 			if (!templates)
 			{
-				AddError(token, "TypeChecker:CheckTypeGenerics No templates provided for generic type");
-				return;
+				if (error) AddError(token, "TypeChecker:CheckTypeGenerics No templates provided for generic type");
+				return false;
 			}
 
 			size_t genericsCount = generics->generics.names->size();
 			size_t templatesCount = templates->templateExpr.templateArgs->size();
 			if (genericsCount != templatesCount)
 			{
-				AddError(token, "TypeChecker:CheckTypeGenerics Expected " 
-					+ eastl::to_string(genericsCount) 
+				if (error) AddError(token, "TypeChecker:CheckTypeGenerics Expected "
+					+ eastl::to_string(genericsCount)
 					+ " templates, but was provided "
-					+ eastl::to_string(templatesCount) 
+					+ eastl::to_string(templatesCount)
 					+ " templates");
+				return false;
 			}
 		}
 		else if (templates)
 		{
-			AddError(token, "TypeChecker:CheckTypeGenerics Templates provided for non-generic type");
+			if (error) AddError(token, "TypeChecker:CheckTypeGenerics Templates provided for non-generic type");
+			return false;
 		}
+
+		return true;
 	}
 
-	void CheckImportedType(Type* type, Expr* templates)
+	bool CheckImportedType(Type* type, Expr* templates, bool error = true)
 	{
 		Stmnt* state = context.globalTable->FindState(type->importedType.packageName,
 			type->importedType.typeName);
 
 		if (!state)
 		{
-			AddError(type->importedType.typeName, "TypeChecker:CheckImportedType Could not find imported type");
-			return;
+			if (error) AddError(type->importedType.typeName, "TypeChecker:CheckImportedType Could not find imported type");
+			return false;
 		}
 
-		CheckTypeGenerics(state, templates, type->importedType.typeName);
+		return CheckTypeGenerics(state, templates, type->importedType.typeName, error);
 	}
 
-	void CheckNamedType(Type* type, Expr* templates)
+	bool CheckNamedType(Type* type, Expr* templates, bool error = true)
 	{
 		Token* name = type->namedType.typeName;
 		Stmnt* state = context.globalTable->FindScopedState(name, context.symbolTable);
 		if (state)
 		{
-			CheckTypeGenerics(state, templates, type->namedType.typeName);
-
 			type->typeID = TypeID::ImportedType;
 			type->importedType.packageName = state->package;
 			type->importedType.typeName = name;
+
+			return CheckTypeGenerics(state, templates, type->importedType.typeName, error);
 		}
 		else if (!utils.IsGenericOfCurrentContext(type))
 		{
-			AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
+			if (error)
+				AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
 		}
+
+		return false;
 	}
 
 	void InferUnknownType(Type* type, Expr* assignment)

@@ -213,6 +213,37 @@ inline Stmnt* GetGenerics(Stmnt* node)
 	}
 }
 
+inline bool IsStateFunction(Stmnt* stmnt)
+{
+	switch (stmnt->nodeID)
+	{
+	case Method:
+	case StateOperator:
+	case Destructor:
+	case Constructor:
+		return true;
+	default:
+		return false;
+	}
+}
+
+inline Token* GetStateName(Stmnt* stmnt)
+{
+	switch (stmnt->nodeID)
+	{
+	case Method:
+		return stmnt->method.stateName;
+	case StateOperator:
+		return stmnt->stateOperator.stateName;
+	case Destructor:
+		return stmnt->destructor.stateName;
+	case Constructor:
+		return stmnt->constructor.stateName;
+	default:
+		return nullptr;
+	}
+}
+
 inline bool IsGeneric(Token* ident, Stmnt* stmnt)
 {
 	Stmnt* generics = GetGenerics(stmnt);
@@ -566,6 +597,39 @@ struct SymbolTable
 		}
 
 		return nullptr;
+	}
+
+	Expr* TypeExprToExpr(Expr* expr)
+	{
+		if (expr->typeID != ExprID::TypeExpr) return expr;
+
+		Type* type = expr->typeExpr.type;
+		switch (type->typeID)
+		{
+		case NamedType:
+		{
+			Expr* identExpr = CreateExpr(type->namedType.typeName, ExprID::IdentifierExpr);
+			identExpr->identifierExpr.identifier = type->namedType.typeName;
+			return identExpr;
+		}
+		case ImportedType:
+		{
+			Expr* selectExpr = CreateExpr(type->importedType.packageName, ExprID::SelectorExpr);
+			Expr* identLeft = CreateExpr(type->importedType.packageName, ExprID::IdentifierExpr);
+			Expr* identRight = CreateExpr(type->importedType.typeName, ExprID::IdentifierExpr);
+
+			identLeft->identifierExpr.identifier = type->importedType.packageName;
+			identRight->identifierExpr.identifier = type->importedType.typeName;
+
+			selectExpr->selectorExpr.on = identLeft;
+			selectExpr->selectorExpr.on = identRight;
+			return selectExpr;
+		}
+		default:
+			break;
+		}
+
+		return expr;
 	}
 
 	Type* CreatePrimitive(UniqueType primType)

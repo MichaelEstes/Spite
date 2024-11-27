@@ -16,7 +16,7 @@ struct ExprChecker
 	ExprChecker(CheckerContext& context, DeferredContainer& deferred) :
 		context(context), utils(context), deferred(deferred) {}
 
-	bool TemplateIsForwardedGeneric(eastl::vector<Expr*>* templates)
+	bool TemplatesContainForwardedGeneric(eastl::vector<Expr*>* templates)
 	{
 		for (Expr* expr : *templates)
 		{
@@ -35,6 +35,16 @@ struct ExprChecker
 		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
 		if (!stmnt)
 		{
+			if (context.globalTable->IsGenericOfStmnt(ofExpr, context.currentContext, context.symbolTable))
+			{
+				Token* genericTok = GetTokenForTemplate(ofExpr);
+				DeferredTemplateForwarded toDefer = DeferredTemplateForwarded();
+				toDefer.genericName = genericTok;
+				toDefer.templatesToForward = templateArgs;
+				deferred.deferredForwardedTemplates[context.currentContext].push_back(toDefer);
+				return;
+			}
+
 			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
 			return;
 		}
@@ -54,12 +64,25 @@ struct ExprChecker
 			return;
 		}
 
-		if (TemplateIsForwardedGeneric(templateArgs))
+		if (TemplatesContainForwardedGeneric(templateArgs))
 		{
 			DeferredTemplateInstantiation toDefer = DeferredTemplateInstantiation();
 			toDefer.forwardTo = genericsNode;
 			toDefer.templatesToForward = templateArgs;
-			deferred.deferredTemplates[GetGenerics(context.currentContext)].push_back(toDefer);
+			Stmnt* currGenerics = GetGenerics(context.currentContext);
+			if (!currGenerics && IsStateFunction(context.currentContext))
+			{
+				Stmnt* stateStmnt = context.globalTable->FindStateForStmnt(context.currentContext, context.symbolTable);
+				currGenerics = GetGenerics(stateStmnt);
+			}
+
+			if (!currGenerics)
+			{
+				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement with generics");
+				return;
+			}
+
+			deferred.deferredTemplates[currGenerics].push_back(toDefer);
 			return;
 		}
 
@@ -74,10 +97,10 @@ struct ExprChecker
 
 	void CheckDelete(Expr* expr)
 	{
-		if (utils.InferType(expr)->typeID != TypeID::PointerType)
+		/*if (utils.InferType(expr)->typeID != TypeID::PointerType)
 		{
 			AddError(expr->start, "ExprChecker::CheckDelete Delete called on non pointer type");
-		}
+		}*/
 	}
 
 	void CheckFunctionCallExpr(Expr* expr)
@@ -200,6 +223,7 @@ struct ExprChecker
 		else
 		{
 			Type* functionType = utils.InferType(function);
+			while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
 			switch (functionType->typeID)
 			{
 				// Primitive constrtuctor

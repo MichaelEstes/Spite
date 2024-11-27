@@ -12,6 +12,12 @@ array make_array(itemBytes: int)
 	return arr;
 }
 
+size_array(arr: array, count: int)
+{
+	arr.start = alloc_array(count, arr.itemBytes);
+	arr.capacity = count;
+}
+
 array make_array_from(itemBytes: int, count: int, start: *byte)
 {
 	arr: array = array();
@@ -70,6 +76,7 @@ array::Expand()
 	this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
+	delete this.start;
 	this.start = newStart;
 }
 
@@ -78,6 +85,7 @@ array::ExpandAtLeastTo(size: int)
 	while (this.capacity < size) this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
+	delete this.start;
 	this.start = newStart;
 }
 
