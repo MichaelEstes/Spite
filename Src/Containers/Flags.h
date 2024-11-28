@@ -3,24 +3,19 @@
 
 const unsigned int bitsInByte = 8;
 
-template<const unsigned int T = bitsInByte>
+template<const unsigned int T = 64>
 struct Flags
 {
-	unsigned char flags[((bitsInByte - T % bitsInByte) + T) / bitsInByte];
-	unsigned int size;
-	unsigned int count;
+	unsigned char flags[(((bitsInByte - T % bitsInByte) + T) / bitsInByte) - 1];
 
 	Flags()
 	{
-		size = T;
-		count = ((bitsInByte - T % bitsInByte) + T) / bitsInByte;
 		ClearAll();
 	}
 
 	Flags(Flags const& toCopy)
 	{
-		size = toCopy.size;
-		count = toCopy.count;
+		unsigned int count = (((bitsInByte - T % bitsInByte) + T) / bitsInByte) - 1;
 		for (unsigned int i = 0; i < count; i++) flags[count] = toCopy.flags[count];
 	}
 
@@ -59,11 +54,13 @@ struct Flags
 
 	void ClearAll()
 	{
+		unsigned int count = (((bitsInByte - T % bitsInByte) + T) / bitsInByte) - 1;
 		for (unsigned int i = 0; i < count; i++) flags[i] = 0;
 	}
 
 	void SetAll()
 	{
+		unsigned int count = (((bitsInByte - T % bitsInByte) + T) / bitsInByte) - 1;
 		for (unsigned int i = 0; i < count; i++) flags[i] = 1;
 	}
 
@@ -73,13 +70,5 @@ struct Flags
 		int offset = i % bitsInByte;
 		int ret = (flags[index] >> offset) & 1;
 		return ret;
-	}
-
-	inline Flags& operator=(const Flags& toCopy)
-	{
-		size = toCopy.size;
-		count = toCopy.count;
-		for (unsigned int i = 0; i < count; i++) flags[count] = toCopy.flags[count];
-		return *this;
 	}
 };

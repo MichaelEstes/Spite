@@ -11,7 +11,8 @@ extern Config config;
 const size_t InvalidRegister = (size_t)-1;
 const size_t PackageRegister = (size_t)-2;
 const size_t StateRegister = (size_t)-3;
-const size_t StmntRegister = (size_t)-4;
+const size_t FunctionRegister = (size_t)-4;
+const size_t StmntRegister = (size_t)-5;
 
 struct ScopeValue
 {
@@ -22,6 +23,7 @@ struct ScopeValue
 		SpiteIR::Type* type = nullptr;
 		SpiteIR::Package* package;
 		SpiteIR::State* state;
+		SpiteIR::Function* function;
 		Stmnt* stmnt;
 	};
 };
@@ -39,6 +41,11 @@ struct FunctionScope
 	eastl::vector<size_t> toDestroy;
 };
 
+enum FunctionContextFlag
+{
+	ReturnFunctionScopeValue
+};
+
 struct FunctionContext
 {
 	SpiteIR::Function* function;
@@ -54,10 +61,26 @@ struct FunctionContext
 	size_t blockCount = 0;
 	size_t anonFuncCount = 0;
 	size_t deferCount = 0;
+	Flags<64> flags;
 
 	void IncrementRegister(SpiteIR::Type* type)
 	{
 		curr += type->size;
+	}
+
+	inline void SetFlag(FunctionContextFlag flag)
+	{
+		flags.Set(flag);
+	}
+
+	inline void ClearFlag(FunctionContextFlag flag)
+	{
+		flags.Clear(flag);
+	}
+
+	inline bool HasFlag(FunctionContextFlag flag)
+	{
+		return flags[flag];
 	}
 
 	void Reset(SpiteIR::Function* function, SymbolTable* symbolTable, GlobalTable* globalTable)
@@ -77,6 +100,7 @@ struct FunctionContext
 		blockCount = 0;
 		anonFuncCount = 0;
 		deferCount = 0;
+		flags.ClearAll();
 	}
 };
 
@@ -172,10 +196,13 @@ struct LowerDefinitions
 
 	Expr* ExpandTemplate(Expr* expr)
 	{
+		size_t genericsCount = currGenerics.size();
+		if (!genericsCount) return expr;
+
 		Token* exprToken = GetTokenForTemplate(expr);
 		if (exprToken)
 		{
-			for (int i = 0; i < currGenerics.size(); i++)
+			for (int i = 0; i < genericsCount; i++)
 			{
 				Token* token = currGenerics.at(i);
 				if (token->val == exprToken->val)
@@ -1090,6 +1117,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
 	{
+		expr = ExpandTemplate(expr);
 		switch (expr->typeID)
 		{
 		case LiteralExpr:
@@ -1151,10 +1179,18 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
-	ScopeValue FindFunctionValue(Stmnt* funcStmnt, eastl::vector<Expr*>* templates = nullptr)
+	ScopeValue FindFunctionValue(Stmnt* funcStmnt)
 	{
-		SpiteIR::Function* func = nullptr;
+		Stmnt* generics = GetGenerics(funcStmnt);
+		if (generics)
+		{
+			ScopeValue funcValue = ScopeValue();
+			funcValue.reg = StmntRegister;
+			funcValue.stmnt = funcStmnt;
+			return funcValue;
+		}
 
+		SpiteIR::Function* func = nullptr;
 		switch (funcStmnt->nodeID)
 		{
 		case ExternFunctionDecl:
@@ -1162,10 +1198,7 @@ struct LowerDefinitions
 			break;
 		case FunctionStmnt:
 		default:
-			if (templates)
-				func = FindFunction(funcStmnt->package->val, BuildTemplatedFunctionName(funcStmnt, templates));
-			else
-				func = FindFunction(funcStmnt->package->val, BuildFunctionName(funcStmnt));
+			func = FindFunction(funcStmnt->package->val, BuildFunctionName(funcStmnt));
 			break;
 		}
 
@@ -1174,6 +1207,14 @@ struct LowerDefinitions
 
 	ScopeValue StoreFunctionValue(SpiteIR::Function* func)
 	{
+		if (funcContext.HasFlag(FunctionContextFlag::ReturnFunctionScopeValue))
+		{
+			ScopeValue funcValue = ScopeValue();
+			funcValue.reg = FunctionRegister;
+			funcValue.function = func;
+			return funcValue;
+		}
+
 		SpiteIR::Type* funcType = IRFunctionToFunctionType(context.ir, func);
 		SpiteIR::Allocate alloc = BuildAllocate(funcType);
 
@@ -2043,7 +2084,7 @@ struct LowerDefinitions
 	{
 		auto& templated = expr->templateExpr;
 		Expr* of = templated.expr;
-		eastl::vector<Expr*>* templateArgs = templated.templateArgs;
+		eastl::vector<Expr*> templateArgs = ExpandTemplates(templated.templateArgs);
 
 		ScopeValue ofValue = BuildExpr(of, stmnt);
 		if (ofValue.reg == StmntRegister)
@@ -2055,7 +2096,7 @@ struct LowerDefinitions
 			{
 				SpiteIR::Package* package = context.packageMap[templStmnt->package->val];
 				SpiteIR::State* state = FindPackageState(package,
-					BuildTemplatedStateName(templStmnt, templateArgs));
+					BuildTemplatedStateName(templStmnt, &templateArgs));
 				ScopeValue stateValue = ScopeValue();
 				stateValue.reg = StateRegister;
 				stateValue.state = state;
@@ -2066,11 +2107,16 @@ struct LowerDefinitions
 				SpiteIR::State* state = funcContext.templatedMethodState;
 				Assert(state);
 				SpiteIR::Function* method = FindFunction(templStmnt->package->val,
-					BuildTemplatedMethodName(state, templStmnt, templateArgs));
+					BuildTemplatedMethodName(state, templStmnt, &templateArgs));
 				funcContext.templatedMethodState = nullptr;
 				return StoreFunctionValue(method);
 			}
 			case StmntID::FunctionStmnt:
+			{
+				SpiteIR::Function* func = FindFunction(templStmnt->package->val,
+					BuildTemplatedFunctionName(templStmnt, &templateArgs));
+				return StoreFunctionValue(func);
+			}
 			default:
 				break;
 			}
@@ -2505,8 +2551,10 @@ struct LowerDefinitions
 
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
-		Assert(expr && expr->typeID == ExprID::FunctionCallExpr);
-		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
+		if (expr->functionCallExpr.callKind == FunctionCallKind::UnknownCall)
+		{
+			Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
+		}
 		auto& funcCall = expr->functionCallExpr;
 		SpiteIR::Function* irFunction = nullptr;
 		SpiteIR::Label* label = GetCurrentLabel();
@@ -2531,6 +2579,7 @@ struct LowerDefinitions
 		case FunctionTypeCall:
 			return BuildFunctionTypeCall(expr, stmnt);
 		case UnresolvedGenericCall:
+			irFunction = ResolveGenericFunctionCall(expr, stmnt);
 			break;
 		case ExternalCall:
 			irFunction = FindExternalFunctionForFunctionCall(expr);
@@ -2740,6 +2789,23 @@ struct LowerDefinitions
 		}
 
 		return FindFunction(packageName, functionName);
+	}
+
+	SpiteIR::Function* ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+
+		funcContext.SetFlag(FunctionContextFlag::ReturnFunctionScopeValue);
+		ScopeValue value = BuildExpr(caller, stmnt);
+		funcContext.ClearFlag(FunctionContextFlag::ReturnFunctionScopeValue);
+
+		if (value.reg == FunctionRegister)
+		{
+			return value.function;
+		}
+
+
+		return nullptr;
 	}
 
 	SpiteIR::Operand AllocateToOperand(SpiteIR::Allocate& alloc)

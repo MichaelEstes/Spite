@@ -649,7 +649,7 @@ struct TypeInferer
 			if (right->typeID == TypeID::PrimitiveType) return GetPrimitiveOperatorType(op, left, right);
 			else if (IsIntLike(right)) return right;
 			else AddError(op, "TypeInferer:GetOperatorType Expected right hand side to be a primitive for operator");
-
+		
 			break;
 		}
 		case ImportedType:
@@ -1024,11 +1024,7 @@ struct TypeInferer
 			return true;
 		}
 
-		if (left->typeID == TypeID::AnyType || right->typeID == TypeID::AnyType) return true;
-
-		if ((left->typeID == TypeID::TemplatedType && left->templatedType.type->typeID == TypeID::AnyType) ||
-			(right->typeID == TypeID::TemplatedType && right->templatedType.type->typeID == TypeID::AnyType))
-			return true;
+		if (IsAny(left)|| IsAny(right)) return true;
 
 		return false;
 	}

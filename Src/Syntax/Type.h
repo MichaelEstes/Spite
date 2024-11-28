@@ -144,15 +144,6 @@ inline bool IsInt(Type* primitive)
 	}
 }
 
-inline bool IsIntLike(Type* type)
-{
-	if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
-	else if (type->typeID == TypeID::PointerType) return true;
-	else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
-
-	return false;
-}
-
 inline bool IsFloat(Type* primitive)
 {
 	switch (primitive->primitiveType.type)
@@ -166,13 +157,29 @@ inline bool IsFloat(Type* primitive)
 	}
 }
 
+inline bool IsAny(Type* type)
+{
+	return type->typeID == TypeID::AnyType ||
+		(type->typeID == TypeID::TemplatedType && IsAny(type->templatedType.type)) ||
+		(type->typeID == TypeID::ValueType && IsAny(type->valueType.type));
+}
+
+inline bool IsIntLike(Type* type)
+{
+	if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
+	else if (type->typeID == TypeID::PointerType) return true;
+	else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
+
+	return IsAny(type);
+}
+
 inline bool IsComparableToZero(Type* type)
 {
 	return (type->typeID == TypeID::PrimitiveType && (IsInt(type) || IsFloat(type)))
-		|| IsIntLike(type);
+		|| IsIntLike(type) || IsAny(type);
 }
 
 inline bool IsString(Type* primitive)
 {
-	return primitive->primitiveType.type == UniqueType::String;
+	return primitive->primitiveType.type == UniqueType::String || IsAny(primitive);
 }

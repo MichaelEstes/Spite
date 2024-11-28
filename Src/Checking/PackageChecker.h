@@ -269,6 +269,7 @@ struct PackageChecker
 		case Conditional:
 		{
 			auto& conditional = node->conditional;
+			CheckExpr(conditional.condition);
 			typeChecker.CheckConditionalType(node);
 			CheckBody(conditional.body);
 			break;
