@@ -129,6 +129,7 @@ struct LowerDefinitions
 	SpiteIR::State* arrayState = nullptr;
 	SpiteIR::Function* makeArray = nullptr;
 	SpiteIR::Function* makeArrayFrom = nullptr;
+	SpiteIR::Function* sizeArray = nullptr;
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
 
@@ -147,6 +148,7 @@ struct LowerDefinitions
 		arrayState = FindPackageState(runtime, "__array");
 		makeArray = FindPackageFunction(runtime, "__make_array");
 		makeArrayFrom = FindPackageFunction(runtime, "__make_array_from");
+		sizeArray = FindPackageFunction(runtime, "__size_array");
 		allocFunc = FindPackageFunction(runtime, "__alloc");
 		deallocFunc = FindPackageFunction(runtime, "__dealloc");
 	}
@@ -1869,7 +1871,8 @@ struct LowerDefinitions
 			case SpiteIR::TypeKind::DynamicArrayType:
 			{
 				ScopeValue ret = BuildStateOperatorCall(arrayState, toIndex, UniqueType::Array, &index);
-				ret.type->reference.type = derefedType->dynamicArray.type;
+				SpiteIR::Type* retType = MakeReferenceType(derefedType->dynamicArray.type, context.ir);
+				ret.type = retType;
 				return ret;
 			}
 			case SpiteIR::TypeKind::PointerType:
@@ -2136,8 +2139,19 @@ struct LowerDefinitions
 		size_t arrayItemSize = irType->dynamicArray.type->size;
 		ScopeValue itemSize = BuildLiteralInt(arrayItemSize);
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
-		params->push_back(BuildRegisterOperand(itemSize));
+		params->push_back(BuildRegisterOperand(HandleAutoCast(itemSize, CreateIntType(context.ir))));
 		BuildCall(makeArray, dst, params, label);
+	}
+
+	void SizeDynamicArray(ScopeValue arrValue, Expr* size, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		ScopeValue sizeValue = BuildExpr(size, stmnt);
+		ScopeValue arrRef = BuildTypeReference(label, arrValue);
+		eastl::vector<SpiteIR::Operand>*params = context.ir->AllocateArray<SpiteIR::Operand>();
+		params->push_back(BuildRegisterOperand(arrRef));
+		params->push_back(BuildRegisterOperand(HandleAutoCast(sizeValue, CreateIntType(context.ir))));
+		BuildCall(sizeArray, funcContext.curr, params, label);
 	}
 
 	ScopeValue BuildTypeExpr(Expr* expr, Stmnt* stmnt)
@@ -2151,6 +2165,10 @@ struct LowerDefinitions
 		if (irType->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
 			MakeDynamicArray(irType, reg, label);
+			if (type->arrayType.size)
+			{
+				SizeDynamicArray({reg, irType}, type->arrayType.size, stmnt);
+			}
 			return { reg, irType };
 		}
 
@@ -2843,7 +2861,6 @@ struct LowerDefinitions
 		Assert(state);
 		SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
 		params->push_back(ref);
-
 
 		if (functionExpr->typeID == ExprID::TemplateExpr)
 		{

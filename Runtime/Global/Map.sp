@@ -27,14 +27,13 @@ state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals(ke
 *Value Map::operator::[](key: Key)
 {
 	hash: int = Hash<Key>(key);
-
 }
 
 bool Map::Insert(key: Key, value: Value)
 {
-	if (this.count * 3 > this.status.count * 2)
+	if (this.count * 3 >= this.status.capacity * 2)
 	{
-		this.ResizeTo(this.status.count * 2);
+		this.ResizeTo((this.status.capacity + 1) * 2);
 	}
 
 	return MapInsertInternal<Key, Value, Hash, Equals>(this.keys, this.values, this.status, key, value);
@@ -65,9 +64,9 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 {
 	//Implment assert
 	//assert keys.count == values.count && values.count == status.count;
-
+	log "Status capacity", status.capacity;
 	hash: uint = Hash<Key>(key);
-	index := hash % status.count;
+	index := hash % status.capacity;
 	start := index;
 	deletedIndex := InvalidIndex;
 
@@ -85,7 +84,7 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 			deletedIndex = index;
 		}
 		
-		index = (index + 1) % status.count;
+		index = (index + 1) % status.capacity;
 
 		if(index == start) break;
 	}

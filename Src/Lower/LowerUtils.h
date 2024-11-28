@@ -221,30 +221,22 @@ inline eastl::string OperatorToString(UniqueType op)
 SpiteIR::Type* CreateVoidType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	*type = {
-		0,
-		SpiteIR::TypeKind::PrimitiveType,
-		true,
-		{
-			true,
-			SpiteIR::PrimitiveKind::Void
-		}
-	};
+	type->size = 0;
+	type->kind = SpiteIR::TypeKind::PrimitiveType;
+	type->byValue = true;
+	type->primitive.isSigned = true;
+	type->primitive.kind = SpiteIR::PrimitiveKind::Void;
 	return type;
 }
 
 SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	*type = {
-		1,
-		SpiteIR::TypeKind::PrimitiveType,
-		true,
-		{
-			true,
-			SpiteIR::PrimitiveKind::Bool
-		}
-	};
+	type->size = 1;
+	type->kind = SpiteIR::TypeKind::PrimitiveType;
+	type->byValue = true;
+	type->primitive.isSigned = true;
+	type->primitive.kind = SpiteIR::PrimitiveKind::Bool;
 	return type;
 }
 
@@ -252,37 +244,29 @@ SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
 SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	*type = {
-		(size_t)config.targetArchByteWidth,
-		SpiteIR::TypeKind::PrimitiveType,
-		true,
-		{
-			true,
-			SpiteIR::PrimitiveKind::Int
-		}
-	};
+	type->size = config.targetArchByteWidth;
+	type->kind = SpiteIR::TypeKind::PrimitiveType;
+	type->byValue = true;
+	type->primitive.isSigned = true;
+	type->primitive.kind = SpiteIR::PrimitiveKind::Int;
 	return type;
 }
 
 SpiteIR::Type* CreateUnsignedIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	*type = {
-		(size_t)config.targetArchByteWidth,
-		SpiteIR::TypeKind::PrimitiveType,
-		true,
-		{
-			false,
-			SpiteIR::PrimitiveKind::Int
-		}
-	};
+	type->size = config.targetArchByteWidth;
+	type->kind = SpiteIR::TypeKind::PrimitiveType;
+	type->byValue = true;
+	type->primitive.isSigned = false;
+	type->primitive.kind = SpiteIR::PrimitiveKind::Int;
 	return type;
 }
 
 SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
-	type->size = (size_t)config.targetArchByteWidth;
+	type->size = config.targetArchByteWidth;
 	type->kind = SpiteIR::TypeKind::PointerType;
 	type->byValue = true;
 	type->pointer.type = CreateVoidType(ir);
@@ -884,7 +868,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->kind = SpiteIR::TypeKind::ReferenceType;
 		irType->size = config.targetArchByteWidth;
 		irType->byValue = true;
-		irType->pointer.type = CreateVoidType(ir);
+		irType->reference.type = CreateVoidType(ir);
 		return irType;
 	}
 	default:

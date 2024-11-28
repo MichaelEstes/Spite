@@ -895,7 +895,7 @@ struct TypeInferer
 		if (!stmnt) return globalTable->IsGenericOfStmnt(type, context, symbolTable);
 		if (!type || type->typeID != TypeID::NamedType) return false;
 
-		return IsGeneric(type->namedType.typeName, stmnt);
+		return globalTable->IsGenericOfStmnt(type, stmnt, symbolTable);
 	}
 
 	bool IsExprGenericOf(Stmnt* stmnt, Expr* expr)
@@ -903,7 +903,7 @@ struct TypeInferer
 		if (!stmnt) return globalTable->IsGenericOfStmnt(expr, context, symbolTable);
 		if (!expr || expr->typeID != ExprID::IdentifierExpr) return false;
 
-		return IsGeneric(expr->identifierExpr.identifier, stmnt);
+		return globalTable->IsGenericOfStmnt(expr, stmnt, symbolTable);
 	}
 
 	inline bool IsComplexType(Type* type)
