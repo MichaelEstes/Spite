@@ -243,6 +243,7 @@ struct Interpreter
 		{
 			switch (src.literal.kind)
 			{
+			case SpiteIR::PrimitiveKind::Bool:
 			case SpiteIR::PrimitiveKind::Byte:
 				*(char*)dst = src.literal.byteLiteral;
 				break;

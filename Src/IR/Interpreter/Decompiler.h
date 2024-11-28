@@ -107,8 +107,16 @@ struct Decompiler
 		case SpiteIR::PrimitiveKind::Bool:
 		case SpiteIR::PrimitiveKind::Byte:
 			return eastl::to_string(literal.byteLiteral);
+		case SpiteIR::PrimitiveKind::I16:
+			return eastl::to_string(literal.i16Literal);
+		case SpiteIR::PrimitiveKind::I32:
+			return eastl::to_string(literal.i32Literal);
+		case SpiteIR::PrimitiveKind::I64:
+			return eastl::to_string(literal.i64Literal);
 		case SpiteIR::PrimitiveKind::Int:
 			return eastl::to_string(literal.intLiteral);
+		case SpiteIR::PrimitiveKind::F32:
+			return eastl::to_string(literal.f32Literal);
 		case SpiteIR::PrimitiveKind::Float:
 			return eastl::to_string(literal.floatLiteral);
 		case SpiteIR::PrimitiveKind::String:

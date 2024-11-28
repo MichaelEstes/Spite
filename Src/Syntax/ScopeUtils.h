@@ -71,7 +71,7 @@ struct ScopeUtils
 		return false;
 	}
 
-	size_t EvaluateConstantIntExpr(Expr* expr)
+	intmax_t EvaluateConstantIntExpr(Expr* expr)
 	{
 		switch (expr->typeID)
 		{
@@ -99,8 +99,8 @@ struct ScopeUtils
 		}
 		case BinaryExpr:
 		{
-			int left = EvaluateConstantIntExpr(expr->binaryExpr.left);
-			int right = EvaluateConstantIntExpr(expr->binaryExpr.right);
+			intmax_t left = EvaluateConstantIntExpr(expr->binaryExpr.left);
+			intmax_t right = EvaluateConstantIntExpr(expr->binaryExpr.right);
 			switch (expr->binaryExpr.op->uniqueType)
 			{
 			case UniqueType::Add:
@@ -149,7 +149,7 @@ struct ScopeUtils
 		}
 		case UnaryExpr:
 		{
-			int value = EvaluateConstantIntExpr(expr->unaryExpr.expr);
+			intmax_t value = EvaluateConstantIntExpr(expr->unaryExpr.expr);
 			switch (expr->unaryExpr.op->uniqueType)
 			{
 			case UniqueType::Subtract:

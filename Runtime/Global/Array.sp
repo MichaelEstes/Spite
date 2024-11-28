@@ -54,6 +54,7 @@ array::Clear()
 // Returns the index of the item added
 int array::Add(item: any)
 {
+	log "Adding array item";
 	if(this.count >= this.capacity) this.Expand();	
 
 	index := this.count;
@@ -76,7 +77,7 @@ array::Expand()
 	this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
-	delete this.start;
+	//delete this.start;
 	this.start = newStart;
 }
 
@@ -85,7 +86,7 @@ array::ExpandAtLeastTo(size: int)
 	while (this.capacity < size) this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);
 	copy_bytes(newStart, this.start, this.count * this.itemBytes);
-	delete this.start;
+	//delete this.start;
 	this.start = newStart;
 }
 

@@ -710,31 +710,46 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->size = type->primitiveType.size;
 		irType->byValue = true;
 		irType->primitive.isSigned = type->primitiveType.isSigned;
+
 		switch (type->primitiveType.type)
 		{
 		case Void:
 			irType->primitive.kind = SpiteIR::PrimitiveKind::Void;
 			break;
 		case Bool:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Bool;
+			break;
 		case Byte:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Byte;
+			break;
 		case Ubyte:
-		case Int:
-		case Int16:
-		case Int32:
-		case Int64:
-		case Int128:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::Byte;
+			break;
 		case Uint:
-		case Uint16:
-		case Uint32:
-		case Uint64:
+		case Int:
 		case Uint128:
+		case Int128:
 			irType->primitive.kind = SpiteIR::PrimitiveKind::Int;
 			break;
+		case Uint16:
+		case Int16:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::I16;
+			break;
+		case Uint32:
+		case Int32:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::I32;
+			break;
+		case Uint64:
+		case Int64:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::I64;
+			break;
 		case Float:
-		case Float32:
 		case Float64:
 		case Float128:
 			irType->primitive.kind = SpiteIR::PrimitiveKind::Float;
+			break;
+		case Float32:
+			irType->primitive.kind = SpiteIR::PrimitiveKind::F32;
 			break;
 		case String:
 			irType->primitive.kind = SpiteIR::PrimitiveKind::String;
@@ -742,6 +757,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		default:
 			break;
 		}
+
 		return irType;
 	}
 	case NamedType:

@@ -1511,27 +1511,33 @@ struct LowerDefinitions
 			defaultOp.type = type;
 			defaultOp.kind = SpiteIR::OperandKind::Literal;
 			SpiteIR::Literal& literal = defaultOp.literal;
+			literal.kind = type->primitive.kind;
 
 			switch (type->primitive.kind)
 			{
 			case SpiteIR::PrimitiveKind::Bool:
-				literal.kind = SpiteIR::PrimitiveKind::Bool;
+			case SpiteIR::PrimitiveKind::Byte:
 				literal.byteLiteral = 0;
 				break;
-			case SpiteIR::PrimitiveKind::Byte:
-				literal.kind = SpiteIR::PrimitiveKind::Bool;
-				literal.byteLiteral = 0;
+			case SpiteIR::PrimitiveKind::I16:
+				literal.i16Literal = 0;
+				break;
+			case SpiteIR::PrimitiveKind::I32:
+				literal.i32Literal = 0;
+				break;
+			case SpiteIR::PrimitiveKind::I64:
+				literal.i64Literal = 0;
 				break;
 			case SpiteIR::PrimitiveKind::Int:
-				literal.kind = SpiteIR::PrimitiveKind::Int;
 				literal.intLiteral = 0;
 				break;
+			case SpiteIR::PrimitiveKind::F32:
+				literal.f32Literal = 0.0f;
+				break;
 			case SpiteIR::PrimitiveKind::Float:
-				literal.kind = SpiteIR::PrimitiveKind::Float;
 				literal.floatLiteral = 0.0f;
 				break;
 			case SpiteIR::PrimitiveKind::String:
-				literal.kind = SpiteIR::PrimitiveKind::String;
 				literal.stringLiteral = context.ir->AllocateString();
 				break;
 			default:
@@ -1618,11 +1624,11 @@ struct LowerDefinitions
 			*literal.stringLiteral = lit.val->val.ToString();
 			break;
 		case UniqueType::TrueLiteral:
-			literal.kind = SpiteIR::PrimitiveKind::Byte;
+			literal.kind = SpiteIR::PrimitiveKind::Bool;
 			literal.byteLiteral = 1;
 			break;
 		case UniqueType::FalseLiteral:
-			literal.kind = SpiteIR::PrimitiveKind::Byte;
+			literal.kind = SpiteIR::PrimitiveKind::Bool;
 			literal.byteLiteral = 0;
 			break;
 		default:
@@ -2549,6 +2555,153 @@ struct LowerDefinitions
 		return ret;
 	}
 
+	inline bool IsIntLiteral(UniqueType type)
+	{
+		switch (type)
+		{
+		case UniqueType::IntLiteral:
+		case UniqueType::HexLiteral:
+		case UniqueType::TrueLiteral:
+		case UniqueType::FalseLiteral:
+			return true;
+		default:
+			return false;
+		}	
+	}
+
+	inline intmax_t IntLiteralToInt(Token* lit)
+	{
+		switch (lit->uniqueType)
+		{
+		case UniqueType::IntLiteral:
+			return IntLiteralStringToInt(lit->val);
+			break;
+		case UniqueType::HexLiteral:
+			return std::stoul(lit->val.ToString().c_str(), nullptr, 16);
+		case UniqueType::TrueLiteral:
+			return 1;
+		case UniqueType::FalseLiteral:
+			return 0;
+		default:
+			return 0;
+		}
+	}
+
+	inline bool IsFloatLiteral(UniqueType type)
+	{
+		return type == UniqueType::FloatLiteral;
+	}
+
+	inline double FloatLiteralToFloat(Token* lit)
+	{
+		return std::stof(lit->val.ToString().c_str());
+	}
+
+	inline bool IsStringLiteral(UniqueType type)
+	{
+		return type == UniqueType::StringLiteral;
+	}
+
+	ScopeValue BuildPrimitiveConstructor(Expr* expr, Stmnt* stmnt)
+	{
+		SpiteIR::Label* label = GetCurrentLabel();
+		Expr* primExpr = expr->functionCallExpr.function;
+		Assert(primExpr->typeID == ExprID::PrimitiveExpr);
+		eastl::vector<Expr*>* params = expr->functionCallExpr.params;
+
+		SpiteIR::Type* primType = ToIRType(symbolTable->CreatePrimitive(primExpr->primitiveExpr.primitive->uniqueType));
+		SpiteIR::Allocate alloc = BuildAllocate(primType);
+
+		if (!params->size())
+		{
+			return BuildDefaultValue(primType, alloc.result, label);
+		}
+
+		Expr* param = params->at(0);
+		UniqueType litType = param->literalExpr.val->uniqueType;
+		if (param->typeID == ExprID::LiteralExpr && !IsStringLiteral(litType))
+		{
+			SpiteIR::Operand operand = SpiteIR::Operand();
+			operand.type = primType;
+			operand.kind = SpiteIR::OperandKind::Literal;
+			SpiteIR::Literal& literal = operand.literal;
+			literal.kind = primType->primitive.kind;
+			
+			if (IsIntLiteral(litType))
+			{
+				intmax_t i = IntLiteralToInt(param->literalExpr.val);
+
+				switch (primType->primitive.kind)
+				{
+				case SpiteIR::PrimitiveKind::Bool:
+				case SpiteIR::PrimitiveKind::Byte:
+					literal.byteLiteral = i;
+					break;
+				case SpiteIR::PrimitiveKind::I16:
+					literal.i16Literal = i;
+					break;
+				case SpiteIR::PrimitiveKind::I32:
+					literal.i32Literal = i;
+					break;
+				case SpiteIR::PrimitiveKind::I64:
+					literal.i64Literal = i;
+					break;
+				case SpiteIR::PrimitiveKind::Int:
+					literal.intLiteral = i;
+					break;
+				case SpiteIR::PrimitiveKind::F32:
+					literal.f32Literal = i;
+					break;
+				case SpiteIR::PrimitiveKind::Float:
+					literal.floatLiteral = i;
+					break;
+				case SpiteIR::PrimitiveKind::String:
+					// Error
+					break;
+				}
+			}
+			else if (IsFloatLiteral(litType))
+			{
+				double f = FloatLiteralToFloat(param->literalExpr.val);
+				switch (primType->primitive.kind)
+				{
+				case SpiteIR::PrimitiveKind::Bool:
+				case SpiteIR::PrimitiveKind::Byte:
+					literal.byteLiteral = f;
+					break;
+				case SpiteIR::PrimitiveKind::I16:
+					literal.i16Literal = f;
+					break;
+				case SpiteIR::PrimitiveKind::I32:
+					literal.i32Literal = f;
+					break;
+				case SpiteIR::PrimitiveKind::I64:
+					literal.i64Literal = f;
+					break;
+				case SpiteIR::PrimitiveKind::Int:
+					literal.intLiteral = f;
+					break;
+				case SpiteIR::PrimitiveKind::F32:
+					literal.f32Literal = f;
+					break;
+				case SpiteIR::PrimitiveKind::Float:
+					literal.floatLiteral = f;
+					break;
+				case SpiteIR::PrimitiveKind::String:
+					// Error
+					break;
+				}
+			}
+
+			SpiteIR::Instruction* store = BuildStore(label, AllocateToOperand(alloc), operand);
+			return { alloc.result, alloc.type };
+		}
+
+		ScopeValue value = BuildExpr(param, stmnt);
+		SpiteIR::Instruction* cast = BuildCast(label, BuildRegisterOperand(value), AllocateToOperand(alloc));
+		return { alloc.result, alloc.type };
+	}
+
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
 		if (expr->functionCallExpr.callKind == FunctionCallKind::UnknownCall)
@@ -2575,7 +2728,7 @@ struct LowerDefinitions
 			irFunction = FindFunctionForUniformCall(expr, stmnt);
 			break;
 		case PrimitiveCall:
-			break;
+			return BuildPrimitiveConstructor(expr, stmnt);
 		case FunctionTypeCall:
 			return BuildFunctionTypeCall(expr, stmnt);
 		case UnresolvedGenericCall:

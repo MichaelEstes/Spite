@@ -115,7 +115,7 @@ struct ExprChecker
 		{
 			switch (functionStmnt->nodeID)
 			{
-				// Constructor being called
+			// Constructor being called
 			case StmntID::StateStmnt:
 			{
 				functionCall.callKind = FunctionCallKind::ConstructorCall;
@@ -239,6 +239,10 @@ struct ExprChecker
 						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Non primitive parameter passed into primitive constructor");
 						return;
 					}
+				}
+				else
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Primitive constructors can have at most one parameter");
 				}
 			}
 			break;

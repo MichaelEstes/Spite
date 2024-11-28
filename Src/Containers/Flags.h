@@ -13,11 +13,11 @@ struct Flags
 		ClearAll();
 	}
 
-	Flags(Flags const& toCopy)
+	/*Flags(Flags const& toCopy)
 	{
 		unsigned int count = (((bitsInByte - T % bitsInByte) + T) / bitsInByte) - 1;
 		for (unsigned int i = 0; i < count; i++) flags[count] = toCopy.flags[count];
-	}
+	}*/
 
 	void Assign(unsigned int i, bool val)
 	{
