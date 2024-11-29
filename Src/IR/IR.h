@@ -11,6 +11,7 @@ namespace SpiteIR
 {
 	struct Block;
 	struct Instruction;
+	struct InstructionMetadata;
 	struct Type;
 	struct Argument;
 	struct Function;
@@ -319,13 +320,14 @@ namespace SpiteIR
 
 	struct InstructionMetadata
 	{
-		InstructionKind kind = InstructionKind::None;
+		Position statementPosition;
+		Position expressionPosition;
 	};
 
 	struct Instruction
 	{
 		InstructionKind kind = InstructionKind::None;
-		size_t metadata = 0;
+		InstructionMetadata* metadata = nullptr;
 
 		union 
 		{
@@ -620,6 +622,11 @@ namespace SpiteIR
 		inline Instruction* AllocateInstruction()
 		{
 			return instructions.Emplace<Instruction>();
+		}
+
+		inline InstructionMetadata* AllocateInstructionMetadata()
+		{
+			return arena.Emplace<InstructionMetadata>();
 		}
 
 		template<typename T>

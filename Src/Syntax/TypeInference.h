@@ -464,6 +464,8 @@ struct TypeInferer
 			Type* indexType = GetStateOperatorType(of->start, UniqueType::Array, type, typeOfIndex);
 			return indexType;
 		}
+		case TemplatedType:
+			return GetIndexTypeAccessArray(of, type->templatedType.type);
 		case PointerType:
 			return type;
 		case ValueType:
@@ -541,6 +543,77 @@ struct TypeInferer
 		return type;
 	}
 
+	Type* ConvertGenericsToAny(Type* type, Stmnt* stmnt)
+	{
+		if (globalTable->IsGenericOfStmnt(type, stmnt, symbolTable))
+		{
+			return symbolTable->CreateTypePtr(TypeID::AnyType);
+		}
+
+		Type* converted = symbolTable->CreateTypePtr(TypeID::InvalidType);
+		*converted = *type;
+
+		switch (type->typeID)
+		{
+		case ExplicitType:
+		{
+			eastl::vector<Stmnt*>* decls = symbolTable->CreateVectorPtr<Stmnt>();
+			for (Stmnt* decl : *converted->explicitType.declarations)
+			{
+				Stmnt* clonedDecl = symbolTable->CreateStmnt(decl->start, decl->nodeID, decl->package, decl->scope);
+				*clonedDecl = *decl;
+				clonedDecl->definition.type = ConvertGenericsToAny(clonedDecl->definition.type, stmnt);
+				decls->push_back(clonedDecl);
+			}
+			converted->explicitType.declarations = decls;
+			break;
+		}
+		case PointerType:
+			converted->pointerType.type = ConvertGenericsToAny(converted->pointerType.type, stmnt);
+			break;
+		case ValueType:
+			converted->valueType.type = ConvertGenericsToAny(converted->valueType.type, stmnt);
+			break;
+		case ArrayType:
+			converted->arrayType.type = ConvertGenericsToAny(converted->arrayType.type, stmnt);
+			break;
+		case FixedArrayType:
+			converted->fixedArrayType.type = ConvertGenericsToAny(converted->fixedArrayType.type, stmnt);
+			break;
+		case TemplatedType:
+		{
+			converted->templatedType.type = ConvertGenericsToAny(converted->templatedType.type, stmnt);
+			break;
+		}
+		case FunctionType:
+		{
+			eastl::vector<Type*>* paramTypes = symbolTable->CreateVectorPtr<Type>();
+			for (Type* param : *converted->functionType.paramTypes)
+			{
+				paramTypes->push_back(ConvertGenericsToAny(param, stmnt));
+			}
+			converted->functionType.paramTypes = paramTypes;
+			converted->functionType.returnType = ConvertGenericsToAny(converted->functionType.returnType, stmnt);
+			break;
+		}
+		case AnonymousType:
+		{
+			eastl::vector<Type*>* paramTypes = symbolTable->CreateVectorPtr<Type>();
+			for (Type* param : *converted->anonType.types)
+			{
+				paramTypes->push_back(ConvertGenericsToAny(param, stmnt));
+			}
+			converted->anonType.types = paramTypes;
+			break;
+		}
+		default:
+			break;
+
+		}
+
+		return converted;
+	}
+
 	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
 		if (globalTable->IsGenericOfStmnt(namedType, context, symbolTable) ||
@@ -562,8 +635,8 @@ struct TypeInferer
 					{
 						if (!rhs) return stateOp.returnType;
 						else if (stateOp.decl->functionDecl.parameters->size() > 1 &&
-							IsAssignable(stateOp.decl->functionDecl.parameters->at(1)->definition.type, rhs))
-							return stateOp.returnType;
+							IsAssignable(stateOp.decl->functionDecl.parameters->at(1)->definition.type, rhs, node))
+							return ConvertGenericsToAny(stateOp.returnType, node);
 					}
 				}
 			}

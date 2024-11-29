@@ -16,7 +16,6 @@ size_array(arr: array, count: int)
 {
 	arr.start = alloc_array(count, arr.itemBytes);
 	arr.capacity = count;
-	log "Sized array: ", arr;
 }
 
 array make_array_from(itemBytes: int, count: int, start: *byte)

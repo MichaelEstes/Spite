@@ -6,6 +6,8 @@ Deleted := byte(2);
 
 InvalidIndex := -1 as uint
 
+DefaultMapSize := 12;
+
 int DefaultHash<Key>(key: Key)
 {
 	return key as int;
@@ -16,7 +18,7 @@ bool DefaultEqual<Key>(left: Key, right: Key)
 	return left == right;
 }
 
-state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals(key, key) == true; }>
+state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
 {
 	keys: []Key,
 	values: []Value,
@@ -26,7 +28,25 @@ state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals(ke
 
 *Value Map::operator::[](key: Key)
 {
+	return this.Find(key);
+}
+
+*Value Map::Find(key: Key)
+{
 	hash: int = Hash<Key>(key);
+	index := hash % this.status.capacity;
+	start := index;
+
+	while(this.status[index] != Empty)
+	{
+		if(this.status[index] == Full && Equals<Key>(this.keys[index], key))
+			return this.values[index]@;
+
+		index = (index + 1) % this.status.capacity;
+		if(index == start) break;
+	}
+
+	return null;
 }
 
 bool Map::Insert(key: Key, value: Value)
@@ -41,9 +61,14 @@ bool Map::Insert(key: Key, value: Value)
 
 Map::ResizeTo(count: int)
 {
+	log "Resizing map: ", this.keys;
+	
 	newKeys := [count]Key;
+	newKeys.count = newKeys.capacity;
 	newValues := [count]Value;
+	newValues.count = newValues.capacity;
 	newStatus := [count]byte;
+	newStatus.count = newStatus.capacity;
 
 	for(i .. newStatus.count) newStatus[i] = Empty;
 
@@ -64,7 +89,6 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 {
 	//Implment assert
 	//assert keys.count == values.count && values.count == status.count;
-	log "Status capacity", status.capacity;
 	hash: uint = Hash<Key>(key);
 	index := hash % status.capacity;
 	start := index;
@@ -73,7 +97,7 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 	while(status[index] != Empty)
 	{
 		//Implement logic short circuiting
-		if(status[index] == Full && Equals(keys[index], key))
+		if(status[index] == Full && Equals<Key>(keys[index], key))
 		{
 			values[index] = value;
 			return true;
