@@ -800,9 +800,8 @@ struct LowerDefinitions
 	{
 		Assert(stmnt->nodeID == StmntID::Conditional);
 
-		SpiteIR::Label* fromLabel = GetCurrentLabel();
-		ScopeValue cond = BuildExpr(stmnt->conditional.condition, stmnt);
-		SpiteIR::Instruction* fromBranch = BuildBranch(fromLabel, BuildRegisterOperand(cond));
+		ScopeValue cond = HandleAutoCast(BuildExpr(stmnt->conditional.condition, stmnt), castBool);
+		SpiteIR::Instruction* fromBranch = BuildBranch(GetCurrentLabel(), BuildRegisterOperand(cond));
 
 		SpiteIR::Label* ifThenLabel = BuildLabelBody(thenName, stmnt->conditional.body);
 		fromBranch->branch.true_ = ifThenLabel;
@@ -900,7 +899,7 @@ struct LowerDefinitions
 		toCond->jump.label = forCondLabel;
 
 		ScopeValue cmp = BuildBinaryOp(init, to, SpiteIR::BinaryOpKind::Less, forCondLabel);
-		SpiteIR::Operand test = BuildRegisterOperand(cmp);
+		SpiteIR::Operand test = BuildRegisterOperand(HandleAutoCast(cmp, castBool));
 		SpiteIR::Instruction* branch = BuildBranch(forCondLabel, test);
 
 		SpiteIR::Label* forLoopLabel = BuildLabelBody(forLoopName, for_.body);
@@ -952,7 +951,8 @@ struct LowerDefinitions
 		toCond->jump.label = whileCondLabel;
 
 		ScopeValue test = BuildExpr(condition.condition, stmnt);
-		SpiteIR::Instruction* branch = BuildBranch(whileCondLabel, BuildRegisterOperand(test));
+		SpiteIR::Operand cmpOp = BuildRegisterOperand(HandleAutoCast(test, castBool));
+		SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(), cmpOp);
 
 		SpiteIR::Label* whileBodyLabel = BuildLabelBody(whileBodyName, condition.body);
 
@@ -1035,8 +1035,8 @@ struct LowerDefinitions
 			eastl::string deferStartName = "defer_" + eastl::to_string(funcContext.deferCount);
 			eastl::string deferEndName = "defer_end_" + eastl::to_string(funcContext.deferCount);
 			SpiteIR::Label* deferEndLabel = BuildLabel(deferEndName);
-			SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(),
-				BuildRegisterOperand(deferred.runTest));
+			SpiteIR::Operand cmpOp = BuildRegisterOperand(HandleAutoCast(deferred.runTest, castBool));
+			SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(), cmpOp);
 
 			SpiteIR::Label* deferBodyLabel = BuildLabelBody(deferStartName, deferred.body);
 			SpiteIR::Instruction* bodyToEnd = BuildJump(deferBodyLabel);
@@ -2047,11 +2047,70 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	ScopeValue BuildLogicAndExpr(Expr* left, Expr* right, Stmnt* stmnt)
+	{
+		ScopeValue result = HandleAutoCast(BuildExpr(left, stmnt), castBool);
+		SpiteIR::Instruction* fromBranch = BuildBranch(GetCurrentLabel(), BuildRegisterOperand(result));
+
+		size_t count = funcContext.ifCount;
+		eastl::string lhsTrueStr = "and_lhs_true" + eastl::to_string(count);
+		eastl::string andEndStr = "and_end" + eastl::to_string(count);
+		funcContext.ifCount = count + 1;
+
+		SpiteIR::Label* lhsTrueLabel = BuildLabel(lhsTrueStr);
+		SpiteIR::Label* andEndLabel = BuildLabel(andEndStr);
+		fromBranch->branch.true_ = lhsTrueLabel;
+		fromBranch->branch.false_ = andEndLabel;
+		
+		AddLabel(lhsTrueLabel);
+		ScopeValue rhResult = HandleAutoCast(BuildExpr(right, stmnt), castBool);
+		BuildStore(lhsTrueLabel, BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
+		BuildJump(lhsTrueLabel, andEndLabel);
+
+		AddLabel(andEndLabel);
+
+		return result;
+	}
+
+	ScopeValue BuildLogicOrExpr(Expr* left, Expr* right, Stmnt* stmnt)
+	{
+		ScopeValue result = HandleAutoCast(BuildExpr(left, stmnt), castBool);
+		SpiteIR::Instruction* fromBranch = BuildBranch(GetCurrentLabel(), BuildRegisterOperand(result));
+
+		size_t count = funcContext.ifCount;
+		eastl::string lhsFalseStr = "or_lhs_false" + eastl::to_string(count);
+		eastl::string orEndStr = "or_end" + eastl::to_string(count);
+		funcContext.ifCount = count + 1;
+
+		SpiteIR::Label* lhsFalseLabel = BuildLabel(lhsFalseStr);
+		SpiteIR::Label* orEndLabel = BuildLabel(orEndStr);
+		fromBranch->branch.true_ = orEndLabel;
+		fromBranch->branch.false_ = lhsFalseLabel;
+
+		AddLabel(lhsFalseLabel);
+		ScopeValue rhResult = HandleAutoCast(BuildExpr(right, stmnt), castBool);
+		BuildStore(lhsFalseLabel, BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
+		BuildJump(lhsFalseLabel, orEndLabel);
+
+		AddLabel(orEndLabel);
+
+		return result;
+	}
+
 	ScopeValue BuildBinaryExpression(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* left = expr->binaryExpr.left;
 		Expr* right = expr->binaryExpr.right;
 		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.op->uniqueType);
+
+		if (op == SpiteIR::BinaryOpKind::LogicAnd)
+		{
+			return BuildLogicAndExpr(left, right, stmnt);
+		}
+		else if (op == SpiteIR::BinaryOpKind::LogicOr)
+		{
+			return BuildLogicOrExpr(left, right, stmnt);
+		}
 
 		ScopeValue leftVal = BuildExpr(left, stmnt);
 		ScopeValue rightVal = BuildExpr(right, stmnt);
@@ -3172,7 +3231,10 @@ struct LowerDefinitions
 	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, const SpiteIR::Operand& test,
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
-		Assert(!label->terminator);
+		if (label->terminator)
+		{
+			Assert(!label->terminator);
+		}
 		SpiteIR::Instruction* branch = CreateTerminator(label);
 		branch->kind = SpiteIR::InstructionKind::Branch;
 		branch->branch.test = test;

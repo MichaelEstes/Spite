@@ -22,7 +22,6 @@ public:
 
 	size_t Init(const eastl::string& fileLoc)
 	{
-		Profiler profiler = Profiler();
 		pos = Position(&fileLoc);
 		std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
@@ -38,8 +37,6 @@ public:
 		file.read(&contents[0], contentCount);
 		file.close();
 
-		eastl::string log = "Took " + eastl::to_string(profiler.End()) + "/s to read file " + fileLoc;
-		Logger::Info(log);
 		return fileSize;
 	}
 

@@ -60,9 +60,7 @@ bool Map::Insert(key: Key, value: Value)
 }
 
 Map::ResizeTo(count: int)
-{
-	log "Resizing map: ", this.keys;
-	
+{	
 	newKeys := [count]Key;
 	newKeys.count = newKeys.capacity;
 	newValues := [count]Value;

@@ -680,14 +680,6 @@ struct Interpreter
 		case SpiteIR::BinaryOpKind::AndNot:
 			binaryOpMacroI(left, right, result, &~, binaryOpTypeMacro)
 				break;
-		case SpiteIR::BinaryOpKind::LogicAnd:
-			binaryOpMacroI(left, right, result, &&, binaryBoolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, &&, binaryBoolOpTypeMacro)
-				break;
-		case SpiteIR::BinaryOpKind::LogicOr:
-			binaryOpMacroI(left, right, result, || , binaryBoolOpTypeMacro)
-				binaryOpMacroFP(left, right, result, || , binaryBoolOpTypeMacro)
-				break;
 		case SpiteIR::BinaryOpKind::Equal:
 			binaryOpMacroI(left, right, result, == , binaryBoolOpTypeMacro)
 				binaryOpMacroFP(left, right, result, == , binaryBoolOpTypeMacro)

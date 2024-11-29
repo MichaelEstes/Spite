@@ -34,6 +34,6 @@ SymbolTable* Parser::Parse()
 	//syntax.Print();
 
 	elapsedScanTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + config.file);
+	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + file);
 	return syntax.symbolTable;
 }
