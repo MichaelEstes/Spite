@@ -474,6 +474,17 @@ struct TypeInferer
 			return type->arrayType.type;
 		case FixedArrayType:
 			return type->fixedArrayType.type;
+		case PrimitiveType:
+		{
+			if (type->primitiveType.type == UniqueType::String)
+			{
+				Type* typeOfIndex = InferType(of->indexExpr.index);
+				Type* indexType = FindOperatorOverloadReturnType(globalTable->stringSymbol->state, 
+					UniqueType::Array, typeOfIndex);
+				return indexType;
+			}
+			break;
+		}
 		case AnyType:
 			return type;
 		}
@@ -614,6 +625,27 @@ struct TypeInferer
 		return converted;
 	}
 
+	Type* FindOperatorOverloadReturnType(Stmnt* stateStmnt, UniqueType op, Type* rhs = nullptr)
+	{
+		StateSymbol* state = globalTable->FindScopedStateSymbol(stateStmnt->state.name, symbolTable);
+		if (state)
+		{
+			for (Stmnt* opNode : state->operators)
+			{
+				auto& stateOp = opNode->stateOperator;
+				if (stateOp.op->uniqueType == op)
+				{
+					if (!rhs) return stateOp.returnType;
+					else if (stateOp.decl->functionDecl.parameters->size() > 1 &&
+						IsAssignable(stateOp.decl->functionDecl.parameters->at(1)->definition.type, rhs, stateStmnt))
+						return ConvertGenericsToAny(stateOp.returnType, stateStmnt);
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
 	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
 	{
 		if (globalTable->IsGenericOfStmnt(namedType, context, symbolTable) ||
@@ -625,22 +657,9 @@ struct TypeInferer
 		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);
 		if (node)
 		{
-			StateSymbol* state = globalTable->FindScopedStateSymbol(node->state.name, symbolTable);
-			if (state)
-			{
-				for (Stmnt* opNode : state->operators)
-				{
-					auto& stateOp = opNode->stateOperator;
-					if (stateOp.op->uniqueType == op)
-					{
-						if (!rhs) return stateOp.returnType;
-						else if (stateOp.decl->functionDecl.parameters->size() > 1 &&
-							IsAssignable(stateOp.decl->functionDecl.parameters->at(1)->definition.type, rhs, node))
-							return ConvertGenericsToAny(stateOp.returnType, node);
-					}
-				}
-			}
-
+			Type* returnType = FindOperatorOverloadReturnType(node, op, rhs);
+			if (returnType) return returnType;
+			
 			AddError(token, "TypeInferer:GetStateOperatorType No operator found for named type: " + ToString(namedType));
 		}
 		else
@@ -963,6 +982,12 @@ struct TypeInferer
 			globalTable->GetArrayState();
 	}
 
+	bool IsStringStateType(Type* type)
+	{
+		return globalTable->FindStateForType(type, symbolTable) ==
+			globalTable->GetStringState();
+	}
+
 	bool IsTypeGenericOf(Stmnt* stmnt, Type* type)
 	{
 		if (!stmnt) return globalTable->IsGenericOfStmnt(type, context, symbolTable);
@@ -1049,7 +1074,13 @@ struct TypeInferer
 
 		if (IsArrayStateType(left))
 		{
-			return right->typeID == TypeID::ArrayType || right->typeID == TypeID::FixedArrayType;
+			return right->typeID == TypeID::ArrayType || right->typeID == TypeID::FixedArrayType ||
+				IsArrayStateType(right);
+		}
+
+		if (IsStringStateType(left))
+		{
+			return IsString(right) || IsStringStateType(right);
 		}
 
 		if (left->typeID == TypeID::TemplatedType && right->typeID == TypeID::TemplatedType)

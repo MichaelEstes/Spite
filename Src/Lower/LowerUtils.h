@@ -43,6 +43,12 @@ bool IsAnyType(SpiteIR::Type* type)
 		type->reference.type->primitive.kind == SpiteIR::PrimitiveKind::Void;
 }
 
+bool IsStringType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->primitive.kind == SpiteIR::PrimitiveKind::String;
+}
+
 inline bool IsIntLikeType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&

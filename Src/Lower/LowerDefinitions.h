@@ -1326,6 +1326,10 @@ struct LowerDefinitions
 
 	SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 	{
+		if (type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			return GetStateForType(type->reference.type);
+		}
 		if (type->kind == SpiteIR::TypeKind::StateType)
 		{
 			return type->stateType.state;
@@ -1333,6 +1337,10 @@ struct LowerDefinitions
 		else if (type->kind == SpiteIR::TypeKind::DynamicArrayType)
 		{
 			return arrayState;
+		}
+		else if (IsStringType(type))
+		{
+			return stringState;
 		}
 
 		return nullptr;
@@ -1449,7 +1457,8 @@ struct LowerDefinitions
 		StringView& ident = selected->identifierExpr.identifier->val;
 
 		if (value.type->kind == SpiteIR::TypeKind::StateType ||
-			value.type->kind == SpiteIR::TypeKind::DynamicArrayType)
+			value.type->kind == SpiteIR::TypeKind::DynamicArrayType ||
+			IsStringType(value.type))
 		{
 			SpiteIR::State* state = GetStateForType(value.type);
 			SpiteIR::Member* member = FindStateMember(state, ident);
@@ -2140,7 +2149,8 @@ struct LowerDefinitions
 	{
 		Expr* left = expr->binaryExpr.left;
 		Expr* right = expr->binaryExpr.right;
-		SpiteIR::BinaryOpKind op = BinaryOpToIR(expr->binaryExpr.op->uniqueType);
+		UniqueType opType = expr->binaryExpr.op->uniqueType;
+		SpiteIR::BinaryOpKind op = BinaryOpToIR(opType);
 
 		if (op == SpiteIR::BinaryOpKind::LogicAnd)
 		{
@@ -2153,6 +2163,12 @@ struct LowerDefinitions
 
 		ScopeValue leftVal = BuildExpr(left, stmnt);
 		ScopeValue rightVal = BuildExpr(right, stmnt);
+
+		SpiteIR::State* state = GetStateForType(leftVal.type);
+		if (state)
+		{
+			return BuildStateOperatorCall(state, leftVal, opType, &rightVal);
+		}
 
 		return BuildBinaryOpValue(leftVal, rightVal, op);
 	}
@@ -2188,9 +2204,16 @@ struct LowerDefinitions
 	ScopeValue BuildUnaryExpression(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* operand = expr->unaryExpr.expr;
-		SpiteIR::UnaryOpKind op = UnaryOpToIR(expr->unaryExpr.op->uniqueType);
+		UniqueType opType = expr->unaryExpr.op->uniqueType;
+		SpiteIR::UnaryOpKind op = UnaryOpToIR(opType);
 
 		ScopeValue val = BuildExpr(operand, stmnt);
+
+		SpiteIR::State* state = GetStateForType(val.type);
+		if (state)
+		{
+			return BuildStateOperatorCall(state, val, opType);
+		}
 
 		return BuildUnaryOpValue(val, op);
 	}

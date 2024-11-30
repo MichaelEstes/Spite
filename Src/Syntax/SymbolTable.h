@@ -708,7 +708,7 @@ struct SymbolTable
 			break;
 		case UniqueType::String:
 			type->primitiveType.size = config.targetArchByteWidth * 2;
-			type->primitiveType.isSigned = false;
+			type->primitiveType.isSigned = true;
 			break;
 		default:
 			break;

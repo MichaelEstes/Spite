@@ -25,6 +25,6 @@ void copy_bytes(dst: *byte, src: *byte, toCopy: int)
 {
 	for(i .. toCopy)
 	{
-		(dst + i)~ = (src + i)~;
+		dst[i]~ = src[i]~;
 	}
 }
