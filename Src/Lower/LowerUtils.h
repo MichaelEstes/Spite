@@ -43,6 +43,15 @@ bool IsAnyType(SpiteIR::Type* type)
 		type->reference.type->primitive.kind == SpiteIR::PrimitiveKind::Void;
 }
 
+inline bool IsIntLikeType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->primitive.kind != SpiteIR::PrimitiveKind::Void &&
+		type->primitive.kind != SpiteIR::PrimitiveKind::F32 &&
+		type->primitive.kind != SpiteIR::PrimitiveKind::Float &&
+		type->primitive.kind != SpiteIR::PrimitiveKind::String;
+}
+
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 {
 	if (type->kind == SpiteIR::TypeKind::StateType) return GetStateTypes(type->stateType.state);
@@ -73,6 +82,20 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 			return 0;
 
 		return 2;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::PrimitiveType &&
+		right->kind == SpiteIR::TypeKind::PointerType)
+	{
+		if (IsIntLikeType(left)) return 2;
+		return 0;
+	}
+
+	if (left->kind == SpiteIR::TypeKind::PointerType &&
+		right->kind == SpiteIR::TypeKind::PrimitiveType)
+	{
+		if (IsIntLikeType(right)) return 2;
+		return 0;
 	}
 
 	if (left->kind == SpiteIR::TypeKind::StateType &&
@@ -631,13 +654,6 @@ inline bool IsVoidType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
 		type->primitive.kind == SpiteIR::PrimitiveKind::Void;
-}
-
-inline bool IsIntType(SpiteIR::Type* type)
-{
-	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
-		type->primitive.kind == SpiteIR::PrimitiveKind::Int &&
-		type->size == config.targetArchByteWidth;
 }
 
 template<typename Low>

@@ -132,8 +132,12 @@ struct LowerDefinitions
 	SpiteIR::Function* makeArray = nullptr;
 	SpiteIR::Function* makeArrayFrom = nullptr;
 	SpiteIR::Function* sizeArray = nullptr;
+	
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
+
+	SpiteIR::State* stringState = nullptr;
+
 
 	SpiteIR::Type* castBool;
 
@@ -151,8 +155,12 @@ struct LowerDefinitions
 		makeArray = FindPackageFunction(runtime, "__make_array");
 		makeArrayFrom = FindPackageFunction(runtime, "__make_array_from");
 		sizeArray = FindPackageFunction(runtime, "__size_array");
+		
 		allocFunc = FindPackageFunction(runtime, "__alloc");
 		deallocFunc = FindPackageFunction(runtime, "__dealloc");
+
+		stringState = FindPackageState(runtime, "___string");
+
 	}
 
 	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
@@ -525,17 +533,7 @@ struct LowerDefinitions
 
 		if (IsIRTypeAssignable(toConversionType, fromConversionType) == 2)
 		{
-			if (toConversionType->kind == SpiteIR::TypeKind::PrimitiveType &&
-				fromConversionType->kind == SpiteIR::TypeKind::PrimitiveType)
-			{
-				ScopeValue toCast = BuildTypeDereference(label, from);
-				return HandleAutoCast(BuildTypeCast(toCast, toConversionType), to, skipRefCheck);
-			}
-			else if (fromConversionType->kind == SpiteIR::TypeKind::FixedArrayType &&
-				toConversionType->kind == SpiteIR::TypeKind::DynamicArrayType)
-			{
-				return CastFixedArrayToDynamic(from, to);
-			}
+			return HandleAutoCast(CastValue(from, toConversionType), to, skipRefCheck);
 		}
 
 		if (!skipRefCheck)
@@ -1818,8 +1816,40 @@ struct LowerDefinitions
 				to->primitive.kind != SpiteIR::PrimitiveKind::String;
 		}
 
-		return (IsIntType(from) && to->kind == SpiteIR::TypeKind::PointerType) ||
-			(from->kind == SpiteIR::TypeKind::PointerType && IsIntLike(to));
+		return (IsIntLikeType(from) && to->kind == SpiteIR::TypeKind::PointerType) ||
+			(from->kind == SpiteIR::TypeKind::PointerType && IsIntLikeType(to));
+	}
+
+	ScopeValue CastValue(ScopeValue toCast, SpiteIR::Type* toType)
+	{
+		if (RequiresBitCast(toCast.type, toType))
+		{
+			toCast = BuildTypeDereference(GetCurrentLabel(), toCast);
+			if (toType->kind == SpiteIR::TypeKind::PointerType)
+			{
+				return IntToPointer(toCast, toType);
+			}
+
+			if (toCast.type->kind == SpiteIR::TypeKind::PointerType)
+			{
+				toCast = PointerToInt(toCast);
+			}
+
+			return BuildTypeCast(toCast, toType);
+		}
+		else
+		{
+			SpiteIR::Type* fromConversionType = GetConversionType(toCast.type);
+			SpiteIR::Type* toConversionType = GetConversionType(toType);
+
+			if (fromConversionType->kind == SpiteIR::TypeKind::FixedArrayType &&
+				toConversionType->kind == SpiteIR::TypeKind::DynamicArrayType)
+			{
+				return CastFixedArrayToDynamic(toCast, toType);
+			}
+
+			return { toCast.reg, toType };
+		}
 	}
 
 	ScopeValue BuildCastExpr(Expr* expr, Stmnt* stmnt)
@@ -1828,8 +1858,7 @@ struct LowerDefinitions
 		ScopeValue toCast = BuildExpr(as.of, stmnt);
 		SpiteIR::Type* toType = ToIRType(as.to);
 
-		if (RequiresBitCast(toCast.type, toType)) return BuildTypeCast(toCast, toType);
-		else return { toCast.reg, toType };
+		return CastValue(toCast, toType);
 	}
 
 	ScopeValue BuildTypeCast(const ScopeValue& from, SpiteIR::Type* toType)
@@ -1907,6 +1936,11 @@ struct LowerDefinitions
 				return dst;
 			}
 			case SpiteIR::TypeKind::PrimitiveType:
+			{
+				if (derefedType->primitive.kind == SpiteIR::PrimitiveKind::String)
+					return BuildStateOperatorCall(stringState, toIndex, UniqueType::Array, &index);
+				break;
+			}
 			case SpiteIR::TypeKind::StructureType:
 			case SpiteIR::TypeKind::FunctionType:
 				Assert(false);
@@ -1949,6 +1983,11 @@ struct LowerDefinitions
 			return dst;
 		}
 		case SpiteIR::TypeKind::PrimitiveType:
+		{
+			if (toIndex.type->primitive.kind == SpiteIR::PrimitiveKind::String)
+				return BuildStateOperatorCall(stringState, toIndex, UniqueType::Array, &index);
+			break;
+		}
 		case SpiteIR::TypeKind::StructureType:
 		case SpiteIR::TypeKind::FunctionType:
 			Assert(false);
@@ -2524,7 +2563,7 @@ struct LowerDefinitions
 		binOp->binOp.result = funcContext.curr;
 
 		ScopeValue value;
-		if (kind >= SpiteIR::BinaryOpKind::LogicAnd) value = { binOp->binOp.result, CreateBoolType(context.ir) };
+		if (kind >= SpiteIR::BinaryOpKind::Equal) value = { binOp->binOp.result, CreateBoolType(context.ir) };
 		else value = { binOp->binOp.result, leftVal.type };
 
 		BuildAllocate(value.type);

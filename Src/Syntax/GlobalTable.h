@@ -7,6 +7,7 @@ struct GlobalTable
 	SymbolTable* runtimeTable;
 	SymbolTable* entryTable;
 	StateSymbol* arraySymbol;
+	StateSymbol* stringSymbol;
 	Stmnt* entryFunc;
 
 	StringView runtimePackage = StringView("_");
@@ -70,12 +71,20 @@ struct GlobalTable
 		this->runtimeTable = runtime;
 		StringView arrayStateName = "array";
 		this->arraySymbol = this->runtimeTable->FindStateSymbol(arrayStateName);
+		StringView stringStateName = "_string";
+		this->stringSymbol = this->runtimeTable->FindStateSymbol(stringStateName);
+
 		packageToSymbolTable.erase(runtimePackage);
 	}
 
-	Stmnt* GetArrayState()
+	inline Stmnt* GetArrayState()
 	{
 		return this->arraySymbol->state;
+	}
+
+	inline Stmnt* GetStringState()
+	{
+		return this->stringSymbol->state;
 	}
 
 	inline bool IsPackage(StringView& package)
@@ -105,6 +114,9 @@ struct GlobalTable
 	{
 		switch (type->typeID)
 		{
+		case PrimitiveType:
+			if (type->primitiveType.type == UniqueType::String) return GetStringState();
+			break;
 		case NamedType:
 			return FindScopedState(type->namedType.typeName, symbolTable);
 		case ImportedType:

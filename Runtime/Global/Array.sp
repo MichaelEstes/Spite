@@ -1,24 +1,24 @@
 package _
 
-*byte alloc_array(count: int, itemBytes: int)
+*byte alloc_array(count: uint, itemBytes: uint)
 {
 	return alloc(count * itemBytes);
 }
 
-array make_array(itemBytes: int)
+array make_array(itemBytes: uint)
 {
 	arr: array = array();
 	arr.itemBytes = itemBytes;
 	return arr;
 }
 
-size_array(arr: array, count: int)
+size_array(arr: array, count: uint)
 {
 	arr.start = alloc_array(count, arr.itemBytes);
 	arr.capacity = count;
 }
 
-array make_array_from(itemBytes: int, count: int, start: *byte)
+array make_array_from(itemBytes: uint, count: uint, start: *byte)
 {
 	arr: array = array();
 	arr.itemBytes = itemBytes;
@@ -30,13 +30,13 @@ array make_array_from(itemBytes: int, count: int, start: *byte)
 
 state array
 {
-	count: int,
+	count: uint,
 	start: *byte,
-	capacity: int,
-	itemBytes: int,
+	capacity: uint,
+	itemBytes: uint,
 }
 
-any array::operator::[](index: int)
+any array::operator::[](index: uint)
 {
 	return this.start[index * this.itemBytes];	
 }
@@ -81,7 +81,7 @@ array::Expand()
 	this.start = newStart;
 }
 
-array::ExpandAtLeastTo(size: int)
+array::ExpandAtLeastTo(size: uint)
 {
 	while (this.capacity < size) this.capacity = (this.capacity + 1) * 2;
 	newStart := alloc_array(this.capacity, this.itemBytes);

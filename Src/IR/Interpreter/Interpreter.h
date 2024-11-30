@@ -850,7 +850,7 @@ struct Interpreter
 					switch (type->size)
 					{
 					case 1:
-						return eastl::to_string(*(char*)start);
+						return eastl::string((char*)start, 1);
 					case 2:
 						return eastl::to_string(*(int16_t*)start);
 					case 4:
