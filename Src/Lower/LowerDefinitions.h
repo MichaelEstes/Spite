@@ -891,6 +891,12 @@ struct LowerDefinitions
 
 		ScopeValue iterateValue = BuildExpr(for_.toIterate, stmnt);
 		SpiteIR::Type* derefType = GetDereferencedType(iterateValue.type);
+
+		if (derefType->kind == SpiteIR::TypeKind::FixedArrayType)
+		{
+			//Handle fixed arrays
+		}
+
 		SpiteIR::State* iteratedState = GetStateForType(iterateValue.type);
 		Assert(iteratedState);
 
