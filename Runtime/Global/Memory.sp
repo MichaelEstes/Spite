@@ -23,7 +23,7 @@ void dealloc(ptr: *void)
 
 void copy_bytes(dst: *byte, src: *byte, toCopy: int)
 {
-	for(i .. toCopy)
+	for (i .. toCopy)
 	{
 		dst[i]~ = src[i]~;
 	}

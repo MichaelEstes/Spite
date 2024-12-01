@@ -76,7 +76,7 @@ public:
 	TokenNode* Find(StringView& val)
 	{
 		TokenNode* node = root;
-		for (int i = 0; i < val.count; i++)
+		for (int i = 0; i < val.Count(); i++)
 		{
 			char curr = val[i];
 			node = node->GetChild(curr);

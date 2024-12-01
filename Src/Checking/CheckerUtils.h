@@ -69,7 +69,7 @@ struct CheckerUtils
 	inline bool IsNameOfPrimitive(StringView& name)
 	{
 		// Early out if string is longer than any primitive names
-		if (name.count > 8) return false;
+		if (name.Count() > 8) return false;
 
 		TokenTree::TokenNode* node = tokenTypeLookup.Find(name);
 		if (!node) return false;

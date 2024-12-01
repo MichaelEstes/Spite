@@ -12,7 +12,7 @@ Expr* GetCallerExprMethodCall(Expr* expr)
 
 size_t IntLiteralStringToInt(StringView& str)
 {
-	size_t count = str.count;
+	size_t count = str.Count();
 	const char* start = str.start;
 	size_t i = 0;
 
@@ -36,6 +36,52 @@ Token* GetTokenForTemplate(Expr* expr)
 	}
 
 	return nullptr;
+}
+
+bool IsAssignmentOperator(UniqueType uniqueType)
+{
+	return uniqueType == UniqueType::Assign ||
+			uniqueType == UniqueType::AddAssign ||
+			uniqueType == UniqueType::SubtractAssign ||
+			uniqueType == UniqueType::MultiplyAssign ||
+			uniqueType == UniqueType::DivideAssign ||
+			uniqueType == UniqueType::ModuloAssign ||
+			uniqueType == UniqueType::AndAssign ||
+			uniqueType == UniqueType::OrAssign ||
+			uniqueType == UniqueType::XorAssign ||
+			uniqueType == UniqueType::ShiftlAssign ||
+			uniqueType == UniqueType::ShiftrAssign ||
+			uniqueType == UniqueType::AndNotAssign;
+}
+
+bool IsUnaryOperator(UniqueType uniqueType)
+{
+	return uniqueType == UniqueType::Subtract ||
+			uniqueType == UniqueType::Not ||
+			uniqueType == UniqueType::Xor;
+}
+
+bool IsBinaryOperator(UniqueType uniqueType)
+{
+	return uniqueType == UniqueType::Add ||
+			uniqueType == UniqueType::Subtract ||
+			uniqueType == UniqueType::Multiply ||
+			uniqueType == UniqueType::Divide ||
+			uniqueType == UniqueType::Modulo ||
+			uniqueType == UniqueType::And ||
+			uniqueType == UniqueType::Or ||
+			uniqueType == UniqueType::Xor ||
+			uniqueType == UniqueType::Shiftl ||
+			uniqueType == UniqueType::Shiftr ||
+			uniqueType == UniqueType::AndNot ||
+			uniqueType == UniqueType::LogicAnd ||
+			uniqueType == UniqueType::LogicOr ||
+			uniqueType == UniqueType::Equal ||
+			uniqueType == UniqueType::Less ||
+			uniqueType == UniqueType::Greater ||
+			uniqueType == UniqueType::NotEql ||
+			uniqueType == UniqueType::LessEqual ||
+			uniqueType == UniqueType::GreaterEqual;
 }
 
 bool operator==(const Type& left, const Type& right)

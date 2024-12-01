@@ -28,6 +28,18 @@ array make_array_from(itemBytes: uint, count: uint, start: *byte)
 	return arr;
 }
 
+state Iterator
+{
+	current: *void,
+	index: int,
+}
+
+Iterator::(begin: *void, index: int)
+{
+	this.current = begin;
+	this.index = index;
+}
+
 state array
 {
 	count: uint,
@@ -36,14 +48,30 @@ state array
 	itemBytes: uint,
 }
 
+array::delete 
+{
+	delete this.start;
+}
+
 any array::operator::[](index: uint)
 {
 	return this.start[index * this.itemBytes];	
 }
 
-array::delete 
+Iterator array::operator::in()
 {
-	delete this.start;
+	return {this.start@ as *void, -1};
+}
+
+bool array::next(it: Iterator)
+{
+	it.index += 1;
+	return it.index < this.count;
+}
+
+any array::current(it: Iterator)
+{
+	return this[it.index];
 }
 
 array::Clear()

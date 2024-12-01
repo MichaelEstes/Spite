@@ -312,7 +312,7 @@ struct Tokens
 				}
 				Reset(tokens);
 			}
-			else if (currIsInvalid && !(val.count == 1 && currVal == '#'))
+			else if (currIsInvalid && !(val.Count() == 1 && currVal == '#'))
 			{
 				token = tokens->CreateToken(val, pos, TokenType::Invalid, UniqueType::UniqueUnknown);
 				eastl::string errMsg = "Invalid character in identifer: ";
@@ -383,7 +383,7 @@ struct Tokens
 			char currVal = *curr;
 			char nextVal = *next;
 
-			if (currVal == '0' && (nextVal == 'x' || nextVal == 'X') && val.count == 1)
+			if (currVal == '0' && (nextVal == 'x' || nextVal == 'X') && val.Count() == 1)
 			{
 				numberType = 2;
 				return;
@@ -460,11 +460,10 @@ struct Tokens
 			{
 				escaped = true;
 			}
-			else if (currVal == val[0] && !escaped && val.count > 1)
+			else if (currVal == val[0] && !escaped && val.Count() > 1)
 			{
 				val.start += 1;
 				val.last -= 1;
-				val.count -= 2;
 				token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::StringLiteral);
 				Reset(tokens);
 			}

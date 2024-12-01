@@ -449,7 +449,6 @@ namespace SpiteIR
 
 		struct
 		{
-			int flags;
 			ExternFunction* externFunc = nullptr;
 		} metadata;
 
@@ -486,7 +485,7 @@ namespace SpiteIR
 
 		Array<Member*> members;
 		Array<Function*> methods;
-		Array<Function*> operators;
+		HashMap<string, Array<Function*>> operators;
 		Array<Function*> constructors;
 		Function* defaultConstructor;
 		Function* destructor = nullptr;

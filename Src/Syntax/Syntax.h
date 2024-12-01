@@ -937,7 +937,7 @@ struct Syntax
 			node->expressionStmnt.expression = expr;
 			node->end = curr;
 
-			if (IsAssignmentOperator())
+			if (IsAssignmentOperator(curr->uniqueType))
 			{
 				node->nodeID = StmntID::AssignmentStmnt;
 				node->assignmentStmnt.assignTo = expr;
@@ -1691,7 +1691,7 @@ struct Syntax
 
 	Expr* ParseUnaryExpr()
 	{
-		if (IsUnaryOperator())
+		if (IsUnaryOperator(curr->uniqueType))
 		{
 			Token* op = curr;
 			Advance();
@@ -2139,58 +2139,6 @@ struct Syntax
 		}
 
 		return exprs;
-	}
-
-	bool IsAssignmentOperator()
-	{
-		UniqueType uniqueType = curr->uniqueType;
-		return curr->type == TokenType::Operator &&
-			(uniqueType == UniqueType::Assign ||
-				uniqueType == UniqueType::AddAssign ||
-				uniqueType == UniqueType::SubtractAssign ||
-				uniqueType == UniqueType::MultiplyAssign ||
-				uniqueType == UniqueType::DivideAssign ||
-				uniqueType == UniqueType::ModuloAssign ||
-				uniqueType == UniqueType::AndAssign ||
-				uniqueType == UniqueType::OrAssign ||
-				uniqueType == UniqueType::XorAssign ||
-				uniqueType == UniqueType::ShiftlAssign ||
-				uniqueType == UniqueType::ShiftrAssign ||
-				uniqueType == UniqueType::AndNotAssign);
-	}
-
-	bool IsUnaryOperator()
-	{
-		UniqueType uniqueType = curr->uniqueType;
-		return curr->type == TokenType::Operator &&
-			(uniqueType == UniqueType::Subtract ||
-				uniqueType == UniqueType::Not ||
-				uniqueType == UniqueType::Xor);
-	}
-
-	bool IsBinaryOperator()
-	{
-		UniqueType uniqueType = curr->uniqueType;
-		return curr->type == TokenType::Operator &&
-			(uniqueType == UniqueType::Add ||
-				uniqueType == UniqueType::Subtract ||
-				uniqueType == UniqueType::Multiply ||
-				uniqueType == UniqueType::Divide ||
-				uniqueType == UniqueType::Modulo ||
-				uniqueType == UniqueType::And ||
-				uniqueType == UniqueType::Or ||
-				uniqueType == UniqueType::Xor ||
-				uniqueType == UniqueType::Shiftl ||
-				uniqueType == UniqueType::Shiftr ||
-				uniqueType == UniqueType::AndNot ||
-				uniqueType == UniqueType::LogicAnd ||
-				uniqueType == UniqueType::LogicOr ||
-				uniqueType == UniqueType::Equal ||
-				uniqueType == UniqueType::Less ||
-				uniqueType == UniqueType::Greater ||
-				uniqueType == UniqueType::NotEql ||
-				uniqueType == UniqueType::LessEqual ||
-				uniqueType == UniqueType::GreaterEqual);
 	}
 
 	int GetOperatorPrecedence()

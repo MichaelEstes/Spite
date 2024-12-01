@@ -68,7 +68,7 @@ struct LowerDeclarations
 			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
 			eastl::string& typeName = eastl::get<0>(val);
 			SpiteIR::Type* type = eastl::get<1>(val);
-			type->stateType.state = FindState(this, typeName, nullptr);
+			type->stateType.state = FindState(this, typeName, type);
 			context.toResolveStateType.pop_back();
 		}
 
@@ -317,8 +317,9 @@ struct LowerDeclarations
 			Stmnt* param = opStmnt->stateOperator.decl->functionDecl.parameters->at(i);
 			BuildArgumentForFunction(op, param, i, generics, templates);
 		}
-
-		state->operators.push_back(op);
+		
+		eastl::string opStr = OperatorToString(opStmnt->stateOperator.op->uniqueType);
+		state->operators[opStr].push_back(op);
 		context.functionMap[op->name] = op;
 		context.functionASTMap[op] = { opStmnt, templates };
 		package->functions[op->name] = op;

@@ -37,13 +37,13 @@ state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Ke
 	index := hash % this.status.capacity;
 	start := index;
 
-	while(this.status[index] != Empty)
+	while (this.status[index] != Empty)
 	{
-		if(this.status[index] == Full && Equals<Key>(this.keys[index], key))
+		if (this.status[index] == Full && Equals<Key>(this.keys[index], key))
 			return this.values[index]@;
 
 		index = (index + 1) % this.status.capacity;
-		if(index == start) break;
+		if (index == start) break;
 	}
 
 	return null;
@@ -68,7 +68,7 @@ Map::ResizeTo(count: int)
 	newStatus := [count]byte;
 	newStatus.count = newStatus.capacity;
 
-	for(i .. newStatus.count) newStatus[i] = Empty;
+	for (i .. newStatus.count) newStatus[i] = Empty;
 
 	MapInsertAllInternal<Key, Value, Hash, Equals>(newKeys, newValues, newStatus, 
 													this.keys, this.values);
@@ -92,26 +92,25 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 	start := index;
 	deletedIndex := InvalidIndex;
 
-	while(status[index] != Empty)
+	while (status[index] != Empty)
 	{
-		//Implement logic short circuiting
-		if(status[index] == Full && Equals<Key>(keys[index], key))
+		if (status[index] == Full && Equals<Key>(keys[index], key))
 		{
 			values[index] = value;
 			return true;
 		}
 
-		if(status[index] == Deleted)
+		if (status[index] == Deleted)
 		{
 			deletedIndex = index;
 		}
 		
 		index = (index + 1) % status.capacity;
 
-		if(index == start) break;
+		if (index == start) break;
 	}
 
-	if(deletedIndex != InvalidIndex)
+	if (deletedIndex != InvalidIndex)
 	{
 		index = deletedIndex;
 	}
@@ -130,7 +129,7 @@ MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, sta
 	//assert keys.count == values.count && values.count == status.count;
 	//assert insertKeys.count == insertValues.count;
 
-	for(i .. insertKeys.count)
+	for (i .. insertKeys.count)
 	{
 		key := insertKeys[i]
 		value := insertValues[i]

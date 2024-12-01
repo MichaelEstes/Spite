@@ -6,6 +6,10 @@ Expr* GetCallerExprMethodCall(Expr* expr);
 Token* GetTokenForTemplate(Expr* expr);
 size_t IntLiteralStringToInt(StringView& str);
 
+bool IsAssignmentOperator(UniqueType uniqueType);
+bool IsUnaryOperator(UniqueType uniqueType);
+bool IsBinaryOperator(UniqueType uniqueType);
+
 bool operator==(const Expr& left, const Expr& right);
 bool operator!=(const Expr& left, const Expr& right);
 bool operator==(const Type& left, const Type& right);

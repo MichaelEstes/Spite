@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 	<Type Name="StringView">
-		<DisplayString>{start,[count]s}</DisplayString>
+		<DisplayString>{start,[(last - start) + 1]s}</DisplayString>
 		<Expand>
-			<Item Name="[count]">count</Item>
 			<Item Name="[start]">*start</Item>
 			<Item Name="[last]">*last</Item>
 		</Expand>

@@ -6,7 +6,6 @@ struct StringView
 {
 	const char* start;
 	const char* last;
-	size_t count;
 
 	StringView()
 	{
@@ -17,43 +16,55 @@ struct StringView
 	{
 		start = toCopy.start;
 		last = toCopy.last;
-		count = toCopy.count;
 	}
 
 	StringView(const char* toCopy)
 	{
-		count = 0;
 		start = toCopy;
 		const char* end = toCopy;
 		while (*end)
 		{
-			count += 1;
 			end += 1;
 		}
-		last = start + count;
+		last = end - 1;
+	}
+
+	inline const size_t Count() const
+	{
+		return (last - start) + 1;
+	}
+
+	StringView Preceding(char ch)
+	{
+		StringView view = StringView(*this);
+		while (*view.last != ch && view.last != view.start)
+			view.last -= 1;
+		
+
+		view.last -= 1;
+		return view;
 	}
 
 	inline void Clear()
 	{
-		count = 0;
 		start = nullptr;
 		last = nullptr;
 	}
 
 	inline eastl::string ToString()
 	{
-		return eastl::string(start, count);
+		return eastl::string(start, last + 1);
 	}
 
 	inline StringView& operator+=(char* next)
 	{
-		count += 1;
 		last = next;
 		return *this;
 	}
 
 	inline bool operator==(const eastl::string& comp)
 	{
+		size_t count = Count();
 		if (comp.size() != count) return false;
 
 		for (int i = 0; i < count; i++)
@@ -71,6 +82,7 @@ struct StringView
 
 	size_t Hash()
 	{
+		size_t count = Count();
 		size_t result = 0;
 		for (int i = 0; i < count; i++)
 			result += (i * 0xDEAD) ^ *(start + i);
@@ -81,9 +93,12 @@ struct StringView
 
 inline bool operator==(const StringView& l, const StringView& r)
 {
-	if (l.count != r.count) return false;
+	size_t lCount = l.Count();
+	size_t rCount = r.Count();
 
-	for (int i = 0; i < l.count; i++)
+	if (lCount != rCount) return false;
+
+	for (int i = 0; i < lCount; i++)
 	{
 		if (l[i] != r[i]) return false;
 	}
@@ -93,7 +108,7 @@ inline bool operator==(const StringView& l, const StringView& r)
 
 inline const eastl::string operator+(const eastl::string l, const StringView& r)
 {
-	return l + eastl::string(r.start, r.count);
+	return l + eastl::string(r.start, r.last);
 }
 
 inline const eastl::string operator+(const char* l, const StringView& r)
@@ -107,8 +122,9 @@ struct StringViewHash
 {
 	size_t operator()(const StringView& str) const
 	{
+		size_t count = str.Count();
 		size_t result = 0;
-		for (size_t i = 0; i < str.count; i++)
+		for (size_t i = 0; i < count; i++)
 			result += (i * 0xDEAD) ^ str[i];
 
 		return result;

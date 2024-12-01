@@ -36,10 +36,10 @@ string _string::Append(toAppend: string)
 	totalCount := this.count + toAppend.count;
 	buffer := alloc(totalCount);
 	
-	for(i .. this.count)
+	for (i .. this.count)
 		buffer[i]~ = this[i]~;
 	
-	for(j .. toAppend.count)
+	for (j .. toAppend.count)
 		buffer[i + j]~ = toAppend[j]~;
 
 	return _string(totalCount, buffer);
