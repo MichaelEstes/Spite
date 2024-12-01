@@ -60,7 +60,7 @@ any array::operator::[](index: uint)
 
 Iterator array::operator::in()
 {
-	return {this.start@ as *void, -1};
+	return {null, -1};
 }
 
 bool array::next(it: Iterator)

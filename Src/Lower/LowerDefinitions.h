@@ -208,34 +208,12 @@ struct LowerDefinitions
 
 	Expr* ExpandTemplate(Expr* expr)
 	{
-		size_t genericsCount = currGenerics.size();
-		if (!genericsCount) return expr;
-
-		Token* exprToken = GetTokenForTemplate(expr);
-		if (exprToken)
-		{
-			for (int i = 0; i < genericsCount; i++)
-			{
-				Token* token = currGenerics.at(i);
-				if (token->val == exprToken->val)
-				{
-					return currTemplates->at(i);
-				}
-			}
-		}
-
-		return expr;
+		return _ExpandTemplate(expr, &currGenerics, currTemplates);
 	}
 
 	eastl::vector<Expr*> ExpandTemplates(eastl::vector<Expr*>* exprs)
 	{
-		eastl::vector<Expr*> expanded;
-		for (Expr* expr : *exprs)
-		{
-			expanded.push_back(ExpandTemplate(expr));
-		}
-
-		return expanded;
+		return _ExpandTemplates(exprs, &currGenerics, currTemplates);
 	}
 
 	void BuildDefinitions()

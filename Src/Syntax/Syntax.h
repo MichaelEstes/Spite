@@ -248,18 +248,17 @@ struct Syntax
 		default:
 		{
 			Token* start = curr;
-			Type* type;
-			if (curr->uniqueType == UniqueType::Name)
+			Logger::SetErrorRollback();
+			Type* type = ParseType(false);
+			if (type->typeID == TypeID::InvalidType ||
+				Expect(UniqueType::DoubleColon) ||
+				Expect(UniqueType::Lparen))
 			{
-				UniqueType next = Peek()->uniqueType;
-				if (next == UniqueType::DoubleColon ||
-					next == UniqueType::Lparen ||
-					next == UniqueType::Less) type = CreateVoidType();
-				else type = ParseType(false);
+				Logger::ErrorRollback();
+				type = CreateVoidType();
+				curr = start;
 			}
-			else type = ParseType(false);
 
-			if (type->typeID == TypeID::InvalidType) break;
 			ParseFunction(type, start);
 			return;
 		}
@@ -582,7 +581,7 @@ struct Syntax
 			else
 			{
 				node->function.generics = ParseGenerics();
-				if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
+				if (Expect(UniqueType::Lparen, "Syntax:ParseFunction Expected function starting with ('(')"))
 				{
 					node->function.returnType = returnType;
 					node->function.name = name;
@@ -622,7 +621,7 @@ struct Syntax
 			node->method.name = curr;
 			Advance();
 			node->method.generics = ParseGenerics();
-			if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
+			if (Expect(UniqueType::Lparen, "Syntax:ParseStateFunction Expected function starting with ('(')"))
 			{
 				node->method.decl = ParseFunctionDecl(node);
 				node->end = node->method.decl->end;
@@ -645,7 +644,7 @@ struct Syntax
 				{
 					op->stateOperator.op = curr;
 					Advance();
-					if (Expect(UniqueType::Lparen, "Expected function starting with ('(')"))
+					if (Expect(UniqueType::Lparen, "Syntax:ParseStateFunction Expected function starting with ('(') for operator"))
 					{
 						op->stateOperator.decl = ParseFunctionDecl(op);
 						op->end = op->stateOperator.decl->end;

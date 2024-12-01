@@ -26,16 +26,12 @@ struct ExprChecker
 		return false;
 	}
 
-	void CheckGenerics(Expr* expr)
+	void AddTemplatesToExpand(Stmnt* stmnt, eastl::vector<Expr*>* templateArgs, Token* start,
+		Expr* ofExpr = nullptr)
 	{
-		auto& templateExpr = expr->templateExpr;
-		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
-		Expr* ofExpr = templateExpr.expr;
-
-		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
 		if (!stmnt)
 		{
-			if (context.globalTable->IsGenericOfStmnt(ofExpr, context.currentContext, context.symbolTable))
+			if (ofExpr && context.globalTable->IsGenericOfStmnt(ofExpr, context.currentContext, context.symbolTable))
 			{
 				Token* genericTok = GetTokenForTemplate(ofExpr);
 				DeferredTemplateForwarded toDefer = DeferredTemplateForwarded();
@@ -45,20 +41,20 @@ struct ExprChecker
 				return;
 			}
 
-			AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
+			AddError(start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
 			return;
 		}
 
 		Stmnt* genericsNode = GetGenerics(stmnt);
 		if (!genericsNode)
 		{
-			AddError(expr->start, "ExprChecker:CheckGenerics Generic expression used on a type that doesn't define generics");
+			AddError(start, "ExprChecker:CheckGenerics Generic expression used on a type that doesn't define generics");
 			return;
 		}
 
 		if (templateArgs->size() != genericsNode->generics.names->size())
 		{
-			AddError(expr->start, "ExprChecker:CheckGenerics Expected " +
+			AddError(start, "ExprChecker:CheckGenerics Expected " +
 				eastl::to_string(genericsNode->generics.names->size()) +
 				" template arguments, got " + eastl::to_string(templateArgs->size()));
 			return;
@@ -78,7 +74,7 @@ struct ExprChecker
 
 			if (!currGenerics)
 			{
-				AddError(expr->start, "ExprChecker:CheckGenerics Unable to find statement with generics");
+				AddError(start, "ExprChecker:CheckGenerics Unable to find statement with generics");
 				return;
 			}
 
@@ -88,6 +84,24 @@ struct ExprChecker
 
 		auto& generics = genericsNode->generics;
 		generics.templatesToExpand->insert(templateArgs);
+	}
+
+	void AddTemplatesFromTemplatedType(Type* type)
+	{
+		Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
+		Expr* templateExpr = type->templatedType.templates;
+		eastl::vector<Expr*>* templateArgs = templateExpr->templateExpr.templateArgs;
+		AddTemplatesToExpand(state, templateArgs, templateExpr->start);
+	}
+
+	void CheckGenerics(Expr* expr)
+	{
+		auto& templateExpr = expr->templateExpr;
+		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
+		Expr* ofExpr = templateExpr.expr;
+
+		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
+		AddTemplatesToExpand(stmnt, templateArgs, expr->start, ofExpr);
 	}
 
 	void CheckNew(Expr* expr)

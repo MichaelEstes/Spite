@@ -384,6 +384,39 @@ SpiteIR::UnaryOpKind UnaryOpToIR(UniqueType type)
 	}
 }
 
+Expr* _ExpandTemplate(Expr* expr, eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
+{
+	if (!generics || !generics->size()) return expr;
+
+	size_t genericsCount = generics->size();
+	Token* exprToken = GetTokenForTemplate(expr);
+	if (exprToken)
+	{
+		for (int i = 0; i < genericsCount; i++)
+		{
+			Token* token = generics->at(i);
+			if (token->val == exprToken->val)
+			{
+				return templates->at(i);
+			}
+		}
+	}
+
+	return expr;
+}
+
+eastl::vector<Expr*> _ExpandTemplates(eastl::vector<Expr*>* exprs, eastl::vector<Token*>* generics, 
+	eastl::vector<Expr*>* templates)
+{
+	eastl::vector<Expr*> expanded;
+	for (Expr* expr : *exprs)
+	{
+		expanded.push_back(_ExpandTemplate(expr, generics, templates));
+	}
+
+	return expanded;
+}
+
 eastl::string BuildTemplatedString(eastl::vector<Expr*>* templates)
 {
 	if (!templates || !templates->size()) return "";
@@ -775,7 +808,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 				Token* genericName = generics->at(i);
 				if (type->namedType.typeName->val == genericName->val)
 				{
-					Expr* templ = templates->at(i);
+					Expr* templ = _ExpandTemplate(templates->at(i), generics, templates);
 					if (templ && templ->typeID == ExprID::TypeExpr)
 					{
 						return TypeToIRType(ir, templ->typeExpr.type, lower, generics, templates);
@@ -862,8 +895,9 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StateType;
-		eastl::string typeName = BuildTypeString(type->templatedType.type) +
-			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
+		eastl::vector<Expr*>* templateArgs = type->templatedType.templates->templateExpr.templateArgs;
+		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates);
+		eastl::string typeName = BuildTypeString(type->templatedType.type) + BuildTemplatedString(&expandedArgs);
 		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;
 	}

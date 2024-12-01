@@ -417,7 +417,7 @@ struct PackageChecker
 		}
 		case AsExpr:
 			CheckExpr(expr->asExpr.of);
-			CheckType(expr->asExpr.to, expr->start);
+			CheckType(expr->asExpr.to, expr->start, nullptr, true);
 			break;
 		case DereferenceExpr:
 			CheckExpr(expr->dereferenceExpr.of);
@@ -440,7 +440,7 @@ struct PackageChecker
 			break;
 		case TemplateExpr:
 		{
-			CheckExpr(expr->templateExpr.expr);
+			if (expr->templateExpr.expr) CheckExpr(expr->templateExpr.expr);
 			for (Expr*& templArg : *expr->templateExpr.templateArgs)
 			{
 				if (templArg->typeID == ExprID::TypeExpr)
@@ -471,6 +471,7 @@ struct PackageChecker
 				}
 				CheckExpr(templArg);
 			}
+
 			exprChecker.CheckGenerics(expr);
 			break;
 		}
@@ -488,7 +489,7 @@ struct PackageChecker
 		}
 	}
 
-	void CheckType(Type* type, Token* start, Expr* templates = nullptr)
+	void CheckType(Type* type, Token* start, Expr* templates = nullptr, bool expandTemplates = false)
 	{
 		switch (type->typeID)
 		{
@@ -533,6 +534,7 @@ struct PackageChecker
 			{
 				CheckExpr(templ);
 			}
+			if (expandTemplates) exprChecker.AddTemplatesFromTemplatedType(type);
 			break;
 		}
 		case FunctionType:

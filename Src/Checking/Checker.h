@@ -206,7 +206,6 @@ struct Checker
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
 		{
 			eastl::vector<DeferredTemplateInstantiation> deferredTemplates = deferred.deferredTemplates.at(to);
-
 			for (auto& deferredTempl : deferredTemplates)
 			{
 				Stmnt* nestedTo = deferredTempl.forwardTo;

@@ -18,6 +18,12 @@ bool DefaultEqual<Key>(left: Key, right: Key)
 	return left == right;
 }
 
+state KeyValue<Key, Value>
+{
+	key: *Key,
+	value: *Value
+}
+
 state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
 {
 	keys: []Key,
@@ -29,6 +35,27 @@ state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Ke
 *Value Map::operator::[](key: Key)
 {
 	return this.Find(key);
+}
+
+Iterator Map::operator::in()
+{
+	return {null, 0};
+}
+
+bool Map::next(it: Iterator)
+{
+	it.index += 1;
+	while(it.index < this.status.count && this.status[it.index] != Full)
+	{
+		it.index += 1;
+	}
+	return it.index < this.count;
+}
+
+KeyValue<Key, Value> Map::current(it: Iterator)
+{
+	index := it.index;
+	return {this.keys[index]@, this.values[index]@} as KeyValue<Key, Value>;
 }
 
 *Value Map::Find(key: Key)
