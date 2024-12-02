@@ -205,7 +205,6 @@ bool operator==(const Expr& left, const Expr& right)
 		return *left.newExpr.primaryExpr == *right.newExpr.primaryExpr;
 	case FixedExpr:
 		return *left.fixedExpr.atExpr == *right.fixedExpr.atExpr;
-	//Not sure what good comparing anon or explicit types is
 	case TypeLiteralExpr:
 	{
 		if (left.typeLiteralExpr.values->size() != right.typeLiteralExpr.values->size()) return false;
@@ -253,6 +252,10 @@ bool operator==(const Expr& left, const Expr& right)
 		return false;
 	case CompileExpr:
 		return false;
+	case SizeOfExpr:
+		return *left.sizeOfExpr.expr == *right.sizeOfExpr.expr;
+	case AlignOfExpr:
+		return *left.alignOfExpr.expr == *right.alignOfExpr.expr;
 	default:
 		break;
 	}
@@ -422,6 +425,10 @@ inline size_t HashExpr(const Expr* expr)
 		return 0;
 	case CompileExpr:
 		return 0;
+	case SizeOfExpr:
+		return HashExpr(expr->sizeOfExpr.expr) + SizeOfExpr;
+	case AlignOfExpr:
+		return HashExpr(expr->alignOfExpr.expr) + AlignOfExpr;
 	default:
 		break;
 	}
@@ -752,6 +759,10 @@ eastl::string ToString(Expr* expr)
 		return ToString(expr->functionTypeDeclExpr.anonFunction);
 	case CompileExpr:
 		return ToString(expr->compileExpr.compile);
+	case SizeOfExpr:
+		return "#sizeof " + ToString(expr->sizeOfExpr.expr);
+	case AlignOfExpr:
+		return "#alignof " + ToString(expr->alignOfExpr.expr);
 	default:
 		return "";
 	}

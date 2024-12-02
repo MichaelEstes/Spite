@@ -581,6 +581,10 @@ eastl::string BuildExprString(Expr* expr)
 	case CompileExpr:
 		// Error
 		break;
+	case SizeOfExpr:
+		return "sizeof_" + BuildExprString(expr->sizeOfExpr.expr);
+	case AlignOfExpr:
+		return "alignof_" + BuildExprString(expr->alignOfExpr.expr);
 	default:
 		break;
 	}

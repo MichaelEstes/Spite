@@ -371,6 +371,32 @@ struct PackageChecker
 		}
 	}
 
+	void CheckTypeExprIsType(Expr* expr)
+	{
+		Type* type = expr->typeExpr.type;
+		switch (type->typeID)
+		{
+		case NamedType:
+		{
+			if (!typeChecker.CheckNamedType(type, nullptr, false))
+			{
+				*expr = *context.symbolTable->TypeExprToExpr(expr);
+			}
+			break;
+		}
+		case ImportedType:
+		{
+			if (!typeChecker.CheckImportedType(type, nullptr, false))
+			{
+				*expr = *context.symbolTable->TypeExprToExpr(expr);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
 	void CheckExpr(Expr* expr)
 	{
 		Assert(expr);
@@ -443,32 +469,6 @@ struct PackageChecker
 			if (expr->templateExpr.expr) CheckExpr(expr->templateExpr.expr);
 			for (Expr*& templArg : *expr->templateExpr.templateArgs)
 			{
-				if (templArg->typeID == ExprID::TypeExpr)
-				{
-					Type* type = templArg->typeExpr.type;
-					switch (type->typeID)
-					{
-					case NamedType:
-					{
-						if (!typeChecker.CheckNamedType(type, nullptr, false))
-						{
-							templArg = context.symbolTable->TypeExprToExpr(templArg);
-						}
-						break;
-					}
-					case ImportedType:
-					{
-						if (!typeChecker.CheckImportedType(type, nullptr, false))
-						{
-							templArg = context.symbolTable->TypeExprToExpr(templArg);
-						}
-						break;
-					}
-					default:
-						break;
-					}
-
-				}
 				CheckExpr(templArg);
 			}
 
@@ -476,6 +476,12 @@ struct PackageChecker
 			break;
 		}
 		case TypeExpr:
+			CheckTypeExprIsType(expr);
+			if (expr->typeID != TypeExpr)
+			{
+				CheckExpr(expr);
+				break;
+			}
 			CheckType(expr->typeExpr.type, expr->start);
 			break;
 		case FunctionTypeDeclExpr:
@@ -483,6 +489,12 @@ struct PackageChecker
 			break;
 		case CompileExpr:
 			CheckStmnt(expr->compileExpr.compile);
+			break;
+		case SizeOfExpr:
+			CheckExpr(expr->sizeOfExpr.expr);
+			break;
+		case AlignOfExpr:
+			CheckExpr(expr->alignOfExpr.expr);
 			break;
 		default:
 			break;

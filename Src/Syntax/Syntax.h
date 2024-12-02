@@ -1786,6 +1786,13 @@ struct Syntax
 
 		case UniqueType::OnCompile:
 			return ParseCompileExpr();
+
+		case UniqueType::SizeOfTok:
+			return ParseSizeOfExpr();
+
+		case UniqueType::AlignOfTok:
+			return ParseAlignOfExpr();
+
 		default:
 			switch (curr->type)
 			{
@@ -1824,6 +1831,28 @@ struct Syntax
 		primLit->literalExpr.val = curr;
 		Advance();
 		return primLit;
+	}
+
+	Expr* ParseSizeOfExpr()
+	{
+		Expr* sizeOfExpr = CreateExpr(curr, ExprID::SizeOfExpr);
+		Advance();
+		Expr* expr = ParseTypeOrPrimaryExpr();
+		if (expr->typeID == ExprID::InvalidExpr) AddError(sizeOfExpr->start, "Syntax:ParseSizeOfExpr #sizeof must be followed by a type or primary expression");
+		sizeOfExpr->sizeOfExpr.expr = expr;
+		if (Expect(UniqueType::Semicolon)) Advance();
+		return sizeOfExpr;
+	}
+
+	Expr* ParseAlignOfExpr()
+	{
+		Expr* alignOfExpr = CreateExpr(curr, ExprID::AlignOfExpr);
+		Advance();
+		Expr* expr = ParseTypeOrPrimaryExpr();
+		if (expr->typeID == ExprID::InvalidExpr) AddError(alignOfExpr->start, "Syntax:ParseAlignOfExpr #alignof must be followed by a type or primary expression");
+		alignOfExpr->alignOfExpr.expr = expr;
+		if (Expect(UniqueType::Semicolon)) Advance();
+		return alignOfExpr;
 	}
 
 	Expr* ParseGroupedExpr()

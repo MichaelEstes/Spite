@@ -46,6 +46,8 @@ enum UniqueType
 	State,
 	AssertTok,
 	LogTok,
+	SizeOfTok,
+	AlignOfTok,
 	Extern,
 	Global,
 	Where,

@@ -969,6 +969,10 @@ struct TypeInferer
 		}
 		case CompileExpr:
 			return of->compileExpr.compile->compileStmnt.returnType;
+		case SizeOfExpr:
+			return symbolTable->CreatePrimitive(UniqueType::Int);
+		case AlignOfExpr:
+			return symbolTable->CreatePrimitive(UniqueType::Int);
 		default:
 			break;
 		}

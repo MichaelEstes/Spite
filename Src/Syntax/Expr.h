@@ -31,6 +31,8 @@ enum ExprID
 	TypeExpr,
 	FunctionTypeDeclExpr,
 	CompileExpr,
+	SizeOfExpr,
+	AlignOfExpr,
 };
 
 enum FunctionCallKind
@@ -165,6 +167,16 @@ struct Expr
 		{
 			Stmnt* compile;
 		} compileExpr;
+
+		struct
+		{
+			Expr* expr;
+		} sizeOfExpr;
+
+		struct
+		{
+			Expr* expr;
+		} alignOfExpr;
 	};
 
 	Expr(ExprID typeID, Token* start)
@@ -258,6 +270,12 @@ struct Expr
 			break;
 		case CompileExpr:
 			compileExpr = copy.compileExpr;
+			break;
+		case SizeOfExpr:
+			sizeOfExpr = copy.sizeOfExpr;
+			break;
+		case AlignOfExpr:
+			alignOfExpr = copy.alignOfExpr;
 			break;
 		default:
 			break;

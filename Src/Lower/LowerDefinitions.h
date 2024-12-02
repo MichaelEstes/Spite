@@ -1237,6 +1237,10 @@ struct LowerDefinitions
 			return BuildAnonFunction(expr, stmnt);
 		case CompileExpr:
 			return BuildCompileExpr(expr, stmnt);
+		case SizeOfExpr:
+			return BuildSizeOf(expr, stmnt);
+		case AlignOfExpr:
+			return BuildAlignOf(expr, stmnt);
 		default:
 			break;
 		}
@@ -1472,8 +1476,6 @@ struct LowerDefinitions
 			}
 		}
 		break;
-		case ExprID::TemplateExpr:
-			break;
 		default:
 			break;
 		}
@@ -1507,8 +1509,6 @@ struct LowerDefinitions
 			methodValue.stmnt = methodStmnt;
 			return methodValue;
 		}
-		case ExprID::TemplateExpr:
-			break;
 		default:
 			break;
 		}
@@ -2468,6 +2468,23 @@ struct LowerDefinitions
 			stmnt->compileStmnt.body);
 
 		return compileFunc;
+	}
+
+	ScopeValue BuildSizeOf(Expr* expr, Stmnt* stmnt)
+	{
+		if (expr->sizeOfExpr.expr->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = ToIRType(expr->sizeOfExpr.expr->typeExpr.type);
+			return BuildLiteralInt(type->size);
+		}
+
+		ScopeValue value = BuildExpr(expr->sizeOfExpr.expr, stmnt);
+		return BuildLiteralInt(value.type->size);
+	}
+
+	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
+	{
+		return BuildLiteralInt(0);
 	}
 
 	SpiteIR::InstructionMetadata* CreateInstructionMetadata(SpiteIR::Label* label)
