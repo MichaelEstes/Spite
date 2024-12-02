@@ -82,7 +82,6 @@ array::Clear()
 // Returns the index of the item added
 int array::Add(item: any)
 {
-	log "Adding array item";
 	if(this.count >= this.capacity) this.Expand();	
 
 	index := this.count;
@@ -126,4 +125,16 @@ array::ExpandAtLeastTo(size: uint)
 		mapped.Add(func(this.start[i]));
 	}
 	return mapped;
+}
+
+[]T array::Filter<T>(pred: ::bool(*T))
+{
+	filtered := make_array(this.itemBytes);
+	for(i .. this.count)
+	{
+		item := this.start[i];
+		if (pred(item)) filtered.Add(item~);
+	}
+
+	return filtered;
 }

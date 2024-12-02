@@ -53,7 +53,7 @@ struct StringView
 
 	inline eastl::string ToString()
 	{
-		return eastl::string(start, last + 1);
+		return eastl::string(start, Count());
 	}
 
 	inline StringView& operator+=(char* next)
@@ -108,7 +108,7 @@ inline bool operator==(const StringView& l, const StringView& r)
 
 inline const eastl::string operator+(const eastl::string l, const StringView& r)
 {
-	return l + eastl::string(r.start, r.last);
+	return l + eastl::string(r.start, r.Count());
 }
 
 inline const eastl::string operator+(const char* l, const StringView& r)

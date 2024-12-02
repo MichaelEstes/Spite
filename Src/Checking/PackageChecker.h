@@ -515,21 +515,21 @@ struct PackageChecker
 			break;
 		}
 		case PointerType:
-			CheckType(type->pointerType.type, start);
+			CheckType(type->pointerType.type, start, templates, expandTemplates);
 			break;
 		case ValueType:
-			CheckType(type->valueType.type, start);
+			CheckType(type->valueType.type, start, templates, expandTemplates);
 			break;
 		case ArrayType:
 		{
-			CheckType(type->arrayType.type, start);
+			CheckType(type->arrayType.type, start, templates, expandTemplates);
 			typeChecker.CheckArrayType(type, start);
 			break;
 		}
 		case TemplatedType:
 		{
 			Expr* templs = type->templatedType.templates;
-			CheckType(type->templatedType.type, start, templs);
+			CheckType(type->templatedType.type, start, templs, expandTemplates);
 			for (Expr* templ : *templs->templateExpr.templateArgs)
 			{
 				CheckExpr(templ);
@@ -539,11 +539,11 @@ struct PackageChecker
 		}
 		case FunctionType:
 		{
-			CheckType(type->functionType.returnType, start);
+			CheckType(type->functionType.returnType, start, templates, expandTemplates);
 
 			for (Type* param : *type->functionType.paramTypes)
 			{
-				CheckType(param, start);
+				CheckType(param, start, templates, expandTemplates);
 			}
 			break;
 		}

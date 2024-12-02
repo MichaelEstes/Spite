@@ -49,7 +49,7 @@ bool Map::next(it: Iterator)
 	{
 		it.index += 1;
 	}
-	return it.index < this.count;
+	return it.index < this.status.count;
 }
 
 KeyValue<Key, Value> Map::current(it: Iterator)
@@ -83,6 +83,7 @@ bool Map::Insert(key: Key, value: Value)
 		this.ResizeTo((this.status.capacity + 1) * 2);
 	}
 
+	this.count += 1;
 	return MapInsertInternal<Key, Value, Hash, Equals>(this.keys, this.values, this.status, key, value);
 }
 
@@ -98,7 +99,7 @@ Map::ResizeTo(count: int)
 	for (i .. newStatus.count) newStatus[i] = Empty;
 
 	MapInsertAllInternal<Key, Value, Hash, Equals>(newKeys, newValues, newStatus, 
-													this.keys, this.values);
+													this.keys, this.values, this.status);
 
 	delete this.keys;
 	delete this.values;
@@ -106,7 +107,6 @@ Map::ResizeTo(count: int)
 	this.keys = newKeys;
 	this.values = newValues;
 	this.status = newStatus;
-	this.count = count;
 }
 
 bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
@@ -149,17 +149,20 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 }
 
 MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
-												insertKeys: []Key, insertValues: []Value)
+										insertKeys: []Key, insertValues: []Value, insertStatus: []byte)
 {
 	//Implment assert
 	//Implement logic short circuiting
 	//assert keys.count == values.count && values.count == status.count;
 	//assert insertKeys.count == insertValues.count;
 
-	for (i .. insertKeys.count)
+	for (i .. insertStatus.count)
 	{
-		key := insertKeys[i]
-		value := insertValues[i]
-		MapInsertInternal<Key, Value, Hash, Equals>(keys, values, status, key, value);
+		if(insertStatus[i] == Full)
+		{
+			key := insertKeys[i]
+			value := insertValues[i]
+			MapInsertInternal<Key, Value, Hash, Equals>(keys, values, status, key, value);
+		}
 	}
 }

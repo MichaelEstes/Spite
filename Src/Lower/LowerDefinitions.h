@@ -2079,7 +2079,7 @@ struct LowerDefinitions
 	ScopeValue BuildDereferenceExpr(Expr* expr, Stmnt* stmnt)
 	{
 		Expr* toDeref = expr->dereferenceExpr.of;
-		ScopeValue value = BuildExpr(toDeref, stmnt);
+		ScopeValue value = BuildTypeDereference(GetCurrentLabel(), BuildExpr(toDeref, stmnt));
 		Assert(value.type->kind == SpiteIR::TypeKind::PointerType);
 
 		// This looks wrong since we're making the type a reference type in a function called dereference

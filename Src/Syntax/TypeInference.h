@@ -1128,6 +1128,21 @@ struct TypeInferer
 			return true;
 		}
 
+		// Dangerous because casting information can be lost, but not sure how to check for 
+		// generic types being used as function type return/params otherwise
+		if (left->typeID == TypeID::FunctionType && right->typeID == TypeID::FunctionType)
+		{
+			auto& l = left->functionType;
+			auto& r = right->functionType;
+			if (!IsAssignable(l.returnType, r.returnType, stmntContext)) return false;
+			if (l.paramTypes->size() != r.paramTypes->size()) return false;
+			for (int i = 0; i < l.paramTypes->size(); i++)
+			{
+				if (!IsAssignable(l.paramTypes->at(i), r.paramTypes->at(i), stmntContext)) return false;
+			}
+			return true;
+		}
+
 		if (IsAny(left)|| IsAny(right)) return true;
 
 		return false;

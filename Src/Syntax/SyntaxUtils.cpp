@@ -88,6 +88,7 @@ bool operator==(const Type& left, const Type& right)
 {
 	if (left.typeID == TypeID::ValueType) return *left.valueType.type == right;
 	if (right.typeID == TypeID::ValueType) return *right.valueType.type == left;
+
 	if (left.typeID != right.typeID) return false;
 
 	switch (left.typeID)

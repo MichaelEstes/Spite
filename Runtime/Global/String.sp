@@ -26,6 +26,26 @@ string _string::operator::+(toAppend: string)
 	return this.Append(toAppend);
 }
 
+bool _string::operator::==(str: string)
+{
+	if (this.count != str.count) return false;
+
+	for (i .. this.count)
+		if (this[i]~ != str[i]~) return false;
+
+	return true;
+}
+
+bool _string::operator::!=(str: string)
+{
+	if (this.count != str.count) return true;
+
+	for (i .. this.count)
+		if (this[i]~ != str[i]~) return true;
+
+	return false;
+}
+
 bool _string::operator::!()
 {
 	return !this.count;
