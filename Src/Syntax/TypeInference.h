@@ -526,19 +526,19 @@ struct TypeInferer
 			type = expr->typeExpr.type;
 			break;
 		case TemplateExpr:
-			type = GetGenericsType(expr, EvalType(expr->templateExpr.expr));
+			type = GetGenericsType(expr, InferType(expr->templateExpr.expr));
 			break;
 		case IdentifierExpr:
 			type = GetIdentType(expr, expr->identifierExpr.identifier);
 			break;
 		case SelectorExpr:
-			type = GetSelectorType(expr, EvalType(expr->selectorExpr.on));
+			type = GetSelectorType(expr, InferType(expr->selectorExpr.on));
 			break;
 		case IndexExpr:
-			type = GetIndexType(expr, EvalType(expr->indexExpr.of));
+			type = GetIndexType(expr, InferType(expr->indexExpr.of));
 			break;
 		case FunctionCallExpr:
-			type = GetFunctionCallType(expr, EvalType(expr->functionCallExpr.function));
+			type = GetFunctionCallType(expr, InferType(expr->functionCallExpr.function));
 			break;
 		default:
 			break;

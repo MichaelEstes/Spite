@@ -482,7 +482,7 @@ struct PackageChecker
 				CheckExpr(expr);
 				break;
 			}
-			CheckType(expr->typeExpr.type, expr->start);
+			CheckType(expr->typeExpr.type, expr->start, nullptr, true);
 			break;
 		case FunctionTypeDeclExpr:
 			CheckStmnt(expr->functionTypeDeclExpr.anonFunction);

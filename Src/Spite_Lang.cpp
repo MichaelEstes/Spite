@@ -38,6 +38,7 @@ namespace EA::StdC
 }
 
 Config config;
+std::filesystem::path execDir;
 
 Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 {
@@ -98,8 +99,9 @@ int main(int argc, char** argv)
 		FindAllSourceFilesInDir(files, std::filesystem::path{ config.dir.c_str() });
 	}
 
-	std::filesystem::path execDir = GetExecutableDir() / "Runtime";
-	FindAllSourceFilesInDir(files, execDir);
+	execDir = GetExecutableDir();
+	std::filesystem::path runTimeDir = execDir / "Runtime";
+	FindAllSourceFilesInDir(files, runTimeDir);
 
 	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
 		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/

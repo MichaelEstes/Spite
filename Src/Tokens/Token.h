@@ -103,6 +103,7 @@ enum UniqueType
 	Delete,
 	Pointer,
 	As,
+	Ref,
 	At,
 	FatArrow,
 	Tilde,

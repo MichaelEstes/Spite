@@ -256,6 +256,7 @@ struct LowerDefinitions
 
 		if (deferredCompiles.size())
 		{
+			context.interpreter->Initialize(context.ir);
 			while (deferredCompiles.size() > 0)
 			{
 				DeferredCompile comp = deferredCompiles.back();
@@ -364,6 +365,8 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::FunctionType:
+			storeOp.kind = SpiteIR::OperandKind::Function;
+			storeOp.function = *(SpiteIR::Function**)value;
 			break;
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::PointerType:
@@ -1807,9 +1810,10 @@ struct LowerDefinitions
 	ScopeValue BuildFixedExpr(Expr* expr, Stmnt* stmnt)
 	{
 		ScopeValue value = BuildExpr(expr->fixedExpr.atExpr, stmnt);
-		Assert(value.type->kind == SpiteIR::TypeKind::FixedArrayType);
 		ScopeValue ref = BuildTypeReference(GetCurrentLabel(), value);
-		SpiteIR::Type* pointer = MakePointerType(value.type->fixedArray.type, context.ir);
+		SpiteIR::Type* fixedArrayType = GetDereferencedType(ref.type);
+		Assert(fixedArrayType->kind == SpiteIR::TypeKind::FixedArrayType);
+		SpiteIR::Type* pointer = MakePointerType(fixedArrayType->fixedArray.type, context.ir);
 		return { ref.reg, pointer };
 	}
 
@@ -2479,7 +2483,9 @@ struct LowerDefinitions
 		}
 
 		ScopeValue value = BuildExpr(expr->sizeOfExpr.expr, stmnt);
-		return BuildLiteralInt(value.type->size);
+		SpiteIR::Type* type = value.type;
+		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
+		return BuildLiteralInt(type->size);
 	}
 
 	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)

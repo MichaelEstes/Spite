@@ -5,6 +5,17 @@
 #include "../../Log/Logger.h"
 #include "ExternCall.h"
 
+#ifdef WIN32
+const size_t os = 0;
+const size_t arch = 0;
+#else UNIX
+const size_t os = 1;
+const size_t arch = 0;
+#endif 
+
+extern std::filesystem::path execDir;
+extern Config config;
+
 struct Interpreter
 {
 	char* stack;
@@ -25,6 +36,39 @@ struct Interpreter
 		delete global;
 	}
 
+	inline void SetGlobalInt(SpiteIR::Package* package, const eastl::string& name, intmax_t value)
+	{
+		size_t index = package->globalVariableLookup[name];
+		SpiteIR::GlobalVariable* var = package->globalVariables[index];
+		intmax_t* val = (intmax_t*)(void*)(global + var->index);
+		*val = value;
+	}
+
+	inline void SetGlobalString(SpiteIR::Package* package, const eastl::string& name, 
+		const eastl::string* value)
+	{
+		size_t index = package->globalVariableLookup[name];
+		SpiteIR::GlobalVariable* var = package->globalVariables[index];
+
+		size_t* sizeDst = (size_t*)(void*)(global + var->index);
+		*sizeDst = value->size();
+		char** strDst = (char**)(sizeDst + 1);
+		*strDst = (char*)value->c_str();
+	}
+
+	void InitializeRuntimeValues(SpiteIR::IR* ir)
+	{
+		SpiteIR::Package* runtime = ir->runtime;
+
+		SetGlobalInt(runtime, "__os", os);
+		SetGlobalInt(runtime, "__targetOs", config.os);
+
+		SetGlobalInt(runtime, "__arch", arch);
+		SetGlobalInt(runtime, "__targetArch", config.arch);
+
+		SetGlobalString(runtime, "__exec_dir", new eastl::string(execDir.string().c_str()));
+	}
+
 	void Initialize(SpiteIR::IR* ir)
 	{
 		delete global;
@@ -33,6 +77,7 @@ struct Interpreter
 		{
 			if (package->initializer) InterpretFunction(package->initializer, 0);
 		}
+		InitializeRuntimeValues(ir);
 	}
 
 	void* Interpret(SpiteIR::IR* ir)
@@ -286,6 +331,11 @@ struct Interpreter
 				StoreOperand(op, (char*)dst + offset);
 				offset += op.type->size;
 			}
+			break;
+		}
+		case SpiteIR::OperandKind::Function:
+		{
+			*(SpiteIR::Function**)dst = src.function;
 			break;
 		}
 		default:

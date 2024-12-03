@@ -35,6 +35,7 @@ static TokenTree tokenTypeLookup = {
 	{ "delete", TokenType::Keyword, UniqueType::Delete },
 	{ "fixed", TokenType::Keyword, UniqueType::Fixed },
 	{ "as", TokenType::Keyword, UniqueType::As },
+	//{ "ref", TokenType::Keyword, UniqueType::Ref },
 
 	//{ "public", TokenType::AccessModifier, UniqueType::Public },
 	//{ "private", TokenType::AccessModifier, UniqueType::Private },

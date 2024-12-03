@@ -6,8 +6,12 @@ Expr* GetCallerExprMethodCall(Expr* expr)
 	{
 		return GetCallerExprMethodCall(expr->templateExpr.expr);
 	}
+	else if (expr->typeID == ExprID::SelectorExpr)
+	{
+		return expr->selectorExpr.on;
+	}
 
-	return expr->selectorExpr.on;
+	return expr;
 }
 
 size_t IntLiteralStringToInt(StringView& str)

@@ -127,14 +127,36 @@ array::ExpandAtLeastTo(size: uint)
 	return mapped;
 }
 
-[]T array::Filter<T>(pred: ::bool(*T))
+[]*T array::Filter<T>(pred: ::bool(*T))
 {
-	filtered := make_array(this.itemBytes);
+	filtered := make_array(#sizeof *void);
 	for(i .. this.count)
 	{
 		item := this.start[i];
-		if (pred(item)) filtered.Add(item~);
+		if (pred(item)) filtered.Add(item);
 	}
 
 	return filtered;
+}
+
+array::SizeTo(count: uint)
+{
+	newStart := alloc_array(count, this.itemBytes);
+	// delete this.start;
+
+	this.start = newStart;
+	this.count = count;
+	this.capacity = count;
+}
+
+// Fills an array with a value from the start to the current count of the array
+array::Fill(with: any)
+{
+	fill_memory(this.start, with, this.itemBytes, this.count * this.itemBytes);
+}
+
+// Fills an array with a value from the start to the current capacity of the array
+array::FillAll(with: any)
+{
+	fill_memory(this.start, with, this.itemBytes, this.capacity * this.itemBytes);
 }

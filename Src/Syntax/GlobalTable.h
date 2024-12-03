@@ -132,13 +132,15 @@ struct GlobalTable
 		case FixedArrayType:
 			return FindStateForType(type->fixedArrayType.type, symbolTable);
 		default:
-			return nullptr;
+			break;
 		}
+		return nullptr;
 	}
 
 	Stmnt* FindState(Token* package, Token* name)
 	{
 		SymbolTable* symbolTable = FindSymbolTable(package->val);
+		if (!symbolTable) return nullptr;
 		return symbolTable->FindState(name->val);
 	}
 

@@ -29,7 +29,7 @@ state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Ke
 	keys: []Key,
 	values: []Value,
 	status: []byte,
-	count: int
+	count: uint
 }
 
 *Value Map::operator::[](key: Key)
@@ -60,6 +60,14 @@ KeyValue<Key, Value> Map::current(it: Iterator)
 
 *Value Map::Find(key: Key)
 {
+	index := this.FindIndex(key);
+
+	if(index == InvalidIndex) return null;
+	return this.values[index]@;
+}
+
+uint Map::FindIndex(key: Key)
+{
 	hash: int = Hash<Key>(key);
 	index := hash % this.status.capacity;
 	start := index;
@@ -67,13 +75,18 @@ KeyValue<Key, Value> Map::current(it: Iterator)
 	while (this.status[index] != Empty)
 	{
 		if (this.status[index] == Full && Equals<Key>(this.keys[index], key))
-			return this.values[index]@;
+			return index;
 
 		index = (index + 1) % this.status.capacity;
 		if (index == start) break;
 	}
 
-	return null;
+	return InvalidIndex;
+}
+
+bool Map::Has(key: Key)
+{
+	this.FindIndex(key) != InvalidIndex;
 }
 
 bool Map::Insert(key: Key, value: Value)
@@ -85,6 +98,13 @@ bool Map::Insert(key: Key, value: Value)
 
 	this.count += 1;
 	return MapInsertInternal<Key, Value, Hash, Equals>(this.keys, this.values, this.status, key, value);
+}
+
+bool Map::Remove(key: Key)
+{
+	index := this.FindIndex(key);
+	if(index == InvalidIndex) return false;
+	this.status[index] = Deleted;
 }
 
 Map::ResizeTo(count: int)
@@ -152,7 +172,6 @@ MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, sta
 										insertKeys: []Key, insertValues: []Value, insertStatus: []byte)
 {
 	//Implment assert
-	//Implement logic short circuiting
 	//assert keys.count == values.count && values.count == status.count;
 	//assert insertKeys.count == insertValues.count;
 
