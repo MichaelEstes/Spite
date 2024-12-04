@@ -819,7 +819,6 @@ struct Syntax
 
 	Stmnt* ParseBlockStatment()
 	{
-
 		switch (curr->uniqueType)
 		{
 		case UniqueType::Name:
@@ -848,7 +847,6 @@ struct Syntax
 			return ParseLogStmnt();
 		case UniqueType::AssertTok:
 			return ParseAssertStmnt();
-
 
 		default:
 			return ParseExprStmnt();
@@ -1730,8 +1728,7 @@ struct Syntax
 
 			case UniqueType::Less:
 			{
-				ExprID exprID = expr->typeID;
-				if ((exprID == ExprID::IdentifierExpr || exprID == ExprID::SelectorExpr) && TestGenericsExpr())
+				if (TestGenericsExpr())
 				{
 					expr = ParseGenericsExpr(expr);
 					break;
@@ -1803,7 +1800,7 @@ struct Syntax
 				return ParsePrimitiveExpr();
 
 			default:
-				AddError(curr, "No operand found for expression");
+				AddError(curr, "Syntax:ParseOperand No operand found for expression");
 				return CreateExpr(curr, ExprID::InvalidExpr);
 			}
 		}
@@ -2041,7 +2038,7 @@ struct Syntax
 		Advance();
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Semicolon) && !IsEOF())
 		{
-			if (Expect(TokenType::Operator) || Expect(TokenType::Literal))
+			if (GetOperatorPrecedence() != 0)
 			{
 				curr = start;
 				return false;
@@ -2049,9 +2046,9 @@ struct Syntax
 			Advance();
 		}
 
-		bool generics = Expect(UniqueType::Greater);
+		bool isGenerics = Expect(UniqueType::Greater);
 		curr = start;
-		return generics;
+		return isGenerics;
 	}
 
 	Expr* ParseTypeExpr()

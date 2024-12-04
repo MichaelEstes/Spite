@@ -142,6 +142,7 @@ struct Tokens
 {
 	eastl::vector<Token> tokens;
 	size_t count;
+	eastl::vector<eastl::string*> escapedStrings;
 
 	Tokens()
 	{
@@ -153,7 +154,13 @@ struct Tokens
 		operatorParser.Reset(this);
 	}
 
-	~Tokens() = default;
+	~Tokens()
+	{
+		for (eastl::string* str : escapedStrings)
+		{
+			delete str;
+		}
+	}
 
 	void Init(size_t fileSize)
 	{
@@ -448,10 +455,35 @@ struct Tokens
 	{
 		StringView val;
 		bool escaped;
+		bool hasEscapedChar;
 
 		StringParser()
 		{
 			escaped = false;
+			hasEscapedChar = false;
+		}
+
+		inline char GetEscapedChar(char c)
+		{
+			switch (c)
+			{
+			case 'n':
+				return '\n';
+			case '\'':
+				return '\'';
+			case '"':
+				return '"';
+			case 't':
+				return '\t';
+			case 'b':
+				return '\b';
+			case 'a':
+				return '\a';
+			case '\\':
+				return '\\';
+			default:
+				break;
+			}
 		}
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)
@@ -459,15 +491,47 @@ struct Tokens
 			val += curr;
 			char currVal = *curr;
 
-			if (currVal == '\\')
+			if (!escaped && currVal == '\\')
 			{
 				escaped = true;
+				hasEscapedChar = true;
 			}
-			else if (currVal == val[0] && !escaped && val.Count() > 1)
+			else if (!escaped && currVal == val[0] && val.Count() > 1)
 			{
 				val.start += 1;
 				val.last -= 1;
-				token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::StringLiteral);
+				if (hasEscapedChar)
+				{
+					size_t count = val.Count();
+					eastl::string* escapedStr = new eastl::string();
+					escapedStr->reserve(count);
+					for (size_t i = 0; i < count; i++)
+					{
+						char c = val[i];
+						if (c == '\\')
+						{
+							i += 1;
+							c = val[i];
+							c = GetEscapedChar(c);
+						}
+
+						escapedStr->push_back(c);
+					}
+
+					tokens->escapedStrings.push_back(escapedStr);
+					val.start = escapedStr->begin();
+					val.last = escapedStr->end() - 1;
+				}
+
+				if (val.Count() == 1)
+				{
+					token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::ByteLiteral);
+				}
+				else
+				{
+					token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::StringLiteral);
+				}
+
 				Reset(tokens);
 			}
 			else
@@ -480,6 +544,7 @@ struct Tokens
 		{
 			val.Clear();
 			escaped = false;
+			hasEscapedChar = false;
 			tokens->ResetContext();
 		}
 	} stringParser;

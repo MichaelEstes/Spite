@@ -78,7 +78,7 @@ _string::AppendIn(toAppend: string)
 	this = appended;
 }
 
-string _string::PrecedingFirst(char: byte)
+string _string::PrecedingLast(char: byte)
 {
 	view := _string(this);
 	while(view.count > 1 && view[view.count]~ != char)

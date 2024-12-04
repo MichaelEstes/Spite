@@ -898,6 +898,19 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	}
 	case ArrayType:
 	{
+		if (type->arrayType.size)
+		{
+			ScopeUtils& scopeUtils = lower->GetScopeUtils();
+			Expr* expanded = _ExpandTemplate(type->arrayType.size, generics, templates);
+			if (scopeUtils.IsConstantIntExpr(expanded))
+			{
+				intmax_t constantSize = scopeUtils.EvaluateConstantIntExpr(expanded);
+				SpiteIR::Type* irType = BuildFixedArray(ir, constantSize,
+					TypeToIRType(ir, type->arrayType.type, lower, generics, templates));
+				return irType;
+			}
+		}
+
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
 		irType->size = config.targetArchByteWidth * 4;

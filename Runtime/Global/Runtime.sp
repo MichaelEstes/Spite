@@ -41,7 +41,7 @@ string GetExecDirWindows()
 	copy_bytes(buf, fixed path, byteCount);
 	pathStr := string(byteCount, buf);
 
-	return pathStr.PrecedingFirst(byte(92));
+	return pathStr.PrecedingLast('\\');
 }
 
 string GetExecDirLinux()

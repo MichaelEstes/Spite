@@ -12,9 +12,15 @@ struct LowerDeclarations
 	LowerContext& context;
 	eastl::hash_map<eastl::vector<Stmnt*>*, eastl::vector<SpiteIR::PlatformLib>*> linkMap;
 	SymbolTable* symbolTable;
+	ScopeUtils scopeUtils;
 
-	LowerDeclarations(LowerContext& context) : context(context)
+	LowerDeclarations(LowerContext& context) : context(context), scopeUtils(context.globalTable, nullptr)
 	{}
+
+	ScopeUtils& GetScopeUtils()
+	{
+		return scopeUtils;
+	}
 
 	void BuildDeclarations()
 	{
@@ -47,6 +53,7 @@ struct LowerDeclarations
 		}
 
 		this->symbolTable = symbolTable;
+		scopeUtils.symbolTable = symbolTable;
 
 		for (auto& [key, value] : symbolTable->stateMap)
 		{

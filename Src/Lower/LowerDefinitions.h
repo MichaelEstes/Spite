@@ -167,6 +167,11 @@ struct LowerDefinitions
 
 	}
 
+	ScopeUtils& GetScopeUtils()
+	{
+		return funcContext.scopeUtils;
+	}
+
 	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
 	{
 		if (MapHas(package->states, name))
@@ -1710,6 +1715,10 @@ struct LowerDefinitions
 		case UniqueType::FloatLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Float;
 			literal.floatLiteral = std::stof(lit.val->val.ToString().c_str());
+			break;
+		case UniqueType::ByteLiteral:
+			literal.kind = SpiteIR::PrimitiveKind::Byte;
+			literal.byteLiteral = *lit.val->val.start;
 			break;
 		case UniqueType::StringLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::String;

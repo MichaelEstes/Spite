@@ -75,6 +75,20 @@ struct StringView
 		return true;
 	}
 
+	inline bool EqualsStr(const char* comp) const 
+	{
+		size_t count = Count();
+
+		for (int i = 0; i < count; i++)
+		{
+			char compChar = comp[i];
+			if (!compChar) return false;
+			if (compChar != *(start + i)) return false;
+		}
+
+		return true;
+	}
+
 	inline const char& operator [](unsigned int i) const
 	{
 		return *(start + i);

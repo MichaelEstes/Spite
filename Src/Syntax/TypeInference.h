@@ -837,6 +837,9 @@ struct TypeInferer
 			case HexLiteral:
 				uniqueType = UniqueType::Int;
 				break;
+			case ByteLiteral:
+				uniqueType = UniqueType::Byte;
+				break;
 			case StringLiteral:
 				uniqueType = UniqueType::String;
 				break;
