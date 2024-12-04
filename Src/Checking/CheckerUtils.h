@@ -24,7 +24,7 @@ struct CheckerUtils
 	{
 
 		size_t paramCount = params->size();
-		size_t requiredParamCount = RequiredFunctionParamCount(funcParams);
+		size_t requiredParamCount = RequiredFunctionParamCount(calledFor);
 		if (requiredParamCount > paramCount) return false;
 
 		for (size_t i = 0; i < paramCount; i++)
@@ -37,19 +37,6 @@ struct CheckerUtils
 		}
 
 		return true;
-	}
-
-	size_t RequiredFunctionParamCount(eastl::vector<Stmnt*>* params)
-	{
-		size_t count = 0;
-
-		for (Stmnt* param : *params)
-		{
-			if (param->definition.assignment) return count;
-			count += 1;
-		}
-
-		return count;
 	}
 
 	inline bool IsOuterScope(Stmnt* node)

@@ -31,18 +31,17 @@ exec_dir := "";
 string GetExecDirWindows()
 {
 	path := [260]int16;
-	log "Path uninit", path;
 	GetModuleFileNameW(null, fixed path, 260);
 
-	count := 0;
 	for (i .. 260)
-	{
 		if(!path[i]) break;
-		count := i;
-	}
-	
-	log "Path count: ", count;
-	return "";
+
+	byteCount := i * #sizeof int16;
+	buf := alloc(byteCount);
+	copy_bytes(buf, fixed path, byteCount);
+	pathStr := string(byteCount, buf);
+
+	return pathStr.PrecedingFirst(byte(92));
 }
 
 string GetExecDirLinux()

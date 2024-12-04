@@ -249,15 +249,19 @@ struct Interpreter
 
 	inline void InterpretLoad(SpiteIR::Instruction& loadInst)
 	{
-		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.dst.type->size;
-		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
+		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * 
+			loadInst.load.indexType->size;
+
+		char* start = (char*)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
 
 	inline void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
 	{
-		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg);
+		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) *
+			loadInst.load.indexType->size;
+
 		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
@@ -387,9 +391,12 @@ struct Interpreter
 			{
 				switch (castInst.cast.from.type->primitive.kind)
 				{
-				case SpiteIR::PrimitiveKind::Int:
 				case SpiteIR::PrimitiveKind::Bool:
 				case SpiteIR::PrimitiveKind::Byte:
+				case SpiteIR::PrimitiveKind::I16:
+				case SpiteIR::PrimitiveKind::I32:
+				case SpiteIR::PrimitiveKind::I64:
+				case SpiteIR::PrimitiveKind::Int:
 				{
 					if (castInst.cast.from.type->primitive.isSigned)
 					{
@@ -439,6 +446,7 @@ struct Interpreter
 					}
 					break;
 				}
+				case SpiteIR::PrimitiveKind::F32:
 				case SpiteIR::PrimitiveKind::Float:
 				{
 					switch (castInst.cast.from.type->size)
@@ -494,9 +502,12 @@ struct Interpreter
 
 		switch (to.type->primitive.kind)
 		{
-		case SpiteIR::PrimitiveKind::Int:
 		case SpiteIR::PrimitiveKind::Bool:
 		case SpiteIR::PrimitiveKind::Byte:
+		case SpiteIR::PrimitiveKind::I16:
+		case SpiteIR::PrimitiveKind::I32:
+		case SpiteIR::PrimitiveKind::I64:
+		case SpiteIR::PrimitiveKind::Int:
 		{
 			if (to.type->primitive.isSigned)
 			{
@@ -546,6 +557,7 @@ struct Interpreter
 			}
 			break;
 		}
+		case SpiteIR::PrimitiveKind::F32:
 		case SpiteIR::PrimitiveKind::Float:
 		{
 			switch (to.type->size)
@@ -613,12 +625,7 @@ struct Interpreter
 }															
 
 #define binaryOpMacroI(left, right, result, op, assignMacro)				\
-	if (left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Int ||							\
-		left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Bool ||							\
-		left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Byte)							\
+	if (left.type->primitive.kind <= SpiteIR::PrimitiveKind::Int)			\
 	{																		\
 		if (left.type->primitive.isSigned)									\
 		{																	\
@@ -669,8 +676,7 @@ struct Interpreter
 	}																		\
 
 #define binaryOpMacroFP(left, right, result, op, assignMacro)				\
-	else if (left.type->primitive.kind ==									\
-				SpiteIR::PrimitiveKind::Float)								\
+	else if (left.type->primitive.kind <= SpiteIR::PrimitiveKind::Float)	\
 	{																		\
 		switch (left.type->size)											\
 		{																	\
@@ -773,12 +779,7 @@ struct Interpreter
 }		
 
 #define unaryOpMacroI(left, result, op, assignMacro)						\
-	if (left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Int ||							\
-		left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Bool ||							\
-		left.type->primitive.kind ==										\
-					SpiteIR::PrimitiveKind::Byte)							\
+	if (left.type->primitive.kind <= SpiteIR::PrimitiveKind::Int)			\
 	{																		\
 		if (left.type->primitive.isSigned)									\
 		{																	\
@@ -829,8 +830,7 @@ struct Interpreter
 	}																		\
 
 #define unaryOpMacroFP(left, result, op, assignMacro)						\
-	else if (left.type->primitive.kind ==									\
-				SpiteIR::PrimitiveKind::Float)								\
+	else if (left.type->primitive.kind <= SpiteIR::PrimitiveKind::Float)	\
 	{																		\
 		switch (left.type->size)											\
 		{																	\
@@ -893,6 +893,9 @@ struct Interpreter
 				if (*(bool*)start) return "true";
 				else return "false";
 			case SpiteIR::PrimitiveKind::Byte:
+			case SpiteIR::PrimitiveKind::I16:
+			case SpiteIR::PrimitiveKind::I32:
+			case SpiteIR::PrimitiveKind::I64:
 			case SpiteIR::PrimitiveKind::Int:
 			{
 				if (type->primitive.isSigned)
@@ -936,6 +939,7 @@ struct Interpreter
 				}
 				break;
 			}
+			case SpiteIR::PrimitiveKind::F32:
 			case SpiteIR::PrimitiveKind::Float:
 			{
 				switch (type->size)

@@ -43,7 +43,7 @@ bool IsAnyType(SpiteIR::Type* type)
 		type->reference.type->primitive.kind == SpiteIR::PrimitiveKind::Void;
 }
 
-bool IsStringType(SpiteIR::Type* type)
+inline bool IsStringType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
 		type->primitive.kind == SpiteIR::PrimitiveKind::String;
@@ -53,9 +53,14 @@ inline bool IsIntLikeType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
 		type->primitive.kind != SpiteIR::PrimitiveKind::Void &&
-		type->primitive.kind != SpiteIR::PrimitiveKind::F32 &&
-		type->primitive.kind != SpiteIR::PrimitiveKind::Float &&
-		type->primitive.kind != SpiteIR::PrimitiveKind::String;
+		type->primitive.kind <= SpiteIR::PrimitiveKind::Int;
+}
+
+inline bool IsFloatLikeType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		(type->primitive.kind == SpiteIR::PrimitiveKind::F32 ||
+		type->primitive.kind <= SpiteIR::PrimitiveKind::Float);
 }
 
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
@@ -269,6 +274,16 @@ SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
 	return type;
 }
 
+SpiteIR::Type* CreateByteType(SpiteIR::IR* ir)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	type->size = 1;
+	type->kind = SpiteIR::TypeKind::PrimitiveType;
+	type->byValue = true;
+	type->primitive.isSigned = true;
+	type->primitive.kind = SpiteIR::PrimitiveKind::Byte;
+	return type;
+}
 
 SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
 {

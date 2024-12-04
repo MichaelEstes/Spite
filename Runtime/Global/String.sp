@@ -10,6 +10,12 @@ _string::delete {
 	delete this.str;
 }
 
+_string::(str: string)
+{
+	this.count = str.count;
+	this.str = str.str;
+}
+
 _string::(count: uint, str: *byte)
 {
 	this.count = count;
@@ -70,4 +76,14 @@ _string::AppendIn(toAppend: string)
 	appended := this.Append(toAppend);
 	delete this;
 	this = appended;
+}
+
+string _string::PrecedingFirst(char: byte)
+{
+	view := _string(this);
+	while(view.count > 1 && view[view.count]~ != char)
+		view.count -= 1;
+	
+	view.count -= 1;
+	return view;
 }

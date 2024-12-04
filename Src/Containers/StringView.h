@@ -41,7 +41,7 @@ struct StringView
 			view.last -= 1;
 		
 
-		view.last -= 1;
+		if (view.last != view.start) view.last -= 1;
 		return view;
 	}
 

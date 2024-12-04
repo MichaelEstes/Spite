@@ -37,6 +37,7 @@ enum UniqueType
 	FloatLiteral,
 	HexLiteral,
 	StringLiteral,
+	ByteLiteral,
 	TrueLiteral,
 	FalseLiteral,
 

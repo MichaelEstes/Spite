@@ -175,6 +175,26 @@ inline Stmnt* GetDeclForFunc(Stmnt* func)
 	return nullptr;
 }
 
+inline eastl::vector<Stmnt*>* GetFunctionParams(Stmnt* func)
+{
+	if (func->nodeID == StmntID::ExternFunctionDecl) return func->externFunction.parameters;
+	Stmnt* decl = GetDeclForFunc(func);
+	return decl->functionDecl.parameters;
+}
+
+inline size_t RequiredFunctionParamCount(Stmnt* func)
+{
+	eastl::vector<Stmnt*>* params = GetFunctionParams(func);
+	size_t count = 0;
+	for (Stmnt* param : *params)
+	{
+		if (param->definition.assignment) return count;
+		count += 1;
+	}
+
+	return count;
+}
+
 inline Type* GetReturnType(Stmnt* node)
 {
 	switch (node->nodeID)

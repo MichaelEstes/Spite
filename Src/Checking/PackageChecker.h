@@ -297,10 +297,11 @@ struct PackageChecker
 		{
 			auto& forStmnt = node->forStmnt;
 			typeChecker.CheckForType(node);
-			AddScope();
-			CheckStmnt(forStmnt.iterated.declaration);
+			// For loop index variable names can be redeclared
+			CheckDefinition(forStmnt.iterated.declaration, false);
+			context.scopeUtils.AddToTopScope(forStmnt.iterated.declaration->definition.name->val,
+				forStmnt.iterated.declaration);
 			CheckBody(forStmnt.body);
-			PopScope();
 			break;
 		}
 		case WhileStmnt:

@@ -267,6 +267,7 @@ namespace SpiteIR
 		Operand dst;
 		Operand src;
 		Operand offset;
+		Type* indexType;
 	};
 
 	struct LoadGlobal

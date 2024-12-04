@@ -249,7 +249,31 @@ struct ExprChecker
 				functionCall.callKind = FunctionCallKind::PrimitiveCall;
 				// Default primitive constructor
 				if (paramCount == 0) return;
-				else if (paramCount == 1)
+
+				if (functionType->primitiveType.type == UniqueType::String)
+				{
+					Type thisType = Type(TypeID::AnyType);
+					Expr thisIdent = Expr(ExprID::TypeExpr, function->start);
+					thisIdent.typeExpr.type = &thisType;
+
+					eastl::vector<Expr*> strConParams = eastl::vector<Expr*>();
+					strConParams.push_back(&thisIdent);
+					for (Expr* param : *params) strConParams.push_back(param);
+
+					for (Stmnt* con : context.globalTable->stringSymbol->constructors)
+					{
+						Stmnt* conDecl = con->constructor.decl;
+						if (utils.CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &strConParams))
+						{
+							return;
+						}
+					}
+
+					AddError(function->start, "ExprChecker:CheckFunctionCallExpr No string constructor overload found");
+					return;
+				}
+
+				if (paramCount == 1)
 				{
 					if (!utils.IsAssignable(functionType, utils.InferType(params->at(0))))
 					{
