@@ -224,7 +224,7 @@ struct TypeChecker
 			Type* type = utils.InferType(forStmnt.toIterate);
 			if (forStmnt.rangeFor)
 			{
-				if (!IsInt(type))
+				if (!IsIntLike(type))					
 					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
 			}
 			else

@@ -975,11 +975,12 @@ struct LowerDefinitions
 		funcContext.breakLabels.push_back(forEndLabel);
 		funcContext.continueLabels.push_back(forIncLabel);
 
-		SpiteIR::Allocate alloc = BuildAllocateForType(def.type);
+		ScopeValue toValue = BuildExpr(for_.toIterate, stmnt);
+		ScopeValue to = BuildTypeDereference(GetCurrentLabel(), toValue);
+
+		SpiteIR::Allocate alloc = BuildAllocate(to.type);
 		ScopeValue init = BuildDefaultValue(alloc.type, alloc.result, fromLabel);
 		AddValueToCurrentScope(def.name->val, init, defStmnt);
-
-		ScopeValue to = BuildExpr(for_.toIterate, stmnt);
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);
 		SpiteIR::Label* forCondLabel = BuildLabel(forStartName);
@@ -2558,9 +2559,9 @@ struct LowerDefinitions
 		}
 
 		Assert(left.type->kind == SpiteIR::TypeKind::PrimitiveType &&
-			right.type->kind == SpiteIR::TypeKind::PrimitiveType);
+				right.type->kind == SpiteIR::TypeKind::PrimitiveType);
 		Assert(left.type->primitive.kind != SpiteIR::PrimitiveKind::Void &&
-			right.type->primitive.kind != SpiteIR::PrimitiveKind::Void);
+				right.type->primitive.kind != SpiteIR::PrimitiveKind::Void);		
 
 		if (AreSamePrimitive(left.type, right.type)) return;
 

@@ -134,6 +134,8 @@ struct Syntax
 		{
 			ParseNext();
 		}
+
+		symbolTable->Finalize();
 	}
 
 	inline bool Expect(UniqueType type, const eastl::string& errMsg = "")
