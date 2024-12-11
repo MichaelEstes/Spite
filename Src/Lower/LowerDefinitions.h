@@ -1115,11 +1115,12 @@ struct LowerDefinitions
 
 		SpiteIR::Label* defaultLabel = caseLabels.back();
 
+		AddLabel(defaultLabel);
 		if (defaultCase)
 		{
 			funcContext.continueLabels.push_back(switchEndLabel);
-			AddLabel(defaultLabel);
 			BuildBody(defaultCase);
+			funcContext.continueLabels.pop_back();
 		}
 
 		SpiteIR::Label* currLabel = GetCurrentLabel();
