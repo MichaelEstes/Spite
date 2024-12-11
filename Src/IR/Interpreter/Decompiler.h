@@ -225,6 +225,9 @@ struct Decompiler
 		case SpiteIR::InstructionKind::Branch:
 			DecompileBranch(inst);
 			break;
+		case SpiteIR::InstructionKind::Switch:
+			DecompileSwitch(inst);
+			break;
 		case SpiteIR::InstructionKind::ExternCall:
 			DecompileExternCall(inst);
 			break;
@@ -248,8 +251,6 @@ struct Decompiler
 			break;
 		case SpiteIR::InstructionKind::Cast:
 			DecompileCast(inst);
-			break;
-		case SpiteIR::InstructionKind::Switch:
 			break;
 		case SpiteIR::InstructionKind::BinOp:
 			DecompileBinaryOp(inst);
@@ -282,6 +283,23 @@ struct Decompiler
 			branchInst.branch.true_->name + " : " + branchInst.branch.false_->name);
 		DecompileLabel(branchInst.branch.true_);
 		DecompileLabel(branchInst.branch.false_);
+	}
+
+	void DecompileSwitch(SpiteIR::Instruction& switchInst)
+	{
+		eastl::string switchStr = "switch " + WriteOperand(switchInst.switch_.test) + "\n";
+		eastl::vector<SpiteIR::Label*> toDecompile;
+
+		for (auto& [caseValue, label] : *switchInst.switch_.cases)
+		{
+			toDecompile.push_back(label);
+			switchStr += "\t (" + eastl::to_string(caseValue) + ") : " + label->name + "\n";
+		}
+		switchStr += "\t default : " + switchInst.switch_.defaultCase->name+ "\n";
+
+		Write(switchStr);
+		for(SpiteIR::Label* label: toDecompile) DecompileLabel(label);
+		DecompileLabel(switchInst.switch_.defaultCase);
 	}
 
 	void DecompileAllocate(SpiteIR::Allocate& alloc)

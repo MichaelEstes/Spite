@@ -162,6 +162,9 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Branch:
 			InterpretBranch(inst, label);
 			break;
+		case SpiteIR::InstructionKind::Switch:
+			InterpretSwitch(inst, label);
+			break;
 		case SpiteIR::InstructionKind::ExternCall:
 			InterpretExternCall(inst);
 			break;
@@ -200,8 +203,6 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::Cast:
 			InterpretCast(inst);
-			break;
-		case SpiteIR::InstructionKind::Switch:
 			break;
 		case SpiteIR::InstructionKind::BinOp:
 			InterpretBinaryOp(inst);
@@ -245,6 +246,15 @@ struct Interpreter
 			label = branchInst.branch.true_;
 		else
 			label = branchInst.branch.false_;
+	}
+
+	inline void InterpretSwitch(SpiteIR::Instruction& switchInst, SpiteIR::Label*& label)
+	{
+		intmax_t switchValue = *(intmax_t*)(void*)(stackFrameStart + switchInst.switch_.test.reg);
+		if (MapHas(*switchInst.switch_.cases, switchValue))
+			label = switchInst.switch_.cases->at(switchValue);
+		else
+			label = switchInst.switch_.defaultCase;
 	}
 
 	inline void InterpretLoad(SpiteIR::Instruction& loadInst)

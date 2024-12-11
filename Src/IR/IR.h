@@ -296,7 +296,8 @@ namespace SpiteIR
 	struct Switch
 	{
 		Operand test;
-		HashMap<int, Block*>* cases;
+		HashMap<intmax_t, Label*>* cases;
+		Label* defaultCase;
 	};
 
 	struct BinaryOp
@@ -632,12 +633,18 @@ namespace SpiteIR
 		template<typename T>
 		inline Array<T>* AllocateArray()
 		{
-			return arena.Emplace<Array<T>>();
+			return arena.EmplaceScalar<Array<T>>();
+		}
+
+		template<typename Key, typename Value>
+		inline HashMap<Key, Value>* AllocateHashMap()
+		{
+			return arena.EmplaceScalar<HashMap<Key, Value>>();
 		}
 
 		inline string* AllocateString()
 		{
-			return arena.Emplace<string>();
+			return arena.EmplaceScalar<string>();
 		}
 	};
 }

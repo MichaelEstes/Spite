@@ -61,6 +61,7 @@ struct FunctionContext
 	size_t blockCount = 0;
 	size_t anonFuncCount = 0;
 	size_t deferCount = 0;
+	size_t switchCaseCount = 0;
 	Stmnt* currStmnt;
 	Expr* currExpr;
 	Flags<64> flags;
@@ -102,6 +103,7 @@ struct FunctionContext
 		blockCount = 0;
 		anonFuncCount = 0;
 		deferCount = 0;
+		switchCaseCount = 0;
 		flags.ClearAll();
 	}
 };
@@ -679,6 +681,7 @@ struct LowerDefinitions
 			BuildWhileStmnt(stmnt);
 			break;
 		case SwitchStmnt:
+			BuildSwitchStmnt(stmnt);
 			break;
 		case DeleteStmnt:
 			BuildDelete(stmnt);
@@ -1049,6 +1052,85 @@ struct LowerDefinitions
 
 		funcContext.breakLabels.pop_back();
 		funcContext.continueLabels.pop_back();
+	}
+
+	void BuildSwitchStmnt(Stmnt* stmnt)
+	{
+		auto& switch_ = stmnt->switchStmnt;
+		Expr* switchCond = switch_.switchOn;
+		eastl::vector<Stmnt*>* cases = switch_.cases;
+		Body& defaultCase = switch_.defaultCase;
+
+		ScopeValue test = HandleAutoCast(BuildExpr(switchCond, stmnt), castInt);
+		SpiteIR::Label* fromLabel = GetCurrentLabel();
+
+		eastl::vector<SpiteIR::Label*> caseLabels = eastl::vector<SpiteIR::Label*>();
+
+		size_t caseCount = cases->size();
+		for (size_t i = 0; i < caseCount; i++)
+		{
+			eastl::string caseName = "case_" + eastl::to_string(i) + "_" + 
+				eastl::to_string(funcContext.switchCaseCount);
+			caseLabels.push_back(BuildLabel(caseName));
+		}
+
+		eastl::string defaultCaseName = "default_case" + eastl::to_string(funcContext.switchCaseCount);
+		caseLabels.push_back(BuildLabel(defaultCaseName));
+
+		SpiteIR::Label* switchEndLabel = BuildLabel("switch_end" + eastl::to_string(funcContext.switchCaseCount));
+
+		funcContext.switchCaseCount += 1;
+
+		eastl::hash_map<intmax_t, SpiteIR::Label*>* caseMap = context.ir->AllocateHashMap<intmax_t, SpiteIR::Label*>();
+
+		funcContext.breakLabels.push_back(switchEndLabel);
+
+		ScopeUtils& scopeUtils = GetScopeUtils();
+
+		for (size_t i = 0; i < caseCount; i++)
+		{
+			Stmnt* caseCond = cases->at(i);
+			SpiteIR::Label* caseLabel = caseLabels.at(i);
+			SpiteIR::Label* nextLabel = caseLabels.at(i + 1);
+			
+			funcContext.continueLabels.push_back(nextLabel);
+
+			auto& conditional = caseCond->conditional;
+			Expr* caseExpr = ExpandTemplate(conditional.condition);
+			Assert(scopeUtils.IsConstantIntExpr(caseExpr));
+
+			intmax_t caseValue = scopeUtils.EvaluateConstantIntExpr(caseExpr);
+			caseMap->emplace(caseValue, caseLabel);
+			AddLabel(caseLabel);
+			BuildBody(conditional.body);
+
+			SpiteIR::Label* currLabel = GetCurrentLabel();
+			if (!currLabel->terminator)
+			{
+				BuildJump(currLabel, switchEndLabel);
+			}
+
+			funcContext.continueLabels.pop_back();
+		}
+
+		SpiteIR::Label* defaultLabel = caseLabels.back();
+
+		if (defaultCase)
+		{
+			funcContext.continueLabels.push_back(switchEndLabel);
+			AddLabel(defaultLabel);
+			BuildBody(defaultCase);
+		}
+
+		SpiteIR::Label* currLabel = GetCurrentLabel();
+		if (!currLabel->terminator)
+		{
+			BuildJump(currLabel, switchEndLabel);
+		}
+
+		AddLabel(switchEndLabel);
+		SpiteIR::Instruction* switchInst = BuildSwitch(fromLabel, BuildRegisterOperand(test), caseMap,
+			defaultLabel);
 	}
 
 	SpiteIR::Function* GetDeleteOperator(SpiteIR::Type* type)
@@ -3440,6 +3522,18 @@ struct LowerDefinitions
 		return callPtr;
 	}
 
+	SpiteIR::Instruction* BuildSwitch(SpiteIR::Label* label, const SpiteIR::Operand& test,
+		eastl::hash_map<intmax_t, SpiteIR::Label*>* cases, SpiteIR::Label* defaultCase)
+	{
+		Assert(!label->terminator);
+		SpiteIR::Instruction* switch_ = CreateTerminator(label);
+		switch_->kind = SpiteIR::InstructionKind::Switch;
+		switch_->switch_.test = test;
+		switch_->switch_.cases = cases;
+		switch_->switch_.defaultCase = defaultCase;
+		return switch_;
+	}
+
 	SpiteIR::Instruction* BuildJump(SpiteIR::Label* label, SpiteIR::Label* to = nullptr)
 	{
 		Assert(!label->terminator);
@@ -3452,10 +3546,7 @@ struct LowerDefinitions
 	SpiteIR::Instruction* BuildBranch(SpiteIR::Label* label, const SpiteIR::Operand& test,
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
-		if (label->terminator)
-		{
-			Assert(!label->terminator);
-		}
+		Assert(!label->terminator);
 		SpiteIR::Instruction* branch = CreateTerminator(label);
 		branch->kind = SpiteIR::InstructionKind::Branch;
 		branch->branch.test = test;
