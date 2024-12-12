@@ -3195,6 +3195,7 @@ struct LowerDefinitions
 			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 		}
 
+		// Assign default parameters
 		if (params->size() < irFunction->arguments.size())
 		{
 			ASTContainer funcContainer = context.functionASTMap[irFunction];
