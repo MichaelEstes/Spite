@@ -210,6 +210,9 @@ struct Interpreter
 		case SpiteIR::InstructionKind::UnOp:
 			InterpretUnaryOp(inst);
 			break;
+		case SpiteIR::InstructionKind::Assert:
+			InterpretAssert(inst);
+			break;
 		case SpiteIR::InstructionKind::Log:
 			InterpretLog(inst);
 			break;
@@ -603,7 +606,6 @@ struct Interpreter
 		}
 
 		CallExternalFunction(func, paramPtrs, stackFrameStart + dst);
-
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)
@@ -875,6 +877,24 @@ struct Interpreter
 				break;
 		default:
 			break;
+		}
+	}
+
+	inline void InterpretAssert(SpiteIR::Instruction& assertInst)
+	{
+		bool test = *(bool*)(void*)(stackFrameStart + assertInst.assert.test.reg);
+		if (!test)
+		{
+			eastl::string posString = assertInst.metadata->expressionPosition.ToString();
+			if (assertInst.assert.message.kind == SpiteIR::OperandKind::Register)
+			{
+				void* stackValue = (stackFrameStart + assertInst.assert.message.reg);
+				eastl::string errMsg = LogValue(stackValue, assertInst.assert.message.type) + " : " +
+					posString;
+				Logger::FatalAssert(errMsg);
+			}
+
+			Logger::FatalAssert(posString);
 		}
 	}
 

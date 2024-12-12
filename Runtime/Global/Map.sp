@@ -172,8 +172,8 @@ MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, sta
 										insertKeys: []Key, insertValues: []Value, insertStatus: []byte)
 {
 	//Implment assert
-	//assert keys.count == values.count && values.count == status.count;
-	//assert insertKeys.count == insertValues.count;
+	assert keys.count == values.count && values.count == status.count;
+	assert insertKeys.count == insertValues.count;
 
 	for (i .. insertStatus.count)
 	{

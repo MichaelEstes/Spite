@@ -870,10 +870,24 @@ struct Syntax
 		Advance();
 
 		Expr* expr = ParseExpr();
+
 		if (expr->typeID != ExprID::InvalidExpr)
 		{
-			if (Expect(UniqueType::Semicolon)) Advance();
+
 			node->assertStmnt.expr = expr;
+			if (Expect(UniqueType::Comma))
+			{
+				Advance();
+				Expr* messageExpr = ParseExpr();
+				if (expr->typeID == ExprID::InvalidExpr)
+					AddError(node->start, "Syntax:ParseAssertStmnt Invalid expression for assert message");
+				node->assertStmnt.message = messageExpr;
+			}
+			else
+			{
+				node->assertStmnt.message = nullptr;
+			}
+			if (Expect(UniqueType::Semicolon)) Advance();
 			node->end = curr;
 			return node;
 		}

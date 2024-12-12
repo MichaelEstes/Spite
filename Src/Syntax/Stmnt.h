@@ -303,6 +303,7 @@ struct Stmnt
 		struct
 		{
 			Expr* expr;
+			Expr* message;
 		} assertStmnt;
 	};
 

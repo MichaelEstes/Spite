@@ -709,6 +709,9 @@ struct LowerDefinitions
 		case Block:
 			BuildBlock(stmnt);
 			break;
+		case AssertStmnt:
+			BuildAssertStmnt(stmnt);
+			break;
 		case LogStmnt:
 		{
 			eastl::vector<SpiteIR::Operand>* toLog = context.ir->AllocateArray<SpiteIR::Operand>();
@@ -1286,6 +1289,23 @@ struct LowerDefinitions
 			toBlockEnd->jump.label = blockEndLabel;
 		}
 	}
+
+	void BuildAssertStmnt(Stmnt* stmnt)
+	{
+		ScopeValue assertValue = HandleAutoCast(BuildExpr(stmnt->assertStmnt.expr, stmnt), castBool);
+		SpiteIR::Operand message;
+		if (stmnt->assertStmnt.message)
+		{
+			message = BuildRegisterOperand(BuildExpr(stmnt->assertStmnt.message, stmnt));
+		}
+		else
+		{
+			message.kind = SpiteIR::OperandKind::Void;
+		}
+
+		BuildAssert(GetCurrentLabel(), BuildRegisterOperand(assertValue), message);
+	}
+
 
 	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
 	{
@@ -3164,6 +3184,7 @@ struct LowerDefinitions
 			ret = { ref.reg, ref.type };
 		}
 
+		
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
 		size_t argOffset = params->size();
 		for (size_t i = 0; i < exprParams->size(); i++)
@@ -3172,6 +3193,32 @@ struct LowerDefinitions
 			ScopeValue value = BuildExpr(param, stmnt);
 			SpiteIR::Type* argType = irFunction->arguments.at(argOffset + i)->value->type;
 			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
+		}
+
+		if (params->size() < irFunction->arguments.size())
+		{
+			ASTContainer funcContainer = context.functionASTMap[irFunction];
+			Stmnt* funcStmnt = funcContainer.node;
+			eastl::vector<Stmnt*>* funcStmntParams = GetFunctionParams(funcStmnt);
+
+			eastl::vector<Expr*>* prevTemplates = currTemplates;
+			eastl::vector<Token*> prevGenerics = currGenerics;
+
+			currTemplates = funcContainer.templates;
+			SetCurrentGenerics(funcStmnt);
+
+			for (size_t i = params->size(); i < irFunction->arguments.size(); i++)
+			{
+				Stmnt* stmntParam = funcStmntParams->at(i);
+				Assert(stmntParam->definition.assignment);
+
+				SpiteIR::Type* argType = irFunction->arguments.at(i)->value->type;
+				ScopeValue value = BuildExpr(stmntParam->definition.assignment, stmnt);
+				params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
+			}
+
+			currTemplates = prevTemplates;
+			currGenerics = prevGenerics;
 		}
 
 		SpiteIR::Label* label = GetCurrentLabel();
@@ -3563,6 +3610,16 @@ struct LowerDefinitions
 		ret->kind = SpiteIR::InstructionKind::Return;
 		ret->return_.operand = operand;
 		return ret;
+	}
+
+	SpiteIR::Instruction* BuildAssert(SpiteIR::Label* label, const SpiteIR::Operand& test, 
+		const SpiteIR::Operand& message)
+	{
+		SpiteIR::Instruction* assert = CreateInstruction(label);
+		assert->kind = SpiteIR::InstructionKind::Assert;
+		assert->assert.test = test;
+		assert->assert.message = message;
+		return assert;
 	}
 
 	SpiteIR::Instruction* BuildLog(SpiteIR::Label* label, eastl::vector<SpiteIR::Operand>* operands)

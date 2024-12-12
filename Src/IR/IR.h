@@ -141,7 +141,6 @@ namespace SpiteIR
 		Call,
 		CallPtr,
 		ExternCall,
-		TailCall,
 		Load,
 		LoadPtrOffset,
 		LoadGlobal,
@@ -155,7 +154,8 @@ namespace SpiteIR
 		Switch,
 		BinOp,
 		UnOp,
-		Log
+		Log,
+		Assert
 	};
 
 	enum class CompareKind
@@ -320,6 +320,12 @@ namespace SpiteIR
 		Array<Operand>* operands;
 	};
 
+	struct Assert
+	{
+		Operand test;
+		Operand message;
+	};
+
 	struct InstructionMetadata
 	{
 		Position statementPosition;
@@ -347,6 +353,7 @@ namespace SpiteIR
 			BinaryOp binOp;
 			UnaryOp unOp;
 			Log log;
+			Assert assert;
 		};
 	};
 

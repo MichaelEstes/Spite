@@ -57,6 +57,12 @@ public:
 		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n';
 	}
 
+	static void FatalAssert(const eastl::string& msg, int errorCode = 1)
+	{
+		std::cout << "Assert failed: " << msg << '\n';
+		std::exit(errorCode);
+	}
+
 	static void FatalError(const eastl::string& msg, int errorCode = 1)
 	{
 		std::cout << "ERROR: " << msg << '\n';
