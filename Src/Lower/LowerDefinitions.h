@@ -2829,6 +2829,48 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	ScopeValue BuildStateDefaultValue(SpiteIR::State* state)
+	{
+		SpiteIR::Type* type = context.ir->AllocateType();
+		type->kind = SpiteIR::TypeKind::StateType;
+		type->size = state->size;
+		type->stateType.state = state;
+
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Allocate alloc = BuildAllocate(type);
+		BuildDefaultValue(type, alloc.result, label);
+		return BuildTypeReference(label, { alloc.result, alloc.type });
+	}
+
+	ScopeValue FindAndCallStateConstructor(SpiteIR::State* state, eastl::vector<Expr*>* params,
+		Stmnt* stmnt, ScopeValue* thisValue = nullptr)
+	{
+		eastl::vector<ScopeValue> paramValues = eastl::vector<ScopeValue>();
+		
+		ScopeValue retValue;
+		if (thisValue) retValue = *thisValue;
+		else retValue = BuildStateDefaultValue(state);
+		paramValues.push_back(retValue);
+
+		for (Expr* param : *params)
+		{
+			paramValues.push_back(BuildExpr(param, stmnt));
+		}
+
+		SpiteIR::Function* conFunc = FindStateConstructor(state, &paramValues);
+
+		eastl::vector<SpiteIR::Operand>* paramOps = context.ir->AllocateArray<SpiteIR::Operand>();
+		paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
+		for (size_t i = 1; i < conFunc->arguments.size(); i++)
+		{
+			SpiteIR::Type* argType = conFunc->arguments.at(i)->value->type;
+			paramOps->push_back(BuildRegisterOperand(HandleAutoCast(paramValues.at(i), argType)));
+		}
+
+		BuildCall(conFunc, funcContext.curr, paramOps, GetCurrentLabel());
+		return retValue;
+	}
+
 	SpiteIR::Function* FindStateConstructor(SpiteIR::State* state, eastl::vector<ScopeValue>* params)
 	{
 		eastl::vector<SpiteIR::Function*>& stateConstructors = state->constructors;
@@ -3002,8 +3044,13 @@ struct LowerDefinitions
 		Expr* primExpr = expr->functionCallExpr.function;
 		Assert(primExpr->typeID == ExprID::PrimitiveExpr);
 		eastl::vector<Expr*>* params = expr->functionCallExpr.params;
-
 		SpiteIR::Type* primType = ToIRType(symbolTable->CreatePrimitive(primExpr->primitiveExpr.primitive->uniqueType));
+
+		return CreatePrimitiveForParams(primType, params, stmnt);
+	}
+
+	ScopeValue CreatePrimitiveForParams(SpiteIR::Type* primType, eastl::vector<Expr*>* params, Stmnt* stmnt)
+	{
 		SpiteIR::Allocate alloc = BuildAllocate(primType);
 
 		if (!params->size())
@@ -3015,25 +3062,7 @@ struct LowerDefinitions
 		{
 			ScopeValue defaultStr = BuildDefaultValue(primType, alloc.result, GetCurrentLabel());
 			SpiteIR::State* stringState = GetStateForType(primType);
-			eastl::vector<ScopeValue> paramValues = eastl::vector<ScopeValue>();
-			paramValues.push_back(defaultStr);
-			for (Expr* param : *params)
-			{
-				paramValues.push_back(BuildExpr(param, stmnt));
-			}
-
-			SpiteIR::Function* strCon = FindStateConstructor(stringState, &paramValues);
-
-			eastl::vector<SpiteIR::Operand>* paramOps = context.ir->AllocateArray<SpiteIR::Operand>();
-			paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
-			for (size_t i = 1; i < strCon->arguments.size(); i++)
-			{
-				SpiteIR::Type* argType = strCon->arguments.at(i)->value->type;
-				paramOps->push_back(BuildRegisterOperand(HandleAutoCast(paramValues.at(i),argType)));
-			}
-
-			BuildCall(strCon, funcContext.curr, paramOps, GetCurrentLabel());
-			return defaultStr;
+			return FindAndCallStateConstructor(stringState, params, stmnt, &defaultStr);
 		}
 
 		Expr* param = params->at(0);
@@ -3150,8 +3179,16 @@ struct LowerDefinitions
 		case FunctionTypeCall:
 			return BuildFunctionTypeCall(expr, stmnt);
 		case UnresolvedGenericCall:
-			irFunction = ResolveGenericFunctionCall(expr, stmnt);
-			break;
+		{
+			ScopeValue resolvedValue = ResolveGenericFunctionCall(expr, stmnt);
+			if (resolvedValue.reg == FunctionRegister)
+			{
+				irFunction = resolvedValue.function;
+				break;
+			}
+
+			return resolvedValue;
+		}
 		case ExternalCall:
 			irFunction = FindExternalFunctionForFunctionCall(expr);
 			break;
@@ -3168,22 +3205,10 @@ struct LowerDefinitions
 			Assert(stateValue.reg == StateRegister);
 
 			SpiteIR::State* irState = stateValue.state;
-			SpiteIR::Type* type = context.ir->AllocateType();
-			type->kind = SpiteIR::TypeKind::StateType;
-			type->size = irState->size;
-			type->stateType.state = irState;
-
-			SpiteIR::Label* label = GetCurrentLabel();
-			SpiteIR::Allocate alloc = BuildAllocate(type);
-			if (irFunction != irState->defaultConstructor)
-			{
-				BuildDefaultValue(type, alloc.result, label);
-			}
-			SpiteIR::Operand ref = BuildRegisterOperand(BuildTypeReference(label, { alloc.result, alloc.type }));
+			SpiteIR::Operand ref = BuildRegisterOperand(BuildStateDefaultValue(irState));
 			params->push_back(ref);
 			ret = { ref.reg, ref.type };
 		}
-
 		
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
 		size_t argOffset = params->size();
@@ -3392,9 +3417,27 @@ struct LowerDefinitions
 		return FindFunction(packageName, functionName);
 	}
 
-	SpiteIR::Function* ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt)
+	ScopeValue ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
-		Expr* caller = expr->functionCallExpr.function;
+		Expr* caller = ExpandTemplate(expr->functionCallExpr.function);
+
+		if (caller->typeID == ExprID::TypeExpr)
+		{
+			eastl::vector<Expr*>* params = expr->functionCallExpr.params;
+			SpiteIR::Type* type = ToIRType(caller->typeExpr.type);
+			if (type->kind == SpiteIR::TypeKind::PrimitiveType)
+			{
+				return CreatePrimitiveForParams(type, params, stmnt);
+			}
+			else
+			{
+				SpiteIR::State* state = GetStateForType(type);
+				if (state)
+				{
+					return FindAndCallStateConstructor(state, params, stmnt);
+				}
+			}
+		}
 
 		funcContext.SetFlag(FunctionContextFlag::ReturnFunctionScopeValue);
 		ScopeValue value = BuildExpr(caller, stmnt);
@@ -3402,11 +3445,11 @@ struct LowerDefinitions
 
 		if (value.reg == FunctionRegister)
 		{
-			return value.function;
+			return value;
 		}
 
 
-		return nullptr;
+		return InvalidScopeValue;
 	}
 
 	SpiteIR::Operand AllocateToOperand(SpiteIR::Allocate& alloc)

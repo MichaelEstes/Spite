@@ -171,11 +171,11 @@ int main(int argc, char** argv)
 	}
 
 	Profiler interpretProfiler = Profiler();
-	Decompiler decompiler = Decompiler();
+	/*Decompiler decompiler = Decompiler();
 	decompiler.Decompile(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 
-	interpretProfiler.Reset();
+	interpretProfiler.Reset();*/
 	int64_t value = *(int64_t*)interpreter.Interpret(ir);
 	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
