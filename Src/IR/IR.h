@@ -177,7 +177,8 @@ namespace SpiteIR
 		ReferenceType,
 		DynamicArrayType,
 		FixedArrayType,
-		FunctionType
+		FunctionType,
+		UnionType
 	};
 
 	struct Label

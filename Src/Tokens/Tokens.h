@@ -135,7 +135,7 @@ static TokenTree tokenTypeLookup = {
 	{ ";", TokenType::Seperator, UniqueType::Semicolon },
 	{ ":", TokenType::Seperator, UniqueType::Colon },
 	{ "::", TokenType::Seperator, UniqueType::DoubleColon },
-	{ "?", TokenType::Seperator, UniqueType::Ternary },
+	{ "?", TokenType::Seperator, UniqueType::QuestionMark },
 };
 
 struct Tokens

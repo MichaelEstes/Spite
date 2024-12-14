@@ -22,6 +22,7 @@ enum TypeID
 	TemplatedType,
 	FunctionType,
 	ImportedType,
+	UnionType,
 	AnyType,
 
 	// Type container for use inferring anonymous type expressions in non assignment cases
@@ -50,6 +51,11 @@ struct Type
 		{
 			eastl::vector<Stmnt*>* declarations;
 		} explicitType;
+
+		struct
+		{
+			eastl::vector<Stmnt*>* declarations;
+		} unionType;
 
 		struct
 		{

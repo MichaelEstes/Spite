@@ -1311,57 +1311,87 @@ struct LowerDefinitions
 	{
 		funcContext.currExpr = expr;
 		expr = ExpandTemplate(expr);
+
+		ScopeValue ret;
 		switch (expr->typeID)
 		{
 		case LiteralExpr:
-			return BuildLiteral(expr);
+			ret = BuildLiteral(expr);
+			break;
 		case IdentifierExpr:
-			return FindValueForIndent(expr);
+			ret = FindValueForIndent(expr);
+			break;
 		case PrimitiveExpr:
-			return BuildPrimitive(expr);
+			ret = BuildPrimitive(expr);
+			break;
 		case SelectorExpr:
-			return BuildSelector(expr, stmnt);
+			ret = BuildSelector(expr, stmnt);
+			break;
 		case IndexExpr:
-			return BuildIndexExpr(expr, stmnt);
+			ret = BuildIndexExpr(expr, stmnt);
+			break;
 		case FunctionCallExpr:
-			return BuildFunctionCall(expr, stmnt);
+			ret = BuildFunctionCall(expr, stmnt);
+			break;
 		case NewExpr:
-			return BuildNewExpr(expr, stmnt);
+			ret = BuildNewExpr(expr, stmnt);
+			break;
 		case FixedExpr:
-			return BuildFixedExpr(expr, stmnt);
+			ret = BuildFixedExpr(expr, stmnt);
+			break;
 		case TypeLiteralExpr:
-			return BuildTypeLiteral(expr, stmnt);
+			ret = BuildTypeLiteral(expr, stmnt);
+			break;
 		case ExplicitTypeExpr:
-			return BuildExplicitTypeExpr(expr, stmnt);
+			ret = BuildExplicitTypeExpr(expr, stmnt);
+			break;
 		case AsExpr:
-			return BuildCastExpr(expr, stmnt);
+			ret = BuildCastExpr(expr, stmnt);
+			break;
 		case DereferenceExpr:
-			return BuildDereferenceExpr(expr, stmnt);
+			ret = BuildDereferenceExpr(expr, stmnt);
+			break;
 		case ReferenceExpr:
-			return BuildReferenceExpr(expr, stmnt);
+			ret = BuildReferenceExpr(expr, stmnt);
+			break;
 		case BinaryExpr:
-			return BuildBinaryExpression(expr, stmnt);
+			ret = BuildBinaryExpression(expr, stmnt);
+			break;
 		case UnaryExpr:
-			return BuildUnaryExpression(expr, stmnt);
+			ret = BuildUnaryExpression(expr, stmnt);
+			break;
 		case GroupedExpr:
-			return BuildExpr(expr->groupedExpr.expr, stmnt);
+			ret = BuildExpr(expr->groupedExpr.expr, stmnt);
+			break;
 		case TemplateExpr:
-			return BuildTemplateExpr(expr, stmnt);
+			ret = BuildTemplateExpr(expr, stmnt);
+			break;
 		case TypeExpr:
-			return BuildTypeExpr(expr, stmnt);
+			ret = BuildTypeExpr(expr, stmnt);
+			break;
 		case FunctionTypeDeclExpr:
-			return BuildAnonFunction(expr, stmnt);
+			ret = BuildAnonFunction(expr, stmnt);
+			break;
 		case CompileExpr:
-			return BuildCompileExpr(expr, stmnt);
+			ret = BuildCompileExpr(expr, stmnt);
+			break;
 		case SizeOfExpr:
-			return BuildSizeOf(expr, stmnt);
+			ret = BuildSizeOf(expr, stmnt);
+			break;
 		case AlignOfExpr:
-			return BuildAlignOf(expr, stmnt);
+			ret = BuildAlignOf(expr, stmnt);
+			break;
 		default:
+			ret = InvalidScopeValue;
 			break;
 		}
 
-		return InvalidScopeValue;
+		if (ret.reg == InvalidRegister)
+		{
+			Logger::FatalErrorAt("LowerDefinitions:BuildExpr Unable to create valid value for expression", expr->start->pos);
+		}
+
+		return ret;
 	}
 
 	ScopeValue FindGlobalVar(SpiteIR::Package* package, Stmnt* globalVarStmnt)
@@ -3447,7 +3477,6 @@ struct LowerDefinitions
 		{
 			return value;
 		}
-
 
 		return InvalidScopeValue;
 	}

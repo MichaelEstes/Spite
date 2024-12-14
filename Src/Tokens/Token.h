@@ -164,7 +164,7 @@ enum UniqueType
 	Semicolon,
 	Colon,
 	DoubleColon,
-	Ternary,
+	QuestionMark,
 };
 
 struct Token

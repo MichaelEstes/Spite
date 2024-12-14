@@ -1572,12 +1572,6 @@ struct Syntax
 
 		if (Expect(UniqueType::Rbrace, "Missing closure for inline type '}'"))
 		{
-			if (decls->size() == 1)
-			{
-				AddError(curr, "Inline types with only one parameter are not allowed");
-				type->typeID = TypeID::InvalidType;
-				return type;
-			}
 			Advance();
 			return type;
 		}
@@ -1624,6 +1618,23 @@ struct Syntax
 
 		type->typeID = TypeID::InvalidType;
 		return type;
+	}
+
+	Type* ParseUnionType()
+	{
+		Advance();
+
+		if (Expect(UniqueType::Lbrace, "Syntax:ParseUnionType Expected inline type declaration opening for union type ('{')"));
+		{
+			Advance();
+			Type* type = ParseExplicitType();
+			if (type->typeID == TypeID::InvalidType) return type;
+			
+			type->typeID = TypeID::UnionType;
+			return type;
+		}
+
+		return CreateTypePtr(TypeID::InvalidType);
 	}
 
 	Type* ParseAnyType()
