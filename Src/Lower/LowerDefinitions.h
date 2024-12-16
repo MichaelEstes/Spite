@@ -727,7 +727,15 @@ struct LowerDefinitions
 	ScopeValue BuildVarDefinition(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
-		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt), ToIRType(def.type), true);
+		SpiteIR::Type* defType = ToIRType(def.type);
+		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt), defType, true);
+		if (defType->kind == SpiteIR::TypeKind::UnionType)
+		{
+			SpiteIR::Allocate alloc = BuildAllocate(defType);
+			ScopeValue dst = { alloc.result, alloc.type };
+			AssignValues(dst, value);
+			value = dst;
+		}
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType && value.type->reference.type->byValue)
 		{
 			value = BuildTypeDereference(GetCurrentLabel(), value);
@@ -1552,6 +1560,25 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	SpiteIR::Type* FindTypeForUnionMember(SpiteIR::Type* type, StringView& ident)
+	{
+		Assert(type->structureType.names);
+
+		size_t offset = 0;
+		eastl::vector<eastl::string>* names = type->structureType.names;
+		for (size_t i = 0; i < names->size(); i++)
+		{
+			eastl::string& name = names->at(i);
+			SpiteIR::Type* memberType = type->structureType.types->at(i);
+			if (name == ident)
+			{
+				return memberType;
+			}
+		}
+
+		return nullptr;
+	}
+
 	SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 	{
 		if (type->kind == SpiteIR::TypeKind::ReferenceType)
@@ -1716,6 +1743,13 @@ struct LowerDefinitions
 			Assert(offsetAndType.type);
 			return { value.reg + offsetAndType.reg, offsetAndType.type };
 		}
+		else if (value.type->kind == SpiteIR::TypeKind::UnionType)
+		{
+			SpiteIR::Type* unionType = FindTypeForUnionMember(value.type, ident);
+			BuildCast(GetCurrentLabel(), BuildRegisterOperand(value), 
+				BuildRegisterOperand({ value.reg, unionType }));
+			return { value.reg, unionType };
+		}
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
 			value.type->kind == SpiteIR::TypeKind::ReferenceType)
 		{
@@ -1726,6 +1760,12 @@ struct LowerDefinitions
 			{
 				offsetAndType = FindStructureTypeMember(derefed, ident);
 				Assert(offsetAndType.type);
+			}
+			else if (derefed->kind == SpiteIR::TypeKind::UnionType)
+			{
+				SpiteIR::Type* unionRefType = MakeReferenceType(FindTypeForUnionMember(derefed, ident), context.ir);
+				BuildCast(GetCurrentLabel(), BuildRegisterOperand(value), BuildRegisterOperand({ value.reg, unionRefType }));
+				return { value.reg, unionRefType };
 			}
 			else
 			{

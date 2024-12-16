@@ -1007,6 +1007,23 @@ struct Interpreter
 			out += "}";
 			return out;
 		}
+		case SpiteIR::TypeKind::UnionType:
+		{
+			eastl::string out = "union: ";
+
+			SpiteIR::Type byteType = SpiteIR::Type();
+			byteType.kind = SpiteIR::TypeKind::PrimitiveType;
+			byteType.primitive.kind = SpiteIR::PrimitiveKind::Byte;
+			byteType.size = 1;
+
+			SpiteIR::Type unionAsArr = SpiteIR::Type();
+			unionAsArr.kind = SpiteIR::TypeKind::FixedArrayType;
+			unionAsArr.fixedArray.count = type->size;
+			unionAsArr.fixedArray.type = &byteType;
+
+			out += LogValue(start, &unionAsArr);
+			return out;
+		}
 		case SpiteIR::TypeKind::StructureType:
 		{
 			eastl::string out = "{";
@@ -1021,7 +1038,8 @@ struct Interpreter
 			out.back() = ' ';
 			out += "}";
 			return out;
-		}		case SpiteIR::TypeKind::PointerType:
+		}		
+		case SpiteIR::TypeKind::PointerType:
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;

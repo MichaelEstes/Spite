@@ -1495,6 +1495,10 @@ struct Syntax
 				type = ParseFunctionType();
 				break;
 
+			case UniqueType::QuestionMark:
+				type = ParseUnionType();
+				break;
+
 			case UniqueType::Any:
 				type = ParseAnyType();
 				break;

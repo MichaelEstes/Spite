@@ -465,6 +465,16 @@ eastl::string BuildTypeString(Type* type)
 		}
 		return explTypeStr;
 	}
+	case UnionType:
+	{
+		eastl::string unionTypeStr = "union_";
+		for (Stmnt* stmnt : *type->unionType.declarations)
+		{
+			unionTypeStr += BuildTypeString(stmnt->definition.type) + '_'
+				+ stmnt->definition.name->val.ToString() + '_';
+		}
+		return unionTypeStr;
+	}
 	case PointerType:
 		return "ptr_" + BuildTypeString(type->pointerType.type);
 	case ValueType:
@@ -867,6 +877,24 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			auto& def = stmnt->definition;
 			SpiteIR::Type* member = TypeToIRType(ir, def.type, lower, generics, templates);
 			irType->size += member->size;
+			irType->structureType.types->push_back(member);
+			irType->structureType.names->push_back(def.name->val.ToString());
+		}
+		return irType;
+	}
+	case UnionType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::UnionType;
+		irType->size = 0;
+		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
+		irType->structureType.names = ir->AllocateArray<eastl::string>();
+		for (size_t i = 0; i < type->unionType.declarations->size(); i++)
+		{
+			Stmnt* stmnt = type->unionType.declarations->at(i);
+			auto& def = stmnt->definition;
+			SpiteIR::Type* member = TypeToIRType(ir, def.type, lower, generics, templates);
+			if(member->size > irType->size) irType->size = member->size;
 			irType->structureType.types->push_back(member);
 			irType->structureType.names->push_back(def.name->val.ToString());
 		}

@@ -325,6 +325,20 @@ struct TypeInferer
 			expanded->explicitType.declarations = decls;
 			break;
 		}
+		case UnionType:
+		{
+			eastl::vector<Stmnt*>* decls = symbolTable->CreateVectorPtr<Stmnt>();
+			for (Stmnt* decl : *expanded->unionType.declarations)
+			{
+				Stmnt* clonedDecl = symbolTable->CreateStmnt(decl->start, decl->nodeID, decl->package, decl->scope);
+				*clonedDecl = *decl;
+				clonedDecl->definition.type = CreateTypeFromTemplates(clonedDecl->definition.type,
+					genericNames, templateArgs);
+				decls->push_back(clonedDecl);
+			}
+			expanded->unionType.declarations = decls;
+			break;
+		}
 		case PointerType:
 			expanded->pointerType.type = CreateTypeFromTemplates(expanded->pointerType.type,
 				genericNames, templateArgs);
@@ -418,11 +432,15 @@ struct TypeInferer
 		{
 			return GetImportedTypeForSelector(of, type);
 		}
-
-		if (type->typeID == TypeID::ExplicitType)
+		else if (type->typeID == TypeID::ExplicitType)
 		{
 			Stmnt* explicitMember = FindTypeMember(type->explicitType.declarations, name);
 			return explicitMember->definition.type;
+		}
+		else if (type->typeID == TypeID::UnionType)
+		{
+			Stmnt* unionMember = FindTypeMember(type->unionType.declarations, name);
+			return unionMember->definition.type;
 		}
 
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
@@ -764,9 +782,10 @@ struct TypeInferer
 		case ImportedType:
 		case NamedType:
 			return GetStateOperatorType(op, op->uniqueType, left, right);
+		case UnionType:
 		case ExplicitType:
 		case ImplicitType:
-			AddError(op, "Binary operators are not valid with explicit and implicit types");
+			AddError(op, "Binary operators are not valid with explicit, implicit or union types");
 			break;
 		case PointerType:
 		{
@@ -1086,6 +1105,16 @@ struct TypeInferer
 			{
 				return IsAssignable(left, enumStmnt->enumStmnt.type, stmntContext);
 			}
+		}
+
+		if (left->typeID == TypeID::UnionType)
+		{
+			for (Stmnt* decl : *left->unionType.declarations)
+			{
+				if (IsAssignable(decl->definition.type, right, stmntContext)) return true;
+			}
+
+			return false;
 		}
 
 		if (left->typeID == TypeID::PrimitiveType && right->typeID == TypeID::PrimitiveType)

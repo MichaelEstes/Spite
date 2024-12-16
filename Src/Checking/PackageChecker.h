@@ -474,6 +474,14 @@ struct PackageChecker
 			}
 			break;
 		}
+		case UnionType:
+		{
+			for (Stmnt* def : *type->unionType.declarations)
+			{
+				CheckDefinition(def, false);
+			}
+			break;
+		}
 		case PointerType:
 			CheckType(type->pointerType.type, start, templates, expandTemplates);
 			break;

@@ -115,6 +115,16 @@ bool operator==(const Type& left, const Type& right)
 		}
 		return true;
 	}
+	case UnionType:
+	{
+		if (left.unionType.declarations->size() != right.unionType.declarations->size()) return false;
+		for (int i = 0; i < left.unionType.declarations->size(); i++)
+		{
+			if (*left.unionType.declarations->at(i)->definition.type !=
+				*right.unionType.declarations->at(i)->definition.type) return false;
+		}
+		return true;
+	}
 	case ImplicitType:
 		// Implicit Types cannot be compared
 		return false;
@@ -290,6 +300,16 @@ inline size_t HashType(const Type* type)
 	{
 		size_t hash = 0;
 		for (Stmnt* node : *type->explicitType.declarations)
+		{
+			Type* defType = node->definition.type;
+			hash += HashType(defType);
+		}
+		return hash;
+	}
+	case UnionType:
+	{
+		size_t hash = 0;
+		for (Stmnt* node : *type->unionType.declarations)
 		{
 			Type* defType = node->definition.type;
 			hash += HashType(defType);
@@ -859,6 +879,17 @@ eastl::string ToString(Type* type)
 		}
 
 		return "{ " + types + "}";
+	}
+	case UnionType:
+	{
+		eastl::string types = "";
+
+		for (Stmnt* node : *type->unionType.declarations)
+		{
+			types += ToString(node) + ", ";
+		}
+
+		return "?{ " + types + "}";
 	}
 	case ImplicitType:
 	{
