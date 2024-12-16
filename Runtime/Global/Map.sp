@@ -6,8 +6,6 @@ Deleted := byte(2);
 
 InvalidIndex := -1 as uint
 
-DefaultMapSize := 12;
-
 int DefaultHash<Key>(key: Key)
 {
 	return key as int;
