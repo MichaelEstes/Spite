@@ -19,7 +19,7 @@ static TokenTree tokenTypeLookup = {
 	{ "import", TokenType::Keyword, UniqueType::Import },
 	{ "package", TokenType::Keyword, UniqueType::Package },
 	{ "state", TokenType::Keyword, UniqueType::State },
-	{ "global", TokenType::Keyword, UniqueType::Global },
+	{ "enum", TokenType::Keyword, UniqueType::Enum },
 	{ "extern", TokenType::Keyword, UniqueType::Extern },
 	{ "assert", TokenType::Keyword, UniqueType::AssertTok },
 	{ "log", TokenType::Keyword, UniqueType::LogTok },

@@ -98,14 +98,14 @@ struct Type
 
 		struct
 		{
-			eastl::vector<Type*>* types;
-		} anonType;
-
-		struct
-		{
 			Type* type;
 			intmax_t size;
 		} fixedArrayType;
+
+		struct
+		{
+			eastl::vector<Type*>* types;
+		} anonType;
 	};
 
 	Type()

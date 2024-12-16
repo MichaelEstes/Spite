@@ -42,6 +42,7 @@ struct TypeInferer
 			case FunctionStmnt:
 			case StateStmnt:
 			case ExternFunctionDecl:
+			case EnumStmnt:
 				return stmnt;
 			default:
 				return nullptr;
@@ -193,6 +194,13 @@ struct TypeInferer
 		case StmntID::FunctionStmnt:
 		case StmntID::ExternFunctionDecl:
 			return FunctionToFunctionType(stmnt);
+		case StmntID::EnumStmnt:
+		{
+			Type* type = symbolTable->CreateTypePtr(TypeID::ImportedType);
+			type->importedType.packageName = stmnt->package;
+			type->importedType.typeName = stmnt->enumStmnt.name;
+			return type;
+		}
 		case StmntID::StateStmnt:
 		{
 			Type* type = symbolTable->CreateTypePtr(TypeID::ImportedType);
@@ -223,6 +231,9 @@ struct TypeInferer
 			return stmnt->definition.type;
 		case FunctionStmnt:
 			return FunctionToFunctionType(stmnt);
+		case EnumStmnt:
+			type->importedType.typeName = stmnt->enumStmnt.name;
+			return type;
 		case StateStmnt:
 			type->importedType.typeName = stmnt->state.name;
 			return type;
@@ -417,6 +428,12 @@ struct TypeInferer
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
 		{
+			Stmnt* enumStmnt = globalTable->FindEnumForType(type, symbolTable);
+			if (enumStmnt && HasEnumMember(enumStmnt, name))
+			{
+				return enumStmnt->enumStmnt.type;
+			}
+
 			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
 			return nullptr;
 		}
@@ -1052,6 +1069,24 @@ struct TypeInferer
 
 		if (right->typeID == TypeID::ValueType)
 			return IsAssignable(left, right->valueType.type, stmntContext);
+
+		if (left->typeID == TypeID::NamedType || left->typeID == TypeID::ImportedType)
+		{
+			Stmnt* enumStmnt = globalTable->FindEnumForType(left, symbolTable);
+			if (enumStmnt)
+			{
+				return IsAssignable(enumStmnt->enumStmnt.type, right, stmntContext);
+			}
+		}
+
+		if (right->typeID == TypeID::NamedType || right->typeID == TypeID::ImportedType)
+		{
+			Stmnt* enumStmnt = globalTable->FindEnumForType(right, symbolTable);
+			if (enumStmnt)
+			{
+				return IsAssignable(left, enumStmnt->enumStmnt.type, stmntContext);
+			}
+		}
 
 		if (left->typeID == TypeID::PrimitiveType && right->typeID == TypeID::PrimitiveType)
 		{

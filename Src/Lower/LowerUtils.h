@@ -842,6 +842,12 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	}
 	case ImportedType:
 	{
+		Stmnt* enumStmnt = lower->context.globalTable->FindEnumForType(type, lower->symbolTable);
+		if (enumStmnt)
+		{
+			return TypeToIRType(ir, enumStmnt->enumStmnt.type, lower, generics, templates);
+		}
+
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StateType;
 		eastl::string typeName = BuildTypeString(type);

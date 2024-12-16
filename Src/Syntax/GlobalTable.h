@@ -182,6 +182,43 @@ struct GlobalTable
 		return runtimeTable->FindStateSymbol(stateName);;
 	}
 
+	Stmnt* FindEnumForType(Type* type, SymbolTable* symbolTable)
+	{
+		switch (type->typeID)
+		{
+		case NamedType:
+			return FindScopedEnum(type->namedType.typeName, symbolTable);
+		case ImportedType:
+		{
+			SymbolTable* symbolTable = FindSymbolTable(type->importedType.packageName->val);
+			if (!symbolTable) return nullptr;
+			return symbolTable->FindEnum(type->importedType.typeName->val);
+		}
+		default:
+			break;
+		}
+		return nullptr;
+	}
+
+	inline Stmnt* FindScopedEnum(Token* name, SymbolTable* symbolTable)
+	{
+		StringView& enumName = name->val;
+
+		Stmnt* enumStmnt = symbolTable->FindEnum(enumName);
+		if (enumStmnt) return enumStmnt;
+
+		for (Stmnt * import : symbolTable->imports)
+		{
+			StringView & package = import->importStmnt.packageName->val;
+			SymbolTable* symbolTable = FindSymbolTable(package);
+			if (!symbolTable) continue;
+			enumStmnt = symbolTable->FindEnum(enumName);
+			if (enumStmnt) return enumStmnt;
+		}
+
+		return runtimeTable->FindEnum(enumName);
+	}
+
 	inline Stmnt* FindScopedFunction(Token* name, SymbolTable* symbolTable)
 	{
 		StringView& functionName = name->val;
@@ -247,6 +284,7 @@ struct GlobalTable
 		Stmnt* found = FindScopedState(name, symbolTable);
 		if (!found) found = FindScopedFunction(name, symbolTable);
 		if (!found) found = FindScopedGlobalVar(name, symbolTable);
+		if (!found) found = FindScopedEnum(name, symbolTable);
 		if (!found) found = FindScopedExternFunc(name, symbolTable);
 		return found;
 	}

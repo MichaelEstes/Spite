@@ -71,10 +71,20 @@ struct TypeChecker
 
 			return CheckTypeGenerics(state, templates, type->importedType.typeName, error);
 		}
-		else if (!utils.IsGenericOfCurrentContext(type))
+		else
 		{
-			if (error)
-				AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
+			Stmnt* enumStmnt = context.globalTable->FindScopedEnum(name, context.symbolTable);
+			if (enumStmnt)
+			{
+				type->typeID = TypeID::ImportedType;
+				type->importedType.packageName = enumStmnt->package;
+				type->importedType.typeName = name;
+			}
+			else if (!utils.IsGenericOfCurrentContext(type))
+			{
+				if (error)
+					AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
+			}
 		}
 
 		return false;
@@ -242,7 +252,8 @@ struct TypeChecker
 	inline void CheckSwitchType(Stmnt* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
-		if (!IsInt(utils.InferType(switchStmnt.switchOn)))
+		Type* switchOnType = utils.InferType(switchStmnt.switchOn);
+		if (!IsInt(switchOnType) && !context.globalTable->FindEnumForType(switchOnType, context.symbolTable))
 		{
 			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
 		}

@@ -50,7 +50,7 @@ enum UniqueType
 	SizeOfTok,
 	AlignOfTok,
 	Extern,
-	Global,
+	Enum,
 	Where,
 	OnCompile,
 	OnCompileDebug,

@@ -43,7 +43,6 @@ struct ScopeUtils
 		case LiteralExpr:
 			return expr->literalExpr.val->uniqueType == UniqueType::IntLiteral ||
 					expr->literalExpr.val->uniqueType == UniqueType::HexLiteral;
-		// Need to add reassignment check
 		case IdentifierExpr:
 		{
 			//Only allow one degree of seperation to be considered a constant
@@ -64,6 +63,25 @@ struct ScopeUtils
 			return IsConstantIntExpr(expr->unaryExpr.expr);
 		case GroupedExpr:
 			return IsConstantIntExpr(expr->groupedExpr.expr);
+		case SelectorExpr:
+		{
+			// Check if enum selection
+			if (expr->selectorExpr.on->typeID == IdentifierExpr)
+			{
+				Token* name = expr->selectorExpr.on->identifierExpr.identifier;
+				return globalTable->FindScopedEnum(name, symbolTable);
+			}
+			else if (expr->selectorExpr.on->typeID == SelectorExpr)
+			{
+				if (IsPackageExpr(expr->selectorExpr.on))
+				{
+					Token* package = expr->selectorExpr.on->selectorExpr.on->identifierExpr.identifier;
+					Token* name = expr->selectorExpr.on->selectorExpr.select->identifierExpr.identifier;
+					SymbolTable* symbolTable = globalTable->FindSymbolTable(package->val);
+					return symbolTable->FindEnum(name->val);
+				}
+			}
+		}
 		default:
 			break;
 		}
@@ -166,6 +184,29 @@ struct ScopeUtils
 		}
 		case GroupedExpr:
 			return EvaluateConstantIntExpr(expr->groupedExpr.expr);
+		case SelectorExpr:
+		{
+			// Check if enum selection
+			if (expr->selectorExpr.on->typeID == IdentifierExpr)
+			{
+				Token* member = expr->selectorExpr.select->identifierExpr.identifier;
+				Token* name = expr->selectorExpr.on->identifierExpr.identifier;
+				Stmnt* enumStmnt = globalTable->FindScopedEnum(name, symbolTable);
+				return FindEnumValue(enumStmnt, member->val);
+			}
+			else if (expr->selectorExpr.on->typeID == SelectorExpr)
+			{
+				if (IsPackageExpr(expr->selectorExpr.on))
+				{
+					Token* member = expr->selectorExpr.select->identifierExpr.identifier;
+					Token* package = expr->selectorExpr.on->selectorExpr.on->identifierExpr.identifier;
+					Token* name = expr->selectorExpr.on->selectorExpr.select->identifierExpr.identifier;
+					SymbolTable* symbolTable = globalTable->FindSymbolTable(package->val);
+					Stmnt* enumStmnt = symbolTable->FindEnum(name->val);
+					return FindEnumValue(enumStmnt, member->val);
+				}
+			}
+		}
 		default:
 			break;
 		}

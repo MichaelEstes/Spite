@@ -690,15 +690,11 @@ struct LowerDefinitions
 			BuildDefer(stmnt);
 			break;
 		case ContinueStmnt:
-		{
 			BuildJump(GetCurrentLabel(), funcContext.continueLabels.back());
 			break;
-		}
 		case BreakStmnt:
-		{
 			BuildJump(GetCurrentLabel(), funcContext.breakLabels.back());
 			break;
-		}
 		case ReturnStmnt:
 			BuildReturn(stmnt);
 			break;
@@ -1458,24 +1454,25 @@ struct LowerDefinitions
 
 	ScopeValue FindValueForIndent(Expr* expr)
 	{
-		StringView& ident = expr->identifierExpr.identifier->val;
+		Token* identTok = expr->identifierExpr.identifier;
+		StringView& ident = identTok->val;
 		ScopeValue identVal = FindScopeValue(ident);
 		if (identVal.type) return BuildTypeReference(GetCurrentLabel(), FindScopeValue(ident));
 
-		Stmnt* globalVar = context.globalTable->FindScopedGlobalVar(expr->identifierExpr.identifier, symbolTable);
+		Stmnt* globalVar = context.globalTable->FindScopedGlobalVar(identTok, symbolTable);
 		if (globalVar)
 		{
 			SpiteIR::Package* package = context.packageMap[globalVar->package->val];
 			return FindGlobalVar(package, globalVar);
 		}
 
-		Stmnt* funcStmnt = context.globalTable->FindScopedFunction(expr->identifierExpr.identifier, symbolTable);
+		Stmnt* funcStmnt = context.globalTable->FindScopedFunction(identTok, symbolTable);
 		if (funcStmnt)
 		{
 			return FindFunctionValue(funcStmnt);
 		}
 
-		Stmnt* stateStmnt = context.globalTable->FindScopedState(expr->identifierExpr.identifier, symbolTable);
+		Stmnt* stateStmnt = context.globalTable->FindScopedState(identTok, symbolTable);
 		if (stateStmnt)
 		{
 			SpiteIR::Package* package = context.packageMap[stateStmnt->package->val];
@@ -1492,6 +1489,15 @@ struct LowerDefinitions
 				stateValue.stmnt = stateStmnt;
 			}
 			return stateValue;
+		}
+
+		Stmnt* enumStmnt = context.globalTable->FindScopedEnum(identTok, symbolTable);
+		if (enumStmnt)
+		{
+			ScopeValue enumValue = ScopeValue();
+			enumValue.reg = StmntRegister;
+			enumValue.stmnt = enumStmnt;
+			return enumValue;
 		}
 
 		if (context.globalTable->IsPackage(ident))
@@ -1615,6 +1621,12 @@ struct LowerDefinitions
 
 				return value;
 			}
+			case EnumStmnt:
+			{
+				ScopeValue value = ScopeValue();
+				value.reg = StmntRegister;
+				value.stmnt = stmnt;
+			}
 			case FunctionStmnt:
 				return FindFunctionValue(stmnt);
 			default:
@@ -1663,6 +1675,8 @@ struct LowerDefinitions
 
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
 	{
+		StringView& ident = selected->identifierExpr.identifier->val;
+
 		if (value.reg == PackageRegister)
 		{
 			return BuildSelectedPackageValue(value.package, selected);
@@ -1671,8 +1685,21 @@ struct LowerDefinitions
 		{
 			return BuildSelectedMethodValue(value.state, selected);
 		}
+		else if (value.reg == StmntRegister)
+		{
+			switch (value.stmnt->nodeID)
+			{
+			case EnumStmnt:
+			{
+				Stmnt* enumStmnt = value.stmnt;
+				intmax_t value = FindEnumValue(enumStmnt, ident);
+				return BuildLiteralIntForType(value, ToIRType(enumStmnt->enumStmnt.type));
+			}
+			default:
+				break;
+			}
+		}
 
-		StringView& ident = selected->identifierExpr.identifier->val;
 
 		if (value.type->kind == SpiteIR::TypeKind::StateType ||
 			value.type->kind == SpiteIR::TypeKind::DynamicArrayType ||
@@ -1903,6 +1930,46 @@ struct LowerDefinitions
 		SpiteIR::Allocate alloc = BuildAllocate(intType);
 		SpiteIR::Instruction* store = BuildStore(label, AllocateToOperand(alloc), literalOp);
 		return { store->store.dst.reg, intType };
+	}
+
+	ScopeValue BuildLiteralIntForType(intmax_t i, SpiteIR::Type* type)
+	{
+		Assert(type->kind == SpiteIR::TypeKind::PrimitiveType);
+
+		SpiteIR::Allocate alloc = BuildAllocate(type);
+		SpiteIR::Operand operand = SpiteIR::Operand();
+		operand.type = type;
+		operand.kind = SpiteIR::OperandKind::Literal;
+		SpiteIR::Literal& literal = operand.literal;
+		literal.kind = type->primitive.kind;
+
+		switch (type->primitive.kind)
+		{
+		case SpiteIR::PrimitiveKind::Bool:
+		case SpiteIR::PrimitiveKind::Byte:
+			literal.byteLiteral = i;
+			break;
+		case SpiteIR::PrimitiveKind::I16:
+			literal.i16Literal = i;
+			break;
+		case SpiteIR::PrimitiveKind::I32:
+			literal.i32Literal = i;
+			break;
+		case SpiteIR::PrimitiveKind::I64:
+			literal.i64Literal = i;
+			break;
+		case SpiteIR::PrimitiveKind::Int:
+			literal.intLiteral = i;
+			break;
+		case SpiteIR::PrimitiveKind::F32:
+		case SpiteIR::PrimitiveKind::Float:
+		case SpiteIR::PrimitiveKind::String:
+			Logger::FatalError("BuildLiteralIntForType used for non integer type");
+			break;
+		}
+
+		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc), operand);
+		return { store->store.dst.reg, type };
 	}
 
 	void BuildStoreArrayCount(size_t reg, size_t count)
@@ -3128,13 +3195,9 @@ struct LowerDefinitions
 					literal.intLiteral = i;
 					break;
 				case SpiteIR::PrimitiveKind::F32:
-					literal.f32Literal = i;
-					break;
 				case SpiteIR::PrimitiveKind::Float:
-					literal.floatLiteral = i;
-					break;
 				case SpiteIR::PrimitiveKind::String:
-					// Error
+					AddError(param->start, "LowerDefinitions:CreatePrimitiveForParams Invalid primitive type for literal expression");
 					break;
 				}
 			}
@@ -3143,30 +3206,20 @@ struct LowerDefinitions
 				double f = FloatLiteralToFloat(param->literalExpr.val);
 				switch (primType->primitive.kind)
 				{
-				case SpiteIR::PrimitiveKind::Bool:
-				case SpiteIR::PrimitiveKind::Byte:
-					literal.byteLiteral = f;
-					break;
-				case SpiteIR::PrimitiveKind::I16:
-					literal.i16Literal = f;
-					break;
-				case SpiteIR::PrimitiveKind::I32:
-					literal.i32Literal = f;
-					break;
-				case SpiteIR::PrimitiveKind::I64:
-					literal.i64Literal = f;
-					break;
-				case SpiteIR::PrimitiveKind::Int:
-					literal.intLiteral = f;
-					break;
 				case SpiteIR::PrimitiveKind::F32:
 					literal.f32Literal = f;
 					break;
 				case SpiteIR::PrimitiveKind::Float:
 					literal.floatLiteral = f;
 					break;
+				case SpiteIR::PrimitiveKind::Bool:
+				case SpiteIR::PrimitiveKind::Byte:
+				case SpiteIR::PrimitiveKind::I16:
+				case SpiteIR::PrimitiveKind::I32:
+				case SpiteIR::PrimitiveKind::I64:
+				case SpiteIR::PrimitiveKind::Int:				
 				case SpiteIR::PrimitiveKind::String:
-					// Error
+					AddError(param->start, "LowerDefinitions:CreatePrimitiveForParams Invalid primitive type for literal expression");
 					break;
 				}
 			}

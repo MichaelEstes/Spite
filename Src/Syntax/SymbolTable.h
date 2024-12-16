@@ -292,6 +292,31 @@ inline Stmnt* FindStateMember(Stmnt* of, StringView& val)
 	return FindTypeMember(of->state.members, val);
 }
 
+inline bool HasEnumMember(Stmnt* of, StringView& val)
+{
+	for (Token* name : *of->enumStmnt.names)
+	{
+		if (name->val == val) return true;
+	}
+
+	return false;
+}
+
+inline intmax_t FindEnumValue(Stmnt* enumStmnt, StringView& val)
+{
+	for (size_t i = 0; i < enumStmnt->enumStmnt.names->size(); i++)
+	{
+		Token* name = enumStmnt->enumStmnt.names->at(i);
+		if (name->val == val)
+		{
+			intmax_t value = enumStmnt->enumStmnt.values->at(i);
+			return value;
+		}
+	}
+
+	return 0;
+}
+
 inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
 {
 	auto& methods = of->methods;
@@ -325,6 +350,7 @@ struct SymbolTable
 	Token* package;
 	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
+	eastl::hash_map<StringView, Stmnt*, StringViewHash> enumMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
 	eastl::vector<Stmnt*> globalVals;
 	eastl::hash_map<StringView, size_t, StringViewHash> globalValMap;
@@ -372,6 +398,12 @@ struct SymbolTable
 		for (Stmnt* var : globalVals)
 		{
 			toPrint += ToString(var);
+			toPrint += '\n';
+		}
+
+		for (auto& [key, value] : enumMap)
+		{
+			toPrint += ToString(value);
 			toPrint += '\n';
 		}
 
@@ -428,6 +460,11 @@ struct SymbolTable
 			for (Stmnt* cons : value.constructors) AddConstructor(cons);
 			for (Stmnt* method : value.methods) AddMethod(method);
 			for (Stmnt* op : value.operators) AddOperator(op);
+		}
+
+		for (auto& [key, value] : toMerge->enumMap)
+		{
+			AddEnum(value);
 		}
 
 		for (auto& [key, value] : toMerge->functionMap)
@@ -518,6 +555,12 @@ struct SymbolTable
 		return arena->EmplaceScalar<eastl::vector<T*>>();
 	}
 
+	template<typename T>
+	inline eastl::vector<T>* CreateVector()
+	{
+		return arena->EmplaceScalar<eastl::vector<T>>();
+	}
+
 	inline Type* CreateTypePtr(TypeID typeID)
 	{
 		return arena->Emplace<Type>(typeID);
@@ -584,12 +627,20 @@ struct SymbolTable
 		symbol.destructor = destructor;
 	}
 
+	void AddEnum(Stmnt* enumStmnt)
+	{
+		auto& name = enumStmnt->enumStmnt.name->val;
+		if (enumMap.find(name) != enumMap.end())
+			AddError(enumStmnt->start, "SymbolTable:AddEnum enum name already declared for: " + name);
+		enumMap[name] = enumStmnt;
+	}
+
 	void AddFunction(Stmnt* function)
 	{
 		auto& name = function->function.name->val;
 		if (functionMap.find(name) != functionMap.end())
 			AddError(function->start, "SymbolTable:AddFunction Function name already declared for: " + name);
-		functionMap[function->function.name->val] = function;
+		functionMap[name] = function;
 	}
 
 	void AddGlobalVal(Stmnt* globalVal)
@@ -599,7 +650,7 @@ struct SymbolTable
 			AddError(globalVal->start, "SymbolTable:AddGlobalVal Package scoped values with name already declared");
 
 		globalVals.push_back(globalVal);
-		globalValMap[globalVal->definition.name->val] = globalVals.size() - 1;
+		globalValMap[name] = globalVals.size() - 1;
 	}
 
 	void AddOnCompile(Stmnt* compile)
@@ -630,6 +681,8 @@ struct SymbolTable
 		Stmnt* found = FindState(val); 
 		if (!found) found = FindFunction(val);
 		if (!found) found = FindGlobalVariable(val);
+		if (!found) found = FindEnum(val);
+		if (!found) found = FindExternalFunction(val);
 		return found;
 	}
 
@@ -638,6 +691,16 @@ struct SymbolTable
 		if (auto entry = stateMap.find(val); entry != stateMap.end())
 		{
 			return entry->second.state;
+		}
+
+		return nullptr;
+	}
+
+	inline Stmnt* FindEnum(StringView& val)
+	{
+		if (auto entry = enumMap.find(val); entry != enumMap.end())
+		{
+			return entry->second;
 		}
 
 		return nullptr;

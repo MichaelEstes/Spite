@@ -226,6 +226,9 @@ struct Syntax
 		case UniqueType::State:
 			ParseState();
 			return;
+		case UniqueType::Enum:
+			ParseEnum();
+			return;
 		case UniqueType::OnCompile:
 		{
 			Stmnt* node = ParseCompile();
@@ -493,6 +496,68 @@ struct Syntax
 		}
 
 		return InsetID::InvalidInset;
+	}
+
+	void ParseEnum()
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::EnumStmnt);
+		Advance();
+		if (Expect(TokenType::Identifier, "Expected an identifier after 'enum'"))
+		{
+			node->enumStmnt.name = curr;
+			node->enumStmnt.names = symbolTable->CreateVectorPtr<Token>();
+			node->enumStmnt.valueExprs = symbolTable->CreateVectorPtr<Expr>();
+			node->enumStmnt.values = symbolTable->CreateVector<intmax_t>();
+			Advance();
+
+			if (Expect(UniqueType::Colon))
+			{
+				Advance();
+				node->enumStmnt.type = ParseType(false);
+			}
+			else
+			{
+				node->enumStmnt.type = CreatePrimitive(UniqueType::Int);
+			}
+
+			if (Expect(UniqueType::Lbrace, "Expected 'enum' statement opening ('{')"))
+			{
+				Advance();
+				if (Expect(UniqueType::Rbrace))
+				{
+					AddError(curr, "Empty 'enum' is not allowed ('{}')");
+					Advance();
+					return;
+				}
+
+				while (!Expect(UniqueType::Rbrace) && !IsEOF())
+				{
+					if (Expect(TokenType::Identifier, "Expected enum member identifier"))
+					{
+						node->enumStmnt.names->push_back(curr);
+						Advance();
+						if (Expect(UniqueType::Assign))
+						{
+							Advance();
+							node->enumStmnt.valueExprs->push_back(ParseExpr());
+						}
+						else
+						{
+							node->enumStmnt.valueExprs->push_back(nullptr);
+						}
+
+						if (Expect(UniqueType::Comma)) Advance();
+					}
+				}
+
+				if (Expect(UniqueType::Rbrace, "Expected 'enum' statement closure ('}')"))
+				{
+					node->end = curr;
+					Advance();
+					symbolTable->AddEnum(node);
+				}
+			}
+		}
 	}
 
 	Stmnt* ParseCompile()

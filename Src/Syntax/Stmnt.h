@@ -30,6 +30,7 @@ enum StmntID
 	StateOperator,
 	Destructor,
 	Constructor,
+	EnumStmnt,
 	Conditional,
 	AssignmentStmnt,
 	IfStmnt,
@@ -204,6 +205,15 @@ struct Stmnt
 
 		struct
 		{
+			Token* name;
+			Type* type;
+			eastl::vector<Token*>* names;
+			eastl::vector<Expr*>* valueExprs;
+			eastl::vector<intmax_t>* values;
+		} enumStmnt;
+
+		struct
+		{
 			Expr* condition;
 			Body body;
 		} conditional;
@@ -372,6 +382,9 @@ struct Stmnt
 			break;
 		case StateStmnt:
 			state = copy.state;
+			break;
+		case EnumStmnt:
+			enumStmnt = copy.enumStmnt;
 			break;
 		case GenericsDecl:
 			generics = copy.generics;

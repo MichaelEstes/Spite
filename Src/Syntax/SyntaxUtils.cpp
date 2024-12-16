@@ -626,6 +626,26 @@ eastl::string ToString(Stmnt* node)
 			(node->state.generics ? ToString(node->state.generics) : "") +
 			"\n{\n" + insets + members + "}\n";
 	}
+	case EnumStmnt:
+	{
+		eastl::string enumStr = node->start->ToString() + " " + node->enumStmnt.name->ToString() + ": " +
+			ToString(node->enumStmnt.type) + "\n{\n";
+
+		for (size_t i = 0; i < node->enumStmnt.names->size(); i++)
+		{
+			Token* memberName = node->enumStmnt.names->at(i);
+			Expr* memberValue = node->enumStmnt.valueExprs->at(i);
+			enumStr += "\t" + memberName->val.ToString();
+			if (memberValue)
+			{
+				enumStr += " = " + ToString(memberValue);
+			}
+			enumStr += ",\n";
+		}
+		enumStr += "}\n";
+
+		return enumStr;
+	}
 	case GenericsDecl:
 	{
 		eastl::string names = "";
