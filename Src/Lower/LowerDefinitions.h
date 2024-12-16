@@ -140,7 +140,6 @@ struct LowerDefinitions
 
 	SpiteIR::State* stringState = nullptr;
 
-
 	SpiteIR::Type* castBool;
 	SpiteIR::Type* castInt;
 	SpiteIR::Type* indexByte;
@@ -880,6 +879,71 @@ struct LowerDefinitions
 		}
 	}
 
+	void BuildFixedForIn(ScopeValue& toIterate, Stmnt* defStmnt, Body body, SpiteIR::Type* defType)
+	{
+		auto& def = defStmnt->definition;
+		SpiteIR::Type* derefType = GetDereferencedType(toIterate.type);
+		Assert(derefType->kind == SpiteIR::TypeKind::FixedArrayType);
+
+		ScopeValue index = BuildLiteralInt(0);
+		ScopeValue count = BuildLiteralInt(derefType->fixedArray.count);
+
+		eastl::string forStartName = "fixed_for_cond" + eastl::to_string(funcContext.forCount);
+		eastl::string forLoopName = "fixed_for_body" + eastl::to_string(funcContext.forCount);
+		eastl::string forIncName = "fixed_for_inc" + eastl::to_string(funcContext.forCount);
+		eastl::string forEndName = "fixed_for_end" + eastl::to_string(funcContext.forCount);
+		funcContext.forCount += 1;
+
+		SpiteIR::Label* fromLabel = GetCurrentLabel();
+		SpiteIR::Label* forInCondLabel = BuildLabel(forStartName);
+		SpiteIR::Label* forInBodyLabel = BuildLabel(forLoopName);
+		SpiteIR::Label* forInIncLabel = BuildLabel(forIncName);
+		SpiteIR::Label* forInEndLabel = BuildLabel(forEndName);
+
+		funcContext.breakLabels.push_back(forInEndLabel);
+		funcContext.continueLabels.push_back(forInCondLabel);
+
+		SpiteIR::Instruction* toCond = BuildJump(fromLabel, forInCondLabel);
+
+		AddLabel(forInCondLabel);
+		ScopeValue cmp = BuildBinaryOp(index, count, SpiteIR::BinaryOpKind::Less, forInCondLabel);
+		SpiteIR::Operand test = BuildRegisterOperand(HandleAutoCast(cmp, castBool));
+		SpiteIR::Instruction* branch = BuildBranch(forInCondLabel, test, forInBodyLabel, forInEndLabel);
+
+		AddLabel(forInBodyLabel);
+		SpiteIR::Type* itemType = derefType->fixedArray.type;
+		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(itemType, context.ir));
+		if (toIterate.type->kind == SpiteIR::TypeKind::PointerType ||
+			toIterate.type->kind == SpiteIR::TypeKind::ReferenceType)
+		{
+			SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(GetCurrentLabel(), AllocateToOperand(alloc),
+				BuildRegisterOperand(toIterate), BuildRegisterOperand(index), itemType);
+		}
+		else
+		{
+			SpiteIR::Instruction* load = BuildLoad(GetCurrentLabel(), AllocateToOperand(alloc),
+				BuildRegisterOperand(toIterate), BuildRegisterOperand(index), itemType);
+		}
+		ScopeValue currValue = HandleAutoCast({ alloc.result, alloc.type }, defType);
+		AddValueToCurrentScope(def.name->val, currValue, defStmnt);
+
+		BuildBody(body);
+
+		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
+		SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel, forInIncLabel);
+
+		AddLabel(forInIncLabel);
+		SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forInIncLabel, index));
+		SpiteIR::Instruction* storeInc = BuildStore(forInIncLabel, BuildRegisterOperand(index),
+			incremented);
+		SpiteIR::Instruction* loopToCond = BuildJump(forInIncLabel, forInCondLabel);
+
+		AddLabel(forInEndLabel);
+
+		funcContext.breakLabels.pop_back();
+		funcContext.continueLabels.pop_back();
+	}
+
 	void BuildForInStmnt(Stmnt* stmnt)
 	{
 		auto& for_ = stmnt->forStmnt;
@@ -894,7 +958,8 @@ struct LowerDefinitions
 
 		if (derefType->kind == SpiteIR::TypeKind::FixedArrayType)
 		{
-			//Handle fixed arrays
+			BuildFixedForIn(iterateValue, defStmnt, for_.body, defType);
+			return;
 		}
 
 		SpiteIR::State* iteratedState = GetStateForType(iterateValue.type);
