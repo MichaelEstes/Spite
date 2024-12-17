@@ -164,6 +164,7 @@ struct Stmnt
 		struct
 		{
 			eastl::vector<Token*>* names;
+			eastl::vector<Expr*>* defaultValues;
 			Stmnt* whereStmnt;
 			eastl::hash_set<eastl::vector<Expr*>*, ExprArrHash, ExprArrEqual>* templatesToExpand;
 		} generics;

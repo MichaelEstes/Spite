@@ -97,6 +97,7 @@ struct PackageChecker
 			return;
 		}
 
+		CheckGenericDeclarations(GetGenerics(stateSymbol.state));
 		AddScope();
 		auto& stateRef = state->state;
 		for (Stmnt* member : *stateRef.members)
@@ -122,6 +123,7 @@ struct PackageChecker
 		{
 			context.currentContext = method;
 			auto& decl = method->method.decl;
+			CheckGenericDeclarations(GetGenerics(method));
 			CheckType(method->method.returnType, method->start);
 			CheckFunctionDecl(decl, method);
 		}
@@ -149,6 +151,7 @@ struct PackageChecker
 	{
 		context.currentContext = function;
 		auto& decl = function->function.decl;
+		CheckGenericDeclarations(GetGenerics(function));
 		CheckType(function->function.returnType, function->start);
 		CheckFunctionDecl(decl, function);
 	}
@@ -156,6 +159,18 @@ struct PackageChecker
 	void CheckExternalFunctions(Stmnt* function)
 	{
 
+	}
+
+	void CheckGenericDeclarations(Stmnt* generics)
+	{
+		if (!generics) return;
+		for (Expr* defaultValue : *generics->generics.defaultValues)
+		{
+			if (defaultValue)
+			{
+				CheckExpr(defaultValue);
+			}
+		}
 	}
 
 	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)

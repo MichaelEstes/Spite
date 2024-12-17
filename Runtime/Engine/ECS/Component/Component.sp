@@ -1,6 +1,9 @@
 package Component
 
-componentMap: []*byte = []*byte;
+state Component<T>
+{
+	data: T
+}
 
 uint32 Create<CompData>(component: CompData)
 {

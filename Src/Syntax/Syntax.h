@@ -770,6 +770,7 @@ struct Syntax
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::GenericsDecl);
 		node->generics.names = CreateVectorPtr<Token>();
+		node->generics.defaultValues = CreateVectorPtr<Expr>();
 		node->generics.whereStmnt = nullptr;
 		Advance();
 
@@ -780,12 +781,27 @@ struct Syntax
 			return node;
 		}
 
+		bool defaultsStarted = false;
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Colon) && !IsEOF())
 		{
-			if (Expect(TokenType::Identifier, "Only identifiers expected as generic declarations"))
+			if (Expect(TokenType::Identifier, "Expected generic declaration identifier"))
 			{
 				node->generics.names->push_back(curr);
 				Advance();
+				if (Expect(UniqueType::Assign))
+				{
+					defaultsStarted = true;
+					Advance();
+					node->generics.defaultValues->push_back(ParseTypeOrPrimaryExpr());
+				}
+				else
+				{
+					if (defaultsStarted)
+						AddError(curr, "Syntax:ParseGenericDecl All generics after a generic with a default value must also have default values");
+
+					node->generics.defaultValues->push_back(nullptr);
+				}
+
 				if (Expect(UniqueType::Comma)) Advance();
 			}
 			else
@@ -2134,7 +2150,8 @@ struct Syntax
 		Advance();
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Semicolon) && !IsEOF())
 		{
-			if (GetOperatorPrecedence() != 0)
+			int prec = GetOperatorPrecedence();
+			if (prec > 0 && prec < 3)
 			{
 				curr = start;
 				return false;

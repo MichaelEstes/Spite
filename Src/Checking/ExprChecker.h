@@ -52,12 +52,23 @@ struct ExprChecker
 			return;
 		}
 
-		if (templateArgs->size() != genericsNode->generics.names->size())
+		size_t argSize = templateArgs->size();
+		size_t genericsCount = genericsNode->generics.names->size();
+		if (argSize < RequiredGenericsCount(genericsNode) ||
+			argSize > genericsCount)
 		{
 			AddError(start, "ExprChecker:CheckGenerics Expected " +
-				eastl::to_string(genericsNode->generics.names->size()) +
+				eastl::to_string(genericsCount) +
 				" template arguments, got " + eastl::to_string(templateArgs->size()));
 			return;
+		}
+
+		if (argSize < genericsCount)
+		{
+			for (size_t i = argSize; i < genericsCount; i++)
+			{
+				templateArgs->push_back(genericsNode->generics.defaultValues->at(i));
+			}
 		}
 
 		if (TemplatesContainForwardedGeneric(templateArgs))

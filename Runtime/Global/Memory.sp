@@ -16,9 +16,9 @@ extern
 	return malloc(size);
 }
 
-void dealloc(ptr: *void)
+void dealloc(ptr: *byte)
 {
-	free(ptr);
+	free(ptr as *void);
 }
 
 void copy_bytes(dst: *byte, src: *byte, toCopy: uint)

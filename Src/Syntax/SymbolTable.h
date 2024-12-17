@@ -195,6 +195,18 @@ inline size_t RequiredFunctionParamCount(Stmnt* func)
 	return count;
 }
 
+inline size_t RequiredGenericsCount(Stmnt* generics)
+{
+	size_t size = generics->generics.defaultValues->size();
+	for (size_t i = 0; i < size; i++)
+	{
+		Expr* defaultValue = generics->generics.defaultValues->at(i);
+		if (defaultValue) return i;
+	}
+
+	return size;
+}
+
 inline Type* GetReturnType(Stmnt* node)
 {
 	switch (node->nodeID)
