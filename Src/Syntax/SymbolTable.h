@@ -748,11 +748,8 @@ struct SymbolTable
 		return nullptr;
 	}
 
-	Expr* TypeExprToExpr(Expr* expr)
+	Expr* TypeToExpr(Type* type)
 	{
-		if (expr->typeID != ExprID::TypeExpr) return expr;
-
-		Type* type = expr->typeExpr.type;
 		switch (type->typeID)
 		{
 		case NamedType:
@@ -774,11 +771,389 @@ struct SymbolTable
 			selectExpr->selectorExpr.on = identRight;
 			return selectExpr;
 		}
+		case TemplatedType:
+		{
+			Expr* templatedExpr = TypeToExpr(type->templatedType.type);
+			Expr* templatesExpr = CreateExpr(templatedExpr->start, TemplateExpr);
+			templatesExpr->templateExpr.expr = templatedExpr;
+			templatesExpr->templateExpr.templateArgs = type->templatedType.templates->templateExpr.templateArgs;
+			return templatesExpr;
+		}
 		default:
 			break;
 		}
 
-		return expr;
+		return nullptr;
+	}
+
+	Expr* TypeExprToExpr(Expr* expr)
+	{
+		if (expr->typeID != ExprID::TypeExpr) return expr;
+
+		Type* type = expr->typeExpr.type;
+		return TypeToExpr(type);
+	}
+
+	Type* CloneType(Type* type)
+	{
+		if (!type) return type;
+		Type* cloned = CreateTypePtr(TypeID::InvalidType);
+		*cloned = *type;
+
+		switch (type->typeID)
+		{
+		case ExplicitType:
+		{
+			cloned->explicitType.declarations = CreateVectorPtr<Stmnt>();
+			for (Stmnt* decl : *type->explicitType.declarations)
+			{
+				cloned->explicitType.declarations->push_back(CloneStmnt(decl));
+			}
+			break;
+		}
+		case ImplicitType:
+		{
+			cloned->implicitType.identifiers = CreateVectorPtr<Token>();
+			for (Token* tok : *type->implicitType.identifiers)
+			{
+				cloned->implicitType.identifiers->push_back(tok);
+			}
+			break;
+		}
+		case PointerType:
+			cloned->pointerType.type = CloneType(type->pointerType.type);
+			break;
+		case ValueType:
+			cloned->valueType.type = CloneType(type->valueType.type);
+			break;
+		case ArrayType:
+			cloned->arrayType.type = CloneType(type->arrayType.type);
+			cloned->arrayType.size = CloneExpr(type->arrayType.size);
+			break;
+		case FixedArrayType:
+			cloned->fixedArrayType.type = CloneType(type->fixedArrayType.type);
+			cloned->fixedArrayType.size = type->fixedArrayType.size;
+			break;
+		case TemplatedType:
+			cloned->templatedType.templates = CloneExpr(type->templatedType.templates);
+			cloned->templatedType.type = CloneType(type->templatedType.type);
+			break;
+		case FunctionType:
+		{
+			cloned->functionType.returnType = CloneType(type->functionType.returnType);
+			for (Type* param : *type->functionType.paramTypes)
+			{
+				cloned->functionType.paramTypes->push_back(CloneType(param));
+			}
+			break;
+		}
+		case UnionType:
+		{
+			cloned->unionType.declarations = CreateVectorPtr<Stmnt>();
+			for (Stmnt* decl : *type->unionType.declarations)
+			{
+				cloned->unionType.declarations->push_back(CloneStmnt(decl));
+			}
+			break;
+		}
+		case AnonymousType:
+		{
+			cloned->anonType.types = CreateVectorPtr<Type>();
+			for (Type* anonType : *type->anonType.types)
+			{
+				cloned->anonType.types->push_back(CloneType(anonType));
+			}
+			break;
+		}
+		default:
+			break;
+		}
+
+		return cloned;
+	}
+
+	Stmnt* CloneStmnt(Stmnt* stmnt)
+	{
+		if (!stmnt) return stmnt;
+		Stmnt* cloned = CreateStmnt(stmnt->start, StmntID::InvalidStmnt, stmnt->package, stmnt->scope);
+		*cloned = *stmnt;
+
+		switch (stmnt->nodeID)
+		{
+		case ExpressionStmnt:
+			cloned->expressionStmnt.expression = CloneExpr(stmnt->expressionStmnt.expression);
+			break;
+		case Definition:
+			cloned->definition.type = CloneType(stmnt->definition.type);
+			cloned->definition.assignment = CloneExpr(stmnt->definition.assignment);
+			break;
+		case InlineDefinition:
+			cloned->inlineDefinition.type = CloneType(stmnt->inlineDefinition.type);
+			cloned->inlineDefinition.assignment = CloneExpr(stmnt->inlineDefinition.assignment);
+			break;
+		case ExternFunctionDecl:
+		{
+			cloned->externFunction.returnType = CloneType(stmnt->externFunction.returnType);
+			cloned->externFunction.parameters = CreateVectorPtr<Stmnt>();
+			cloned->externFunction.links = CreateVectorPtr<Stmnt>();
+
+			for (Stmnt* param : *stmnt->externFunction.parameters)
+			{
+				cloned->externFunction.parameters->push_back(CloneStmnt(param));
+			}
+
+			for (Stmnt* link : *stmnt->externFunction.links)
+			{
+				cloned->externFunction.links->push_back(CloneStmnt(link));
+			}
+
+			break;
+		}
+		case FunctionStmnt:
+		{
+			cloned->function.returnType = CloneType(stmnt->function.returnType);
+			cloned->function.generics = CloneStmnt(stmnt->function.generics);
+			cloned->function.decl = CloneStmnt(stmnt->function.decl);
+			break;
+		}
+		case AnonFunction:
+			cloned->anonFunction.returnType = CloneType(stmnt->anonFunction.returnType);
+			cloned->anonFunction.decl = CloneStmnt(stmnt->anonFunction.decl);
+			break;
+		case FunctionDecl:
+		{
+			cloned->functionDecl.parameters = CreateVectorPtr<Stmnt>();
+			for (Stmnt* param : *stmnt->functionDecl.parameters)
+			{
+				cloned->functionDecl.parameters->push_back(CloneStmnt(param));
+			}
+			break;
+		}
+		case StateStmnt:
+		{
+			cloned->state.generics = CloneStmnt(stmnt->state.generics);
+			cloned->state.members = CreateVectorPtr<Stmnt>();
+			for (Stmnt* member : *stmnt->state.members)
+			{
+				cloned->state.members->push_back(CloneStmnt(member));
+			}
+			break;
+		}
+		case GenericsDecl:
+		{
+			cloned->generics.defaultValues = CreateVectorPtr<Expr>();
+			for (Expr* value : *stmnt->generics.defaultValues)
+			{
+				cloned->generics.defaultValues->push_back(CloneExpr(value));
+			}
+			cloned->generics.whereStmnt = CloneStmnt(cloned->generics.whereStmnt);
+			break;
+		}
+		case WhereStmnt:
+			cloned->whereStmnt.decl = CloneStmnt(stmnt->whereStmnt.decl);
+			break;
+		case Method:
+			cloned->method.returnType = CloneType(stmnt->method.returnType);
+			cloned->method.generics = CloneStmnt(stmnt->method.generics);
+			cloned->method.decl = CloneStmnt(stmnt->method.decl);
+			break;
+		case StateOperator:
+			cloned->stateOperator.returnType = CloneType(stmnt->stateOperator.returnType);
+			cloned->stateOperator.decl = CloneStmnt(stmnt->stateOperator.decl);
+			break;
+		case Destructor:
+			cloned->destructor.decl = CloneStmnt(stmnt->destructor.decl);
+			break;
+		case Constructor:
+			cloned->constructor.decl = CloneStmnt(stmnt->constructor.decl);
+			break;
+		case EnumStmnt:
+		{
+			cloned->enumStmnt.type = CloneType(stmnt->enumStmnt.type);
+			cloned->enumStmnt.valueExprs = CreateVectorPtr<Expr>();
+			for (Expr* value : *stmnt->enumStmnt.valueExprs)
+			{
+				cloned->enumStmnt.valueExprs->push_back(CloneExpr(value));
+			}
+			break;
+		}
+		case Conditional:
+			cloned->conditional.condition = CloneExpr(stmnt->conditional.condition);
+			break;
+		case AssignmentStmnt:
+			cloned->assignmentStmnt.assignTo = CloneExpr(stmnt->assignmentStmnt.assignTo);
+			cloned->assignmentStmnt.assignment = CloneExpr(stmnt->assignmentStmnt.assignment);
+			break;
+		case IfStmnt:
+		{
+			cloned->ifStmnt.condition = CloneStmnt(stmnt->ifStmnt.condition);
+			cloned->ifStmnt.elifs = CreateVectorPtr<Stmnt>();
+			for (Stmnt* elif : *stmnt->ifStmnt.elifs)
+			{
+				cloned->ifStmnt.elifs->push_back(CloneStmnt(elif));
+			}			
+			break;
+		}
+		case ForStmnt:
+		{
+			cloned->forStmnt.toIterate = CloneExpr(stmnt->forStmnt.toIterate);
+			if (stmnt->forStmnt.isDeclaration)
+			{
+				cloned->forStmnt.iterated.declaration = CloneStmnt(stmnt->forStmnt.iterated.declaration);
+			}
+			break;
+		}
+		case WhileStmnt:
+			cloned->whileStmnt.conditional = CloneStmnt(stmnt->whileStmnt.conditional);
+			break;
+		case SwitchStmnt:
+		{
+			cloned->switchStmnt.switchOn = CloneExpr(stmnt->switchStmnt.switchOn);
+			cloned->switchStmnt.cases = CreateVectorPtr<Stmnt>();
+			for (Stmnt* case_ : *stmnt->switchStmnt.cases)
+			{
+				cloned->switchStmnt.cases->push_back(CloneStmnt(case_));
+			}
+			break;
+		}
+		case DeleteStmnt:
+			cloned->deleteStmnt.primaryExpr = CloneExpr(stmnt->deleteStmnt.primaryExpr);
+			break;
+		case DeferStmnt:
+		{
+			if (stmnt->deferStmnt.deferIf)
+			{
+				cloned->deferStmnt.conditional = CloneStmnt(stmnt->deferStmnt.conditional);
+			}
+			break;
+		}
+		case ReturnStmnt:
+			cloned->returnStmnt.expr = CloneExpr(stmnt->returnStmnt.expr);
+			break;
+		case CompileStmnt:
+			cloned->compileStmnt.returnType = CloneType(stmnt->compileStmnt.returnType);
+			break;
+		case LogStmnt:
+		{
+			cloned->logStmnt.exprs = CreateVectorPtr<Expr>();
+			for (Expr* expr : *stmnt->logStmnt.exprs)
+			{
+				cloned->logStmnt.exprs->push_back(CloneExpr(expr));
+			}
+			break;
+		}
+		case AssertStmnt:
+			cloned->assertStmnt.expr = CloneExpr(stmnt->assertStmnt.expr);
+			cloned->assertStmnt.message = CloneExpr(stmnt->assertStmnt.message);
+			break;
+		default:
+			break;
+		}
+
+		return cloned;
+	}
+
+	Expr* CloneExpr(Expr* expr)
+	{
+		if (!expr) return expr;
+		Expr* cloned = CreateExpr(expr->start, ExprID::InvalidExpr);
+		*cloned = *expr;
+
+		switch (expr->typeID)
+		{
+		case SelectorExpr:
+			cloned->selectorExpr.on = CloneExpr(expr->selectorExpr.on);
+			cloned->selectorExpr.select = CloneExpr(expr->selectorExpr.select);
+			break;
+		case IndexExpr:
+			cloned->indexExpr.of = CloneExpr(expr->indexExpr.of);
+			cloned->indexExpr.index = CloneExpr(expr->indexExpr.index);
+			break;
+		case FunctionCallExpr:
+		{
+			cloned->functionCallExpr.function = CloneExpr(expr->functionCallExpr.function);
+			cloned->functionCallExpr.params = CreateVectorPtr<Expr>();
+			for (Expr* param : *expr->functionCallExpr.params)
+			{
+				cloned->functionCallExpr.params->push_back(CloneExpr(param));
+			}
+			break;
+		}
+		case NewExpr:
+			cloned->newExpr.primaryExpr = CloneExpr(expr->newExpr.primaryExpr);
+			cloned->newExpr.atExpr = CloneExpr(expr->newExpr.atExpr);
+			break;
+		case FixedExpr:
+			cloned->fixedExpr.atExpr = CloneExpr(expr->fixedExpr.atExpr);
+			break;
+		case TypeLiteralExpr:
+		{
+			cloned->typeLiteralExpr.values = CreateVectorPtr<Expr>();
+			for (Expr* value : *expr->typeLiteralExpr.values)
+			{
+				cloned->typeLiteralExpr.values->push_back(CloneExpr(value));
+			}
+			break;
+		}
+		case ExplicitTypeExpr:
+		{
+			cloned->explicitTypeExpr.values = CreateVectorPtr<Stmnt>();
+			for (Stmnt* value : *expr->explicitTypeExpr.values)
+			{
+				cloned->explicitTypeExpr.values->push_back(CloneStmnt(value));
+			}
+			break;
+		}
+		case AsExpr:
+			cloned->asExpr.of = CloneExpr(expr->asExpr.of);
+			cloned->asExpr.to = CloneType(expr->asExpr.to);
+			break;
+		case DereferenceExpr:
+			cloned->dereferenceExpr.of = CloneExpr(expr->dereferenceExpr.of);
+			break;
+		case ReferenceExpr:
+			cloned->referenceExpr.of = CloneExpr(expr->referenceExpr.of);
+			break;
+		case BinaryExpr:
+			cloned->binaryExpr.left = CloneExpr(expr->binaryExpr.left);
+			cloned->binaryExpr.right = CloneExpr(expr->binaryExpr.right);
+			break;
+		case UnaryExpr:
+			cloned->unaryExpr.expr = CloneExpr(expr->unaryExpr.expr);
+			break;
+		case GroupedExpr:
+			cloned->groupedExpr.expr = CloneExpr(expr->groupedExpr.expr);
+			break;
+		case TemplateExpr:
+		{
+			cloned->templateExpr.expr = CloneExpr(expr->templateExpr.expr);
+			cloned->templateExpr.templateArgs = CreateVectorPtr<Expr>();
+			for(Expr* arg : *expr->templateExpr.templateArgs)
+			{ 
+				cloned->templateExpr.templateArgs->push_back(CloneExpr(arg));
+			}
+			break;
+		}
+		case TypeExpr:
+			cloned->typeExpr.type = CloneType(expr->typeExpr.type);
+			break;
+		case FunctionTypeDeclExpr:
+			cloned->functionTypeDeclExpr.anonFunction = CloneStmnt(expr->functionTypeDeclExpr.anonFunction);
+			break;
+		case CompileExpr:
+			cloned->compileExpr.compile = CloneStmnt(expr->compileExpr.compile);
+			break;
+		case SizeOfExpr:
+			cloned->sizeOfExpr.expr = CloneExpr(expr->sizeOfExpr.expr);
+			break;
+		case AlignOfExpr:
+			cloned->alignOfExpr.expr = CloneExpr(expr->alignOfExpr.expr);
+			break;
+		default:
+			break;
+		}
+
+		return cloned;
 	}
 
 	Type* CreatePrimitive(UniqueType primType)

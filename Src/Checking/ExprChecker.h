@@ -26,6 +26,233 @@ struct ExprChecker
 		return false;
 	}
 
+	Stmnt* InferGenericForDefinition(Stmnt* generics, Stmnt* def, eastl::vector<Expr*>* templateArgs)
+	{
+		if (def->nodeID != StmntID::Definition)
+		{
+			AddError(def->start, "ExprChecker:InferGenericForDefinition Expected definition statment to infer generics");
+			return def;
+		}
+
+		def->definition.type = InferGenericType(generics, def->definition.type, templateArgs);
+		if (def->definition.assignment)
+		{
+			def->definition.assignment = InferGenericExpr(generics, def->definition.assignment, templateArgs);
+		}
+	}
+
+	Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templateArgs)
+	{
+		if (!type) return type;
+
+		switch (type->typeID)
+		{
+		case NamedType:
+		{
+			StringView& ident = type->namedType.typeName->val;
+
+			for (size_t i = 0; i < generics->generics.names->size(); i++)
+			{
+				StringView& genericName = generics->generics.names->at(i)->val;
+				if (genericName == ident)
+				{
+					Expr* arg = templateArgs->at(i);
+					if (arg->typeID != ExprID::TypeExpr)
+					{
+						AddError(type->namedType.typeName, "ExprChecker:InferGenericType Expected type expression as template");
+						return type;
+					}
+
+					return arg->typeExpr.type;
+				}
+			}
+			break;
+		}
+		case ExplicitType:
+		{
+			for (Stmnt*& decl : *type->explicitType.declarations)
+			{
+				decl = InferGenericForDefinition(generics, decl, templateArgs);
+			}
+			break;
+		}
+		case PointerType:
+			type->pointerType.type = InferGenericType(generics, type->pointerType.type, templateArgs);
+			break;
+		case ValueType:
+			type->valueType.type = InferGenericType(generics, type->valueType.type, templateArgs);
+			break;
+		case ArrayType:
+			type->arrayType.type = InferGenericType(generics, type->arrayType.type, templateArgs);
+			type->arrayType.size = InferGenericExpr(generics, type->arrayType.size, templateArgs);
+			break;
+		case FixedArrayType:
+			type->fixedArrayType.type = InferGenericType(generics, type->fixedArrayType.type, templateArgs);
+			break;
+		case TemplatedType:
+			type->templatedType.type = InferGenericType(generics, type->templatedType.type, templateArgs);
+			type->templatedType.templates = InferGenericExpr(generics, type->templatedType.templates, templateArgs);
+			break;
+		case FunctionType:
+		{
+			type->functionType.returnType = InferGenericType(generics, type->functionType.returnType, templateArgs);
+			for (Type*& param : *type->functionType.paramTypes)
+			{
+				param = InferGenericType(generics, param, templateArgs);
+			}
+			break;
+		}
+		case UnionType:
+		{
+			for (Stmnt*& decl : *type->unionType.declarations)
+			{
+				decl = InferGenericForDefinition(generics, decl, templateArgs);
+			}
+			break;
+		}
+		case AnonymousType:
+		{
+			for (Type*& param : *type->anonType.types)
+			{
+				param = InferGenericType(generics, param, templateArgs);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+
+		return type;
+	}
+
+	Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templateArgs)
+	{
+		if (!expr) return expr;
+
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+		{
+			StringView& ident = expr->identifierExpr.identifier->val;
+
+			for (size_t i = 0; i < generics->generics.names->size(); i++)
+			{
+				StringView& genericName = generics->generics.names->at(i)->val;
+				if (genericName == ident)
+				{
+					return templateArgs->at(i);
+				}
+			}
+
+			break;
+		}
+		case SelectorExpr:
+			expr->selectorExpr.on = InferGenericExpr(generics, expr->selectorExpr.on, templateArgs);
+			expr->selectorExpr.select = InferGenericExpr(generics, expr->selectorExpr.select, templateArgs);
+			break;
+		case IndexExpr:
+			expr->indexExpr.of = InferGenericExpr(generics, expr->indexExpr.of, templateArgs);
+			expr->indexExpr.index = InferGenericExpr(generics, expr->indexExpr.index, templateArgs);
+			break;
+		case FunctionCallExpr:
+		{
+			expr->functionCallExpr.function = InferGenericExpr(generics, expr->functionCallExpr.function, templateArgs);
+			for (Expr*& param : *expr->functionCallExpr.params)
+			{
+				param = InferGenericExpr(generics, param, templateArgs);
+			}
+			break;
+		}
+		case NewExpr:
+			expr->newExpr.primaryExpr = InferGenericExpr(generics, expr->newExpr.primaryExpr, templateArgs);
+			expr->newExpr.atExpr = InferGenericExpr(generics, expr->newExpr.atExpr, templateArgs);
+			break;
+		case FixedExpr:
+			expr->fixedExpr.atExpr = InferGenericExpr(generics, expr->fixedExpr.atExpr, templateArgs);
+			break;
+		case TypeLiteralExpr:
+		{
+			for (Expr*& value : *expr->typeLiteralExpr.values)
+			{
+				value = InferGenericExpr(generics, value, templateArgs);
+			}
+			break;
+		}
+		case ExplicitTypeExpr:
+		{
+			for (Stmnt*& value : *expr->explicitTypeExpr.values)
+			{
+				value = InferGenericForDefinition(generics, value, templateArgs);
+			}
+			break;
+		}
+		case AsExpr:
+			expr->asExpr.of = InferGenericExpr(generics, expr->asExpr.of, templateArgs);
+			expr->asExpr.to = InferGenericType(generics, expr->asExpr.to, templateArgs);
+			break;
+		case DereferenceExpr:
+			expr->dereferenceExpr.of = InferGenericExpr(generics, expr->dereferenceExpr.of, templateArgs);
+			break;
+		case ReferenceExpr:
+			expr->referenceExpr.of = InferGenericExpr(generics, expr->referenceExpr.of, templateArgs);
+			break;
+		case BinaryExpr:
+			expr->binaryExpr.left = InferGenericExpr(generics, expr->binaryExpr.left, templateArgs);
+			expr->binaryExpr.right = InferGenericExpr(generics, expr->binaryExpr.right, templateArgs);
+			break;
+		case UnaryExpr:
+			expr->unaryExpr.expr = InferGenericExpr(generics, expr->unaryExpr.expr, templateArgs);
+			break;
+		case GroupedExpr:
+			expr->groupedExpr.expr = InferGenericExpr(generics, expr->groupedExpr.expr, templateArgs);
+			break;
+		case TemplateExpr:
+		{
+			expr->templateExpr.expr = InferGenericExpr(generics, expr->templateExpr.expr, templateArgs);
+			for (Expr*& arg : *expr->templateExpr.templateArgs)
+			{
+				arg = InferGenericExpr(generics, arg, templateArgs);
+			}
+			break;
+		}
+
+		case TypeExpr:
+			expr->typeExpr.type = InferGenericType(generics, expr->typeExpr.type, templateArgs);
+			break;
+		case FunctionTypeDeclExpr:
+		{
+			Stmnt* anonFunction = expr->functionTypeDeclExpr.anonFunction;
+			Stmnt* funcDecl = anonFunction->anonFunction.decl;
+			anonFunction->anonFunction.returnType = InferGenericType(generics, anonFunction->anonFunction.returnType, templateArgs);
+			for (Stmnt*& param : *funcDecl->functionDecl.parameters)
+			{
+				param = InferGenericForDefinition(generics, param, templateArgs);
+			}
+			break;
+		}
+		case SizeOfExpr:
+			expr->sizeOfExpr.expr = InferGenericExpr(generics, expr->sizeOfExpr.expr, templateArgs);
+			break;
+		case AlignOfExpr:
+			expr->alignOfExpr.expr = InferGenericExpr(generics, expr->alignOfExpr.expr, templateArgs);
+			break;
+		default:
+			break;
+		}
+
+		return expr;
+	}
+
+	void InferDefaultTemplateArgs(Stmnt* generics, eastl::vector<Expr*>* templateArgs, 
+		intmax_t startIndex, Token* start)
+	{
+		for (size_t i = startIndex; i < templateArgs->size(); i++)
+		{
+			Expr*& arg = templateArgs->at(i);
+			arg = InferGenericExpr(generics, arg, templateArgs);
+		}
+	}
+
 	void AddTemplatesToExpand(Stmnt* stmnt, eastl::vector<Expr*>* templateArgs, Token* start,
 		Expr* ofExpr = nullptr)
 	{
@@ -67,8 +294,11 @@ struct ExprChecker
 		{
 			for (size_t i = argSize; i < genericsCount; i++)
 			{
-				templateArgs->push_back(genericsNode->generics.defaultValues->at(i));
+				Expr* defaultValue = genericsNode->generics.defaultValues->at(i);
+				templateArgs->push_back(context.symbolTable->CloneExpr(defaultValue));
 			}
+
+			InferDefaultTemplateArgs(genericsNode, templateArgs, argSize, start);
 		}
 
 		if (TemplatesContainForwardedGeneric(templateArgs))

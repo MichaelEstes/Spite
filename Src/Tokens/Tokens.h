@@ -94,7 +94,7 @@ static TokenTree tokenTypeLookup = {
 	{ "|", TokenType::Operator, UniqueType::Or },
 	{ "^", TokenType::Operator, UniqueType::Xor },
 	{ "<<", TokenType::Operator, UniqueType::Shiftl },
-	{ ">>", TokenType::Operator, UniqueType::Shiftr },
+	//{ ">>", TokenType::Operator, UniqueType::Shiftr },
 	{ "&^", TokenType::Operator, UniqueType::AndNot },
 	{ "+=", TokenType::Operator, UniqueType::AddAssign },
 	{ "-=", TokenType::Operator, UniqueType::SubtractAssign },

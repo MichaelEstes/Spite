@@ -355,6 +355,24 @@ struct PackageChecker
 			}
 			break;
 		}
+		case TemplatedType:
+		{
+			Type* templatedType = type->templatedType.type;
+			if (templatedType->typeID == NamedType)
+			{
+				if (!typeChecker.CheckNamedType(templatedType, type->templatedType.templates, false))
+				{
+					*expr = *context.symbolTable->TypeExprToExpr(expr);
+				}
+			}
+			else if (templatedType->typeID == ImportedType)
+			{
+				if (!typeChecker.CheckImportedType(templatedType, type->templatedType.templates, false))
+				{
+					*expr = *context.symbolTable->TypeExprToExpr(expr);
+				}
+			}
+		}
 		default:
 			break;
 		}

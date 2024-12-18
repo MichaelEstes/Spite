@@ -22,7 +22,7 @@ state KeyValue<Key, Value>
 	value: *Value
 }
 
-state Map<Key, Value, Hash, Equals : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
+state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key> : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
 {
 	keys: []Key,
 	values: []Value,
@@ -66,13 +66,13 @@ KeyValue<Key, Value> Map::current(it: Iterator)
 
 uint Map::FindIndex(key: Key)
 {
-	hash: int = Hash<Key>(key);
+	hash: int = Hash(key);
 	index := hash % this.status.capacity;
 	start := index;
 
 	while (this.status[index] != Empty)
 	{
-		if (this.status[index] == Full && Equals<Key>(this.keys[index], key))
+		if (this.status[index] == Full && Equals(this.keys[index], key))
 			return index;
 
 		index = (index + 1) % this.status.capacity;
@@ -132,14 +132,14 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 {
 	//Implment assert
 	//assert keys.count == values.count && values.count == status.count;
-	hash: uint = Hash<Key>(key);
+	hash: uint = Hash(key);
 	index := hash % status.capacity;
 	start := index;
 	deletedIndex := InvalidIndex;
 
 	while (status[index] != Empty)
 	{
-		if (status[index] == Full && Equals<Key>(keys[index], key))
+		if (status[index] == Full && Equals(keys[index], key))
 		{
 			values[index] = value;
 			return true;
