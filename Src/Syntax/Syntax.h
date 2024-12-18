@@ -1776,6 +1776,24 @@ struct Syntax
 		return copy;
 	}
 
+	void ResolveOperatorToken()
+	{
+		if (Expect(UniqueType::Greater))
+		{
+			Token* next = Peek();
+			if (next->uniqueType == UniqueType::Greater)
+			{
+				Advance();
+				curr->uniqueType = UniqueType::Shiftr;
+			}
+			else if (next->uniqueType == UniqueType::GreaterEqual)
+			{
+				Advance();
+				curr->uniqueType = UniqueType::ShiftrAssign;
+			}
+		}
+	}
+
 	Expr* ParseBinaryExpr(Expr* expr = nullptr, int currPrecedence = 1)
 	{
 		if (!expr)
@@ -1785,6 +1803,7 @@ struct Syntax
 
 		while (!Expect(UniqueType::Semicolon))
 		{
+			ResolveOperatorToken();
 			Token* op = curr;
 			int opPrecedence = GetOperatorPrecedence();
 

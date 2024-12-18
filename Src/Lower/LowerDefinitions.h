@@ -752,6 +752,39 @@ struct LowerDefinitions
 		ScopeValue value = BuildExpr(def.assignment, stmnt);
 	}
 
+	UniqueType AssignmentOpToBinary(UniqueType assignOp)
+	{
+		switch (assignOp)
+		{
+		case UniqueType::AddAssign:
+			return UniqueType::Add;
+		case UniqueType::SubtractAssign:
+			return UniqueType::Subtract;
+		case UniqueType::MultiplyAssign:
+			return UniqueType::Multiply;
+		case UniqueType::DivideAssign:
+			return UniqueType::Divide;
+		case UniqueType::ModuloAssign:
+			return UniqueType::Modulo;
+		case UniqueType::AndAssign:
+			return UniqueType::And;
+		case UniqueType::OrAssign:
+			return UniqueType::Or;
+		case UniqueType::XorAssign:
+			return UniqueType::Xor;
+		case UniqueType::ShiftlAssign:
+			return UniqueType::Shiftl;
+		case UniqueType::ShiftrAssign:
+			return UniqueType::Shiftr;
+		case UniqueType::AndNotAssign:
+			return UniqueType::AndNot;
+		default:
+			break;
+		}
+
+		return UniqueType::UniqueUnknown;
+	}
+
 	void BuildAssignment(Stmnt* stmnt)
 	{
 		ScopeValue assignTo = BuildExpr(stmnt->assignmentStmnt.assignTo, stmnt);
@@ -760,11 +793,7 @@ struct LowerDefinitions
 
 		if (stmnt->assignmentStmnt.op->uniqueType != UniqueType::Assign)
 		{
-			StringView opString = stmnt->assignmentStmnt.op->val.Preceding('=');
-			TokenTree::TokenNode* node = tokenTypeLookup.Find(opString);
-			Assert(node);
-
-			UniqueType opType = node->uniqueType;
+			UniqueType opType = AssignmentOpToBinary(stmnt->assignmentStmnt.op->uniqueType);
 			SpiteIR::State* state = GetStateForType(assignTo.type);
 			if (state)
 			{
