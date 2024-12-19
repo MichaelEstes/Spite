@@ -1709,7 +1709,7 @@ struct Syntax
 	{
 		Advance();
 
-		if (Expect(UniqueType::Lbrace, "Syntax:ParseUnionType Expected inline type declaration opening for union type ('{')"));
+		if (Expect(UniqueType::Lbrace, "Syntax:ParseUnionType Expected inline type declaration opening for union type ('{')"))
 		{
 			Advance();
 			Type* type = ParseExplicitType();

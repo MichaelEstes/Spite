@@ -2,25 +2,37 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.8)
+include(ExternalProject)
+
 project ("Spite_Lang")
 
-set(EASTL_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../EASTL)
-include_directories (${EASTL_ROOT_DIR}/include)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EAAssert/include)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EABase/include/Common)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EAMain/include)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EAStdC/include)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EATest/include)
-include_directories (${EASTL_ROOT_DIR}/test/packages/EAThread/include)
+set(EASTL_ROOT_DIR ${CMAKE_BINARY_DIR}/EASTL)
+set(EASTL_BUILD_DIR ${EASTL_ROOT_DIR}/build)
+set(EASTL_LIB_DIR ${EASTL_BUILD_DIR}/lib)
+set(EASTL_INCLUDE_DIR ${EASTL_BUILD_DIR}/include)
+ExternalProject_Add(EASTL
+    PREFIX ${CMAKE_BINARY_DIR}/EASTL
+    GIT_REPOSITORY https://github.com/electronicarts/EASTL.git
+    GIT_TAG master
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/EASTL/build -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+	BUILD_BYPRODUCTS ${EASTL_LIB_DIR}/EASTL.lib ${EASTL_LIB_DIR}/libEASTL.a ${EASTL_BUILD_DIR}/doc/EASTL.natvis
+)
+include_directories(${EASTL_INCLUDE_DIR})
+link_directories(${EASTL_LIB_DIR})
 
-set(DYNCALL_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../dyncall)
-set(DYNCALL_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dyncall)
-set(DYNCALLBACK_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dyncallback)
-set(DYNLOAD_LIB_DIR ${DYNCALL_ROOT_DIR}/build/dynload)
-include_directories (${DYNCALL_ROOT_DIR})
+set(DYNCALL_ROOT_DIR ${CMAKE_BINARY_DIR}/dyncall)
+set(DYNCALL_BUILD_DIR ${DYNCALL_ROOT_DIR}/build)
+set(DYNCALL_LIB_DIR ${DYNCALL_BUILD_DIR}/lib)
+set(DYNCALL_INCLUDE_DIR ${DYNCALL_BUILD_DIR}/include)
+ExternalProject_Add(dyncall
+    PREFIX ${CMAKE_BINARY_DIR}/dyncall
+    URL https://dyncall.org/r1.4/dyncall-1.4.zip
+	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/dyncall/build -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+)
+include_directories(${DYNCALL_INCLUDE_DIR})
+link_directories(${DYNCALL_LIB_DIR})
 
 find_package(LLVM REQUIRED CONFIG)
-
 include_directories(${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})
@@ -61,23 +73,21 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 if(MSVC)
-	set(EASTL_LIBRARY debug ${EASTL_ROOT_DIR}/debug/lib/EASTL.lib optimized ${EASTL_ROOT_DIR}/lib/EASTL.lib)
-	add_custom_target(NatVis SOURCES ${EASTL_ROOT_DIR}/doc/EASTL.natvis)
-	
-	set(DYNCALL_LIBRARY debug ${DYNCALL_LIB_DIR}/Debug/dyncall_s.lib optimized ${DYNCALL_LIB_DIR}/Release/dyncall_s.lib)
-	set(DYNCALLBACK_LIBRARY debug ${DYNCALLBACK_LIB_DIR}/Debug/dyncallback_s.lib optimized ${DYNCALLBACK_LIB_DIR}/Release/dyncallback_s.lib)
-	set(DYNLOAD_LIBRARY debug ${DYNLOAD_LIB_DIR}/Debug/dynload_s.lib optimized ${DYNLOAD_LIB_DIR}/Release/dynload_s.lib)
+	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/EASTL.lib)
+	add_custom_target(NatVis SOURCES ${EASTL_BUILD_DIR}/doc/EASTL.natvis)
 else()
 	set(CMAKE_BUILD_TYPE "Release")
 	#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 	set(CMAKE_CXX_FLAGS_DEBUG "-g")
 	set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
-	set(EASTL_LIBRARY debug ${EASTL_ROOT_DIR}/lib/libEASTL.a optimized ${EASTL_ROOT_DIR}/lib/libEASTL.a)
+	set(EASTL_LIBRARY debug ${EASTL_LIB_DIR}/libEASTL.a)
 	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/out/build)
 endif()
 
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
-target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} 
-${DYNCALL_LIBRARY} ${DYNCALLBACK_LIBRARY} ${DYNLOAD_LIBRARY})
+target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload_s dyncallback_s)
+add_dependencies(Spite_Lang dyncall)
+add_dependencies(Spite_Lang EASTL)
+

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "EASTL/string.h"
-#include "dyncall/dyncall.h"
+#include "dyncall.h"
 #include "../IR.h"
 #include "../../Log/Logger.h"
 
