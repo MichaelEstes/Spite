@@ -8,5 +8,5 @@ inline void AddError(Token* token, const eastl::string& msg)
 
 inline void AddError(const eastl::string& msg)
 {
-	Logger::Error(msg);
+	Logger::LogError(Position(), 0, msg);
 }

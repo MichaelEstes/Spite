@@ -15,7 +15,6 @@ namespace SpiteIR
 	struct Type;
 	struct Argument;
 	struct Function;
-	struct AnonymousTypeMember;
 	struct Member;
 	struct State;
 	struct Package;
@@ -54,7 +53,6 @@ namespace SpiteIR
 			Type* typeParent;
 			Argument* argumentParent;
 			Function* functionParent;
-			AnonymousTypeMember* anonymousTypeMemberParent;
 			Member* memberParent;
 			State* stateParent;
 			Package* packageParent;
@@ -72,7 +70,6 @@ namespace SpiteIR
 		Parent(Type* typeParent) { this->kind = ParentKind::Type; this->typeParent = typeParent; }
 		Parent(Argument* argumentParent) { this->kind = ParentKind::Argument; this->argumentParent = argumentParent; }
 		Parent(Function* functionParent) { this->kind = ParentKind::Function; this->functionParent = functionParent; }
-		Parent(AnonymousTypeMember* anonymousTypeMemberParent) { this->kind = ParentKind::AnonymousTypeMember; this->anonymousTypeMemberParent = anonymousTypeMemberParent; }
 		Parent(Member* memberParent) { this->kind = ParentKind::Member; this->memberParent = memberParent; }
 		Parent(State* stateParent) { this->kind = ParentKind::State; this->stateParent = stateParent; }
 		Parent(Package* packageParent) { this->kind = ParentKind::Package; this->packageParent = packageParent; }
@@ -460,6 +457,7 @@ namespace SpiteIR
 		struct
 		{
 			ExternFunction* externFunc = nullptr;
+			size_t flags;
 		} metadata;
 
 		string name;
@@ -502,14 +500,6 @@ namespace SpiteIR
 		string name;
 	};
 
-	struct CompileFunction
-	{
-		Package* parent;
-		Function compileFunc;
-		// Node to replace with the node to insert return value into
-		Parent node;
-	};
-
 	struct Package
 	{
 		IR* parent;
@@ -520,8 +510,6 @@ namespace SpiteIR
 		HashMap<string, size_t> globalVariableLookup;
 		HashMap<string, State*> states;
 		HashMap<string, Function*> functions;
-		Array<CompileFunction*> debugFunctions;
-		Array<CompileFunction*> compileFunctions;
 		Function* initializer = nullptr;
 	};
 
@@ -611,11 +599,6 @@ namespace SpiteIR
 		inline Label* AllocateLabel()
 		{
 			return arena.Emplace<Label>();
-		}
-
-		inline CompileFunction* AllocateCompileFunction()
-		{
-			return arena.Emplace<CompileFunction>();
 		}
 
 		inline Type* AllocateType()

@@ -41,6 +41,7 @@ struct Position
 
 	eastl::string ToString()
 	{
+		if (!file) return "";
 		return "{ file: " + *file + ", line: " + eastl::to_string(line) + ", column : " + eastl::to_string(columnOffset) + " }";
 	}
 };

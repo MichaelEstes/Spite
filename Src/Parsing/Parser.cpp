@@ -11,11 +11,14 @@ SymbolTable* Parser::Parse()
 
 	scanner.Scan(tokens);
 
-	tokens.Finalize();
+	
+	if (!tokens.Finalize())
+	{
+		AddError("Unable to tokenize file: " + this->file);
+	}
 
 	if (Logger::HasErrors())
 	{
-		Logger::PrintErrors();
 		return nullptr;
 	}
 
@@ -27,7 +30,6 @@ SymbolTable* Parser::Parse()
 	syntax.BuildSyntax();
 	if (Logger::HasErrors())
 	{
-		Logger::PrintErrors();
 		return nullptr;
 	}
 

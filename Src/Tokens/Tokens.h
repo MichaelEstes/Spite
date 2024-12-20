@@ -146,7 +146,7 @@ struct Tokens
 
 	Tokens()
 	{
-		count = -1;
+		count = (size_t)-1;
 		tokens = eastl::vector<Token>();
 		context = Context::None;
 
@@ -196,11 +196,13 @@ struct Tokens
 		}
 	}
 
-	void Finalize()
+	bool Finalize()
 	{
+		if (count == (size_t)-1) return false;
 		StringView val = StringView();
 		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::UniqueUnknown);
 		//PrintTokens();
+		return true;
 	}
 
 	void PrintTokens()
