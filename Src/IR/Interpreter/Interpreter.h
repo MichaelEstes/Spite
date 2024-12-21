@@ -996,11 +996,11 @@ struct Interpreter
 		case SpiteIR::TypeKind::StateType:
 		{
 			eastl::string out = type->stateType.state->name + " {";
-			for (SpiteIR::Member* member : type->stateType.state->members)
+			for (SpiteIR::Member& member : type->stateType.state->members)
 			{
-				out += " " + member->value->name + ": ";
-				void* memberStart = ((char*)start) + member->offset;
-				out += LogValue(memberStart, member->value->type);
+				out += " " + member.value->name + ": ";
+				void* memberStart = ((char*)start) + member.offset;
+				out += LogValue(memberStart, member.value->type);
 				out += ",";
 			}
 			out.back() = ' ';
@@ -1028,12 +1028,12 @@ struct Interpreter
 		{
 			eastl::string out = "{";
 			size_t offset = 0;
-			for (SpiteIR::Type* inner : *type->structureType.types)
+			for (SpiteIR::Member& inner : *type->structureType.members)
 			{
 				void* memberStart = ((char*)start) + offset;
-				out += " " + LogValue(memberStart, inner);
+				out += " " + LogValue(memberStart, inner.value->type);
 				out += ",";
-				offset += inner->size;
+				offset += inner.value->type->size;
 			}
 			out.back() = ' ';
 			out += "}";

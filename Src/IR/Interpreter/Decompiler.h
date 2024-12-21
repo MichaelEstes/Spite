@@ -70,9 +70,9 @@ struct Decompiler
 		case SpiteIR::TypeKind::StructureType:
 		{
 			eastl::string out = "{ ";
-			for (SpiteIR::Type* member : *type->structureType.types)
+			for (SpiteIR::Member& member : *type->structureType.members)
 			{
-				out += WriteType(member);
+				out += WriteType(member.value->type);
 				out += ",";
 			}
 			out.back() = ' ';

@@ -11,9 +11,9 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right);
 eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
 	eastl::vector<SpiteIR::Type*> types;
-	for (SpiteIR::Member* member : state->members)
+	for (SpiteIR::Member& member : state->members)
 	{
-		types.push_back(member->value->type);
+		types.push_back(member.value->type);
 	}
 
 	return types;
@@ -66,7 +66,14 @@ inline bool IsFloatLikeType(SpiteIR::Type* type)
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 {
 	if (type->kind == SpiteIR::TypeKind::StateType) return GetStateTypes(type->stateType.state);
-	else return *type->structureType.types;
+	else
+	{
+		eastl::vector<SpiteIR::Type*> types = eastl::vector<SpiteIR::Type*>();
+		for (SpiteIR::Member& member : *type->structureType.members)
+			types.push_back(member.value->type);
+
+		return types;
+	}
 }
 
 int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
@@ -256,6 +263,7 @@ SpiteIR::Type* CreateVoidType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = 0;
+	type->alignment = 1;
 	type->kind = SpiteIR::TypeKind::PrimitiveType;
 	type->byValue = true;
 	type->primitive.isSigned = true;
@@ -267,6 +275,7 @@ SpiteIR::Type* CreateBoolType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = 1;
+	type->alignment = 1;
 	type->kind = SpiteIR::TypeKind::PrimitiveType;
 	type->byValue = true;
 	type->primitive.isSigned = true;
@@ -278,6 +287,7 @@ SpiteIR::Type* CreateByteType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = 1;
+	type->alignment = 1;
 	type->kind = SpiteIR::TypeKind::PrimitiveType;
 	type->byValue = true;
 	type->primitive.isSigned = true;
@@ -289,6 +299,7 @@ SpiteIR::Type* CreateIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = config.targetArchByteWidth;
+	type->alignment = config.targetArchByteWidth;
 	type->kind = SpiteIR::TypeKind::PrimitiveType;
 	type->byValue = true;
 	type->primitive.isSigned = true;
@@ -300,6 +311,7 @@ SpiteIR::Type* CreateUnsignedIntType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = config.targetArchByteWidth;
+	type->alignment = config.targetArchByteWidth;
 	type->kind = SpiteIR::TypeKind::PrimitiveType;
 	type->byValue = true;
 	type->primitive.isSigned = false;
@@ -311,6 +323,7 @@ SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 {
 	SpiteIR::Type* type = ir->AllocateType();
 	type->size = config.targetArchByteWidth;
+	type->alignment = config.targetArchByteWidth;
 	type->kind = SpiteIR::TypeKind::PointerType;
 	type->byValue = true;
 	type->pointer.type = CreateVoidType(ir);
@@ -322,6 +335,7 @@ SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 	SpiteIR::Type* refType = ir->AllocateType();
 	refType->kind = SpiteIR::TypeKind::ReferenceType;
 	refType->size = config.targetArchByteWidth;
+	refType->alignment = config.targetArchByteWidth;
 	refType->byValue = true;
 	refType->reference.type = type;
 	return refType;
@@ -332,6 +346,7 @@ SpiteIR::Type* MakePointerType(SpiteIR::Type* type, SpiteIR::IR* ir)
 	SpiteIR::Type* ptrType = ir->AllocateType();
 	ptrType->kind = SpiteIR::TypeKind::PointerType;
 	ptrType->size = config.targetArchByteWidth;
+	ptrType->alignment = config.targetArchByteWidth;
 	ptrType->byValue = true;
 	ptrType->pointer.type = type;
 	return ptrType;
@@ -730,7 +745,11 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	SpiteIR::State* state = lower->context.FindState(val);
 	if (!state) lower->context.toResolveStateType.push_back({ val, type });
 	else if (!state->size && type) lower->context.toResolveStateSize.push_back(type);
-	else if (type) type->size = state->size;
+	else if (type)
+	{
+		type->size = state->size;
+		type->alignment = state->alignment;
+	}
 	return state;
 }
 
@@ -739,6 +758,7 @@ SpiteIR::Type* IRFunctionToFunctionType(SpiteIR::IR* ir, SpiteIR::Function* func
 	SpiteIR::Type* funcType = ir->AllocateType();
 	funcType->kind = SpiteIR::TypeKind::FunctionType;
 	funcType->size = config.targetArchByteWidth;
+	funcType->alignment = config.targetArchByteWidth;
 	funcType->byValue = true;
 	funcType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 	funcType->function.returnType = function->returnType;
@@ -757,7 +777,43 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 	fixedArray->fixedArray.count = count;
 	fixedArray->fixedArray.type = type;
 	fixedArray->size = (type->size * count);
+	fixedArray->alignment = type->alignment;
 	return fixedArray;
+}
+
+struct SizeAndAlignment { size_t size; size_t alignment; };
+SizeAndAlignment CalculateSizeAndAlignForMembers(eastl::vector<SpiteIR::Member>* members)
+{
+	size_t offset = 0;
+	size_t alignment = 1;
+
+	for (SpiteIR::Member& member : *members)
+	{
+		SpiteIR::Type* memberType = member.value->type;
+		if (!memberType->alignment) return { 0, 0 };
+		size_t memberAlignment = memberType->alignment;
+		size_t padding = (memberAlignment - (offset % memberAlignment)) % memberAlignment;
+		offset += padding;
+
+		member.offset = offset;
+		if (memberAlignment > alignment) alignment = memberAlignment;
+		offset += memberType->size;
+	}
+
+	return { (offset + alignment - 1) & ~(alignment - 1), alignment };
+}
+
+template<typename Low>
+void SetStructuredTypeSizeAndAlign(SpiteIR::Type* type, Low* lower)
+{
+	if (type->kind == SpiteIR::TypeKind::StructureType)
+	{
+		SizeAndAlignment sa = CalculateSizeAndAlignForMembers(type->structureType.members);
+		if (!sa.alignment) lower->context.toResolveSizeAndAlignment.push_back(type);
+
+		type->size = sa.size;
+		type->alignment = sa.alignment;
+	}
 }
 
 template<typename Low>
@@ -776,12 +832,14 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->size = type->primitiveType.size;
+		irType->alignment = type->primitiveType.size;
 		irType->byValue = true;
 		irType->primitive.isSigned = type->primitiveType.isSigned;
 
 		switch (type->primitiveType.type)
 		{
 		case Void:
+			irType->alignment = 1;
 			irType->primitive.kind = SpiteIR::PrimitiveKind::Void;
 			break;
 		case Bool:
@@ -820,6 +878,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			irType->primitive.kind = SpiteIR::PrimitiveKind::F32;
 			break;
 		case String:
+			irType->alignment = config.targetArchByteWidth;
 			irType->primitive.kind = SpiteIR::PrimitiveKind::String;
 			break;
 		default:
@@ -842,7 +901,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 					{
 						return TypeToIRType(ir, templ->typeExpr.type, lower, generics, templates);
 					}
-					else AddError(genericName, "Lower:ReplaceTypeWithTemplateType Invalid expression used as type template");
+					else AddError(templ->start, "Lower:ReplaceTypeWithTemplateType Invalid expression used as type template");
 				}
 			}
 		}
@@ -864,22 +923,49 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;
 	}
+	case TemplatedType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::StateType;
+		eastl::vector<Expr*>* templateArgs = type->templatedType.templates->templateExpr.templateArgs;
+		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates);
+		eastl::string typeName = BuildTypeString(type->templatedType.type) + BuildTemplatedString(&expandedArgs);
+		irType->stateType.state = FindState(lower, typeName, irType);
+		return irType;
+	}
 	case ExplicitType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StructureType;
-		irType->size = 0;
-		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
-		irType->structureType.names = ir->AllocateArray<eastl::string>();
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
 		for (size_t i = 0; i < type->explicitType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
-			SpiteIR::Type* member = TypeToIRType(ir, def.type, lower, generics, templates);
-			irType->size += member->size;
-			irType->structureType.types->push_back(member);
-			irType->structureType.names->push_back(def.name->val.ToString());
+			SpiteIR::Type* memberType = TypeToIRType(ir, def.type, lower, generics, templates);
+			SpiteIR::Member member = SpiteIR::Member();
+			member.value = ir->AllocateValue();
+			member.value->type = memberType;
+			member.value->name = def.name->val.ToString();
+			irType->structureType.members->push_back(member);
 		}
+		SetStructuredTypeSizeAndAlign(irType, lower);
+		return irType;
+	}
+	case AnonymousType:
+	{
+		SpiteIR::Type* irType = ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::StructureType;
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
+		for (size_t i = 0; i < type->anonType.types->size(); i++)
+		{
+			SpiteIR::Type* memberType = TypeToIRType(ir, type->anonType.types->at(i), lower, generics, templates);
+			SpiteIR::Member member = SpiteIR::Member();
+			member.value = ir->AllocateValue();
+			member.value->type = memberType;
+			irType->structureType.members->push_back(member);
+		}
+		SetStructuredTypeSizeAndAlign(irType, lower);
 		return irType;
 	}
 	case UnionType:
@@ -887,31 +973,24 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::UnionType;
 		irType->size = 0;
-		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
-		irType->structureType.names = ir->AllocateArray<eastl::string>();
+		irType->alignment = 1;
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
 		for (size_t i = 0; i < type->unionType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->unionType.declarations->at(i);
 			auto& def = stmnt->definition;
-			SpiteIR::Type* member = TypeToIRType(ir, def.type, lower, generics, templates);
-			if(member->size > irType->size) irType->size = member->size;
-			irType->structureType.types->push_back(member);
-			irType->structureType.names->push_back(def.name->val.ToString());
-		}
-		return irType;
-	}
-	case AnonymousType:
-	{
-		SpiteIR::Type* irType = ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::StructureType;
-		irType->size = 0;
-		irType->structureType.names = nullptr;
-		irType->structureType.types = ir->AllocateArray<SpiteIR::Type*>();
-		for (size_t i = 0; i < type->anonType.types->size(); i++)
-		{
-			SpiteIR::Type* member = TypeToIRType(ir, type->anonType.types->at(i), lower, generics, templates);
-			irType->size += member->size;
-			irType->structureType.types->push_back(member);
+			SpiteIR::Type* memberType = TypeToIRType(ir, def.type, lower, generics, templates);
+			if (!memberType->alignment)
+			{
+				lower->context.toResolveSizeAndAlignment.push_back(irType);
+			}
+			if (memberType->size > irType->size) irType->size = memberType->size;
+			if (memberType->alignment > irType->alignment) irType->alignment = memberType->alignment;
+			SpiteIR::Member member = SpiteIR::Member();
+			member.value = ir->AllocateValue();
+			member.value->type = memberType;
+			member.value->name = def.name->val.ToString();
+			irType->structureType.members->push_back(member);
 		}
 		return irType;
 	}
@@ -920,6 +999,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::PointerType;
 		irType->size = config.targetArchByteWidth;
+		irType->alignment = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->pointer.type = TypeToIRType(ir, type->pointerType.type, lower, generics, templates);
 		return irType;
@@ -948,6 +1028,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::DynamicArrayType;
 		irType->size = config.targetArchByteWidth * 4;
+		irType->alignment = config.targetArchByteWidth;
 		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, lower, generics, templates);
 		return irType;
 	}
@@ -957,21 +1038,12 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates));
 		return irType;
 	}
-	case TemplatedType:
-	{
-		SpiteIR::Type* irType = ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::StateType;
-		eastl::vector<Expr*>* templateArgs = type->templatedType.templates->templateExpr.templateArgs;
-		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates);
-		eastl::string typeName = BuildTypeString(type->templatedType.type) + BuildTemplatedString(&expandedArgs);
-		irType->stateType.state = FindState(lower, typeName, irType);
-		return irType;
-	}
 	case FunctionType:
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::FunctionType;
 		irType->size = config.targetArchByteWidth;
+		irType->alignment = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->function.params = ir->AllocateArray<SpiteIR::Type*>();
 		irType->function.returnType = TypeToIRType(ir, type->functionType.returnType, lower, generics, templates);
@@ -989,6 +1061,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::ReferenceType;
 		irType->size = config.targetArchByteWidth;
+		irType->alignment = config.targetArchByteWidth;
 		irType->byValue = true;
 		irType->reference.type = CreateVoidType(ir);
 		return irType;

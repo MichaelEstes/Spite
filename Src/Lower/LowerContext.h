@@ -24,6 +24,7 @@ struct LowerContext
 
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
 	eastl::vector<SpiteIR::Type*> toResolveStateSize;
+	eastl::vector<SpiteIR::Type*> toResolveSizeAndAlignment;
 
 	Interpreter* interpreter = nullptr;
 

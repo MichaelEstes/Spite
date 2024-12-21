@@ -60,16 +60,6 @@ struct LowerDeclarations
 			BuildStateDeclarations(package, value);
 		}
 
-		for (auto& [key, value] : symbolTable->functionMap)
-		{
-			BuildFunctionDeclaration(package, value);
-		}
-
-		for (auto& [key, value] : symbolTable->externFunctionMap)
-		{
-			BuildExternalFunctionDeclarations(package, value);
-		}
-
 		while (context.toResolveStateType.size() > 0)
 		{
 			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
@@ -81,7 +71,7 @@ struct LowerDeclarations
 
 		for (auto& [key, state] : package->states)
 		{
-			BuildStateSize(state, state);
+			BuildStateSize(state);
 		}
 
 		while (context.toResolveStateSize.size() > 0)
@@ -89,6 +79,43 @@ struct LowerDeclarations
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
 			context.toResolveStateSize.pop_back();
+		}
+
+		for (SpiteIR::Type* type : context.toResolveSizeAndAlignment)
+		{
+			if (type->kind == SpiteIR::TypeKind::UnionType)
+			{
+				for (SpiteIR::Member& member : *type->structureType.members)
+				{
+					SpiteIR::Type* memberType = member.value->type;
+					if (memberType->size > type->size) type->size = memberType->size;
+					if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
+				}
+			}
+			else
+			{
+				SetStructuredTypeSizeAndAlign(type, this);
+			}
+		}
+
+		for (auto& [key, value] : symbolTable->functionMap)
+		{
+			BuildFunctionDeclaration(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->externFunctionMap)
+		{
+			BuildExternalFunctionDeclarations(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->functionMap)
+		{
+			BuildFunctionDeclaration(package, value);
+		}
+
+		for (auto& [key, value] : symbolTable->externFunctionMap)
+		{
+			BuildExternalFunctionDeclarations(package, value);
 		}
 
 		for (Stmnt* value : symbolTable->globalVals)
@@ -99,58 +126,36 @@ struct LowerDeclarations
 		return package;
 	}
 
-	void BuildStateSize(SpiteIR::State* state, SpiteIR::State* outer)
+	bool BuildStateSize(SpiteIR::State* state, SpiteIR::State* outer = nullptr)
 	{
-		if (state->size) return;
-
-		size_t size = 0;
-		for (SpiteIR::Member* member : state->members)
+		if (state->size) return true;
+		if (!outer) outer = state;
+		else if (state == outer)
 		{
-			member->offset = size;
-			size += GetSizeForType(member->value->type, outer);
+			Logger::FatalError("LowerDeclarations:BuildStateSize Unable to calculate state size due to cyclical reference in: " + state->name);
 		}
 
-		state->size = size;
-	}
-
-	size_t GetSizeForType(SpiteIR::Type* type, SpiteIR::State* state)
-	{
-		switch (type->kind)
+		for (SpiteIR::Member& member : state->members)
 		{
-		case SpiteIR::TypeKind::PrimitiveType:
-			return type->size;
-		case SpiteIR::TypeKind::StateType:
-			if (type->stateType.state == state)
+			SpiteIR::Type* memberType = member.value->type;
+			if (memberType->kind == SpiteIR::TypeKind::StateType)
 			{
-				Logger::FatalError("LowerDeclarrations:GetSizeForType Unable to get size for state: "
-					+ state->name + ", it is self-referencing");
-				return 0;
+				BuildStateSize(memberType->stateType.state, outer);
+				memberType->size = memberType->stateType.state->size;
+				memberType->alignment = memberType->stateType.state->alignment;
 			}
-			BuildStateSize(type->stateType.state, state);
-			return type->stateType.state->size;
-		case SpiteIR::TypeKind::StructureType:
-		{
-			size_t size = 0;
-			for (SpiteIR::Type* innerType : *type->structureType.types)
-			{
-				size += GetSizeForType(innerType, state);
-			}
-			return size;
-		}
-		case SpiteIR::TypeKind::PointerType:
-			return type->size;
-		case SpiteIR::TypeKind::DynamicArrayType:
-			return type->size;
-		case SpiteIR::TypeKind::FixedArrayType:
-			return type->size;
-		case SpiteIR::TypeKind::FunctionType:
-			return type->size;
-		default:
-			break;
 		}
 
-		//Error
-		return 0;
+		SizeAndAlignment sa = CalculateSizeAndAlignForMembers(&state->members);
+
+		if (!sa.alignment)
+		{
+			Logger::FatalError("Unable to resolve state size and alignment: " + state->name);
+		}
+
+		state->size = sa.size;
+		state->alignment = sa.alignment;
+		return state->alignment;
 	}
 
 	void BuildStateDeclarations(SpiteIR::Package* package, StateSymbol& stateSymbol)
@@ -218,12 +223,10 @@ struct LowerDeclarations
 	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Member* member = context.ir->AllocateMember();
-		member->value = context.ir->AllocateValue();
-		member->parent = state;
-		member->value->parent = SpiteIR::Parent(member);
-		member->value->type = TypeToIRType(context.ir, memberStmnt->definition.type, this, generics, templates);
-		member->value->name = memberStmnt->definition.name->val.ToString();
+		SpiteIR::Member member = SpiteIR::Member();
+		member.value = context.ir->AllocateValue();
+		member.value->type = TypeToIRType(context.ir, memberStmnt->definition.type, this, generics, templates);
+		member.value->name = memberStmnt->definition.name->val.ToString();
 		state->members.push_back(member);
 	}
 
@@ -257,14 +260,17 @@ struct LowerDeclarations
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();
 		arg->value = ir->AllocateValue();
-		arg->value->parent = SpiteIR::Parent(state);
 		arg->value->name = "this";
 		arg->parent = method;
 
 		SpiteIR::Type* thisType = ir->AllocateType();
 		thisType->kind = SpiteIR::TypeKind::StateType;
 		thisType->stateType.state = state;
-		if (state->size) thisType->size = state->size;
+		if (state->alignment)
+		{
+			thisType->size = state->size;
+			thisType->alignment = state->alignment;
+		}
 		else context.toResolveStateSize.push_back(thisType);
 		arg->value->type = MakeReferenceType(thisType, context.ir);
 
@@ -395,11 +401,7 @@ struct LowerDeclarations
 		SpiteIR::Function* destructor = context.ir->AllocateFunction();
 		destructor->parent = package;
 		destructor->name = BuildDestructorName(state);
-		destructor->returnType = context.ir->AllocateType();
-		destructor->returnType->kind = SpiteIR::TypeKind::PrimitiveType;
-		destructor->returnType->primitive.kind = SpiteIR::PrimitiveKind::Void;
-		destructor->returnType->size = 0;
-		destructor->returnType->primitive.isSigned = false;
+		destructor->returnType = CreateVoidType(context.ir);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, destructor, context.ir);
@@ -460,7 +462,6 @@ struct LowerDeclarations
 
 		SpiteIR::Argument* arg = context.ir->AllocateArgument();
 		arg->value = context.ir->AllocateValue();
-		arg->value->parent = SpiteIR::Parent(arg);
 		arg->value->type = argType;
 		arg->value->name = param->definition.name->val.ToString();
 		arg->parent = function;

@@ -424,7 +424,7 @@ struct PackageChecker
 		}
 		case AsExpr:
 			CheckExpr(expr->asExpr.of);
-			CheckType(expr->asExpr.to, expr->start, nullptr, true);
+			CheckType(expr->asExpr.to, expr->start);
 			break;
 		case DereferenceExpr:
 			CheckExpr(expr->dereferenceExpr.of);
@@ -463,7 +463,7 @@ struct PackageChecker
 				CheckExpr(expr);
 				break;
 			}
-			CheckType(expr->typeExpr.type, expr->start, nullptr, true);
+			CheckType(expr->typeExpr.type, expr->start);
 			break;
 		case FunctionTypeDeclExpr:
 			CheckStmnt(expr->functionTypeDeclExpr.anonFunction);
@@ -482,7 +482,7 @@ struct PackageChecker
 		}
 	}
 
-	void CheckType(Type* type, Token* start, Expr* templates = nullptr, bool expandTemplates = false)
+	void CheckType(Type* type, Token* start, Expr* templates = nullptr)
 	{
 		switch (type->typeID)
 		{
@@ -516,35 +516,35 @@ struct PackageChecker
 			break;
 		}
 		case PointerType:
-			CheckType(type->pointerType.type, start, templates, expandTemplates);
+			CheckType(type->pointerType.type, start, templates);
 			break;
 		case ValueType:
-			CheckType(type->valueType.type, start, templates, expandTemplates);
+			CheckType(type->valueType.type, start, templates);
 			break;
 		case ArrayType:
 		{
-			CheckType(type->arrayType.type, start, templates, expandTemplates);
+			CheckType(type->arrayType.type, start, templates);
 			typeChecker.CheckArrayType(type, start);
 			break;
 		}
 		case TemplatedType:
 		{
 			Expr* templs = type->templatedType.templates;
-			CheckType(type->templatedType.type, start, templs, expandTemplates);
+			CheckType(type->templatedType.type, start, templs);
 			for (Expr* templ : *templs->templateExpr.templateArgs)
 			{
 				CheckExpr(templ);
 			}
-			if (expandTemplates) exprChecker.AddTemplatesFromTemplatedType(type);
+			exprChecker.AddTemplatesFromTemplatedType(type);
 			break;
 		}
 		case FunctionType:
 		{
-			CheckType(type->functionType.returnType, start, templates, expandTemplates);
+			CheckType(type->functionType.returnType, start, templates);
 
 			for (Type* param : *type->functionType.paramTypes)
 			{
-				CheckType(param, start, templates, expandTemplates);
+				CheckType(param, start, templates);
 			}
 			break;
 		}

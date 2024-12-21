@@ -358,6 +358,7 @@ namespace SpiteIR
 	struct Type
 	{
 		size_t size = 0;
+		size_t alignment = 0;
 		TypeKind kind;
 		bool byValue = false;
 
@@ -376,9 +377,7 @@ namespace SpiteIR
 
 			struct
 			{
-				Array<Type*>* types;
-				//Nullable
-				Array<string>* names;
+				Array<Member>* members;
 			} structureType;
 
 			struct
@@ -412,9 +411,7 @@ namespace SpiteIR
 
 	struct Value
 	{
-		Parent parent;
 		Type* type;
-		Block* block = nullptr;
 		string name;
 	};
 
@@ -468,9 +465,8 @@ namespace SpiteIR
 
 	struct Member
 	{
-		State* parent;
 		Value* value;
-		size_t offset;
+		size_t offset = 0;
 	};
 
 	enum StateFlags: int
@@ -485,13 +481,14 @@ namespace SpiteIR
 	{
 		Package* parent;
 		size_t size = 0;
+		size_t alignment = 0;
 
 		struct
 		{
 			int flags;
 		} metadata;
 
-		Array<Member*> members;
+		Array<Member> members;
 		Array<Function*> methods;
 		HashMap<string, Array<Function*>> operators;
 		Array<Function*> constructors;

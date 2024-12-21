@@ -8,9 +8,7 @@ InvalidIndex := -1 as uint
 
 int DefaultHash<Key>(key: Key)
 {
-	hashFunc := #compile ::int(any) {
-
-	}
+	//hashFunc := #compile ::int(any) {}
 
 	return key as int;
 }

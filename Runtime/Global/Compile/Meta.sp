@@ -207,7 +207,7 @@ state _UnaryOp
 
 state _Log
 {
-	operands: *_Interop_Vector<Operand>
+	operands: *_Interop_Vector<_Operand>
 }
 
 state _Assert
@@ -421,9 +421,6 @@ state _IR
 {
 	packages: _Interop_Vector<*_Package>,
 	runtime: *_Package,
-	entry: *_Function,
-	//arena: Arena,
-	//instructions: Arena,
-	globalSize: uint,
+	entry: *_Function
 }
 

@@ -173,6 +173,11 @@ struct LowerDefinitions
 		return funcContext.scopeUtils;
 	}
 
+	void BuildStateDeclarations(SpiteIR::Package* package, StateSymbol& stateSymbol)
+	{
+		Logger::FatalError("All States should have been declared by now: " + stateSymbol.state->state.name->ToString());
+	}
+
 	SpiteIR::State* FindPackageState(SpiteIR::Package* package, const eastl::string& name)
 	{
 		if (MapHas(package->states, name))
@@ -340,10 +345,10 @@ struct LowerDefinitions
 			storeOp.kind = SpiteIR::OperandKind::StructLiteral;
 			SpiteIR::State* state = type->stateType.state;
 			eastl::vector<SpiteIR::Operand>* opArr = context.ir->AllocateArray<SpiteIR::Operand>();
-			for (SpiteIR::Member* member : state->members)
+			for (SpiteIR::Member& member : state->members)
 			{
-				size_t offset = member->offset;
-				opArr->push_back(CreateValueOperand((char*)value + offset, member->value->type));
+				size_t offset = member.offset;
+				opArr->push_back(CreateValueOperand((char*)value + offset, member.value->type));
 			}
 			storeOp.structLiteral = opArr;
 			break;
@@ -352,11 +357,10 @@ struct LowerDefinitions
 		{
 			storeOp.kind = SpiteIR::OperandKind::StructLiteral;
 			eastl::vector<SpiteIR::Operand>* opArr = context.ir->AllocateArray<SpiteIR::Operand>();
-			size_t offset = 0;
-			for (SpiteIR::Type* member : *type->structureType.types)
+			for (SpiteIR::Member& member : *type->structureType.members)
 			{
-				opArr->push_back(CreateValueOperand((char*)value + offset, member));
-				offset += member->size;
+				opArr->push_back(CreateValueOperand((char*)value + member.offset, 
+					member.value->type));
 			}
 			storeOp.structLiteral = opArr;
 			break;
@@ -727,7 +731,14 @@ struct LowerDefinitions
 	{
 		auto& def = stmnt->definition;
 		SpiteIR::Type* defType = ToIRType(def.type);
-		ScopeValue value = HandleAutoCast(BuildExpr(def.assignment, stmnt), defType, true);
+		Expr* assignment = def.assignment;
+		if (!assignment)
+		{
+			SpiteIR::Allocate alloc = BuildAllocate(defType);
+			return BuildDefaultValue(defType, alloc.result, GetCurrentLabel());
+		}
+
+		ScopeValue value = HandleAutoCast(BuildExpr(assignment, stmnt), defType, true);
 		if (defType->kind == SpiteIR::TypeKind::UnionType)
 		{
 			SpiteIR::Allocate alloc = BuildAllocate(defType);
@@ -1622,12 +1633,12 @@ struct LowerDefinitions
 
 	SpiteIR::Member* FindStateMember(SpiteIR::State* state, StringView& ident)
 	{
-		eastl::vector<SpiteIR::Member*>& members = state->members;
-		for (SpiteIR::Member* member : members)
+		eastl::vector<SpiteIR::Member>& members = state->members;
+		for (SpiteIR::Member& member : members)
 		{
-			if (member->value->name == ident)
+			if (member.value->name == ident)
 			{
-				return member;
+				return &member;
 			}
 		}
 
@@ -1636,19 +1647,16 @@ struct LowerDefinitions
 
 	ScopeValue FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
 	{
-		Assert(type->structureType.names);
-
 		size_t offset = 0;
-		eastl::vector<eastl::string>* names = type->structureType.names;
-		for (size_t i = 0; i < names->size(); i++)
+		eastl::vector<SpiteIR::Member>* members = type->structureType.members;
+		for (SpiteIR::Member& member : *members)
 		{
-			eastl::string& name = names->at(i);
-			SpiteIR::Type* memberType = type->structureType.types->at(i);
+			eastl::string& name = member.value->name;
+			SpiteIR::Type* memberType = member.value->type;
 			if (name == ident)
 			{
-				return { offset, memberType };
+				return { member.offset, memberType };
 			}
-			offset += memberType->size;
 		}
 
 		return InvalidScopeValue;
@@ -1656,14 +1664,11 @@ struct LowerDefinitions
 
 	SpiteIR::Type* FindTypeForUnionMember(SpiteIR::Type* type, StringView& ident)
 	{
-		Assert(type->structureType.names);
-
-		size_t offset = 0;
-		eastl::vector<eastl::string>* names = type->structureType.names;
-		for (size_t i = 0; i < names->size(); i++)
+		eastl::vector<SpiteIR::Member>* members = type->structureType.members;
+		for (SpiteIR::Member& member : *members)
 		{
-			eastl::string& name = names->at(i);
-			SpiteIR::Type* memberType = type->structureType.types->at(i);
+			eastl::string& name = member.value->name;
+			SpiteIR::Type* memberType = member.value->type;
 			if (name == ident)
 			{
 				return memberType;
@@ -1865,10 +1870,7 @@ struct LowerDefinitions
 			{
 				SpiteIR::State* state = GetStateForType(derefed);
 				SpiteIR::Member* member = FindStateMember(state, ident);
-				if (!member)
-				{
-					Assert(member);
-				}
+				Assert(member);
 				offsetAndType = { member->offset, member->value->type };
 			}
 
@@ -1948,15 +1950,15 @@ struct LowerDefinitions
 			Stmnt* stateStmnt = stateAST.node;
 			for (size_t i = 0; i < type->stateType.state->members.size(); i++)
 			{
-				SpiteIR::Member* memberType = type->stateType.state->members.at(i);
+				SpiteIR::Member& memberType = type->stateType.state->members.at(i);
 				Stmnt* memberDecl = stateStmnt->state.members->at(i);
 				if (memberDecl->definition.assignment)
 				{
 					ScopeValue value = BuildExpr(memberDecl->definition.assignment, stateStmnt);
-					ScopeValue dstValue = { dst + memberType->offset, memberType->value->type };
+					ScopeValue dstValue = { dst + memberType.offset, memberType.value->type };
 					AssignValues(dstValue, value);
 				}
-				else BuildDefaultValue(memberType->value->type, dst + memberType->offset, label);
+				else BuildDefaultValue(memberType.value->type, dst + memberType.offset, label);
 			}
 			break;
 		}
@@ -2038,6 +2040,7 @@ struct LowerDefinitions
 		irType->primitive.kind = literal.kind;
 		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
 			config.targetArchByteWidth * 2 : config.targetArchByteWidth;
+		irType->alignment = config.targetArchByteWidth;
 		irType->primitive.isSigned = true;
 		irType->byValue = true;
 
@@ -2114,12 +2117,7 @@ struct LowerDefinitions
 		literal.kind = SpiteIR::PrimitiveKind::Int;
 		literal.intLiteral = count;
 
-		SpiteIR::Type* irType = context.ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::PrimitiveType;
-		irType->size = config.targetArchByteWidth;
-		irType->primitive.kind = literal.kind;
-		irType->primitive.isSigned = false;
-
+		SpiteIR::Type* irType = CreateIntType(context.ir);
 		literalOp.type = irType;
 
 		SpiteIR::Label* label = GetCurrentLabel();
@@ -2184,14 +2182,15 @@ struct LowerDefinitions
 		{
 			derivedType = context.ir->AllocateType();
 			derivedType->kind = SpiteIR::TypeKind::StructureType;
-			derivedType->size = 0;
-			derivedType->structureType.types = context.ir->AllocateArray<SpiteIR::Type*>();
-			derivedType->structureType.names = nullptr;
+			derivedType->structureType.members = context.ir->AllocateArray<SpiteIR::Member>();
 			for (ScopeValue& value : values)
 			{
-				derivedType->structureType.types->push_back(value.type);
-				derivedType->size += value.type->size;
+				SpiteIR::Member member = SpiteIR::Member();
+				member.value = context.ir->AllocateValue();
+				member.value->type = value.type;
+				derivedType->structureType.members->push_back(member);
 			}
+			SetStructuredTypeSizeAndAlign(derivedType, this);
 		}
 
 		SpiteIR::Allocate alloc = BuildAllocate(derivedType);
@@ -2212,20 +2211,23 @@ struct LowerDefinitions
 		SpiteIR::Label* label = GetCurrentLabel();
 		auto& explicitType = expr->explicitTypeExpr;
 
+		eastl::vector<ScopeValue> values;
 		SpiteIR::Type* structType = context.ir->AllocateType();
 		structType->kind = SpiteIR::TypeKind::StructureType;
-		structType->structureType.names = context.ir->AllocateArray<eastl::string>();
-		structType->structureType.types = context.ir->AllocateArray<SpiteIR::Type*>();
-
-		eastl::vector<ScopeValue> values;
+		structType->structureType.members = context.ir->AllocateArray<SpiteIR::Member>();
 		for (Stmnt* def : *explicitType.values)
 		{
-			structType->structureType.names->push_back(def->definition.name->ToString());
 			ScopeValue value = BuildVarDefinition(def);
-			structType->structureType.types->push_back(value.type);
+			SpiteIR::Member member = SpiteIR::Member();
+			member.value = context.ir->AllocateValue();
+			member.value->type = value.type;
+			member.value->name = def->definition.name->ToString();
+			structType->structureType.members->push_back(member);
 			structType->size += value.type->size;
 			values.push_back(value);
 		}
+		SetStructuredTypeSizeAndAlign(structType, this);
+
 
 		SpiteIR::Allocate alloc = BuildAllocate(structType);
 		size_t offset = 0;
@@ -2747,7 +2749,6 @@ struct LowerDefinitions
 
 			SpiteIR::Argument* arg = context.ir->AllocateArgument();
 			arg->value = context.ir->AllocateValue();
-			arg->value->parent = SpiteIR::Parent(arg);
 			arg->value->type = argType;
 			arg->value->name = param->definition.name->val.ToString();
 			arg->parent = func;
@@ -2834,7 +2835,16 @@ struct LowerDefinitions
 
 	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
 	{
-		return BuildLiteralInt(0);
+		if (expr->sizeOfExpr.expr->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = ToIRType(expr->sizeOfExpr.expr->typeExpr.type);
+			return BuildLiteralInt(type->alignment);
+		}
+
+		ScopeValue value = BuildExpr(expr->sizeOfExpr.expr, stmnt);
+		SpiteIR::Type* type = value.type;
+		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
+		return BuildLiteralInt(type->alignment);
 	}
 
 	SpiteIR::InstructionMetadata* CreateInstructionMetadata(SpiteIR::Label* label)
@@ -2911,6 +2921,7 @@ struct LowerDefinitions
 				{
 					castTo->primitive.kind = right.type->primitive.kind;
 					castTo->size = right.type->size;
+					castTo->alignment = right.type->alignment;
 					castTo->primitive.isSigned = false;
 
 					ScopeValue casted = BuildPrimitiveCast(left, castTo);
@@ -2921,6 +2932,7 @@ struct LowerDefinitions
 				{
 					castTo->primitive.kind = left.type->primitive.kind;
 					castTo->size = left.type->size;
+					castTo->alignment = left.type->alignment;
 					castTo->primitive.isSigned = false;
 
 					ScopeValue casted = BuildPrimitiveCast(right, castTo);
@@ -2933,6 +2945,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = left.type->primitive.kind;
 				castTo->size = left.type->size;
+				castTo->alignment = left.type->alignment;
 				castTo->primitive.isSigned = left.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(right, castTo);
@@ -2943,6 +2956,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = right.type->primitive.kind;
 				castTo->size = right.type->size;
+				castTo->alignment = right.type->alignment;
 				castTo->primitive.isSigned = right.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(left, castTo);
@@ -2957,6 +2971,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = left.type->primitive.kind;
 				castTo->size = left.type->size;
+				castTo->alignment = left.type->alignment;
 				castTo->primitive.isSigned = left.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(right, castTo);
@@ -2967,6 +2982,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = right.type->primitive.kind;
 				castTo->size = right.type->size;
+				castTo->alignment = right.type->alignment;
 				castTo->primitive.isSigned = right.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(left, castTo);
@@ -2981,6 +2997,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = left.type->primitive.kind;
 				castTo->size = left.type->size;
+				castTo->alignment = left.type->alignment;
 				castTo->primitive.isSigned = left.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(right, castTo);
@@ -2991,6 +3008,7 @@ struct LowerDefinitions
 			{
 				castTo->primitive.kind = right.type->primitive.kind;
 				castTo->size = right.type->size;
+				castTo->alignment = right.type->alignment;
 				castTo->primitive.isSigned = right.type->primitive.isSigned;
 
 				ScopeValue casted = BuildPrimitiveCast(left, castTo);
@@ -3065,6 +3083,7 @@ struct LowerDefinitions
 		SpiteIR::Type* type = context.ir->AllocateType();
 		type->kind = SpiteIR::TypeKind::StateType;
 		type->size = state->size;
+		type->alignment = state->alignment;
 		type->stateType.state = state;
 
 		SpiteIR::Label* label = GetCurrentLabel();

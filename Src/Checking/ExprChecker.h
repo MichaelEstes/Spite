@@ -319,7 +319,7 @@ struct ExprChecker
 				return;
 			}
 
-			deferred.deferredTemplates[currGenerics].push_back(toDefer);
+			if (currGenerics != genericsNode) deferred.deferredTemplates[currGenerics].push_back(toDefer);
 			return;
 		}
 
