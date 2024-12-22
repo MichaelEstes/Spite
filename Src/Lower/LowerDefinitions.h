@@ -140,6 +140,8 @@ struct LowerDefinitions
 
 	SpiteIR::State* stringState = nullptr;
 
+	SpiteIR::State* typeMetaState = nullptr;
+
 	SpiteIR::Type* castBool;
 	SpiteIR::Type* castInt;
 	SpiteIR::Type* indexByte;
@@ -166,6 +168,7 @@ struct LowerDefinitions
 
 		stringState = FindPackageState(runtime, "___string");
 
+		typeMetaState = FindPackageState(runtime, "___Type");
 	}
 
 	ScopeUtils& GetScopeUtils()
@@ -1489,6 +1492,9 @@ struct LowerDefinitions
 			break;
 		case AlignOfExpr:
 			ret = BuildAlignOf(expr, stmnt);
+			break;
+		case TypeOfExpr:
+			ret = BuildTypeOf(expr, stmnt);
 			break;
 		default:
 			ret = InvalidScopeValue;
@@ -2835,16 +2841,47 @@ struct LowerDefinitions
 
 	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
 	{
-		if (expr->sizeOfExpr.expr->typeID == ExprID::TypeExpr)
+		if (expr->alignOfExpr.expr->typeID == ExprID::TypeExpr)
 		{
-			SpiteIR::Type* type = ToIRType(expr->sizeOfExpr.expr->typeExpr.type);
+			SpiteIR::Type* type = ToIRType(expr->alignOfExpr.expr->typeExpr.type);
 			return BuildLiteralInt(type->alignment);
 		}
 
-		ScopeValue value = BuildExpr(expr->sizeOfExpr.expr, stmnt);
+		ScopeValue value = BuildExpr(expr->alignOfExpr.expr, stmnt);
 		SpiteIR::Type* type = value.type;
 		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
 		return BuildLiteralInt(type->alignment);
+	}
+
+	SpiteIR::Type* CreateTypeMetaType()
+	{
+		SpiteIR::Type* type = context.ir->AllocateType();
+		type->kind = SpiteIR::TypeKind::StateType;
+		type->stateType.state = typeMetaState;
+		type->size = typeMetaState->size;
+		type->alignment = typeMetaState->alignment;
+
+		return MakePointerType(type, context.ir);
+	}
+
+	ScopeValue StoreTypeInfo(SpiteIR::Type* type)
+	{
+		ScopeValue typePtrAsInt = BuildLiteralInt((size_t)type);
+		return IntToPointer(typePtrAsInt, CreateTypeMetaType());
+	}
+
+	ScopeValue BuildTypeOf(Expr* expr, Stmnt* stmnt)
+	{
+		if (expr->typeOfExpr.expr->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = ToIRType(expr->typeOfExpr.expr->typeExpr.type);
+			return StoreTypeInfo(type);
+		}
+
+		ScopeValue value = BuildExpr(expr->typeOfExpr.expr, stmnt);
+		SpiteIR::Type* type = value.type;
+		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
+		return StoreTypeInfo(type);
 	}
 
 	SpiteIR::InstructionMetadata* CreateInstructionMetadata(SpiteIR::Label* label)

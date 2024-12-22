@@ -310,25 +310,24 @@ enum _PrimitiveKind: int32
 state _Type
 {
 	size: uint,
+	alignment: uint,
 	kind: _TypeKind,
 	isValueType: bool,
 	type: ?{
 		primitive: {isSigned: bool, primitiveKind: _PrimitiveKind},
 		stateType: *_State,
-		structureType: {types: *[]*_Type, names: *[]string},
+		structureType: {types: *_Interop_Vector<*_Type>, names: *_Interop_Vector<string>},
 		pointer: *_Type,
 		reference: *_Type,
 		dynamicArray: *_Type,
 		fixedArray: {count: uint, type: *_Type},
-		function: {returnType: *_Type, params: *[]*_Type}
+		function: {returnType: *_Type, params: *_Interop_Vector<*_Type>}
 	}
 }
 
 state _Value
 {
-	parent: _Parent,
 	type: *_Type, 
-	block: *_Block,
 	name: string
 }
 
@@ -377,7 +376,6 @@ state _Function
 
 state _Member
 {
-	parent: *_State,
 	value: *_Value,
 	offset: uint
 }
@@ -394,7 +392,10 @@ state _State
 {
 	parent: *_Package,
 	size: uint,
+	alignment: uint,
+
 	flags: int,
+
 	members: _Interop_Vector<*_Member>,
 	methods: _Interop_Vector<*_Function>,
 	operators: _Interop_Map<string, _Interop_Vector<*_Function>>,

@@ -270,6 +270,8 @@ bool operator==(const Expr& left, const Expr& right)
 		return *left.sizeOfExpr.expr == *right.sizeOfExpr.expr;
 	case AlignOfExpr:
 		return *left.alignOfExpr.expr == *right.alignOfExpr.expr;
+	case TypeOfExpr:
+		return *left.typeOfExpr.expr == *right.typeOfExpr.expr;
 	default:
 		break;
 	}
@@ -453,6 +455,8 @@ inline size_t HashExpr(const Expr* expr)
 		return HashExpr(expr->sizeOfExpr.expr) + SizeOfExpr;
 	case AlignOfExpr:
 		return HashExpr(expr->alignOfExpr.expr) + AlignOfExpr;
+	case TypeOfExpr:
+		return HashExpr(expr->typeOfExpr.expr) + TypeOfExpr;
 	default:
 		break;
 	}
@@ -807,6 +811,8 @@ eastl::string ToString(Expr* expr)
 		return "#sizeof " + ToString(expr->sizeOfExpr.expr);
 	case AlignOfExpr:
 		return "#alignof " + ToString(expr->alignOfExpr.expr);
+	case TypeOfExpr:
+		return "#typeof " + ToString(expr->typeOfExpr.expr);
 	default:
 		return "";
 	}

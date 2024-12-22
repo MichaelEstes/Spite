@@ -1921,6 +1921,9 @@ struct Syntax
 		case UniqueType::AlignOfTok:
 			return ParseAlignOfExpr();
 
+		case UniqueType::TypeOfTok:
+			return ParseTypeOfExpr();
+
 		default:
 			switch (curr->type)
 			{
@@ -1981,6 +1984,17 @@ struct Syntax
 		alignOfExpr->alignOfExpr.expr = expr;
 		if (Expect(UniqueType::Semicolon)) Advance();
 		return alignOfExpr;
+	}
+
+	Expr* ParseTypeOfExpr()
+	{
+		Expr* typeOfExpr = CreateExpr(curr, ExprID::TypeOfExpr);
+		Advance();
+		Expr* expr = ParseTypeOrPrimaryExpr();
+		if (expr->typeID == ExprID::InvalidExpr) AddError(typeOfExpr->start, "Syntax:ParseTypeOfExpr #typeof must be followed by a type or primary expression");
+		typeOfExpr->typeOfExpr.expr = expr;
+		if (Expect(UniqueType::Semicolon)) Advance();
+		return typeOfExpr;
 	}
 
 	Expr* ParseGroupedExpr()
@@ -2204,7 +2218,24 @@ struct Syntax
 
 		Expr* expr = ParseTypeExpr();
 		if (expr->typeID != ExprID::InvalidExpr)
-			return expr;
+		{
+			// Check for continued expression
+			switch (curr->uniqueType)
+			{
+			case UniqueType::Period:
+			case UniqueType::Array:
+			case UniqueType::Lbrack:
+			case UniqueType::Lparen:
+			case UniqueType::Less:
+			case UniqueType::As:
+			case UniqueType::Tilde:
+			case UniqueType::AtOp:
+				break;
+				
+			default:
+				return expr;
+			}
+		}
 
 		curr = start;
 		Logger::ErrorRollback();

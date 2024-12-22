@@ -7,6 +7,7 @@
 #include "../Containers/Arena.h"
 #include "../Utils/Utils.h"
 
+// Any changes to this namespace need to be reflected in Runtime/Compile/Meta.sp
 namespace SpiteIR
 {
 	struct Block;

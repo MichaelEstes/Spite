@@ -4,6 +4,8 @@
 #include "ScopeUtils.h"
 
 static Type boolType = Type(1, UniqueType::Bool, false);
+static Token runtimePackage = "_";
+static Token runtimeType = "_Type";
 
 struct TypeInferer
 {
@@ -1012,6 +1014,16 @@ struct TypeInferer
 			return symbolTable->CreatePrimitive(UniqueType::Int);
 		case AlignOfExpr:
 			return symbolTable->CreatePrimitive(UniqueType::Int);
+		case TypeOfExpr:
+		{
+			Type* typeOfType = symbolTable->CreateTypePtr(TypeID::ImportedType);
+			typeOfType->importedType.packageName = &runtimePackage;
+			typeOfType->importedType.typeName = &runtimeType;
+
+			Type* typeOfTypePtr = symbolTable->CreateTypePtr(TypeID::PointerType);
+			typeOfTypePtr->pointerType.type = typeOfType;
+			return typeOfTypePtr;
+		}
 		default:
 			break;
 		}

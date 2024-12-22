@@ -49,6 +49,7 @@ enum UniqueType
 	LogTok,
 	SizeOfTok,
 	AlignOfTok,
+	TypeOfTok,
 	Extern,
 	Enum,
 	Where,

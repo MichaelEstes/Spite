@@ -477,6 +477,9 @@ struct PackageChecker
 		case AlignOfExpr:
 			CheckExpr(expr->alignOfExpr.expr);
 			break;
+		case TypeOfExpr:
+			CheckExpr(expr->typeOfExpr.expr);
+			break;
 		default:
 			break;
 		}

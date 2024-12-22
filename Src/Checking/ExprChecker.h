@@ -236,6 +236,9 @@ struct ExprChecker
 		case AlignOfExpr:
 			expr->alignOfExpr.expr = InferGenericExpr(generics, expr->alignOfExpr.expr, templateArgs);
 			break;
+		case TypeOfExpr:
+			expr->typeOfExpr.expr = InferGenericExpr(generics, expr->typeOfExpr.expr, templateArgs);
+			break;
 		default:
 			break;
 		}

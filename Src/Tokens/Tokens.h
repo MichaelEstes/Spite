@@ -25,6 +25,7 @@ static TokenTree tokenTypeLookup = {
 	{ "log", TokenType::Keyword, UniqueType::LogTok },
 	{ "#sizeof", TokenType::Keyword, UniqueType::SizeOfTok },
 	{ "#alignof", TokenType::Keyword, UniqueType::AlignOfTok },
+	{ "#typeof", TokenType::Keyword, UniqueType::TypeOfTok },
 	{ "where", TokenType::Keyword, UniqueType::Where },
 	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
