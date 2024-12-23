@@ -527,7 +527,6 @@ struct PackageChecker
 		case ArrayType:
 		{
 			CheckType(type->arrayType.type, start, templates);
-			typeChecker.CheckArrayType(type, start);
 			break;
 		}
 		case TemplatedType:

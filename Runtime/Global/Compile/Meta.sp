@@ -35,7 +35,7 @@ state _Parent
 
 state _Label
 {
-	name: string,
+	name: _Interop_String,
 	values: _Interop_Vector<*_Instruction>,
 	terminator: *_Instruction
 }
@@ -65,7 +65,7 @@ state _Literal
 		intLiteral: int,
 		f32Literal: float32,
 		floatLiteral: float,
-		stringLiteral: *string
+		_Interop_StringLiteral: *_Interop_String
 	}
 }
 
@@ -218,7 +218,7 @@ state _Assert
 
 state _Position
 {
-	file: *string,
+	file: *_Interop_String,
 	fileOffset: uint,
 	line: uint,
 	columnOffset: uint
@@ -316,7 +316,7 @@ state _Type
 	type: ?{
 		primitive: {isSigned: bool, primitiveKind: _PrimitiveKind},
 		stateType: *_State,
-		structureType: {types: *_Interop_Vector<*_Type>, names: *_Interop_Vector<string>},
+		structureType: {types: *_Interop_Vector<*_Type>, names: *_Interop_Vector<_Interop_String>},
 		pointer: *_Type,
 		reference: *_Type,
 		dynamicArray: *_Type,
@@ -328,7 +328,7 @@ state _Type
 state _Value
 {
 	type: *_Type, 
-	name: string
+	name: _Interop_String
 }
 
 state _GlobalVariable
@@ -336,7 +336,7 @@ state _GlobalVariable
 	parent: *_Package,
 	index: uint,
 	type: *_Type,
-	name: string
+	name: _Interop_String
 }
 
 state _Argument
@@ -352,15 +352,15 @@ enum FunctionFlags: int
 
 state _PlatformLib
 {
-	platform: string,
-	lib: string
+	platform: _Interop_String,
+	lib: _Interop_String
 }
 
 state _ExternFunction
 {
 	libs: *_Interop_Vector<_PlatformLib>,
-	externName: string,
-	callName: string
+	externName: _Interop_String,
+	callName: _Interop_String
 }
 
 state _Function
@@ -368,7 +368,7 @@ state _Function
 	parent: *_Package,
 	metadata: {externFunc: *_ExternFunction, flags: uint},
 
-	name: string,
+	name: _Interop_String,
 	returnType: *_Type,
 	arguments: _Interop_Vector<*_Argument>,
 	block: *_Block
@@ -394,27 +394,27 @@ state _State
 	size: uint,
 	alignment: uint,
 
-	flags: int,
+	flags: int32,
 
-	members: _Interop_Vector<*_Member>,
+	members: _Interop_Vector<_Member>,
 	methods: _Interop_Vector<*_Function>,
-	operators: _Interop_Map<string, _Interop_Vector<*_Function>>,
+	operators: _Interop_Map<_Interop_String, _Interop_Vector<*_Function>>,
 	constructors: _Interop_Vector<*_Function>,
 	defaultConstructor: *_Function,
 	destructor: *_Function,
-	name: string,
+	name: _Interop_String,
 }
 
 state _Package
 {
 	parent: *_IR,
-	file: string,
-	name: string,
+	file: _Interop_String,
+	name: _Interop_String,
 	imports: _Interop_Vector<*_Package>,
 	globalVariables: _Interop_Vector<*_GlobalVariable>,
-	globalVariableLookup: _Interop_Map<string, uint>,
-	states: _Interop_Map<string, *_State>,
-	functions: _Interop_Map<string, *_Function>,
+	globalVariableLookup: _Interop_Map<_Interop_String, uint>,
+	states: _Interop_Map<_Interop_String, *_State>,
+	functions: _Interop_Map<_Interop_String, *_Function>,
 	initializer: *_Function,
 }
 

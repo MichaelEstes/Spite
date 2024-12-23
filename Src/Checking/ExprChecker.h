@@ -86,9 +86,6 @@ struct ExprChecker
 			type->arrayType.type = InferGenericType(generics, type->arrayType.type, templateArgs);
 			type->arrayType.size = InferGenericExpr(generics, type->arrayType.size, templateArgs);
 			break;
-		case FixedArrayType:
-			type->fixedArrayType.type = InferGenericType(generics, type->fixedArrayType.type, templateArgs);
-			break;
 		case TemplatedType:
 			type->templatedType.type = InferGenericType(generics, type->templatedType.type, templateArgs);
 			type->templatedType.templates = InferGenericExpr(generics, type->templatedType.templates, templateArgs);

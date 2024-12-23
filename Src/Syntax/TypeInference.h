@@ -355,10 +355,6 @@ struct TypeInferer
 			if (expanded->arrayType.size)
 				expanded->arrayType.size = CreateExprFromTemplates(expanded->arrayType.size, genericNames, templateArgs);
 			break;
-		case FixedArrayType:
-			expanded->fixedArrayType.type = CreateTypeFromTemplates(expanded->fixedArrayType.type,
-				genericNames, templateArgs);
-			break;
 		case TemplatedType:
 		{
 			expanded->templatedType.type = CreateTypeFromTemplates(expanded->templatedType.type,
@@ -509,8 +505,6 @@ struct TypeInferer
 			return GetIndexTypeAccessArray(of, type->valueType.type);
 		case ArrayType:
 			return type->arrayType.type;
-		case FixedArrayType:
-			return type->fixedArrayType.type;
 		case PrimitiveType:
 		{
 			if (type->primitiveType.type == UniqueType::String)
@@ -624,9 +618,6 @@ struct TypeInferer
 			break;
 		case ArrayType:
 			converted->arrayType.type = ConvertGenericsToAny(converted->arrayType.type, stmnt);
-			break;
-		case FixedArrayType:
-			converted->fixedArrayType.type = ConvertGenericsToAny(converted->fixedArrayType.type, stmnt);
 			break;
 		case TemplatedType:
 		{
@@ -901,21 +892,14 @@ struct TypeInferer
 		case FixedExpr:
 		{
 			Type* fixedArrType = InferType(of->fixedExpr.atExpr);
-			if (fixedArrType->typeID != TypeID::FixedArrayType)
+			if (fixedArrType->typeID != TypeID::ArrayType)
 			{
-				AddError(of->start, "TypeInferer:InferType fixed expressions must evaluate to a fixed sized array types");
-				return symbolTable->CreateTypePtr(TypeID::InvalidType);
-			}
-
-			if (fixedArrType->fixedArrayType.type->typeID == TypeID::ArrayType ||
-				fixedArrType->fixedArrayType.type->typeID == TypeID::FixedArrayType)
-			{
-				AddError(of->start, "TypeInferer:InferType fixed expression cannot be used to create multidimensional arrays");
+				AddError(of->start, "TypeInferer:InferType fixed expressions must evaluate to a fixed sized array type");
 				return symbolTable->CreateTypePtr(TypeID::InvalidType);
 			}
 
 			Type* fixedType = symbolTable->CreateTypePtr(TypeID::PointerType);
-			fixedType->pointerType.type = fixedArrType->fixedArrayType.type;
+			fixedType->pointerType.type = fixedArrType->arrayType.type;
 			return fixedType;
 		}
 		case TypeLiteralExpr:
@@ -937,9 +921,9 @@ struct TypeInferer
 				size_t size = of->typeLiteralExpr.values->size();
 				if (size > 0)
 				{
-					Type* arrType = symbolTable->CreateTypePtr(TypeID::FixedArrayType);
-					arrType->fixedArrayType.size = of->typeLiteralExpr.values->size();
-					arrType->fixedArrayType.type = InferType(of->typeLiteralExpr.values->at(0));
+					Type* arrType = symbolTable->CreateTypePtr(TypeID::ArrayType);
+					arrType->arrayType.type = InferType(of->typeLiteralExpr.values->at(0));
+					arrType->arrayType.size = symbolTable->CreateIntLiteralExpr(size, of->start);
 					return arrType;
 				}
 			}
@@ -1150,15 +1134,9 @@ struct TypeInferer
 			return IsAssignable(left->arrayType.type, right->arrayType.type, stmntContext);
 		}
 
-		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::FixedArrayType)
-		{
-			return IsAssignable(left->arrayType.type, right->fixedArrayType.type, stmntContext);
-		}
-
 		if (IsArrayStateType(left))
 		{
-			return right->typeID == TypeID::ArrayType || right->typeID == TypeID::FixedArrayType ||
-				IsArrayStateType(right);
+			return right->typeID == TypeID::ArrayType || IsArrayStateType(right);
 		}
 
 		if (IsStringStateType(left))

@@ -22,6 +22,56 @@ struct LowerDeclarations
 		return scopeUtils;
 	}
 
+	size_t GetSizeOf(Expr* expr, eastl::vector<Token*>* generics = nullptr,
+		eastl::vector<Expr*>* templates = nullptr, Stmnt* stmnt = nullptr)
+	{
+		if (expr->sizeOfExpr.expr->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = TypeToIRType(context.ir, expr->sizeOfExpr.expr->typeExpr.type,
+				this, generics, templates);
+			return type->size;
+		}
+
+		if (expr->sizeOfExpr.expr->typeID == ExprID::IdentifierExpr)
+		{
+			StringView& ident = expr->sizeOfExpr.expr->identifierExpr.identifier->val;
+			Stmnt* def = scopeUtils.FindInScope(ident);
+			if (def)
+			{
+				SpiteIR::Type* type = TypeToIRType(context.ir, def->definition.type, this, 
+					generics, templates);
+				return type->size;
+			}
+		}
+
+		return 0;
+	}
+
+	size_t GetAlignOf(Expr* expr, eastl::vector<Token*>* generics = nullptr,
+		eastl::vector<Expr*>* templates = nullptr, Stmnt* stmnt = nullptr)
+	{
+		if (expr->alignOfExpr.expr->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = TypeToIRType(context.ir, expr->alignOfExpr.expr->typeExpr.type,
+				this, generics, templates);
+			return type->alignment;
+		}
+
+		if (expr->alignOfExpr.expr->typeID == ExprID::IdentifierExpr)
+		{
+			StringView& ident = expr->alignOfExpr.expr->identifierExpr.identifier->val;
+			Stmnt* def = scopeUtils.FindInScope(ident);
+			if (def)
+			{
+				SpiteIR::Type* type = TypeToIRType(context.ir, def->definition.type, this,
+					generics, templates);
+				return type->alignment;
+			}
+		}
+
+		return 0;
+	}
+
 	void BuildDeclarations()
 	{
 		for (auto& [key, value] : context.globalTable->packageToSymbolTable)
@@ -55,6 +105,11 @@ struct LowerDeclarations
 		this->symbolTable = symbolTable;
 		scopeUtils.symbolTable = symbolTable;
 
+		for (auto& [key, enumStmnt] : symbolTable->enumMap)
+		{
+			BuildEnumDeclaration(enumStmnt);
+		}
+
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			BuildStateDeclarations(package, value);
@@ -78,6 +133,7 @@ struct LowerDeclarations
 		{
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
+			val->alignment = val->stateType.state->alignment;
 			context.toResolveStateSize.pop_back();
 		}
 
@@ -124,6 +180,39 @@ struct LowerDeclarations
 		}
 
 		return package;
+	}
+
+	void BuildEnumDeclaration(Stmnt* enumStmnt)
+	{
+
+		eastl::vector<Expr*>* values = enumStmnt->enumStmnt.valueExprs;
+		eastl::hash_map<StringView, intmax_t, StringViewHash>& enumValues = context.enumMap[enumStmnt];
+
+		if (!IsInt(enumStmnt->enumStmnt.type))
+		{
+			AddError(enumStmnt->start, "Checker:CheckEnum: Enums can only be of integer types");
+		}
+
+		intmax_t curr = 0;
+		for (size_t i = 0; i < enumStmnt->enumStmnt.names->size(); i++)
+		{
+			StringView& name = enumStmnt->enumStmnt.names->at(i)->val;
+			Expr* expr = enumStmnt->enumStmnt.valueExprs->at(i);
+			if (expr)
+			{
+				if (!IsConstantIntExpr(expr, scopeUtils))
+				{
+					AddError(enumStmnt->start, "Checker:CheckEnum: Enum member values must evalute to a constant literal integer type");
+				}
+				else
+				{
+					curr = EvaluateConstantIntExpr(expr, this);
+				}
+			}
+
+			enumValues[name] = curr;
+			curr += 1;
+		}
 	}
 
 	bool BuildStateSize(SpiteIR::State* state, SpiteIR::State* outer = nullptr)
@@ -330,7 +419,7 @@ struct LowerDeclarations
 			Stmnt* param = opStmnt->stateOperator.decl->functionDecl.parameters->at(i);
 			BuildArgumentForFunction(op, param, i, generics, templates);
 		}
-		
+
 		eastl::string opStr = OperatorToString(opStmnt->stateOperator.op->uniqueType);
 		state->operators[opStr].push_back(op);
 		context.functionMap[op->name] = op;
@@ -456,7 +545,7 @@ struct LowerDeclarations
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		
+
 		SpiteIR::Type* argType = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
 		if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
 

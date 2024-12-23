@@ -13,48 +13,8 @@ struct Checker
 		this->globalTable = globalTable;
 	}
 
-	void CheckEnums(SymbolTable* symbolTable)
-	{
-		ScopeUtils scopeUtils = ScopeUtils(globalTable, symbolTable);
-		for (auto& [key, enumStmnt] : symbolTable->enumMap)
-		{
-			eastl::vector<Expr*>* values = enumStmnt->enumStmnt.valueExprs;
-
-			if (!IsInt(enumStmnt->enumStmnt.type))
-			{
-				AddError(enumStmnt->start, "Checker:CheckEnum: Enums can only be of integer types");
-			}
-
-			intmax_t curr = 0;
-			for (Expr* expr : *values)
-			{
-				if (expr)
-				{
-					if (!scopeUtils.IsConstantIntExpr(expr))
-					{
-						AddError(enumStmnt->start, "Checker:CheckEnum: Enum member values must evalute to a constant literal integer type");
-					}
-					else
-					{
-						curr = scopeUtils.EvaluateConstantIntExpr(expr);
-					}
-				}
-
-				enumStmnt->enumStmnt.values->push_back(curr);
-				curr += 1;
-			}
-		}
-
-	}
-
 	void Check()
 	{
-		CheckEnums(globalTable->runtimeTable);
-		for (auto& [key, value] : globalTable->packageToSymbolTable)
-		{
-			CheckEnums(value);
-		}
-
 		PackageChecker packageChecker = PackageChecker(globalTable, globalTable->runtimeTable, deferred);
 		packageChecker.Check();
 

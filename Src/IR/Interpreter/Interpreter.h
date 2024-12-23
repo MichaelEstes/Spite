@@ -909,7 +909,8 @@ struct Interpreter
 		Logger::Log(out);
 	}
 
-	inline eastl::string LogValue(void* start, SpiteIR::Type* type)
+	inline eastl::string LogValue(void* start, SpiteIR::Type* type, 
+		eastl::hash_set<size_t> logged = eastl::hash_set<size_t>())
 	{
 		switch (type->kind)
 		{
@@ -1000,7 +1001,7 @@ struct Interpreter
 			{
 				out += " " + member.value->name + ": ";
 				void* memberStart = ((char*)start) + member.offset;
-				out += LogValue(memberStart, member.value->type);
+				out += LogValue(memberStart, member.value->type, logged);
 				out += ",";
 			}
 			out.back() = ' ';
@@ -1021,7 +1022,7 @@ struct Interpreter
 			unionAsArr.fixedArray.count = type->size;
 			unionAsArr.fixedArray.type = &byteType;
 
-			out += LogValue(start, &unionAsArr);
+			out += LogValue(start, &unionAsArr, logged);
 			return out;
 		}
 		case SpiteIR::TypeKind::StructureType:
@@ -1031,7 +1032,7 @@ struct Interpreter
 			for (SpiteIR::Member& inner : *type->structureType.members)
 			{
 				void* memberStart = ((char*)start) + offset;
-				out += " " + LogValue(memberStart, inner.value->type);
+				out += " " + LogValue(memberStart, inner.value->type, logged);
 				out += ",";
 				offset += inner.value->type->size;
 			}
@@ -1043,16 +1044,20 @@ struct Interpreter
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
+			if (ptrVal && MapHas(logged, ptrVal)) return "{ recursive type }";
+			logged.insert(ptrVal);
 			eastl::string out = "Ptr @" + eastl::to_string(ptrVal) + " ";
-			if (ptrVal) return out + LogValue(ptr, type->pointer.type);
+			if (ptrVal) return out + LogValue(ptr, type->pointer.type, logged);
 			else return out + "null";
 		}
 		case SpiteIR::TypeKind::ReferenceType:
 		{
 			void* ptr = (void*)*(size_t*)start;
 			size_t ptrVal = (size_t)ptr;
+			if (ptrVal && MapHas(logged, ptrVal)) return "{ recursive type }";
+			logged.insert(ptrVal);
 			eastl::string out = "Ref @" + eastl::to_string(ptrVal) + " ";
-			if (ptrVal) return out + LogValue(ptr, type->pointer.type);
+			if (ptrVal) return out + LogValue(ptr, type->reference.type, logged);
 			else return out + "nullref (error)";
 		}
 		case SpiteIR::TypeKind::DynamicArrayType:
@@ -1070,7 +1075,7 @@ struct Interpreter
 			{
 				size_t offset = i * itemSize;
 				void* itemStart = ((char*)data) + offset;
-				out += " " + LogValue(itemStart, itemType) + ",";
+				out += " " + LogValue(itemStart, itemType, logged) + ",";
 			}
 			out.back() = ' ';
 			out += "]";
@@ -1087,7 +1092,7 @@ struct Interpreter
 			{
 				size_t offset = i * itemSize;
 				void* itemStart = ((char*)start) + offset;
-				out += " " + LogValue(itemStart, itemType) + ",";
+				out += " " + LogValue(itemStart, itemType, logged) + ",";
 			}
 			out.back() = ' ';
 			out += "]";

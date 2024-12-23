@@ -507,7 +507,6 @@ struct Syntax
 			node->enumStmnt.name = curr;
 			node->enumStmnt.names = symbolTable->CreateVectorPtr<Token>();
 			node->enumStmnt.valueExprs = symbolTable->CreateVectorPtr<Expr>();
-			node->enumStmnt.values = symbolTable->CreateVector<intmax_t>();
 			Advance();
 
 			if (Expect(UniqueType::Colon))
@@ -680,6 +679,7 @@ struct Syntax
 		Advance();
 		switch (curr->uniqueType)
 		{
+		case UniqueType::LogTok:
 		case UniqueType::Name:
 		{
 			Stmnt* node = CreateStmnt(start, StmntID::Method);
@@ -751,6 +751,7 @@ struct Syntax
 			break;
 		}
 
+		AddError(curr, "Syntax:ParseStateFunction Expected method, operator, constructor or destructor declaration");
 		return InvalidStmnt();
 	}
 

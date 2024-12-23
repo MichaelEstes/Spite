@@ -129,8 +129,6 @@ struct GlobalTable
 			return FindStateForType(type->templatedType.type, symbolTable);
 		case ArrayType:
 			return GetArrayState();
-		case FixedArrayType:
-			return FindStateForType(type->fixedArrayType.type, symbolTable);
 		default:
 			break;
 		}

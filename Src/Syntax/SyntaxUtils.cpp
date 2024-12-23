@@ -168,9 +168,6 @@ bool operator==(const Type& left, const Type& right)
 	case ImportedType:
 		return left.importedType.packageName->val == right.importedType.packageName->val &&
 			left.importedType.typeName->val == right.importedType.typeName->val;
-	case FixedArrayType:
-		return *left.fixedArrayType.type == *right.fixedArrayType.type &&
-			left.fixedArrayType.size == right.fixedArrayType.size;
 	default:
 		break;
 	}
@@ -914,8 +911,6 @@ eastl::string ToString(Type* type)
 		return "~" + ToString(type->valueType.type);
 	case ArrayType:
 		return "[]" + ToString(type->arrayType.type);
-	case FixedArrayType:
-		return "[" + eastl::to_string(type->fixedArrayType.size) + "]" + ToString(type->fixedArrayType.type);
 	case TemplatedType:
 		return ToString(type->templatedType.type) + ToString(type->templatedType.templates);
 	case FunctionType:

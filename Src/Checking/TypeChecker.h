@@ -101,29 +101,6 @@ struct TypeChecker
 		*type = *inferredType;
 	}
 
-	void CheckArrayType(Type* type, Token* tok)
-	{
-		auto& arr = type->arrayType;
-		if (arr.size)
-		{
-			if (context.scopeUtils.IsConstantIntExpr(arr.size))
-			{
-				size_t size = context.scopeUtils.EvaluateConstantIntExpr(arr.size);
-				if (size > 0)
-				{
-					Type* arrType = arr.type;
-					type->typeID = TypeID::FixedArrayType;
-					type->fixedArrayType.size = size;
-					type->fixedArrayType.type = arrType;
-				}
-				else
-				{
-					AddError(tok, "TypeChecker:CheckArrayType Array size expression must evaluate to a positive number");
-				}
-			}
-		}
-	}
-
 	void CheckDefinitionType(Stmnt* node)
 	{
 		auto& definition = node->definition;

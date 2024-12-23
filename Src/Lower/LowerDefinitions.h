@@ -201,6 +201,12 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
+	SpiteIR::Function* FindStateFunction(SpiteIR::State* state, const eastl::string& name)
+	{
+		return FindPackageFunction(state->parent,
+			state->name + "_" + name);
+	}
+
 	void AddGenericsToCurrent(Stmnt* stmnt)
 	{
 		Stmnt* generics = GetGenerics(stmnt);
@@ -719,7 +725,21 @@ struct LowerDefinitions
 			eastl::vector<SpiteIR::Operand>* toLog = context.ir->AllocateArray<SpiteIR::Operand>();
 			for (Expr* expr : *stmnt->logStmnt.exprs)
 			{
-				toLog->push_back(BuildRegisterOperand(BuildExpr(expr, stmnt)));
+				ScopeValue logValue = BuildExpr(expr, stmnt);
+				SpiteIR::Type* deref = GetDereferencedType(logValue.type);
+				if (deref->kind == SpiteIR::TypeKind::StateType)
+				{
+					SpiteIR::State* state = deref->stateType.state;
+					SpiteIR::Function* logFunc = FindStateFunction(state, "log");
+					if (logFunc)
+					{
+						SpiteIR::Allocate alloc = BuildAllocate(logFunc->returnType);
+						BuildCall(logFunc, alloc.result, nullptr, GetCurrentLabel());
+						logValue = { alloc.result, alloc.type };
+					}
+
+				}
+				toLog->push_back(BuildRegisterOperand(logValue));
 			}
 			SpiteIR::Instruction* logInst = BuildLog(GetCurrentLabel(), toLog);
 			break;
@@ -1008,10 +1028,8 @@ struct LowerDefinitions
 		SpiteIR::State* iteratedState = GetStateForType(iterateValue.type);
 		Assert(iteratedState);
 
-		SpiteIR::Function* nextFunc = FindPackageFunction(iteratedState->parent,
-			iteratedState->name + "_" + "next");
-		SpiteIR::Function* currFunc = FindPackageFunction(iteratedState->parent,
-			iteratedState->name + "_" + "current");
+		SpiteIR::Function* nextFunc = FindStateFunction(iteratedState, "next");
+		SpiteIR::Function* currFunc = FindStateFunction(iteratedState, "current");
 		Assert(nextFunc && currFunc);
 
 		SpiteIR::Type* currReturnType = currFunc->returnType;
@@ -1212,9 +1230,13 @@ struct LowerDefinitions
 
 			auto& conditional = caseCond->conditional;
 			Expr* caseExpr = ExpandTemplate(conditional.condition);
-			Assert(scopeUtils.IsConstantIntExpr(caseExpr));
+			if (!IsConstantIntExpr(caseExpr, GetScopeUtils()))
+			{
+				Logger::FatalErrorAt("LowerDefinitions:BuildSwitchStmnt Switch statement case values must evaluate to constant integers",
+					caseExpr->start->pos);
+			}
 
-			intmax_t caseValue = scopeUtils.EvaluateConstantIntExpr(caseExpr);
+			intmax_t caseValue = EvaluateConstantIntExpr(caseExpr, this);
 			caseMap->emplace(caseValue, caseLabel);
 			AddLabel(caseLabel);
 			BuildBody(conditional.body);
@@ -1824,7 +1846,7 @@ struct LowerDefinitions
 			case EnumStmnt:
 			{
 				Stmnt* enumStmnt = value.stmnt;
-				intmax_t value = FindEnumValue(enumStmnt, ident);
+				intmax_t value = context.FindEnumValue(enumStmnt, ident);
 				return BuildLiteralIntForType(value, ToIRType(enumStmnt->enumStmnt.type));
 			}
 			default:
@@ -2825,32 +2847,45 @@ struct LowerDefinitions
 		return compileFunc;
 	}
 
-	ScopeValue BuildSizeOf(Expr* expr, Stmnt* stmnt)
+	size_t GetSizeOf(Expr* expr, eastl::vector<Token*>* generics = nullptr, 
+		eastl::vector<Expr*>* templates = nullptr, Stmnt* stmnt = nullptr)
 	{
 		if (expr->sizeOfExpr.expr->typeID == ExprID::TypeExpr)
 		{
 			SpiteIR::Type* type = ToIRType(expr->sizeOfExpr.expr->typeExpr.type);
-			return BuildLiteralInt(type->size);
+			return type->size;
 		}
 
+		if (!stmnt) stmnt = funcContext.currStmnt;
 		ScopeValue value = BuildExpr(expr->sizeOfExpr.expr, stmnt);
 		SpiteIR::Type* type = value.type;
 		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
-		return BuildLiteralInt(type->size);
+		return type->size;
 	}
 
-	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
+	ScopeValue BuildSizeOf(Expr* expr, Stmnt* stmnt)
+	{
+		return BuildLiteralInt(GetSizeOf(expr, nullptr, nullptr, stmnt));
+	}
+
+	size_t GetAlignOf(Expr* expr, eastl::vector<Token*>* generics = nullptr,
+		eastl::vector<Expr*>* templates = nullptr, Stmnt* stmnt = nullptr)
 	{
 		if (expr->alignOfExpr.expr->typeID == ExprID::TypeExpr)
 		{
 			SpiteIR::Type* type = ToIRType(expr->alignOfExpr.expr->typeExpr.type);
-			return BuildLiteralInt(type->alignment);
+			return type->alignment;
 		}
 
 		ScopeValue value = BuildExpr(expr->alignOfExpr.expr, stmnt);
 		SpiteIR::Type* type = value.type;
 		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
-		return BuildLiteralInt(type->alignment);
+		return type->alignment;
+	}
+
+	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
+	{
+		return BuildLiteralInt(GetAlignOf(expr, nullptr, nullptr, stmnt));
 	}
 
 	SpiteIR::Type* CreateTypeMetaType()

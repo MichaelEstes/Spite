@@ -314,21 +314,6 @@ inline bool HasEnumMember(Stmnt* of, StringView& val)
 	return false;
 }
 
-inline intmax_t FindEnumValue(Stmnt* enumStmnt, StringView& val)
-{
-	for (size_t i = 0; i < enumStmnt->enumStmnt.names->size(); i++)
-	{
-		Token* name = enumStmnt->enumStmnt.names->at(i);
-		if (name->val == val)
-		{
-			intmax_t value = enumStmnt->enumStmnt.values->at(i);
-			return value;
-		}
-	}
-
-	return 0;
-}
-
 inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
 {
 	auto& methods = of->methods;
@@ -830,10 +815,6 @@ struct SymbolTable
 			cloned->arrayType.type = CloneType(type->arrayType.type);
 			cloned->arrayType.size = CloneExpr(type->arrayType.size);
 			break;
-		case FixedArrayType:
-			cloned->fixedArrayType.type = CloneType(type->fixedArrayType.type);
-			cloned->fixedArrayType.size = type->fixedArrayType.size;
-			break;
 		case TemplatedType:
 			cloned->templatedType.templates = CloneExpr(type->templatedType.templates);
 			cloned->templatedType.type = CloneType(type->templatedType.type);
@@ -1157,6 +1138,19 @@ struct SymbolTable
 		}
 
 		return cloned;
+	}
+
+	Expr* CreateIntLiteralExpr(intmax_t i, Token* start)
+	{
+		Expr* expr = CreateExpr(start, ExprID::LiteralExpr);
+		eastl::string* val = arena->Emplace<eastl::string>(eastl::to_string(i));
+		Token* token = arena->Emplace<Token>();
+		token->pos = start->pos;
+		token->uniqueType = UniqueType::IntLiteral;
+		token->type = TokenType::Literal;
+		token->val = StringView(val->c_str());
+		expr->literalExpr.val = token;
+		return expr;
 	}
 
 	Type* CreatePrimitive(UniqueType primType)

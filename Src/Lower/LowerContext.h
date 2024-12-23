@@ -21,6 +21,7 @@ struct LowerContext
 	eastl::hash_map<SpiteIR::State*, ASTContainer> stateASTMap;
 	eastl::hash_map<SpiteIR::Function*, ASTContainer> functionASTMap;
 	eastl::hash_map<SpiteIR::GlobalVariable*, Stmnt*> globalVarASTMap;
+	eastl::hash_map<Stmnt*, eastl::hash_map<StringView, intmax_t, StringViewHash>> enumMap;
 
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
 	eastl::vector<SpiteIR::Type*> toResolveStateSize;
@@ -36,5 +37,13 @@ struct LowerContext
 		}
 
 		return nullptr;
+	}
+
+	inline intmax_t FindEnumValue(Stmnt* enumStmnt, StringView& val)
+	{
+		Assert(MapHas(enumMap, enumStmnt));
+		eastl::hash_map<StringView, intmax_t, StringViewHash>& enumValues = enumMap[enumStmnt];
+		Assert(MapHas(enumValues, val));
+		return enumValues[val];
 	}
 };

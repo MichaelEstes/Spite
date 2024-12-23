@@ -495,10 +495,13 @@ eastl::string BuildTypeString(Type* type)
 	case ValueType:
 		return BuildTypeString(type->valueType.type);
 	case ArrayType:
+	{
+		if (type->arrayType.size)
+		{
+			return "arr_" + BuildExprString(type->arrayType.size) + "_" + BuildTypeString(type->arrayType.type);
+		}
 		return "arr_" + BuildTypeString(type->arrayType.type);
-	case FixedArrayType:
-		return "arr_" + eastl::to_string(type->fixedArrayType.size) + "_" +
-			BuildTypeString(type->fixedArrayType.type);
+	}
 	case TemplatedType:
 		return BuildTypeString(type->templatedType.type) +
 			BuildTemplatedString(type->templatedType.templates->templateExpr.templateArgs);
@@ -818,6 +821,201 @@ void SetStructuredTypeSizeAndAlign(SpiteIR::Type* type, Low* lower)
 	}
 }
 
+bool IsConstantIntExpr(Expr* expr, ScopeUtils& scopeUtils, 
+	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr, 
+	bool checkIdent = true)
+{
+	expr = _ExpandTemplate(expr, generics, templates);
+	switch (expr->typeID)
+	{
+	case LiteralExpr:
+		return expr->literalExpr.val->uniqueType == UniqueType::IntLiteral ||
+			expr->literalExpr.val->uniqueType == UniqueType::HexLiteral;
+	case IdentifierExpr:
+	{
+		//Only allow one degree of seperation to be considered a constant
+		// Constant --
+		// a := 1
+		// arr := [a]int
+		// Not Constant --
+		// a := 1; b := a
+		// arr := [b]int
+		if (!checkIdent) return false;
+
+		Stmnt* def = scopeUtils.FindInScope(expr->identifierExpr.identifier->val);
+		if (!def || !def->definition.assignment) return false;
+		return IsConstantIntExpr(def->definition.assignment, scopeUtils,
+			generics, templates, false);
+	}
+	case BinaryExpr:
+		return IsConstantIntExpr(expr->binaryExpr.left, scopeUtils, generics, templates)
+			&& IsConstantIntExpr(expr->binaryExpr.right, scopeUtils, generics, templates);
+	case UnaryExpr:
+		return IsConstantIntExpr(expr->unaryExpr.expr, scopeUtils, generics, templates);
+	case GroupedExpr:
+		return IsConstantIntExpr(expr->groupedExpr.expr, scopeUtils, generics, templates);
+	case SelectorExpr:
+	{
+		// Check if enum selection
+		if (expr->selectorExpr.on->typeID == IdentifierExpr)
+		{
+			Token* name = expr->selectorExpr.on->identifierExpr.identifier;
+			return scopeUtils.globalTable->FindScopedEnum(name, scopeUtils.symbolTable);
+		}
+		else if (expr->selectorExpr.on->typeID == SelectorExpr)
+		{
+			if (scopeUtils.IsPackageExpr(expr->selectorExpr.on))
+			{
+				Token* package = expr->selectorExpr.on->selectorExpr.on->identifierExpr.identifier;
+				Token* name = expr->selectorExpr.on->selectorExpr.select->identifierExpr.identifier;
+				SymbolTable* symbolTable = scopeUtils.globalTable->FindSymbolTable(package->val);
+				return symbolTable->FindEnum(name->val);
+			}
+		}
+	}
+	case SizeOfExpr:
+	case AlignOfExpr:
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+template<typename Low>
+intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
+	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+{
+	expr = _ExpandTemplate(expr, generics, templates);
+	ScopeUtils& scopeUtils = lower->GetScopeUtils();
+	switch (expr->typeID)
+	{
+	case LiteralExpr:
+	{
+		StringView& str = expr->literalExpr.val->val;
+		if (expr->literalExpr.val->uniqueType == UniqueType::IntLiteral)
+		{
+			return IntLiteralStringToInt(str);
+		}
+		else if (expr->literalExpr.val->uniqueType == UniqueType::HexLiteral)
+		{
+			return std::stoi(str.ToString().c_str());
+		}
+
+		break;
+	}
+	case IdentifierExpr:
+	{
+		Stmnt* def = scopeUtils.FindInScope(expr->identifierExpr.identifier->val);
+		if (def && def->definition.assignment)
+		{
+			return EvaluateConstantIntExpr(def->definition.assignment, lower, generics, templates);
+		}
+	}
+	case BinaryExpr:
+	{
+		intmax_t left = EvaluateConstantIntExpr(expr->binaryExpr.left, lower, generics, templates);
+		intmax_t right = EvaluateConstantIntExpr(expr->binaryExpr.right, lower, generics, templates);
+		switch (expr->binaryExpr.op->uniqueType)
+		{
+		case UniqueType::Add:
+			return left + right;
+		case UniqueType::Subtract:
+			return left - right;
+		case UniqueType::Multiply:
+			return left * right;
+		case UniqueType::Divide:
+			return left / right;
+		case UniqueType::Modulo:
+			return left % right;
+		case UniqueType::And:
+			return left & right;
+		case UniqueType::Or:
+			return left | right;
+		case UniqueType::Xor:
+			return left ^ right;
+		case UniqueType::Shiftl:
+			return left << right;
+		case UniqueType::Shiftr:
+			return left >> right;
+		case UniqueType::AndNot:
+			return left & ~right;
+		case UniqueType::LogicAnd:
+			return left && right;
+		case UniqueType::LogicOr:
+			return left || right;
+		case UniqueType::Equal:
+			return left == right;
+		case UniqueType::Less:
+			return left < right;
+		case UniqueType::Greater:
+			return left > right;
+		case UniqueType::NotEql:
+			return left != right;
+		case UniqueType::LessEqual:
+			return left <= right;
+		case UniqueType::GreaterEqual:
+			return left >= right;
+		default:
+			break;
+		}
+
+		break;
+	}
+	case UnaryExpr:
+	{
+		intmax_t value = EvaluateConstantIntExpr(expr->unaryExpr.expr, lower, generics, templates);
+		switch (expr->unaryExpr.op->uniqueType)
+		{
+		case UniqueType::Subtract:
+			return -value;
+		case UniqueType::Not:
+			return !value;
+		case UniqueType::Xor:
+			return ~value;
+		default:
+			break;
+		}
+
+		break;
+	}
+	case GroupedExpr:
+		return EvaluateConstantIntExpr(expr->groupedExpr.expr, lower, generics, templates);
+	case SelectorExpr:
+	{
+		// Check if enum selection
+		if (expr->selectorExpr.on->typeID == IdentifierExpr)
+		{
+			Token* member = expr->selectorExpr.select->identifierExpr.identifier;
+			Token* name = expr->selectorExpr.on->identifierExpr.identifier;
+			Stmnt* enumStmnt = scopeUtils.globalTable->FindScopedEnum(name, scopeUtils.symbolTable);
+			return lower->context.FindEnumValue(enumStmnt, member->val);
+		}
+		else if (expr->selectorExpr.on->typeID == SelectorExpr)
+		{
+			if (scopeUtils.IsPackageExpr(expr->selectorExpr.on))
+			{
+				Token* member = expr->selectorExpr.select->identifierExpr.identifier;
+				Token* package = expr->selectorExpr.on->selectorExpr.on->identifierExpr.identifier;
+				Token* name = expr->selectorExpr.on->selectorExpr.select->identifierExpr.identifier;
+				SymbolTable* symbolTable = scopeUtils.globalTable->FindSymbolTable(package->val);
+				Stmnt* enumStmnt = scopeUtils.symbolTable->FindEnum(name->val);
+				return lower->context.FindEnumValue(enumStmnt, member->val);
+			}
+		}
+	}
+	case SizeOfExpr:
+		return lower->GetSizeOf(expr, generics, templates);
+	case AlignOfExpr:
+		return lower->GetAlignOf(expr, generics, templates);
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 template<typename Low>
 SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
@@ -1016,11 +1214,9 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		if (type->arrayType.size)
 		{
-			ScopeUtils& scopeUtils = lower->GetScopeUtils();
-			Expr* expanded = _ExpandTemplate(type->arrayType.size, generics, templates);
-			if (scopeUtils.IsConstantIntExpr(expanded))
+			if (IsConstantIntExpr(type->arrayType.size, lower->GetScopeUtils(), generics, templates))
 			{
-				intmax_t constantSize = scopeUtils.EvaluateConstantIntExpr(expanded);
+				intmax_t constantSize = EvaluateConstantIntExpr(type->arrayType.size, lower, generics, templates);
 				SpiteIR::Type* irType = BuildFixedArray(ir, constantSize,
 					TypeToIRType(ir, type->arrayType.type, lower, generics, templates));
 				return irType;
@@ -1032,12 +1228,6 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->size = config.targetArchByteWidth * 4;
 		irType->alignment = config.targetArchByteWidth;
 		irType->dynamicArray.type = TypeToIRType(ir, type->arrayType.type, lower, generics, templates);
-		return irType;
-	}
-	case FixedArrayType:
-	{
-		SpiteIR::Type* irType = BuildFixedArray(ir, type->fixedArrayType.size,
-			TypeToIRType(ir, type->fixedArrayType.type, lower, generics, templates));
 		return irType;
 	}
 	case FunctionType:

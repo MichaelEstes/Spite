@@ -18,7 +18,6 @@ enum TypeID
 	PointerType,
 	ValueType,
 	ArrayType,
-	FixedArrayType,
 	TemplatedType,
 	FunctionType,
 	ImportedType,
@@ -95,12 +94,6 @@ struct Type
 			Token* packageName;
 			Token* typeName;
 		} importedType;
-
-		struct
-		{
-			Type* type;
-			intmax_t size;
-		} fixedArrayType;
 
 		struct
 		{

@@ -210,7 +210,6 @@ struct Stmnt
 			Type* type;
 			eastl::vector<Token*>* names;
 			eastl::vector<Expr*>* valueExprs;
-			eastl::vector<intmax_t>* values;
 		} enumStmnt;
 
 		struct
