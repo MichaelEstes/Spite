@@ -734,10 +734,11 @@ struct LowerDefinitions
 					if (logFunc)
 					{
 						SpiteIR::Allocate alloc = BuildAllocate(logFunc->returnType);
-						BuildCall(logFunc, alloc.result, nullptr, GetCurrentLabel());
+						eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+						params->push_back(BuildRegisterOperand(MakeThisParameterReference(logValue)));
+						BuildCall(logFunc, alloc.result, params, GetCurrentLabel());
 						logValue = { alloc.result, alloc.type };
 					}
-
 				}
 				toLog->push_back(BuildRegisterOperand(logValue));
 			}
@@ -1016,7 +1017,7 @@ struct LowerDefinitions
 		auto& def = defStmnt->definition;
 		SpiteIR::Type* defType = ToIRType(def.type);
 
-		ScopeValue iterateValue = BuildExpr(for_.toIterate, stmnt);
+		ScopeValue iterateValue = MakeThisParameterReference(BuildExpr(for_.toIterate, stmnt));
 		SpiteIR::Type* derefType = GetDereferencedType(iterateValue.type);
 
 		if (derefType->kind == SpiteIR::TypeKind::FixedArrayType)
@@ -1025,7 +1026,7 @@ struct LowerDefinitions
 			return;
 		}
 
-		SpiteIR::State* iteratedState = GetStateForType(iterateValue.type);
+		SpiteIR::State* iteratedState = GetStateForType(derefType);
 		Assert(iteratedState);
 
 		SpiteIR::Function* nextFunc = FindStateFunction(iteratedState, "next");
@@ -3610,6 +3611,14 @@ struct LowerDefinitions
 		return function;
 	}
 
+	ScopeValue MakeThisParameterReference(ScopeValue thisValue)
+	{
+		thisValue = DereferenceToSinglePointer(thisValue);
+		if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
+			thisValue = BuildTypeReference(GetCurrentLabel(), thisValue);
+		return thisValue;
+	}
+
 	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
 	{
 		Expr* functionExpr = expr->functionCallExpr.function;
@@ -3618,10 +3627,7 @@ struct LowerDefinitions
 		StringView& packageName = methodStmnt->package->val;
 		eastl::string methodName;
 
-		ScopeValue thisValue = DereferenceToSinglePointer(BuildExpr(caller, stmnt));
-		if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
-			thisValue = BuildTypeReference(GetCurrentLabel(), thisValue);
-
+		ScopeValue thisValue = MakeThisParameterReference(BuildExpr(caller, stmnt));
 		SpiteIR::State* state = GetStateForType(GetDereferencedType(thisValue.type));
 		Assert(state);
 		SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
