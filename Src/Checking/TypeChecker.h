@@ -52,6 +52,12 @@ struct TypeChecker
 
 		if (!state)
 		{
+			SymbolTable* symbolTable = context.globalTable->FindSymbolTable(type->importedType.packageName->val);
+			if (symbolTable)
+			{
+				Stmnt* enumStmnt = context.globalTable->FindScopedEnum(type->importedType.typeName, symbolTable);
+				if (enumStmnt) return true;
+			}
 			if (error) AddError(type->importedType.typeName, "TypeChecker:CheckImportedType Could not find imported type");
 			return false;
 		}
@@ -185,7 +191,8 @@ struct TypeChecker
 		Type* from = utils.InferType(assignment.assignment);
 		if (!utils.IsAssignable(to, from))
 		{
-			AddError(node->start, "Invalid type evaluation for assignment expression: " + ToString(to));
+			AddError(node->start, "Invalid type evaluation for assignment expression, expected type: " + ToString(to) +
+				", inferred assignment type: " + ToString(from));
 		}
 	}
 

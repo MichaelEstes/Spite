@@ -457,7 +457,8 @@ struct TypeInferer
 		Stmnt* member = FindStateMember(state, name);
 		if (member)
 		{
-			if (state->state.generics) return ExpandTypeTemplates(member->definition.type, state, type);
+			if (state->state.generics) 
+				return ExpandTypeTemplates(symbolTable->CloneType(member->definition.type), state, type);
 			return member->definition.type;
 		}
 		else
@@ -470,7 +471,7 @@ struct TypeInferer
 				return nullptr;
 			}
 
-			Type* funcType = FunctionToFunctionType(method);
+			Type* funcType = symbolTable->CloneType(FunctionToFunctionType(method));
 			return ExpandTypeTemplates(funcType, state, type);
 		}
 	}
@@ -774,7 +775,15 @@ struct TypeInferer
 		}
 		case ImportedType:
 		case NamedType:
+		{
+			Stmnt* enumStmnt = globalTable->FindEnumForType(left, symbolTable);
+			if (enumStmnt)
+			{
+				return GetOperatorType(op, enumStmnt->enumStmnt.type, right);
+			}
+
 			return GetStateOperatorType(op, op->uniqueType, left, right);
+		}
 		case UnionType:
 		case ExplicitType:
 		case ImplicitType:

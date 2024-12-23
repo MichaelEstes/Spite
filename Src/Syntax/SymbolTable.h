@@ -822,6 +822,7 @@ struct SymbolTable
 		case FunctionType:
 		{
 			cloned->functionType.returnType = CloneType(type->functionType.returnType);
+			cloned->functionType.paramTypes = CreateVectorPtr<Type>();
 			for (Type* param : *type->functionType.paramTypes)
 			{
 				cloned->functionType.paramTypes->push_back(CloneType(param));

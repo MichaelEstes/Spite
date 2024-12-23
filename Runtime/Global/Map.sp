@@ -6,11 +6,83 @@ Deleted := byte(2);
 
 InvalidIndex := -1 as uint
 
+int DefaultStringHash(str: string)
+{
+	result: int = 0;
+	for (i .. str.count) result += (i * 0xDEAD) ^ str[i]~;
+
+	return result;
+}
+
+int DefaultPrimitiveHash<Prim>(value: Prim)
+{
+	log "Default Primitive Hash";
+	return value as int;
+}
+
+::int(Type) GetDefaultHashFunctionFor<Type>(type: *_Type)
+{
+	typeKind := type.kind;
+	typeUnion := type.type;
+
+	switch (typeKind)
+	{
+		case (_TypeKind.PrimitiveType)
+		{
+			if(typeUnion.primitive.primitiveKind == _PrimitiveKind.String)
+			{
+				return DefaultStringHash as ::int(Type);
+			}
+			else
+			{
+				return DefaultPrimitiveHash<Type>;
+			}
+		}
+		case (_TypeKind.StateType)
+		{
+			log "Default hash for StateType";
+		}
+		case (_TypeKind.StructureType)
+		{
+			log "Default hash for StructureType";
+		}
+		case (_TypeKind.PointerType)
+		{
+			log "Default hash for PointerType";
+		}
+		case (_TypeKind.ReferenceType)
+		{
+			log "Default hash for ReferenceType";
+		}
+		case (_TypeKind.DynamicArrayType)
+		{
+			log "Default hash for DynamicArrayType";
+		}
+		case (_TypeKind.FixedArrayType)
+		{
+			log "Default hash for FixedArrayType";
+		}
+		case (_TypeKind.FunctionType)
+		{
+			log "Default hash for FunctionType";
+		}
+		case (_TypeKind.UnionType)
+		{
+			log "Default hash for UnionType";
+		}
+	}
+
+	return ::int(value: Type) => return value as int;
+}
+
 int DefaultHash<Key>(key: Key)
 {
-	//hashFunc := #compile ::int(any) {}
+	hashFunc := #compile ::int(Key) {
+		typeOfKey := #typeof Key;
+		return GetDefaultHashFunctionFor<Key>(typeOfKey);
+	}
 
-	return key as int;
+	return hashFunc(key);
 }
 
 bool DefaultEqual<Key>(left: Key, right: Key)
@@ -24,12 +96,25 @@ state KeyValue<Key, Value>
 	value: *Value
 }
 
-state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key> : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
+state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key> 
+: where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
 {
 	keys: []Key,
 	values: []Value,
 	status: []byte,
 	count: uint
+}
+
+[]KeyValue<Key, Value> Map::log()
+{
+	values := []KeyValue<Key, Value>;
+	for(i .. this.status.count)
+	{
+		if (this.status[i] == Full)
+			values.Add({this.keys[i]@, this.values[i]@} as KeyValue<Key, Value>);
+	}
+
+	return values;
 }
 
 *Value Map::operator::[](key: Key)
