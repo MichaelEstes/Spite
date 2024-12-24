@@ -10,14 +10,27 @@ int DefaultStringHash(str: string)
 {
 	result: int = 0;
 	for (i .. str.count) result += (i * 0xDEAD) ^ str[i]~;
-
 	return result;
 }
 
 int DefaultPrimitiveHash<Prim>(value: Prim)
 {
-	log "Default Primitive Hash";
 	return value as int;
+}
+
+int DefaultPointerHash(value: *void)
+{
+	return value as int;
+}
+
+int DefaultStructuredHash<Type>(value: Type)
+{
+	byteCount := #sizeof Type;
+	byteArr := value@ as *byte;
+	result: int = 0;
+	for (i .. byteCount) result += (i * 0xDEAD) ^ byteArr[i]~;
+
+	return result;
 }
 
 ::int(Type) GetDefaultHashFunctionFor<Type>(type: *_Type)
@@ -38,40 +51,23 @@ int DefaultPrimitiveHash<Prim>(value: Prim)
 				return DefaultPrimitiveHash<Type>;
 			}
 		}
-		case (_TypeKind.StateType)
-		{
-			log "Default hash for StateType";
-		}
+		case (_TypeKind.StateType) continue;
+		case (_TypeKind.UnionType) continue;
 		case (_TypeKind.StructureType)
 		{
-			log "Default hash for StructureType";
+			return DefaultStructuredHash<Type>;
 		}
+		case (_TypeKind.FunctionType) continue;
 		case (_TypeKind.PointerType)
 		{
-			log "Default hash for PointerType";
+			return DefaultPointerHash as ::int(Type);
 		}
-		case (_TypeKind.ReferenceType)
-		{
-			log "Default hash for ReferenceType";
-		}
-		case (_TypeKind.DynamicArrayType)
-		{
-			log "Default hash for DynamicArrayType";
-		}
-		case (_TypeKind.FixedArrayType)
-		{
-			log "Default hash for FixedArrayType";
-		}
-		case (_TypeKind.FunctionType)
-		{
-			log "Default hash for FunctionType";
-		}
-		case (_TypeKind.UnionType)
-		{
-			log "Default hash for UnionType";
-		}
+		case (_TypeKind.DynamicArrayType) break;
+		case (_TypeKind.FixedArrayType) break;
+		case (_TypeKind.ReferenceType) break;
 	}
 
+	log "Warning: Unable to create default hash for type";
 	return ::int(value: Type) => return value as int;
 }
 
