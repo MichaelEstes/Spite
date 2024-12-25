@@ -22,6 +22,9 @@ struct LLVMBuilder
 	SpiteIR::IR* ir;
 
 	eastl::hash_map<SpiteIR::Function*, llvm::Function*> functionMap;
+	eastl::hash_map<size_t, llvm::GlobalVariable*> globalVarMap;
+	eastl::hash_map<size_t, llvm::Value*> localVarMap;
+	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
 	Arena arena;
 
 	llvm::LLVMContext context;
@@ -131,6 +134,7 @@ struct LLVMBuilder
 			return;
 		}
 
+		localVarMap.clear();
 		llvm::Function* llvmFunc = functionMap.at(function);
 		BuildFunctionArgs(function, llvmFunc);
 		BuildBlock(function, llvmFunc, function->block);
@@ -150,6 +154,7 @@ struct LLVMBuilder
 		for (llvm::Argument& arg : llvmFunc->args())
 		{
 			arg.setName(RegisterName(reg));
+			localVarMap[reg] = &arg;
 			reg += function->arguments.at(i)->value->type->size;
 			i += 1;
 		}
@@ -157,12 +162,29 @@ struct LLVMBuilder
 
 	void BuildBlock(SpiteIR::Function* function, llvm::Function* llvmFunc, SpiteIR::Block* block)
 	{
-		BuildEntry(function, llvmFunc, block, block->labels.front());
+		SpiteIR::Label* entryLabel = block->labels.front();
+		llvm::BasicBlock* entryBlock = CreateBasicBlock(llvmFunc, entryLabel);
+		builder.SetInsertPoint(entryBlock);
 
 		for (size_t i = 1; i < block->labels.size(); i++)
 		{
 			SpiteIR::Label* label = block->labels.at(i);
-			BuildLabel(llvmFunc, label);
+			labelMap[label] = CreateBasicBlock(llvmFunc, label);
+		}
+
+		// Skip allocations for function arguments
+		for (size_t i = function->arguments.size(); i < block->allocations.size(); i++)
+		{
+			SpiteIR::Allocate& alloc = block->allocations.at(i);
+			BuildAllocate(alloc);
+		}
+
+		BuildInstructions(entryLabel);
+
+		for (size_t i = 1; i < block->labels.size(); i++)
+		{
+			SpiteIR::Label* label = block->labels.at(i);
+			BuildLabel(labelMap[label], label);
 		}
 	}
 
@@ -189,6 +211,7 @@ struct LLVMBuilder
 			nullptr, 
 			RegisterName(alloc.result)
 		);
+		localVarMap[alloc.result] = allocaInst;
 	}
 
 	llvm::BasicBlock* CreateBasicBlock(llvm::Function* llvmFunc, SpiteIR::Label* label)
@@ -205,9 +228,8 @@ struct LLVMBuilder
 		BuildInstruction(label->terminator);
 	}
 
-	void BuildLabel(llvm::Function* llvmFunc, SpiteIR::Label* label)
+	void BuildLabel(llvm::BasicBlock* basicBlock, SpiteIR::Label* label)
 	{
-		llvm::BasicBlock* basicBlock = CreateBasicBlock(llvmFunc, label);
 		builder.SetInsertPoint(basicBlock);
 		BuildInstructions(label);
 	}
@@ -286,6 +308,9 @@ struct LLVMBuilder
 
 	void BuildReturn(SpiteIR::Instruction* inst)
 	{
+		if (inst->return_.operand.kind == SpiteIR::OperandKind::Void)
+			builder.CreateRetVoid();
+		else builder.CreateRet(localVarMap[inst->return_.operand.reg]);
 	}
 
 	void BuildJump(SpiteIR::Instruction* inst)
