@@ -71,6 +71,7 @@ struct Config
 	eastl::string dir;
 	eastl::string file;
 	eastl::string entry = "Main";
+	eastl::string name = "a";
 	Output output = Output::Llvm;
 	Arch arch = Arch::X64;
 	Os os = Os::Windows;
@@ -108,6 +109,10 @@ inline Config ParseConfig(int argc, char** argv)
 		else if (arg == "-entry")
 		{
 			config.entry = GetNextArg(i, argc, argv);
+		}
+		else if (arg == "-name")
+		{
+			config.name = GetNextArg(i, argc, argv);
 		}
 		else if (arg == "-output")
 		{

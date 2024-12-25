@@ -167,7 +167,7 @@ uint Map::FindIndex(key: Key)
 
 bool Map::Has(key: Key)
 {
-	this.FindIndex(key) != InvalidIndex;
+	return this.FindIndex(key) != InvalidIndex;
 }
 
 bool Map::Insert(key: Key, value: Value)
@@ -186,6 +186,7 @@ bool Map::Remove(key: Key)
 	index := this.FindIndex(key);
 	if(index == InvalidIndex) return false;
 	this.status[index] = Deleted;
+	return true;
 }
 
 Map::ResizeTo(count: int)
@@ -213,8 +214,7 @@ Map::ResizeTo(count: int)
 bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
 													key: Key, value: Value)
 {
-	//Implment assert
-	//assert keys.count == values.count && values.count == status.count;
+	assert keys.count == values.count && values.count == status.count;
 	hash: uint = Hash(key);
 	index := hash % status.capacity;
 	start := index;
@@ -252,7 +252,6 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
 										insertKeys: []Key, insertValues: []Value, insertStatus: []byte)
 {
-	//Implment assert
 	assert keys.count == values.count && values.count == status.count;
 	assert insertKeys.count == insertValues.count;
 

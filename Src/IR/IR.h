@@ -455,7 +455,7 @@ namespace SpiteIR
 		struct
 		{
 			ExternFunction* externFunc = nullptr;
-			size_t flags;
+			size_t flags = 0;
 		} metadata;
 
 		string name;
@@ -486,7 +486,7 @@ namespace SpiteIR
 
 		struct
 		{
-			int flags;
+			int flags = 0;
 		} metadata;
 
 		Array<Member> members;

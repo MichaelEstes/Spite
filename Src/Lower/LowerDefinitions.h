@@ -603,6 +603,21 @@ struct LowerDefinitions
 			BuildVoidReturn(lastLabel);
 		}
 		PopScope();
+		CheckFunctionBlock(function);
+	}
+
+	void CheckFunctionBlock(SpiteIR::Function* function)
+	{
+		SpiteIR::Block* block = function->block;
+		for (SpiteIR::Label* label : block->labels)
+		{
+			if (!label->terminator)
+			{
+				Position pos = label->values.back()->metadata->expressionPosition;
+				Logger::FatalErrorAt("LowerDefinition:CheckFunctionBlock Non-terminated label found",
+					pos);
+			}
+		}
 	}
 
 	void BuildFunctionArguments(SpiteIR::Function* function, Stmnt* funcDecl)
@@ -3773,8 +3788,11 @@ struct LowerDefinitions
 	SpiteIR::Allocate BuildAllocate(SpiteIR::Type* type)
 	{
 		SpiteIR::Allocate alloc = { funcContext.curr, type };
-		funcContext.function->block->allocations.push_back(alloc);
-		funcContext.IncrementRegister(type);
+		if (!IsVoidType(type))
+		{
+			funcContext.function->block->allocations.push_back(alloc);
+			funcContext.IncrementRegister(type);
+		}
 		return alloc;
 	}
 

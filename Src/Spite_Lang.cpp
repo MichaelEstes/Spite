@@ -170,22 +170,22 @@ int main(int argc, char** argv)
 		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
-	Profiler interpretProfiler = Profiler();
-	/*Decompiler decompiler = Decompiler();
-	decompiler.Decompile(ir);
-	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
+	//Profiler interpretProfiler = Profiler();
+	//Decompiler decompiler = Decompiler();
+	//decompiler.Decompile(ir);
+	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
+	//
+	//interpretProfiler.Reset();
+	//int64_t value = *(int64_t*)interpreter.Interpret(ir);
+	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
-	interpretProfiler.Reset();*/
-	int64_t value = *(int64_t*)interpreter.Interpret(ir);
-	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
-
-	/*{
+	{
 		Profiler builderProfiler = Profiler();
 		switch (config.output)
 		{
 		case Llvm:
 		{
-			LLVMBuilder builder = LLVMBuilder(symbolTable);
+			LLVMBuilder builder = LLVMBuilder(ir);
 			builder.Build();
 			break;
 		}
@@ -201,7 +201,7 @@ int main(int argc, char** argv)
 
 		size_t elapsedScanTime = builderProfiler.End();
 		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output for " + config.file);
-	}*/
+	}
 
 	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile " + config.file);
 
