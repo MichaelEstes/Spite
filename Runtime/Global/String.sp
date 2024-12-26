@@ -2,6 +2,7 @@ package _
 
 state _string 
 {
+	[value]
 	count: uint,
 	str: *byte
 }

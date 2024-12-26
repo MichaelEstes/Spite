@@ -754,6 +754,7 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	{
 		type->size = state->size;
 		type->alignment = state->alignment;
+		type->byValue = state->IsValueType();
 	}
 	return state;
 }

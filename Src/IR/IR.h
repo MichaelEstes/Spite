@@ -194,7 +194,7 @@ namespace SpiteIR
 
 	struct Block
 	{
-		Parent parent;
+		Function* parent;
 		Array<Allocate> allocations;
 		Array<Label*> labels;
 	};
@@ -327,6 +327,8 @@ namespace SpiteIR
 
 	struct InstructionMetadata
 	{
+		Label* label;
+		Block* block;
 		Position statementPosition;
 		Position expressionPosition;
 	};
@@ -462,6 +464,11 @@ namespace SpiteIR
 		Type* returnType;
 		Array<Argument*> arguments;
 		Block* block;
+
+		inline bool IsInline()
+		{
+			return metadata.flags & FunctionFlags::Inline;
+		}
 	};
 
 	struct Member
@@ -476,6 +483,7 @@ namespace SpiteIR
 		SOA = ToBit(2),
 		Serialized = ToBit(3),
 		NoAlign = ToBit(4),
+		ValueType = ToBit(5),
 	};
 
 	struct State
@@ -486,7 +494,7 @@ namespace SpiteIR
 
 		struct
 		{
-			int flags = 0;
+			size_t flags = 0;
 		} metadata;
 
 		Array<Member> members;
@@ -496,6 +504,11 @@ namespace SpiteIR
 		Function* defaultConstructor;
 		Function* destructor = nullptr;
 		string name;
+
+		inline bool IsValueType()
+		{
+			return metadata.flags & StateFlags::ValueType;
+		}
 	};
 
 	struct Package
@@ -564,9 +577,11 @@ namespace SpiteIR
 			return arena.Emplace<Member>();
 		}
 
-		inline Function* AllocateFunction()
+		inline Function* AllocateFunction(Package* parent)
 		{
-			return arena.Emplace<Function>();
+			Function* func = arena.Emplace<Function>();
+			func->parent = parent;
+			return func;
 		}
 
 		inline ExternFunction* AllocateExternFunction()
@@ -589,9 +604,11 @@ namespace SpiteIR
 			return arena.Emplace<GlobalVariable>();
 		}
 
-		inline Block* AllocateBlock()
+		inline Block* AllocateBlock(Function* parent)
 		{
-			return arena.Emplace<Block>();
+			Block* block = arena.Emplace<Block>();
+			block->parent = parent;
+			return block;
 		}
 
 		inline Label* AllocateLabel()

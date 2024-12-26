@@ -51,10 +51,11 @@ enum StmntID
 
 enum InsetID
 {
-	SizeInset,
-	SOAInset,
-	SerializedInset,
-	NoAlignInset,
+	SizeInset = ToBit(1),
+	SOAInset = ToBit(2),
+	SerializedInset = ToBit(3),
+	NoAlignInset = ToBit(4),
+	ValueInset = ToBit(5),
 	InvalidInset
 };
 
@@ -158,7 +159,7 @@ struct Stmnt
 			Token* name;
 			Stmnt* generics;
 			eastl::vector<Stmnt*>* members;
-			Flags<>* insetFlags;
+			size_t insetFlags;
 		} state;
 
 		struct

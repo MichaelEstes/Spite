@@ -170,14 +170,14 @@ int main(int argc, char** argv)
 		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
-	//Profiler interpretProfiler = Profiler();
+	Profiler interpretProfiler = Profiler();
 	//Decompiler decompiler = Decompiler();
 	//decompiler.Decompile(ir);
 	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 	//
 	//interpretProfiler.Reset();
-	//int64_t value = *(int64_t*)interpreter.Interpret(ir);
-	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+	int64_t value = *(int64_t*)interpreter.Interpret(ir);
+	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 
 	{
 		Profiler builderProfiler = Profiler();

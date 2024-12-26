@@ -14,6 +14,7 @@
 #include "../../Config/Config.h"
 #include "./LLVMTypes.h"
 #include "../../IR/IR.h"
+#include "../../Lower/LowerUtils.h"
 
 extern Config config;
 
@@ -25,6 +26,7 @@ struct LLVMBuilder
 	eastl::hash_map<size_t, llvm::GlobalVariable*> globalVarMap;
 	eastl::hash_map<size_t, llvm::Value*> localVarMap;
 	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
+	SpiteIR::Function* currFunction;
 	Arena arena;
 
 	llvm::LLVMContext context;
@@ -47,7 +49,7 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
-		module.print(llvm::outs(), nullptr);
+		//module.print(llvm::outs(), nullptr);
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -106,7 +108,7 @@ struct LLVMBuilder
 			module
 		);
 
-		if (function->metadata.flags & (1 << SpiteIR::FunctionFlags::Inline))
+		if (function->IsInline())
 		{
 			llvmFunc->addFnAttr(llvm::Attribute::InlineHint);
 		}
@@ -129,6 +131,7 @@ struct LLVMBuilder
 
 	void BuildFunction(SpiteIR::Function* function)
 	{
+		currFunction = function;
 		if (function->metadata.externFunc)
 		{
 			return;
@@ -234,6 +237,11 @@ struct LLVMBuilder
 		BuildInstructions(label);
 	}
 
+	llvm::Value* GetLocalValue(size_t reg)
+	{
+		return localVarMap[reg];
+	}
+
 	void BuildInstruction(SpiteIR::Instruction* inst)
 	{
 		switch (inst->kind)
@@ -310,15 +318,20 @@ struct LLVMBuilder
 	{
 		if (inst->return_.operand.kind == SpiteIR::OperandKind::Void)
 			builder.CreateRetVoid();
-		else builder.CreateRet(localVarMap[inst->return_.operand.reg]);
+		else builder.CreateRet(GetLocalValue(inst->return_.operand.reg));
 	}
 
 	void BuildJump(SpiteIR::Instruction* inst)
 	{
+		builder.CreateBr(labelMap[inst->jump.label]);
 	}
 
 	void BuildBranch(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* test = builder.CreateLoad(ToLLVMType(inst->branch.test.type, context),
+			localVarMap[inst->branch.test.reg]);
+		builder.CreateCondBr(test, labelMap[inst->branch.true_], 
+			labelMap[inst->branch.false_]);
 	}
 
 	void BuildSwitch(SpiteIR::Instruction* inst)
@@ -331,6 +344,25 @@ struct LLVMBuilder
 
 	void BuildCall(SpiteIR::Instruction* inst)
 	{
+		std::vector<llvm::Value*> args;
+
+		for (SpiteIR::Operand& param : *inst->call.params)
+		{
+			llvm::Value* argValue = GetLocalValue(param.reg);
+			if (param.type->byValue)
+			{
+				argValue = builder.CreateLoad(ToLLVMType(param.type, context),
+					argValue);
+			}
+			
+			args.push_back(argValue);
+		}
+
+		llvm::Value* callResult = builder.CreateCall(functionMap[inst->call.function], args);
+		if (!IsVoidType(inst->call.function->returnType))
+		{
+			builder.CreateStore(callResult, GetLocalValue(inst->call.result));
+		}
 	}
 
 	void BuildCallPtr(SpiteIR::Instruction* inst)

@@ -45,47 +45,47 @@ Token* GetTokenForTemplate(Expr* expr)
 bool IsAssignmentOperator(UniqueType uniqueType)
 {
 	return uniqueType == UniqueType::Assign ||
-			uniqueType == UniqueType::AddAssign ||
-			uniqueType == UniqueType::SubtractAssign ||
-			uniqueType == UniqueType::MultiplyAssign ||
-			uniqueType == UniqueType::DivideAssign ||
-			uniqueType == UniqueType::ModuloAssign ||
-			uniqueType == UniqueType::AndAssign ||
-			uniqueType == UniqueType::OrAssign ||
-			uniqueType == UniqueType::XorAssign ||
-			uniqueType == UniqueType::ShiftlAssign ||
-			uniqueType == UniqueType::ShiftrAssign ||
-			uniqueType == UniqueType::AndNotAssign;
+		uniqueType == UniqueType::AddAssign ||
+		uniqueType == UniqueType::SubtractAssign ||
+		uniqueType == UniqueType::MultiplyAssign ||
+		uniqueType == UniqueType::DivideAssign ||
+		uniqueType == UniqueType::ModuloAssign ||
+		uniqueType == UniqueType::AndAssign ||
+		uniqueType == UniqueType::OrAssign ||
+		uniqueType == UniqueType::XorAssign ||
+		uniqueType == UniqueType::ShiftlAssign ||
+		uniqueType == UniqueType::ShiftrAssign ||
+		uniqueType == UniqueType::AndNotAssign;
 }
 
 bool IsUnaryOperator(UniqueType uniqueType)
 {
 	return uniqueType == UniqueType::Subtract ||
-			uniqueType == UniqueType::Not ||
-			uniqueType == UniqueType::Xor;
+		uniqueType == UniqueType::Not ||
+		uniqueType == UniqueType::Xor;
 }
 
 bool IsBinaryOperator(UniqueType uniqueType)
 {
 	return uniqueType == UniqueType::Add ||
-			uniqueType == UniqueType::Subtract ||
-			uniqueType == UniqueType::Multiply ||
-			uniqueType == UniqueType::Divide ||
-			uniqueType == UniqueType::Modulo ||
-			uniqueType == UniqueType::And ||
-			uniqueType == UniqueType::Or ||
-			uniqueType == UniqueType::Xor ||
-			uniqueType == UniqueType::Shiftl ||
-			uniqueType == UniqueType::Shiftr ||
-			uniqueType == UniqueType::AndNot ||
-			uniqueType == UniqueType::LogicAnd ||
-			uniqueType == UniqueType::LogicOr ||
-			uniqueType == UniqueType::Equal ||
-			uniqueType == UniqueType::Less ||
-			uniqueType == UniqueType::Greater ||
-			uniqueType == UniqueType::NotEql ||
-			uniqueType == UniqueType::LessEqual ||
-			uniqueType == UniqueType::GreaterEqual;
+		uniqueType == UniqueType::Subtract ||
+		uniqueType == UniqueType::Multiply ||
+		uniqueType == UniqueType::Divide ||
+		uniqueType == UniqueType::Modulo ||
+		uniqueType == UniqueType::And ||
+		uniqueType == UniqueType::Or ||
+		uniqueType == UniqueType::Xor ||
+		uniqueType == UniqueType::Shiftl ||
+		uniqueType == UniqueType::Shiftr ||
+		uniqueType == UniqueType::AndNot ||
+		uniqueType == UniqueType::LogicAnd ||
+		uniqueType == UniqueType::LogicOr ||
+		uniqueType == UniqueType::Equal ||
+		uniqueType == UniqueType::Less ||
+		uniqueType == UniqueType::Greater ||
+		uniqueType == UniqueType::NotEql ||
+		uniqueType == UniqueType::LessEqual ||
+		uniqueType == UniqueType::GreaterEqual;
 }
 
 bool operator==(const Type& left, const Type& right)
@@ -630,11 +630,12 @@ eastl::string ToString(Stmnt* node)
 	case StateStmnt:
 	{
 		eastl::string insets = "";
-		Flags<>* flags = node->state.insetFlags;
-		if ((*flags)[SizeInset]) insets += "[size]\n";
-		if ((*flags)[SOAInset]) insets += "[soa]\n";
-		if ((*flags)[SerializedInset]) insets += "[serialized]\n";
-		if ((*flags)[NoAlignInset]) insets += "[noalign]\n";
+		size_t flags = node->state.insetFlags;
+		if (flags & (1 << SizeInset)) insets += "[size]\n";
+		if (flags & (1 << SOAInset)) insets += "[soa]\n";
+		if (flags & (1 << SerializedInset)) insets += "[serialized]\n";
+		if (flags & (1 << NoAlignInset)) insets += "[noalign]\n";
+		if (flags & (1 << ValueInset)) insets += "[value]\n";
 
 		eastl::string members = "";
 		for (Stmnt* member : *node->state.members)
@@ -721,7 +722,7 @@ eastl::string ToString(Expr* expr)
 	{
 		eastl::string indexStr = expr->indexExpr.index ? ToString(expr->indexExpr.index) : "";
 		return ToString(expr->indexExpr.of) + "[" + indexStr + "]";
-	}		
+	}
 	case FunctionCallExpr:
 	{
 		eastl::string params = "";

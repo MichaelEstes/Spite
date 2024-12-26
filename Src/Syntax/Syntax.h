@@ -411,8 +411,8 @@ struct Syntax
 		if (Expect(TokenType::Identifier, "Expected an identifier after 'state'"))
 		{
 			node->state.name = curr;
+			node->state.insetFlags = 0;
 			node->state.members = CreateVectorPtr<Stmnt>();
-			node->state.insetFlags = symbolTable->arena->Emplace<Flags<>>();
 			Advance();
 			node->state.generics = ParseGenerics();
 
@@ -447,7 +447,10 @@ struct Syntax
 		if (Expect(UniqueType::Lbrack))
 		{
 			InsetID inset = ParseStateInset();
-			if (inset != InsetID::InvalidInset) state->state.insetFlags->Set(inset);
+			if (inset != InsetID::InvalidInset)
+			{
+				state->state.insetFlags |= inset;
+			}
 			return;
 		}
 
@@ -479,6 +482,7 @@ struct Syntax
 			else if (curr->val == "soa") inset = InsetID::SOAInset;
 			else if (curr->val == "serialized") inset = InsetID::SerializedInset;
 			else if (curr->val == "noalign") inset = InsetID::NoAlignInset;
+			else if (curr->val == "value") inset = InsetID::ValueInset;
 			else
 			{
 				AddError(curr, "Expected valid state inset");
@@ -491,6 +495,7 @@ struct Syntax
 			if (Expect(UniqueType::Rbrack, "Expected state inset closure (']')"))
 			{
 				Advance();
+				if (Expect(UniqueType::Comma)) Advance();
 				return inset;
 			}
 		}

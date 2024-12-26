@@ -436,6 +436,11 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	SpiteIR::Block* GetCurrentBlock()
+	{
+		return funcContext.function->block;
+	}
+
 	SpiteIR::Label* GetCurrentLabel()
 	{
 		return funcContext.function->block->labels.back();
@@ -449,11 +454,11 @@ struct LowerDefinitions
 	void BuildGlobalVariables(SpiteIR::Package* package)
 	{
 		if (!package->globalVariables.size()) return;
-		SpiteIR::Function* func = context.ir->AllocateFunction();
+		SpiteIR::Function* func = context.ir->AllocateFunction(package);
 		BuildPackageInitializerName(func->name, package);
 		func->parent = package;
 		func->returnType = CreateVoidType(context.ir);
-		func->block = context.ir->AllocateBlock();
+		func->block = context.ir->AllocateBlock(func);
 		funcContext.Reset(func, symbolTable, context.globalTable);
 
 		AddScope();
@@ -566,7 +571,7 @@ struct LowerDefinitions
 	{
 		Assert(function);
 
-		function->block = context.ir->AllocateBlock();
+		function->block = context.ir->AllocateBlock(function);
 		funcContext.Reset(function, symbolTable, context.globalTable);
 
 		if (funcStmnt->nodeID == StmntID::StateStmnt)
@@ -1675,9 +1680,8 @@ struct LowerDefinitions
 		return { InvalidRegister, primType };
 	}
 
-	SpiteIR::Member* FindStateMember(SpiteIR::State* state, StringView& ident)
+	SpiteIR::Member* FindMember(eastl::vector<SpiteIR::Member>& members, StringView& ident)
 	{
-		eastl::vector<SpiteIR::Member>& members = state->members;
 		for (SpiteIR::Member& member : members)
 		{
 			if (member.value->name == ident)
@@ -1689,21 +1693,17 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	ScopeValue FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
+	SpiteIR::Member* FindStateMember(SpiteIR::State* state, StringView& ident)
+	{
+		eastl::vector<SpiteIR::Member>& members = state->members;
+		return FindMember(members, ident);
+	}
+
+	SpiteIR::Member* FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
 	{
 		size_t offset = 0;
 		eastl::vector<SpiteIR::Member>* members = type->structureType.members;
-		for (SpiteIR::Member& member : *members)
-		{
-			eastl::string& name = member.value->name;
-			SpiteIR::Type* memberType = member.value->type;
-			if (name == ident)
-			{
-				return { member.offset, memberType };
-			}
-		}
-
-		return InvalidScopeValue;
+		return FindMember(*members, ident);
 	}
 
 	SpiteIR::Type* FindTypeForUnionMember(SpiteIR::Type* type, StringView& ident)
@@ -1843,6 +1843,15 @@ struct LowerDefinitions
 		return InvalidScopeValue;
 	}
 
+	ScopeValue LoadStructureMember(const ScopeValue& of, SpiteIR::Member* member)
+	{
+		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(member->value->type, context.ir));
+		SpiteIR::Instruction* loadInst = BuildLoad(GetCurrentLabel(), AllocateToOperand(alloc),
+			BuildRegisterOperand(of), BuildRegisterOperand(BuildLiteralInt(member->offset)),
+			indexByte);
+		return { alloc.result, alloc.type };
+	}
+
 	ScopeValue BuildSelected(ScopeValue& value, Expr* selected)
 	{
 		StringView& ident = selected->identifierExpr.identifier->val;
@@ -1870,7 +1879,6 @@ struct LowerDefinitions
 			}
 		}
 
-
 		if (value.type->kind == SpiteIR::TypeKind::StateType ||
 			value.type->kind == SpiteIR::TypeKind::DynamicArrayType ||
 			IsStringType(value.type))
@@ -1878,20 +1886,20 @@ struct LowerDefinitions
 			SpiteIR::State* state = GetStateForType(value.type);
 			SpiteIR::Member* member = FindStateMember(state, ident);
 			Assert(member);
-			return { value.reg + member->offset, member->value->type };
+			return LoadStructureMember(value, member);
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::StructureType)
 		{
-			ScopeValue offsetAndType = FindStructureTypeMember(value.type, ident);
-			Assert(offsetAndType.type);
-			return { value.reg + offsetAndType.reg, offsetAndType.type };
+			SpiteIR::Member* member = FindStructureTypeMember(value.type, ident);
+			Assert(member);
+			return LoadStructureMember(value, member);
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::UnionType)
 		{
-			SpiteIR::Type* unionType = FindTypeForUnionMember(value.type, ident);
+			SpiteIR::Type* memberType = FindTypeForUnionMember(value.type, ident);
 			BuildCast(GetCurrentLabel(), BuildRegisterOperand(value), 
-				BuildRegisterOperand({ value.reg, unionType }));
-			return { value.reg, unionType };
+				BuildRegisterOperand({ value.reg, memberType }));
+			return { value.reg, memberType };
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
 			value.type->kind == SpiteIR::TypeKind::ReferenceType)
@@ -1901,8 +1909,9 @@ struct LowerDefinitions
 			ScopeValue offsetAndType = InvalidScopeValue;
 			if (derefed->kind == SpiteIR::TypeKind::StructureType)
 			{
-				offsetAndType = FindStructureTypeMember(derefed, ident);
-				Assert(offsetAndType.type);
+				SpiteIR::Member* member = FindStructureTypeMember(derefed, ident);
+				Assert(member);
+				offsetAndType = { member->offset, member->value->type };
 			}
 			else if (derefed->kind == SpiteIR::TypeKind::UnionType)
 			{
@@ -1994,15 +2003,15 @@ struct LowerDefinitions
 			Stmnt* stateStmnt = stateAST.node;
 			for (size_t i = 0; i < type->stateType.state->members.size(); i++)
 			{
-				SpiteIR::Member& memberType = type->stateType.state->members.at(i);
+				SpiteIR::Member& member = type->stateType.state->members.at(i);
 				Stmnt* memberDecl = stateStmnt->state.members->at(i);
+				ScopeValue memberValue = LoadStructureMember({ dst, type }, &member);
 				if (memberDecl->definition.assignment)
 				{
 					ScopeValue value = BuildExpr(memberDecl->definition.assignment, stateStmnt);
-					ScopeValue dstValue = { dst + memberType.offset, memberType.value->type };
-					AssignValues(dstValue, value);
+					AssignValues(memberValue, value);
 				}
-				else BuildDefaultValue(memberType.value->type, dst + memberType.offset, label);
+				else BuildDefaultValue(memberValue.type, memberValue.reg, label);
 			}
 			break;
 		}
@@ -2027,7 +2036,15 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::FixedArrayType:
+			break;
 		case SpiteIR::TypeKind::ReferenceType:
+		{
+			SpiteIR::Type* deref = GetDereferencedType(type);
+			SpiteIR::Allocate alloc = BuildAllocate(deref);
+			SpiteIR::Label* label = GetCurrentLabel();
+			SpiteIR::Instruction* storePtr = BuildStorePtr(label, BuildRegisterOperand({dst, type}),
+				BuildRegisterOperand(BuildDefaultValue(alloc.type, alloc.result, label)));
+		}
 			break;
 		default:
 			break;
@@ -2779,11 +2796,10 @@ struct LowerDefinitions
 		SpiteIR::Type* returnType = ToIRType(funcStmnt->anonFunction.returnType);
 		auto& funcDecl = funcStmnt->anonFunction.decl->functionDecl;
 
-		SpiteIR::Function* func = context.ir->AllocateFunction();
+		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent);
 		BuildAnonFunctionName(func->name);
-		func->parent = funcContext.function->parent;
 		func->returnType = returnType;
-		func->block = context.ir->AllocateBlock();
+		func->block = context.ir->AllocateBlock(func);
 
 		for (size_t i = 0; i < funcDecl.parameters->size(); i++)
 		{
@@ -2820,11 +2836,10 @@ struct LowerDefinitions
 
 	SpiteIR::Function* BuildAnonBlockFunction(SpiteIR::Type* returnType, Body& body)
 	{
-		SpiteIR::Function* func = context.ir->AllocateFunction();
+		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent);
 		BuildAnonFunctionName(func->name);
-		func->parent = funcContext.function->parent;
 		func->returnType = returnType;
-		func->block = context.ir->AllocateBlock();
+		func->block = context.ir->AllocateBlock(func);
 
 		FunctionContext prev = funcContext;
 		funcContext = FunctionContext();
@@ -2938,6 +2953,8 @@ struct LowerDefinitions
 	SpiteIR::InstructionMetadata* CreateInstructionMetadata(SpiteIR::Label* label)
 	{
 		SpiteIR::InstructionMetadata* metadata = context.ir->AllocateInstructionMetadata();
+		metadata->label = label;
+		metadata->block = GetCurrentBlock();
 		metadata->statementPosition = funcContext.currStmnt->start->pos;
 		metadata->expressionPosition = funcContext.currExpr->start->pos;
 		return metadata;
