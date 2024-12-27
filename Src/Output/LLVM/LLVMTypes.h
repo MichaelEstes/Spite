@@ -14,15 +14,11 @@
 
 llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool pointerType = false);
 
-SpiteIR::State* stringState = nullptr;
-SpiteIR::State* arrayState = nullptr;
+extern SpiteIR::State* stringState;
+extern SpiteIR::State* arrayState;
+
 eastl::hash_map<SpiteIR::State*, llvm::Type*> stateTypeLookup;
 
-void SetTypedStateValues(SpiteIR::IR* ir)
-{
-	stringState = ir->runtime->states["___string"];
-	arrayState = ir->runtime->states["__array"];
-}
 
 template<typename T>
 inline llvm::ArrayRef<T> ToArrayRef(const eastl::vector<T>& vec)
@@ -64,19 +60,21 @@ llvm::Type* StateToLLVMType(SpiteIR::State* state, llvm::LLVMContext& context)
 llvm::FunctionType* FunctionToLLVMType(SpiteIR::Function* function, llvm::LLVMContext& context)
 {
 	llvm::Type* returnType = ToLLVMType(function->returnType, context);
-	eastl::vector<llvm::Type*> paramTypes;
+	std::vector<llvm::Type*> paramTypes;
 	for (SpiteIR::Argument* param : function->arguments)
 		paramTypes.push_back(ToLLVMType(param->value->type, context));
 
-	for (llvm::Type* paramType : paramTypes)
-	{
-		if (!llvm::FunctionType::isValidArgumentType(paramType))
-		{
-			return nullptr;
-		}
-	}
+	return llvm::FunctionType::get(returnType, paramTypes, false);
+}
 
-	return llvm::FunctionType::get(returnType, ToArrayRef(paramTypes), false);
+llvm::FunctionType* FunctionTypeToLLVMType(SpiteIR::Type* functionType, llvm::LLVMContext& context)
+{
+	llvm::Type* returnType = ToLLVMType(functionType->function.returnType, context);
+	std::vector<llvm::Type*> paramTypes;
+	for (SpiteIR::Type* param : *functionType->function.params)
+		paramTypes.push_back(ToLLVMType(param, context));
+
+	return llvm::FunctionType::get(returnType, paramTypes, false);
 }
 
 llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool pointerType)
@@ -127,13 +125,7 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 			return llvm::ArrayType::get(ToLLVMType(type->fixedArray.type, context), type->fixedArray.count);
 		case SpiteIR::TypeKind::FunctionType:
 		{
-			llvm::Type* returnType = ToLLVMType(type->function.returnType, context);
-			std::vector<llvm::Type*> paramTypes;
-			for (SpiteIR::Type* param : *type->function.params)
-				paramTypes.push_back(ToLLVMType(param, context));
-
-			llvm::Type* funcType = llvm::FunctionType::get(returnType, paramTypes, false);
-			return llvm::PointerType::get(funcType, 0);
+			return llvm::PointerType::get(FunctionTypeToLLVMType(type, context), 0);
 		}
 		case SpiteIR::TypeKind::UnionType:
 			return llvm::ArrayType::get(llvm::Type::getInt8Ty(context), type->size);

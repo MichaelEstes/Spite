@@ -7,6 +7,32 @@ extern Config config;
 
 eastl::string BuildExprString(Expr* expr);
 int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right);
+inline bool IsStringType(SpiteIR::Type* type);
+
+SpiteIR::State* stringState = nullptr;
+SpiteIR::State* arrayState = nullptr;
+
+SpiteIR::State* GetStateForType(SpiteIR::Type* type)
+{
+	if (type->kind == SpiteIR::TypeKind::ReferenceType)
+	{
+		return GetStateForType(type->reference.type);
+	}
+	if (type->kind == SpiteIR::TypeKind::StateType)
+	{
+		return type->stateType.state;
+	}
+	else if (type->kind == SpiteIR::TypeKind::DynamicArrayType)
+	{
+		return arrayState;
+	}
+	else if (IsStringType(type))
+	{
+		return stringState;
+	}
+
+	return nullptr;
+}
 
 eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
@@ -47,6 +73,12 @@ inline bool IsStringType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
 		type->primitive.kind == SpiteIR::PrimitiveKind::String;
+}
+
+inline bool IsAssignableString(SpiteIR::Type* type)
+{
+	return IsStringType(type) || (type->kind == SpiteIR::TypeKind::StateType && 
+		type->stateType.state->name == "___string");
 }
 
 inline bool IsIntLikeType(SpiteIR::Type* type)
@@ -126,6 +158,11 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 	{
 		if (IRTypesAssignable(GetStructuredTypes(left), GetStructuredTypes(right)))
 			return 1;
+	}
+
+	if (IsAssignableString(left) && IsAssignableString(right))
+	{
+		return 1;
 	}
 
 	if (left->kind == SpiteIR::TypeKind::DynamicArrayType &&
@@ -257,6 +294,20 @@ inline eastl::string OperatorToString(UniqueType op)
 
 	AddError("LowerUtils:OperatorToString Invalid operator");
 	return "";
+}
+
+SpiteIR::Type* GetDereferencedType(SpiteIR::Type* type)
+{
+	switch (type->kind)
+	{
+	case SpiteIR::TypeKind::PointerType:
+		return type->pointer.type;
+	case SpiteIR::TypeKind::ReferenceType:
+		return type->reference.type;
+	default:
+		break;
+	}
+	return type;
 }
 
 SpiteIR::Type* CreateVoidType(SpiteIR::IR* ir)
@@ -756,6 +807,7 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 		type->alignment = state->alignment;
 		type->byValue = state->IsValueType();
 	}
+
 	return state;
 }
 

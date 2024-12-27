@@ -44,7 +44,7 @@ struct Interpreter
 		*val = value;
 	}
 
-	inline void SetGlobalString(SpiteIR::Package* package, const eastl::string& name, 
+	inline void SetGlobalString(SpiteIR::Package* package, const eastl::string& name,
 		const eastl::string* value)
 	{
 		size_t index = package->globalVariableLookup[name];
@@ -226,7 +226,7 @@ struct Interpreter
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, stackFrameStart, 
+			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, stackFrameStart,
 				stackFrameStart);
 			break;
 		case SpiteIR::OperandKind::Literal:
@@ -262,8 +262,11 @@ struct Interpreter
 
 	inline void InterpretLoad(SpiteIR::Instruction& loadInst)
 	{
-		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * 
-			loadInst.load.indexType->size;
+		intmax_t offset;
+		if (loadInst.load.offset.kind == SpiteIR::OperandKind::Literal)
+			offset = loadInst.load.offset.literal.intLiteral * loadInst.load.indexType->size;
+		else
+			offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.indexType->size;
 
 		char* start = (char*)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
@@ -272,8 +275,11 @@ struct Interpreter
 
 	inline void InterpretLoadPtrOffset(SpiteIR::Instruction& loadInst)
 	{
-		intmax_t offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) *
-			loadInst.load.indexType->size;
+		intmax_t offset;
+		if (loadInst.load.offset.kind == SpiteIR::OperandKind::Literal)
+			offset = loadInst.load.offset.literal.intLiteral * loadInst.load.indexType->size;
+		else
+			offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.indexType->size;
 
 		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
@@ -617,7 +623,7 @@ struct Interpreter
 	{
 		size_t reg = callPtrInst.callPtr.funcPtr.reg;
 		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
-		if(func->metadata.externFunc) 
+		if (func->metadata.externFunc)
 			InterpretExternFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
 		else InterpretFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
 	}
@@ -909,7 +915,7 @@ struct Interpreter
 		Logger::Log(out);
 	}
 
-	inline eastl::string LogValue(void* start, SpiteIR::Type* type, 
+	inline eastl::string LogValue(void* start, SpiteIR::Type* type,
 		eastl::hash_set<size_t> logged = eastl::hash_set<size_t>())
 	{
 		switch (type->kind)
@@ -1039,7 +1045,7 @@ struct Interpreter
 			out.back() = ' ';
 			out += "}";
 			return out;
-		}		
+		}
 		case SpiteIR::TypeKind::PointerType:
 		{
 			void* ptr = (void*)*(size_t*)start;

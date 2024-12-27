@@ -33,10 +33,12 @@ struct LLVMBuilder
 	llvm::IRBuilder<> builder;
 	llvm::Module module;
 
+	llvm::Type* intType;
+
 	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
-		SetTypedStateValues(ir);
+		intType = ToLLVMType(CreateIntType(ir), context);
 	}
 
 	void Build()
@@ -49,7 +51,7 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
-		//module.print(llvm::outs(), nullptr);
+		module.print(llvm::outs(), nullptr);
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -158,7 +160,19 @@ struct LLVMBuilder
 		{
 			arg.setName(RegisterName(reg));
 			localVarMap[reg] = &arg;
-			reg += function->arguments.at(i)->value->type->size;
+			SpiteIR::Type* argType = function->arguments.at(i)->value->type;
+			reg += argType->size;
+			llvm::AttrBuilder attrBuilder(context);
+			if (argType->byValue)
+			{
+				attrBuilder.addByValAttr(arg.getType());
+				arg.addAttrs(attrBuilder);
+			}
+			else
+			{
+				attrBuilder.addByRefAttr(arg.getType());
+				arg.addAttrs(attrBuilder);
+			}
 			i += 1;
 		}
 	}
@@ -342,11 +356,10 @@ struct LLVMBuilder
 	{
 	}
 
-	void BuildCall(SpiteIR::Instruction* inst)
+	void BuildParams(eastl::vector<SpiteIR::Operand>* params,
+		std::vector<llvm::Value*>& outArgs)
 	{
-		std::vector<llvm::Value*> args;
-
-		for (SpiteIR::Operand& param : *inst->call.params)
+		for (SpiteIR::Operand& param : *params)
 		{
 			llvm::Value* argValue = GetLocalValue(param.reg);
 			if (param.type->byValue)
@@ -354,11 +367,19 @@ struct LLVMBuilder
 				argValue = builder.CreateLoad(ToLLVMType(param.type, context),
 					argValue);
 			}
-			
-			args.push_back(argValue);
-		}
 
-		llvm::Value* callResult = builder.CreateCall(functionMap[inst->call.function], args);
+			outArgs.push_back(argValue);
+		}
+	}
+
+
+	void BuildCall(SpiteIR::Instruction* inst)
+	{
+		std::vector<llvm::Value*> args;
+		BuildParams(inst->call.params, args);
+		
+		llvm::Function* llvmFunc = functionMap[inst->call.function];
+		llvm::Value* callResult = builder.CreateCall(llvmFunc, args);
 		if (!IsVoidType(inst->call.function->returnType))
 		{
 			builder.CreateStore(callResult, GetLocalValue(inst->call.result));
@@ -367,14 +388,119 @@ struct LLVMBuilder
 
 	void BuildCallPtr(SpiteIR::Instruction* inst)
 	{
+		std::vector<llvm::Value*> args;
+		BuildParams(inst->callPtr.params, args);
+
+		llvm::FunctionType* funcType = FunctionTypeToLLVMType(inst->callPtr.funcPtr.type, context);
+		llvm::Value* funcPtrValue = GetLocalValue(inst->callPtr.funcPtr.reg);
+		llvm::Value* funcPtr = builder.CreateLoad(llvm::PointerType::get(funcType, 0),
+			funcPtrValue);
+		llvm::Value* callResult = builder.CreateCall(funcType, funcPtr, args);
+
+		if (!IsVoidType(inst->callPtr.funcPtr.type->function.returnType))
+		{
+			builder.CreateStore(callResult, GetLocalValue(inst->callPtr.result));
+		}
+	}
+
+	size_t GetMemberIndexForOffset(eastl::vector<SpiteIR::Member>* members, size_t offset)
+	{
+		for (size_t i = 0; i < members->size(); i++)
+		{
+			SpiteIR::Member& member = members->at(i);
+			if (member.offset == offset) return i;
+		}
+
+		Logger::FatalError("LLVMBuilder:GetMemberIndexForOffset Unable to find member index");
+		return 0;
+	}
+
+	eastl::vector<SpiteIR::Member>* GetMembersForType(SpiteIR::Type* type)
+	{
+		SpiteIR::State* state = GetStateForType(type);
+		if (state)
+		{
+			return &state->members;
+		}
+		else if (type->kind == SpiteIR::TypeKind::StructureType)
+		{
+			return type->structureType.members;
+		}
+
+		return nullptr;
+	}
+
+	void BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, size_t dst,
+		bool inBounds)
+	{
+		llvm::Value* zero = llvm::ConstantInt::get(intType, 0);
+		llvm::Value* gepValue = builder.CreateGEP(type, src, { zero, index }, "", inBounds);
+		llvm::Value* dstPtr = GetLocalValue(dst);
+		builder.CreateStore(gepValue, dstPtr);
 	}
 
 	void BuildLoad(SpiteIR::Instruction* inst)
 	{
+		auto& load = inst->load;
+
+		llvm::Type* type = ToLLVMType(load.src.type, context);
+		llvm::Value* ptr = GetLocalValue(load.src.reg);
+
+		eastl::vector<SpiteIR::Member>* members = GetMembersForType(load.src.type);
+		if (members)
+		{
+			Assert(load.offset.kind == SpiteIR::OperandKind::Literal);
+
+			intmax_t offset = load.offset.literal.intLiteral;
+			size_t memberIndex = GetMemberIndexForOffset(members, offset);
+			llvm::Value* index = llvm::ConstantInt::get(intType, memberIndex);
+			BuildGEPInst(type, ptr, index, load.dst.reg, true);
+		}
+		else if (load.src.type->kind == SpiteIR::TypeKind::FixedArrayType)
+		{
+			Assert(load.offset.kind == SpiteIR::OperandKind::Register);
+
+			llvm::Value* offset = GetLocalValue(load.offset.reg);
+			BuildGEPInst(type, ptr, offset, load.dst.reg, false);
+		}
+		else
+		{
+			Assert(false);
+		}
 	}
 
 	void BuildLoadPtrOffset(SpiteIR::Instruction* inst)
 	{
+		auto& load = inst->load;
+		llvm::Type* type = ToLLVMType(load.src.type, context);
+		llvm::Value* ptr = builder.CreateLoad(type, GetLocalValue(load.src.reg));
+		SpiteIR::Type* srcType = GetDereferencedType(load.src.type);
+
+		eastl::vector<SpiteIR::Member>* members = GetMembersForType(srcType);
+		if (members)
+		{
+			Assert(load.offset.kind == SpiteIR::OperandKind::Literal);
+
+			intmax_t offset = load.offset.literal.intLiteral;
+			size_t memberIndex = GetMemberIndexForOffset(members, offset);
+			llvm::Value* index = llvm::ConstantInt::get(intType, memberIndex);
+			BuildGEPInst(type, ptr, index, load.dst.reg, true);
+		}
+		else
+		{
+			llvm::Value* offset;
+			if (load.offset.kind == SpiteIR::OperandKind::Literal)
+			{
+				intmax_t index = load.offset.literal.intLiteral;
+				offset = llvm::ConstantInt::get(intType, index);
+			}
+			else
+			{
+				offset = GetLocalValue(load.offset.reg);
+			}
+
+			BuildGEPInst(type, ptr, offset, load.dst.reg, false);
+		}
 	}
 
 	void BuildLoadGlobal(SpiteIR::Instruction* inst)

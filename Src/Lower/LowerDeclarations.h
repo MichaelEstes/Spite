@@ -134,6 +134,7 @@ struct LowerDeclarations
 			SpiteIR::Type* val = context.toResolveStateSize.back();
 			val->size = val->stateType.state->size;
 			val->alignment = val->stateType.state->alignment;
+			val->byValue = val->stateType.state->IsValueType();
 			context.toResolveStateSize.pop_back();
 		}
 

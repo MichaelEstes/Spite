@@ -7,6 +7,8 @@
 #include "../Syntax/TypeInference.h"
 
 extern Config config;
+extern SpiteIR::State* stringState;
+extern SpiteIR::State* arrayState;
 
 const size_t InvalidRegister = (size_t)-1;
 const size_t PackageRegister = (size_t)-2;
@@ -130,15 +132,12 @@ struct LowerDefinitions
 	eastl::vector<Token*> currGenerics;
 	SpiteIR::Package* currPackage = nullptr;
 
-	SpiteIR::State* arrayState = nullptr;
 	SpiteIR::Function* makeArray = nullptr;
 	SpiteIR::Function* makeArrayFrom = nullptr;
 	SpiteIR::Function* sizeArray = nullptr;
 
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
-
-	SpiteIR::State* stringState = nullptr;
 
 	SpiteIR::State* typeMetaState = nullptr;
 
@@ -512,8 +511,8 @@ struct LowerDefinitions
 		SpiteIR::Type* fixedArrType = GetConversionType(fixedArr.type);
 		SpiteIR::Type* dynArrType = GetConversionType(dynArr);
 
-		ScopeValue itemSize = BuildLiteralInt(fixedArrType->fixedArray.type->size);
-		ScopeValue count = BuildLiteralInt(fixedArrType->fixedArray.count);
+		ScopeValue itemSize = BuildStoredLiteralInt(fixedArrType->fixedArray.type->size);
+		ScopeValue count = BuildStoredLiteralInt(fixedArrType->fixedArray.count);
 		ScopeValue start = BuildTypeReference(label, fixedArr);
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
@@ -969,8 +968,8 @@ struct LowerDefinitions
 		SpiteIR::Type* derefType = GetDereferencedType(toIterate.type);
 		Assert(derefType->kind == SpiteIR::TypeKind::FixedArrayType);
 
-		ScopeValue index = BuildLiteralInt(0);
-		ScopeValue count = BuildLiteralInt(derefType->fixedArray.count);
+		ScopeValue index = BuildStoredLiteralInt(0);
+		ScopeValue count = BuildStoredLiteralInt(derefType->fixedArray.count);
 
 		eastl::string forStartName = "fixed_for_cond" + eastl::to_string(funcContext.forCount);
 		eastl::string forLoopName = "fixed_for_body" + eastl::to_string(funcContext.forCount);
@@ -1722,28 +1721,6 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	SpiteIR::State* GetStateForType(SpiteIR::Type* type)
-	{
-		if (type->kind == SpiteIR::TypeKind::ReferenceType)
-		{
-			return GetStateForType(type->reference.type);
-		}
-		if (type->kind == SpiteIR::TypeKind::StateType)
-		{
-			return type->stateType.state;
-		}
-		else if (type->kind == SpiteIR::TypeKind::DynamicArrayType)
-		{
-			return arrayState;
-		}
-		else if (IsStringType(type))
-		{
-			return stringState;
-		}
-
-		return nullptr;
-	}
-
 	// Dereferencing is hidden on member selection to a single degree, multiple degrees of pointers require
 	// manual dereferencing (val: **Type, val~.member)
 	ScopeValue DereferenceToSinglePointer(ScopeValue value)
@@ -1847,8 +1824,7 @@ struct LowerDefinitions
 	{
 		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(member->value->type, context.ir));
 		SpiteIR::Instruction* loadInst = BuildLoad(GetCurrentLabel(), AllocateToOperand(alloc),
-			BuildRegisterOperand(of), BuildRegisterOperand(BuildLiteralInt(member->offset)),
-			indexByte);
+			BuildRegisterOperand(of), BuildLiteralInt(member->offset), indexByte);
 		return { alloc.result, alloc.type };
 	}
 
@@ -1872,7 +1848,7 @@ struct LowerDefinitions
 			{
 				Stmnt* enumStmnt = value.stmnt;
 				intmax_t value = context.FindEnumValue(enumStmnt, ident);
-				return BuildLiteralIntForType(value, ToIRType(enumStmnt->enumStmnt.type));
+				return BuildStoredLiteralIntForType(value, ToIRType(enumStmnt->enumStmnt.type));
 			}
 			default:
 				break;
@@ -1930,7 +1906,7 @@ struct LowerDefinitions
 			SpiteIR::Type* referencedMember = MakeReferenceType(offsetAndType.type, context.ir);
 			SpiteIR::Allocate alloc = BuildAllocate(referencedMember);
 			ScopeValue dstValue = { alloc.result, referencedMember };
-			SpiteIR::Operand offset = BuildRegisterOperand(BuildLiteralInt(offsetAndType.reg));
+			SpiteIR::Operand offset = BuildLiteralInt(offsetAndType.reg);
 			SpiteIR::Operand src = BuildRegisterOperand(value);
 			SpiteIR::Operand dst = BuildRegisterOperand(dstValue);
 			SpiteIR::Instruction* loadPtr = BuildLoadPtrOffset(GetCurrentLabel(), dst, src, offset, indexByte);
@@ -2113,24 +2089,31 @@ struct LowerDefinitions
 		return { store->store.dst.reg, irType };
 	}
 
-	ScopeValue BuildLiteralInt(size_t value)
+	ScopeValue BuildStoredLiteralInt(size_t value)
 	{
+		SpiteIR::Operand literalOp = BuildLiteralInt(value);
+
+		SpiteIR::Label* label = GetCurrentLabel();
+		SpiteIR::Allocate alloc = BuildAllocate(literalOp.type);
+		SpiteIR::Instruction* store = BuildStore(label, AllocateToOperand(alloc), literalOp);
+		return { alloc.result, alloc.type };
+	}
+
+	SpiteIR::Operand BuildLiteralInt(size_t value)
+	{
+		SpiteIR::Type* intType = CreateIntType(context.ir);
 		SpiteIR::Operand literalOp = SpiteIR::Operand();
+		literalOp.type = intType;
 		literalOp.kind = SpiteIR::OperandKind::Literal;
+		
 		SpiteIR::Literal& literal = literalOp.literal;
 		literal.kind = SpiteIR::PrimitiveKind::Int;
 		literal.intLiteral = value;
-
-		SpiteIR::Type* intType = CreateIntType(context.ir);
-		literalOp.type = intType;
-
-		SpiteIR::Label* label = GetCurrentLabel();
-		SpiteIR::Allocate alloc = BuildAllocate(intType);
-		SpiteIR::Instruction* store = BuildStore(label, AllocateToOperand(alloc), literalOp);
-		return { store->store.dst.reg, intType };
+		
+		return literalOp;
 	}
 
-	ScopeValue BuildLiteralIntForType(intmax_t i, SpiteIR::Type* type)
+	ScopeValue BuildStoredLiteralIntForType(intmax_t i, SpiteIR::Type* type)
 	{
 		Assert(type->kind == SpiteIR::TypeKind::PrimitiveType);
 
@@ -2201,7 +2184,7 @@ struct LowerDefinitions
 		else
 		{
 			SpiteIR::Type* ptr = MakePointerType(value.type, context.ir);
-			ScopeValue allocSize = BuildLiteralInt(value.type->size);
+			ScopeValue allocSize = BuildStoredLiteralInt(value.type->size);
 			eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 			params->push_back(BuildRegisterOperand(allocSize));
 
@@ -2364,20 +2347,6 @@ struct LowerDefinitions
 			BuildRegisterOperand(BuildTypeDereference(GetCurrentLabel(), from)),
 			AllocateToOperand(alloc));
 		return { alloc.result, toType };
-	}
-
-	SpiteIR::Type* GetDereferencedType(SpiteIR::Type* type)
-	{
-		switch (type->kind)
-		{
-		case SpiteIR::TypeKind::PointerType:
-			return type->pointer.type;
-		case SpiteIR::TypeKind::ReferenceType:
-			return type->reference.type;
-		default:
-			break;
-		}
-		return type;
 	}
 
 	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
@@ -2745,7 +2714,7 @@ struct LowerDefinitions
 	void MakeDynamicArray(SpiteIR::Type* irType, size_t dst, SpiteIR::Label* label)
 	{
 		size_t arrayItemSize = irType->dynamicArray.type->size;
-		ScopeValue itemSize = BuildLiteralInt(arrayItemSize);
+		ScopeValue itemSize = BuildStoredLiteralInt(arrayItemSize);
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		params->push_back(BuildRegisterOperand(HandleAutoCast(itemSize, CreateIntType(context.ir))));
 		BuildCall(makeArray, dst, params, label);
@@ -2896,7 +2865,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildSizeOf(Expr* expr, Stmnt* stmnt)
 	{
-		return BuildLiteralInt(GetSizeOf(expr, nullptr, nullptr, stmnt));
+		return BuildStoredLiteralInt(GetSizeOf(expr, nullptr, nullptr, stmnt));
 	}
 
 	size_t GetAlignOf(Expr* expr, eastl::vector<Token*>* generics = nullptr,
@@ -2916,7 +2885,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
 	{
-		return BuildLiteralInt(GetAlignOf(expr, nullptr, nullptr, stmnt));
+		return BuildStoredLiteralInt(GetAlignOf(expr, nullptr, nullptr, stmnt));
 	}
 
 	SpiteIR::Type* CreateTypeMetaType()
@@ -2932,7 +2901,7 @@ struct LowerDefinitions
 
 	ScopeValue StoreTypeInfo(SpiteIR::Type* type)
 	{
-		ScopeValue typePtrAsInt = BuildLiteralInt((size_t)type);
+		ScopeValue typePtrAsInt = BuildStoredLiteralInt((size_t)type);
 		return IntToPointer(typePtrAsInt, CreateTypeMetaType());
 	}
 
@@ -3189,6 +3158,7 @@ struct LowerDefinitions
 		type->kind = SpiteIR::TypeKind::StateType;
 		type->size = state->size;
 		type->alignment = state->alignment;
+		type->byValue = state->IsValueType();
 		type->stateType.state = state;
 
 		SpiteIR::Label* label = GetCurrentLabel();
