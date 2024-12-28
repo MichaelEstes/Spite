@@ -17,8 +17,7 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 extern SpiteIR::State* stringState;
 extern SpiteIR::State* arrayState;
 
-eastl::hash_map<SpiteIR::State*, llvm::Type*> stateTypeLookup;
-
+eastl::hash_map<SpiteIR::State*, llvm::StructType*> stateTypeLookup;
 
 template<typename T>
 inline llvm::ArrayRef<T> ToArrayRef(const eastl::vector<T>& vec)
@@ -48,7 +47,7 @@ void CreateStructType(llvm::StructType* structType, eastl::vector<SpiteIR::Membe
 	structType->setBody(memberTypes);
 }
 
-llvm::Type* StateToLLVMType(SpiteIR::State* state, llvm::LLVMContext& context)
+llvm::StructType* StateToLLVMType(SpiteIR::State* state, llvm::LLVMContext& context)
 {
 	if (MapHas(stateTypeLookup, state)) return stateTypeLookup.at(state);
 	llvm::StructType* stateType = llvm::StructType::create(context, ToStringRef(state->name));

@@ -1992,6 +1992,7 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::StructureType:
+			//@todo
 			break;
 		case SpiteIR::TypeKind::PointerType:
 		case SpiteIR::TypeKind::FunctionType:
@@ -2036,51 +2037,64 @@ struct LowerDefinitions
 		literalOp.kind = SpiteIR::OperandKind::Literal;
 		SpiteIR::Literal& literal = literalOp.literal;
 
+		SpiteIR::Type* irType = context.ir->AllocateType();
+		irType->kind = SpiteIR::TypeKind::PrimitiveType;
+
 		switch (lit.val->uniqueType)
 		{
 		case UniqueType::IntLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Int;
 			literal.intLiteral = IntLiteralStringToInt(lit.val->val);
+			irType->size = config.targetArchByteWidth;
+			irType->alignment = config.targetArchByteWidth;
 			break;
 		case UniqueType::HexLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Int;
 			literal.intLiteral = std::stoul(lit.val->val.ToString().c_str(), nullptr, 16);
+			irType->size = config.targetArchByteWidth;
+			irType->alignment = config.targetArchByteWidth;
 			break;
 		case UniqueType::FloatLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Float;
 			literal.floatLiteral = std::stof(lit.val->val.ToString().c_str());
+			irType->size = config.targetArchByteWidth;
+			irType->alignment = config.targetArchByteWidth;
 			break;
 		case UniqueType::ByteLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Byte;
 			literal.byteLiteral = *lit.val->val.start;
+			irType->size = 1;
+			irType->alignment = 1;
 			break;
 		case UniqueType::StringLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::String;
 			literal.stringLiteral = context.ir->AllocateString();
 			*literal.stringLiteral = lit.val->val.ToString();
+			irType->size = config.targetArchByteWidth * 2;
+			irType->alignment = config.targetArchByteWidth;
 			break;
 		case UniqueType::TrueLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Bool;
 			literal.byteLiteral = 1;
+			irType->size = 1;
+			irType->alignment = 1;
 			break;
 		case UniqueType::FalseLiteral:
 			literal.kind = SpiteIR::PrimitiveKind::Bool;
 			literal.byteLiteral = 0;
+			irType->size = 1;
+			irType->alignment = 1;
 			break;
 		default:
 			literal.kind = SpiteIR::PrimitiveKind::Void;
+			irType->size = 0;
+			irType->alignment = 1;
 			break;
 		}
 
-		SpiteIR::Type* irType = context.ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::PrimitiveType;
 		irType->primitive.kind = literal.kind;
-		irType->size = irType->primitive.kind == SpiteIR::PrimitiveKind::String ?
-			config.targetArchByteWidth * 2 : config.targetArchByteWidth;
-		irType->alignment = config.targetArchByteWidth;
 		irType->primitive.isSigned = true;
 		irType->byValue = true;
-
 		literalOp.type = irType;
 
 		SpiteIR::Label* label = GetCurrentLabel();
@@ -2238,16 +2252,18 @@ struct LowerDefinitions
 		}
 
 		SpiteIR::Allocate alloc = BuildAllocate(derivedType);
-		size_t offset = 0;
+		SpiteIR::Operand srcOp = SpiteIR::Operand();
+		srcOp.kind = SpiteIR::OperandKind::StructLiteral;
+		srcOp.type = derivedType;
+		srcOp.structLiteral = context.ir->AllocateArray<SpiteIR::Operand>();
+
 		for (ScopeValue& value : values)
 		{
-			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, value.type });
-
-			BuildStore(GetCurrentLabel(), dstOp, BuildRegisterOperand(value));
-			offset += value.type->size;
+			srcOp.structLiteral->push_back(BuildRegisterOperand(value));
 		}
 
-		return { alloc.result, derivedType };
+		BuildStore(GetCurrentLabel(), AllocateToOperand(alloc), srcOp);
+		return { alloc.result, alloc.type };
 	}
 
 	ScopeValue BuildExplicitTypeExpr(Expr* expr, Stmnt* stmnt)
@@ -2274,15 +2290,18 @@ struct LowerDefinitions
 
 
 		SpiteIR::Allocate alloc = BuildAllocate(structType);
-		size_t offset = 0;
+		SpiteIR::Operand srcOp = SpiteIR::Operand();
+		srcOp.kind = SpiteIR::OperandKind::StructLiteral;
+		srcOp.type = structType;
+		srcOp.structLiteral = context.ir->AllocateArray<SpiteIR::Operand>();
+
 		for (ScopeValue& value : values)
 		{
-			SpiteIR::Operand dstOp = BuildRegisterOperand({ alloc.result + offset, value.type });
-			BuildStore(label, dstOp, BuildRegisterOperand(value));
-			offset += value.type->size;
+			srcOp.structLiteral->push_back(BuildRegisterOperand(value));
 		}
 
-		return { alloc.result, structType };
+		BuildStore(GetCurrentLabel(), AllocateToOperand(alloc), srcOp);
+		return { alloc.result, alloc.type };
 	}
 
 	bool RequiresBitCast(SpiteIR::Type* from, SpiteIR::Type* to)

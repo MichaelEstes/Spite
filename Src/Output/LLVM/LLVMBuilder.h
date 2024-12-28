@@ -17,6 +17,8 @@
 #include "../../Lower/LowerUtils.h"
 
 extern Config config;
+extern SpiteIR::State* stringState;
+extern SpiteIR::State* arrayState;
 
 struct LLVMBuilder
 {
@@ -34,11 +36,13 @@ struct LLVMBuilder
 	llvm::Module module;
 
 	llvm::Type* intType;
+	llvm::StructType* strType;
 
 	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
 		intType = ToLLVMType(CreateIntType(ir), context);
+		strType = StateToLLVMType(stringState, context);
 	}
 
 	void Build()
@@ -51,7 +55,7 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
-		module.print(llvm::outs(), nullptr);
+		//module.print(llvm::outs(), nullptr);
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -99,6 +103,8 @@ struct LLVMBuilder
 			nullptr,
 			GlobalVariableName(globalVar)
 		);
+
+		globalVarMap[globalVar->index] = llvmGlobalVar;
 	}
 
 	void BuildFunctionDeclaration(SpiteIR::Function* function)
@@ -205,7 +211,7 @@ struct LLVMBuilder
 		}
 	}
 
-	void BuildEntry(SpiteIR::Function* function, llvm::Function* llvmFunc, SpiteIR::Block* block, 
+	void BuildEntry(SpiteIR::Function* function, llvm::Function* llvmFunc, SpiteIR::Block* block,
 		SpiteIR::Label* label)
 	{
 		llvm::BasicBlock* entryBlock = CreateBasicBlock(llvmFunc, label);
@@ -225,7 +231,7 @@ struct LLVMBuilder
 	{
 		llvm::AllocaInst* allocaInst = builder.CreateAlloca(
 			ToLLVMType(alloc.type, context),
-			nullptr, 
+			nullptr,
 			RegisterName(alloc.result)
 		);
 		localVarMap[alloc.result] = allocaInst;
@@ -254,6 +260,11 @@ struct LLVMBuilder
 	llvm::Value* GetLocalValue(size_t reg)
 	{
 		return localVarMap[reg];
+	}
+
+	llvm::Value* GetGlobalValue(size_t reg)
+	{
+		return globalVarMap[reg];
 	}
 
 	void BuildInstruction(SpiteIR::Instruction* inst)
@@ -344,7 +355,7 @@ struct LLVMBuilder
 	{
 		llvm::Value* test = builder.CreateLoad(ToLLVMType(inst->branch.test.type, context),
 			localVarMap[inst->branch.test.reg]);
-		builder.CreateCondBr(test, labelMap[inst->branch.true_], 
+		builder.CreateCondBr(test, labelMap[inst->branch.true_],
 			labelMap[inst->branch.false_]);
 	}
 
@@ -377,7 +388,7 @@ struct LLVMBuilder
 	{
 		std::vector<llvm::Value*> args;
 		BuildParams(inst->call.params, args);
-		
+
 		llvm::Function* llvmFunc = functionMap[inst->call.function];
 		llvm::Value* callResult = builder.CreateCall(llvmFunc, args);
 		if (!IsVoidType(inst->call.function->returnType))
@@ -496,6 +507,7 @@ struct LLVMBuilder
 			}
 			else
 			{
+				Assert(load.offset.kind == SpiteIR::OperandKind::Register);
 				offset = GetLocalValue(load.offset.reg);
 			}
 
@@ -505,10 +517,161 @@ struct LLVMBuilder
 
 	void BuildLoadGlobal(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* globalPtrValue = GetGlobalValue(inst->loadGlobal.src);
+		llvm::Value* dst = GetLocalValue(inst->loadGlobal.dst.reg);
+		builder.CreateStore(globalPtrValue, dst);
+	}
+
+	inline llvm::Constant* BuildStringLiteral(eastl::string* str) 
+	{
+		llvm::StringRef strRef = ToStringRef(*str);
+		llvm::Constant* strConstant = llvm::ConstantDataArray::getString(context, strRef, true);
+		llvm::ArrayType* byteArrayType = llvm::ArrayType::get(
+			llvm::Type::getInt8Ty(context), 
+			str->size() + 1
+		);
+		llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
+			module,
+			byteArrayType,
+			true,                              
+			llvm::GlobalValue::PrivateLinkage, 
+			strConstant,  
+			""
+		);
+
+		llvm::Constant* zero = llvm::ConstantInt::get(intType, 0);
+		llvm::Constant* indices[] = { zero, zero };
+		return llvm::ConstantExpr::getGetElementPtr(
+			byteArrayType,
+			globalStr,
+			indices
+		);
+	}
+
+	inline llvm::Value* BuildOperandValue(SpiteIR::Operand& src)
+	{
+		llvm::Value* value = nullptr;
+		llvm::Type* type = ToLLVMType(src.type, context);
+
+		switch (src.kind)
+		{
+		case SpiteIR::OperandKind::Register:
+		{
+			value = GetLocalValue(src.reg);
+			break;
+		}
+		case SpiteIR::OperandKind::Literal:
+		{
+			switch (src.literal.kind)
+			{
+			case SpiteIR::PrimitiveKind::Bool:
+				value = llvm::ConstantInt::get(type, src.literal.byteLiteral);
+				break;
+			case SpiteIR::PrimitiveKind::Byte:
+				value = llvm::ConstantInt::get(type, src.literal.byteLiteral);
+				break;
+			case SpiteIR::PrimitiveKind::I16:
+				value = llvm::ConstantInt::get(type, src.literal.i16Literal);
+				break;
+			case SpiteIR::PrimitiveKind::I32:
+				value = llvm::ConstantInt::get(type, src.literal.i32Literal);
+				break;
+			case SpiteIR::PrimitiveKind::I64:
+				value = llvm::ConstantInt::get(type, src.literal.i64Literal);
+				break;
+			case SpiteIR::PrimitiveKind::Int:
+			{
+				if (type->isPointerTy())
+				{
+					// The only case where a pointer is assigned a literal should be setting
+					// it to a null default value
+					if (!src.literal.intLiteral)
+					{
+						value = llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(type));
+						break;
+					}
+					// But fuck it, we ball
+					else
+					{
+						llvm::Constant* intValue = llvm::ConstantInt::get(intType, src.literal.intLiteral);
+						value = builder.CreateIntToPtr(intValue, type);
+						break;
+					}
+				}
+
+				value = llvm::ConstantInt::get(type, src.literal.intLiteral);
+				break;
+			}
+			case SpiteIR::PrimitiveKind::F32:
+				value = llvm::ConstantFP::get(type, src.literal.f32Literal);
+				break;
+			case SpiteIR::PrimitiveKind::Float:
+				value = llvm::ConstantFP::get(type, src.literal.floatLiteral);
+				break;
+			case SpiteIR::PrimitiveKind::String:
+			{
+				eastl::string* str = src.literal.stringLiteral;
+				size_t count = str->size();
+				llvm::Constant* countValue = llvm::ConstantInt::get(intType, count);
+
+				if (!count)
+				{
+					llvm::Constant* byteNullPtr = llvm::ConstantPointerNull::get(
+						llvm::Type::getInt8PtrTy(context)
+					);
+					value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type), 
+							{ countValue, byteNullPtr });
+					break;
+				}
+
+
+				value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
+					{ countValue, BuildStringLiteral(src.literal.stringLiteral)});
+				break;
+			}
+			break;
+			default:
+				break;
+			}
+			break;
+		}
+		case SpiteIR::OperandKind::StructLiteral:
+		{
+			llvm::Constant* zero = llvm::ConstantInt::get(intType, 0);
+			eastl::vector<SpiteIR::Member>* members = GetMembersForType(src.type);
+			llvm::Value* valuePtr = builder.CreateAlloca(type, nullptr);
+			for (size_t i = 0; i < src.structLiteral->size(); i++)
+			{
+				SpiteIR::Operand& op = src.structLiteral->at(i);
+				llvm::Value* itemValue = BuildOperandValue(op);
+				llvm::Value* itemPointer = builder.CreateInBoundsGEP(
+					type,
+					valuePtr,
+					{ zero, llvm::ConstantInt::get(intType, i) }
+				);
+				builder.CreateStore(itemValue, itemPointer);
+			}
+			value = valuePtr;
+			break;
+		}
+		case SpiteIR::OperandKind::Function:
+		{
+			llvm::Function* llvmFunc = functionMap[src.function];
+			value = llvmFunc;
+			break;
+		}
+		default:
+			break;
+		}
+
+		return value;
 	}
 
 	void BuildStore(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* dst = GetLocalValue(inst->store.dst.reg);
+		llvm::Value* value = BuildOperandValue(inst->store.src);
+		if (value) builder.CreateStore(value, dst);
 	}
 
 	void BuildStorePtr(SpiteIR::Instruction* inst)
@@ -550,6 +713,4 @@ struct LLVMBuilder
 	void BuildLog(SpiteIR::Instruction* inst)
 	{
 	}
-
-
 };

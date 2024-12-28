@@ -128,6 +128,7 @@ namespace SpiteIR
 		Literal,
 		StructLiteral,
 		Function,
+		TypeData,
 	};
 
 	enum class InstructionKind
