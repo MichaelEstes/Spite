@@ -36,12 +36,14 @@ struct LLVMBuilder
 	llvm::Module module;
 
 	llvm::Type* intType;
+	llvm::Type* int32Type;
 	llvm::StructType* strType;
 
 	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
 		intType = ToLLVMType(CreateIntType(ir), context);
+		int32Type = llvm::IntegerType::getInt32Ty(context);
 		strType = StateToLLVMType(stringState, context);
 	}
 
@@ -56,6 +58,9 @@ struct LLVMBuilder
 			BuildPackage(package);
 
 		//module.print(llvm::outs(), nullptr);
+		if (llvm::verifyModule(module, &llvm::errs())) {
+			llvm::errs() << "Module verification failed!\n";
+		}
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -168,17 +173,6 @@ struct LLVMBuilder
 			localVarMap[reg] = &arg;
 			SpiteIR::Type* argType = function->arguments.at(i)->value->type;
 			reg += argType->size;
-			llvm::AttrBuilder attrBuilder(context);
-			if (argType->byValue)
-			{
-				attrBuilder.addByValAttr(arg.getType());
-				arg.addAttrs(attrBuilder);
-			}
-			else
-			{
-				attrBuilder.addByRefAttr(arg.getType());
-				arg.addAttrs(attrBuilder);
-			}
 			i += 1;
 		}
 	}
@@ -310,9 +304,6 @@ struct LLVMBuilder
 		case SpiteIR::InstructionKind::Move:
 			BuildMove(inst);
 			break;
-		case SpiteIR::InstructionKind::StoreFunc:
-			BuildStoreFunc(inst);
-			break;
 		case SpiteIR::InstructionKind::Reference:
 			BuildReference(inst);
 			break;
@@ -343,7 +334,15 @@ struct LLVMBuilder
 	{
 		if (inst->return_.operand.kind == SpiteIR::OperandKind::Void)
 			builder.CreateRetVoid();
-		else builder.CreateRet(GetLocalValue(inst->return_.operand.reg));
+		else
+		{
+			llvm::Value* returnValuePtr = GetLocalValue(inst->return_.operand.reg);
+			llvm::Value* returnValue = builder.CreateLoad(
+				ToLLVMType(inst->return_.operand.type, context),
+				returnValuePtr
+			);
+			builder.CreateRet(returnValue);
+		}
 	}
 
 	void BuildJump(SpiteIR::Instruction* inst)
@@ -441,13 +440,12 @@ struct LLVMBuilder
 		return nullptr;
 	}
 
-	void BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, size_t dst,
+	void BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, llvm::Value* dst,
 		bool inBounds)
 	{
-		llvm::Value* zero = llvm::ConstantInt::get(intType, 0);
+		llvm::Value* zero = llvm::ConstantInt::get(int32Type, 0);
 		llvm::Value* gepValue = builder.CreateGEP(type, src, { zero, index }, "", inBounds);
-		llvm::Value* dstPtr = GetLocalValue(dst);
-		builder.CreateStore(gepValue, dstPtr);
+		builder.CreateStore(gepValue, dst);
 	}
 
 	void BuildLoad(SpiteIR::Instruction* inst)
@@ -464,15 +462,18 @@ struct LLVMBuilder
 
 			intmax_t offset = load.offset.literal.intLiteral;
 			size_t memberIndex = GetMemberIndexForOffset(members, offset);
-			llvm::Value* index = llvm::ConstantInt::get(intType, memberIndex);
-			BuildGEPInst(type, ptr, index, load.dst.reg, true);
+			llvm::Value* index = llvm::ConstantInt::get(int32Type, memberIndex);
+			BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
 		}
 		else if (load.src.type->kind == SpiteIR::TypeKind::FixedArrayType)
 		{
 			Assert(load.offset.kind == SpiteIR::OperandKind::Register);
 
-			llvm::Value* offset = GetLocalValue(load.offset.reg);
-			BuildGEPInst(type, ptr, offset, load.dst.reg, false);
+			llvm::Value* offset = builder.CreateLoad(
+				ToLLVMType(load.offset.type, context),
+				GetLocalValue(load.offset.reg)
+			);
+			BuildGEPInst(type, ptr, offset, GetLocalValue(load.dst.reg), false);
 		}
 		else
 		{
@@ -483,9 +484,10 @@ struct LLVMBuilder
 	void BuildLoadPtrOffset(SpiteIR::Instruction* inst)
 	{
 		auto& load = inst->load;
-		llvm::Type* type = ToLLVMType(load.src.type, context);
-		llvm::Value* ptr = builder.CreateLoad(type, GetLocalValue(load.src.reg));
 		SpiteIR::Type* srcType = GetDereferencedType(load.src.type);
+		llvm::Type* ptrType = ToLLVMType(load.src.type, context);
+		llvm::Value* ptr = builder.CreateLoad(ptrType, GetLocalValue(load.src.reg));
+		llvm::Type* type = ToLLVMType(srcType, context, true);
 
 		eastl::vector<SpiteIR::Member>* members = GetMembersForType(srcType);
 		if (members)
@@ -494,8 +496,8 @@ struct LLVMBuilder
 
 			intmax_t offset = load.offset.literal.intLiteral;
 			size_t memberIndex = GetMemberIndexForOffset(members, offset);
-			llvm::Value* index = llvm::ConstantInt::get(intType, memberIndex);
-			BuildGEPInst(type, ptr, index, load.dst.reg, true);
+			llvm::Value* index = llvm::ConstantInt::get(int32Type, memberIndex);
+			BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
 		}
 		else
 		{
@@ -503,15 +505,30 @@ struct LLVMBuilder
 			if (load.offset.kind == SpiteIR::OperandKind::Literal)
 			{
 				intmax_t index = load.offset.literal.intLiteral;
-				offset = llvm::ConstantInt::get(intType, index);
+				offset = llvm::ConstantInt::get(int32Type, index);
 			}
 			else
 			{
 				Assert(load.offset.kind == SpiteIR::OperandKind::Register);
-				offset = GetLocalValue(load.offset.reg);
+				offset = builder.CreateLoad(
+					ToLLVMType(load.offset.type, context),
+					GetLocalValue(load.offset.reg)
+				);
 			}
 
-			BuildGEPInst(type, ptr, offset, load.dst.reg, false);
+			llvm::Value* dstPtr = builder.CreateLoad(
+				ToLLVMType(load.dst.type, context),
+				GetLocalValue(load.dst.reg)
+			);
+
+			if (srcType->kind != SpiteIR::TypeKind::FixedArrayType)
+			{
+				// Pointer arithmetic
+				llvm::Value* gepValue = builder.CreateGEP(type, ptr, { offset }, "", false);
+				builder.CreateStore(gepValue, dstPtr);
+			}
+			else
+				BuildGEPInst(type, ptr, offset, dstPtr, false);
 		}
 	}
 
@@ -522,24 +539,24 @@ struct LLVMBuilder
 		builder.CreateStore(globalPtrValue, dst);
 	}
 
-	inline llvm::Constant* BuildStringLiteral(eastl::string* str) 
+	inline llvm::Constant* BuildStringLiteral(eastl::string* str)
 	{
 		llvm::StringRef strRef = ToStringRef(*str);
 		llvm::Constant* strConstant = llvm::ConstantDataArray::getString(context, strRef, true);
 		llvm::ArrayType* byteArrayType = llvm::ArrayType::get(
-			llvm::Type::getInt8Ty(context), 
+			llvm::Type::getInt8Ty(context),
 			str->size() + 1
 		);
 		llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
 			module,
 			byteArrayType,
-			true,                              
-			llvm::GlobalValue::PrivateLinkage, 
-			strConstant,  
+			true,
+			llvm::GlobalValue::PrivateLinkage,
+			strConstant,
 			""
 		);
 
-		llvm::Constant* zero = llvm::ConstantInt::get(intType, 0);
+		llvm::Constant* zero = llvm::ConstantInt::get(int32Type, 0);
 		llvm::Constant* indices[] = { zero, zero };
 		return llvm::ConstantExpr::getGetElementPtr(
 			byteArrayType,
@@ -619,14 +636,14 @@ struct LLVMBuilder
 					llvm::Constant* byteNullPtr = llvm::ConstantPointerNull::get(
 						llvm::Type::getInt8PtrTy(context)
 					);
-					value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type), 
-							{ countValue, byteNullPtr });
+					value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
+						{ countValue, byteNullPtr });
 					break;
 				}
 
 
 				value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
-					{ countValue, BuildStringLiteral(src.literal.stringLiteral)});
+					{ countValue, BuildStringLiteral(src.literal.stringLiteral) });
 				break;
 			}
 			break;
@@ -637,7 +654,7 @@ struct LLVMBuilder
 		}
 		case SpiteIR::OperandKind::StructLiteral:
 		{
-			llvm::Constant* zero = llvm::ConstantInt::get(intType, 0);
+			llvm::Constant* zero = llvm::ConstantInt::get(int32Type, 0);
 			eastl::vector<SpiteIR::Member>* members = GetMembersForType(src.type);
 			llvm::Value* valuePtr = builder.CreateAlloca(type, nullptr);
 			for (size_t i = 0; i < src.structLiteral->size(); i++)
@@ -647,7 +664,7 @@ struct LLVMBuilder
 				llvm::Value* itemPointer = builder.CreateInBoundsGEP(
 					type,
 					valuePtr,
-					{ zero, llvm::ConstantInt::get(intType, i) }
+					{ zero, llvm::ConstantInt::get(int32Type, i) }
 				);
 				builder.CreateStore(itemValue, itemPointer);
 			}
@@ -676,34 +693,392 @@ struct LLVMBuilder
 
 	void BuildStorePtr(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* srcValuePtr = GetLocalValue(inst->store.src.reg);
+		llvm::Type* srcType = ToLLVMType(inst->store.src.type, context);
+		llvm::Value* srcValue = builder.CreateLoad(srcType, srcValuePtr);
+
+		llvm::Value* dstValuePtr = GetLocalValue(inst->store.dst.reg);
+		builder.CreateStore(srcValue, dstValuePtr);
 	}
 
 	void BuildMove(SpiteIR::Instruction* inst)
 	{
-	}
-
-	void BuildStoreFunc(SpiteIR::Instruction* inst)
-	{
+		BuildStorePtr(inst);
 	}
 
 	void BuildReference(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* srcPtr = GetLocalValue(inst->store.src.reg);
+		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
+		builder.CreateStore(srcPtr, dstPtr);
 	}
 
 	void BuildDereference(SpiteIR::Instruction* inst)
 	{
+		llvm::Value* srcPtr = GetLocalValue(inst->store.src.reg);
+		llvm::Value* srcValue = builder.CreateLoad(
+			ToLLVMType(inst->store.src.type, context),
+			srcPtr
+		);
+		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
+		builder.CreateStore(srcValue, dstPtr);
 	}
 
 	void BuildCast(SpiteIR::Instruction* inst)
 	{
+		llvm::Type* fromType = ToLLVMType(inst->cast.from.type, context);
+		llvm::Type* toType = ToLLVMType(inst->cast.to.type, context);
+
+		llvm::Value* fromPtr = GetLocalValue(inst->cast.from.reg);
+		llvm::Value* toPtr = GetLocalValue(inst->cast.to.reg);
+
+		switch (inst->cast.from.type->kind)
+		{
+		case SpiteIR::TypeKind::PrimitiveType:
+		{
+			llvm::Value* fromValue = builder.CreateLoad(fromType, fromPtr);
+			if (inst->cast.to.type->kind == SpiteIR::TypeKind::PointerType)
+			{
+				llvm::Value* intToPtr = builder.CreateIntToPtr(fromValue, toType);
+				builder.CreateStore(intToPtr, toPtr);
+				return;
+			}
+
+			llvm::Value* castedValue = nullptr;
+			if (IsIntLikeType(inst->cast.from.type) &&
+				IsIntLikeType(inst->cast.to.type))
+			{
+				if (inst->cast.to.type->size > inst->cast.from.type->size)
+				{
+					castedValue = builder.CreateZExt(fromValue, toType);
+				}
+				else
+				{
+					castedValue = builder.CreateTrunc(fromValue, toType);
+				}
+			}
+			else if (IsFloatLikeType(inst->cast.from.type) &&
+				IsFloatLikeType(inst->cast.to.type))
+			{
+				if (inst->cast.to.type->size > inst->cast.from.type->size)
+				{
+					castedValue = builder.CreateFPExt(fromValue, toType);
+				}
+				else
+				{
+					castedValue = builder.CreateFPTrunc(fromValue, toType);
+				}
+			}
+			else if (IsIntLikeType(inst->cast.from.type))
+			{
+				if (inst->cast.from.type->primitive.isSigned)
+				{
+					castedValue = builder.CreateSIToFP(fromValue, toType);
+				}
+				else
+				{
+					castedValue = builder.CreateUIToFP(fromValue, toType);
+				}
+			}
+			else
+			{
+				if (inst->cast.to.type->primitive.isSigned)
+				{
+					castedValue = builder.CreateFPToSI(fromValue, toType);
+				}
+				else
+				{
+					castedValue = builder.CreateFPToUI(fromValue, toType);
+				}
+			}
+
+			builder.CreateStore(castedValue, toPtr);
+			return;
+		}
+		case SpiteIR::TypeKind::PointerType:
+		{
+			llvm::Value* ptrToInt = builder.CreatePtrToInt(fromPtr, toType);
+			builder.CreateStore(ptrToInt, toPtr);
+			return;
+		}
+		case SpiteIR::TypeKind::ReferenceType:
+		{
+			llvm::Value* fromValuePtr = builder.CreateLoad(fromType, fromPtr);
+			llvm::Value* castedPtr = builder.CreateBitCast(fromValuePtr, toType);
+			builder.CreateStore(castedPtr, toPtr);
+			return;
+		}
+		case SpiteIR::TypeKind::StateType:
+		case SpiteIR::TypeKind::StructureType:
+		case SpiteIR::TypeKind::DynamicArrayType:
+		case SpiteIR::TypeKind::FixedArrayType:
+		case SpiteIR::TypeKind::FunctionType:
+			break;
+		default:
+			break;
+		}
+
+		Logger::FatalError("LLVMBuilder:BuildCast Bit cast value should never be a non pointer type");
 	}
 
 	void BuildBinaryOp(SpiteIR::Instruction* inst)
 	{
+		SpiteIR::Type* leftType = inst->binOp.left.type;
+		SpiteIR::Type* rightType = inst->binOp.right.type;
+
+		llvm::Type* leftLLVMType = ToLLVMType(leftType, context);
+		llvm::Type* rightLLVMType = ToLLVMType(rightType, context);
+
+		llvm::Value* leftPtr = GetLocalValue(inst->binOp.left.reg);
+		llvm::Value* rightPtr = GetLocalValue(inst->binOp.right.reg);
+
+		llvm::Value* leftValue = builder.CreateLoad(leftLLVMType, leftPtr);
+		llvm::Value* rightValue = builder.CreateLoad(rightLLVMType, rightPtr);
+
+		llvm::Value* resultValue = nullptr;
+		llvm::Value* dstPtr = GetLocalValue(inst->binOp.result);
+
+		switch (inst->binOp.kind)
+		{
+		case SpiteIR::BinaryOpKind::Add:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFAdd(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateAdd(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Subtract:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFSub(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateSub(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Multiply:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFMul(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateMul(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Divide:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFDiv(leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateSDiv(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateUDiv(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Modulo:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFRem(leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateSRem(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateURem(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::And:
+			resultValue = builder.CreateAnd(leftValue, rightValue);
+			break;
+		case SpiteIR::BinaryOpKind::Or:
+			resultValue = builder.CreateOr(leftValue, rightValue);
+			break;
+		case SpiteIR::BinaryOpKind::Xor:
+			resultValue = builder.CreateXor(leftValue, rightValue);
+			break;
+		case SpiteIR::BinaryOpKind::ShiftLeft:
+			resultValue = builder.CreateShl(leftValue, rightValue);
+			break;
+		case SpiteIR::BinaryOpKind::ShiftRight:
+		{
+			if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateAShr(leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateLShr(leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::AndNot:
+		{
+			llvm::Value* not_ = builder.CreateNot(rightValue);
+			resultValue = builder.CreateLShr(leftValue, not_);
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Equal:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OEQ, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_EQ, leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::NotEql:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_ONE, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_NE, leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Less:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OLT, leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_SLT, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_ULT, leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::Greater:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OGT, leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_SGT, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_UGT, leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::LessEqual:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OLE, leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_SLE, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_ULE, leftValue, rightValue);
+			}
+			break;
+		}
+		case SpiteIR::BinaryOpKind::GreaterEqual:
+		{
+			if (IsFloatLikeType(leftType))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OGE, leftValue, rightValue);
+			}
+			else if (leftType->primitive.isSigned)
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_SGE, leftValue, rightValue);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_UGE, leftValue, rightValue);
+			}
+			break;
+		}
+		default:
+			Logger::FatalError("LLVMBuilder:BuildBinaryOp Invalid operation");
+			break;
+		}
+
+		builder.CreateStore(resultValue, dstPtr);
 	}
 
 	void BuildUnaryOp(SpiteIR::Instruction* inst)
 	{
+		SpiteIR::Type* type = inst->unOp.operand.type;
+		llvm::Type* llvmType = ToLLVMType(type, context);
+		llvm::Value* ptr = GetLocalValue(inst->binOp.left.reg);
+		llvm::Value* value = builder.CreateLoad(llvmType, ptr);
+
+		llvm::Value* resultValue = nullptr;
+		llvm::Value* dstPtr = GetLocalValue(inst->unOp.result);
+
+		switch (inst->unOp.kind)
+		{
+		case SpiteIR::UnaryOpKind::Subtract:
+		{
+			if (IsFloatLikeType(type))
+			{
+				resultValue = builder.CreateFNeg(value);
+			}
+			else
+			{
+				resultValue = builder.CreateNeg(value);
+			}
+			break;
+		}
+		case SpiteIR::UnaryOpKind::Not:
+		{
+			llvm::Value* zero = llvm::ConstantInt::get(llvmType, 0);
+			if (IsFloatLikeType(type))
+			{
+				resultValue = builder.CreateFCmp(llvm::CmpInst::FCMP_OEQ, value, zero);
+			}
+			else
+			{
+				resultValue = builder.CreateICmp(llvm::CmpInst::ICMP_EQ, value, zero);
+			}
+			break;
+		}
+		case SpiteIR::UnaryOpKind::XOr:
+			resultValue = builder.CreateNot(value);
+			break;
+		default:
+			break;
+		}
+
+		builder.CreateStore(resultValue, dstPtr);
 	}
 
 	void BuildAssert(SpiteIR::Instruction* inst)

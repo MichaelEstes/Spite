@@ -1398,7 +1398,9 @@ struct LowerDefinitions
 		}
 		else
 		{
+
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
+			value = BuildTypeDereference(GetCurrentLabel(), value);
 			BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value, funcContext.function->returnType)));
 		}
 	}
@@ -1607,7 +1609,7 @@ struct LowerDefinitions
 		funcOperand.type = funcType;
 		funcOperand.function = func;
 
-		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
+		SpiteIR::Instruction* storeFunc = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
 			funcOperand);
 		return { alloc.result, alloc.type };
 
@@ -1873,9 +1875,7 @@ struct LowerDefinitions
 		else if (value.type->kind == SpiteIR::TypeKind::UnionType)
 		{
 			SpiteIR::Type* memberType = FindTypeForUnionMember(value.type, ident);
-			BuildCast(GetCurrentLabel(), BuildRegisterOperand(value), 
-				BuildRegisterOperand({ value.reg, memberType }));
-			return { value.reg, memberType };
+			return CastValue(value, memberType);
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType ||
 			value.type->kind == SpiteIR::TypeKind::ReferenceType)
@@ -1892,8 +1892,7 @@ struct LowerDefinitions
 			else if (derefed->kind == SpiteIR::TypeKind::UnionType)
 			{
 				SpiteIR::Type* unionRefType = MakeReferenceType(FindTypeForUnionMember(derefed, ident), context.ir);
-				BuildCast(GetCurrentLabel(), BuildRegisterOperand(value), BuildRegisterOperand({ value.reg, unionRefType }));
-				return { value.reg, unionRefType };
+				return CastValue(value, unionRefType);
 			}
 			else
 			{
@@ -2304,7 +2303,7 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
-	bool RequiresBitCast(SpiteIR::Type* from, SpiteIR::Type* to)
+	bool RequiresTypeCast(SpiteIR::Type* from, SpiteIR::Type* to)
 	{
 		if (from->kind == SpiteIR::TypeKind::ReferenceType) from = from->reference.type;
 		if (from->kind == SpiteIR::TypeKind::PrimitiveType &&
@@ -2320,7 +2319,7 @@ struct LowerDefinitions
 
 	ScopeValue CastValue(ScopeValue toCast, SpiteIR::Type* toType)
 	{
-		if (RequiresBitCast(toCast.type, toType))
+		if (RequiresTypeCast(toCast.type, toType))
 		{
 			toCast = BuildTypeDereference(GetCurrentLabel(), toCast);
 			if (toType->kind == SpiteIR::TypeKind::PointerType)
@@ -2346,7 +2345,7 @@ struct LowerDefinitions
 				return CastFixedArrayToDynamic(toCast, toType);
 			}
 
-			return { toCast.reg, toType };
+			return BuildBitCast(toCast, toType);
 		}
 	}
 
@@ -2366,6 +2365,15 @@ struct LowerDefinitions
 			BuildRegisterOperand(BuildTypeDereference(GetCurrentLabel(), from)),
 			AllocateToOperand(alloc));
 		return { alloc.result, toType };
+	}
+
+	ScopeValue BuildBitCast(const ScopeValue& from, SpiteIR::Type* toType)
+	{
+		ScopeValue fromRef = BuildTypeReference(GetCurrentLabel(), from);
+		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(toType, context.ir));
+		SpiteIR::Instruction* cast = BuildCast(GetCurrentLabel(), BuildRegisterOperand(fromRef),
+			AllocateToOperand(alloc));
+		return { alloc.result, alloc.type };
 	}
 
 	ScopeValue BuildIndexExpr(Expr* expr, Stmnt* stmnt)
@@ -2817,7 +2825,7 @@ struct LowerDefinitions
 		funcOperand.type = funcType;
 		funcOperand.function = func;
 
-		SpiteIR::Instruction* storeFunc = BuildStoreFunc(GetCurrentLabel(), AllocateToOperand(alloc),
+		SpiteIR::Instruction* storeFunc = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
 			funcOperand);
 		return { alloc.result, alloc.type };
 	}
@@ -2920,8 +2928,15 @@ struct LowerDefinitions
 
 	ScopeValue StoreTypeInfo(SpiteIR::Type* type)
 	{
-		ScopeValue typePtrAsInt = BuildStoredLiteralInt((size_t)type);
-		return IntToPointer(typePtrAsInt, CreateTypeMetaType());
+		SpiteIR::Operand typeOp = SpiteIR::Operand();
+		typeOp.kind = SpiteIR::OperandKind::TypeData;
+		typeOp.type = type;
+
+		SpiteIR::Type* metaType = CreateTypeMetaType();
+		SpiteIR::Allocate alloc = BuildAllocate(metaType);
+		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(),
+			AllocateToOperand(alloc), typeOp);
+		return {alloc.result, alloc.type};
 	}
 
 	ScopeValue BuildTypeOf(Expr* expr, Stmnt* stmnt)
@@ -3129,7 +3144,6 @@ struct LowerDefinitions
 		binOp->binOp.left = BuildRegisterOperand(leftVal);
 		binOp->binOp.right = BuildRegisterOperand(rightVal);
 		binOp->binOp.result = alloc.result;
-
 
 		return { alloc.result, alloc.type };
 	}
@@ -3823,14 +3837,6 @@ struct LowerDefinitions
 	{
 		SpiteIR::Instruction* store = BuildStore(label, dst, src);
 		store->kind = SpiteIR::InstructionKind::StorePtr;
-		return store;
-	}
-
-	SpiteIR::Instruction* BuildStoreFunc(SpiteIR::Label* label, const SpiteIR::Operand& dst,
-		const SpiteIR::Operand& src)
-	{
-		SpiteIR::Instruction* store = BuildStore(label, dst, src);
-		store->kind = SpiteIR::InstructionKind::StoreFunc;
 		return store;
 	}
 

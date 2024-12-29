@@ -145,7 +145,6 @@ namespace SpiteIR
 		LoadGlobal,
 		Store,
 		StorePtr,
-		StoreFunc,
 		Move,
 		Reference,
 		Dereference,

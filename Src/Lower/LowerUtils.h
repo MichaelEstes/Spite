@@ -92,7 +92,7 @@ inline bool IsFloatLikeType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
 		(type->primitive.kind == SpiteIR::PrimitiveKind::F32 ||
-		type->primitive.kind <= SpiteIR::PrimitiveKind::Float);
+		type->primitive.kind == SpiteIR::PrimitiveKind::Float);
 }
 
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
@@ -154,10 +154,16 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 		if (left->stateType.state == right->stateType.state) return 1;
 	}
 
+	if (left->kind == SpiteIR::TypeKind::StructureType &&
+		right->kind == SpiteIR::TypeKind::StructureType)
+	{
+		if (IRTypesAssignable(GetStructuredTypes(left), GetStructuredTypes(right))) return 1;
+	}
+
 	if (IsStructuredType(left) && IsStructuredType(right))
 	{
 		if (IRTypesAssignable(GetStructuredTypes(left), GetStructuredTypes(right)))
-			return 1;
+			return 2;
 	}
 
 	if (IsAssignableString(left) && IsAssignableString(right))
@@ -383,6 +389,8 @@ SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 
 SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 {
+	if (type->kind == SpiteIR::TypeKind::ReferenceType) return type;
+
 	SpiteIR::Type* refType = ir->AllocateType();
 	refType->kind = SpiteIR::TypeKind::ReferenceType;
 	refType->size = config.targetArchByteWidth;

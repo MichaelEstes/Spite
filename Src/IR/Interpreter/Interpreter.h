@@ -192,9 +192,6 @@ struct Interpreter
 		case SpiteIR::InstructionKind::Move:
 			InterpretMove(inst);
 			break;
-		case SpiteIR::InstructionKind::StoreFunc:
-			InterpretStoreFunc(inst);
-			break;
 		case SpiteIR::InstructionKind::Reference:
 			InterpretReference(inst);
 			break;
@@ -361,6 +358,11 @@ struct Interpreter
 			*(SpiteIR::Function**)dst = src.function;
 			break;
 		}
+		case SpiteIR::OperandKind::TypeData:
+		{
+			*(SpiteIR::Type**)dst = src.type;
+			break;
+		}
 		default:
 			break;
 		}
@@ -371,13 +373,6 @@ struct Interpreter
 		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = stackFrameStart + storeInst.store.src.reg;
 		memcpy(ptr, src, storeInst.store.src.type->size);
-	}
-
-	inline void InterpretStoreFunc(SpiteIR::Instruction& storeInst)
-	{
-		Assert(storeInst.store.src.kind == SpiteIR::OperandKind::Function);
-		size_t* ptr = (size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
-		*ptr = (size_t)storeInst.store.src.function;
 	}
 
 	inline void InterpretMove(SpiteIR::Instruction& storeInst)
@@ -490,23 +485,25 @@ struct Interpreter
 			}
 			return;
 		}
+		case SpiteIR::TypeKind::ReferenceType:
 		case SpiteIR::TypeKind::PointerType:
 		{
 			CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
+			return;
 		}
 		case SpiteIR::TypeKind::StateType:
 		case SpiteIR::TypeKind::StructureType:
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::FixedArrayType:
 		case SpiteIR::TypeKind::FunctionType:
-			return;
+			break;
 		default:
 			break;
 		}
 	}
 
 	template<typename Left = int, typename Right = int>
-	inline void BitCast(SpiteIR::Operand& from, SpiteIR::Operand& to)
+	inline void TypeCast(SpiteIR::Operand& from, SpiteIR::Operand& to)
 	{
 		Left left = *(Left*)(void*)(stackFrameStart + from.reg);
 		Right* right = (Right*)(void*)(stackFrameStart + to.reg);
@@ -533,19 +530,19 @@ struct Interpreter
 				switch (to.type->size)
 				{
 				case 1:
-					BitCast<Left, char>(from, to);
+					TypeCast<Left, char>(from, to);
 					break;
 				case 2:
-					BitCast<Left, int16_t>(from, to);
+					TypeCast<Left, int16_t>(from, to);
 					break;
 				case 4:
-					BitCast<Left, int32_t>(from, to);
+					TypeCast<Left, int32_t>(from, to);
 					break;
 				case 8:
-					BitCast<Left, int64_t>(from, to);
+					TypeCast<Left, int64_t>(from, to);
 					break;
 				case 16:
-					BitCast<Left, intmax_t>(from, to);
+					TypeCast<Left, intmax_t>(from, to);
 					break;
 				default:
 					break;
@@ -556,19 +553,19 @@ struct Interpreter
 				switch (to.type->size)
 				{
 				case 1:
-					BitCast<Left, uint8_t>(from, to);
+					TypeCast<Left, uint8_t>(from, to);
 					break;
 				case 2:
-					BitCast<Left, uint16_t>(from, to);
+					TypeCast<Left, uint16_t>(from, to);
 					break;
 				case 4:
-					BitCast<Left, uint32_t>(from, to);
+					TypeCast<Left, uint32_t>(from, to);
 					break;
 				case 8:
-					BitCast<Left, uint64_t>(from, to);
+					TypeCast<Left, uint64_t>(from, to);
 					break;
 				case 16:
-					BitCast<Left, uintmax_t>(from, to);
+					TypeCast<Left, uintmax_t>(from, to);
 					break;
 				default:
 					break;
@@ -582,10 +579,10 @@ struct Interpreter
 			switch (to.type->size)
 			{
 			case 4:
-				BitCast<Left, float>(from, to);
+				TypeCast<Left, float>(from, to);
 				break;
 			case 8:
-				BitCast<Left, double>(from, to);
+				TypeCast<Left, double>(from, to);
 				break;
 			default:
 				break;

@@ -245,7 +245,6 @@ struct Decompiler
 		case SpiteIR::InstructionKind::StorePtr:
 		case SpiteIR::InstructionKind::Reference:
 		case SpiteIR::InstructionKind::Dereference:
-		case SpiteIR::InstructionKind::StoreFunc:
 		case SpiteIR::InstructionKind::Move:
 			DecompileStore(inst);
 			break;
@@ -320,7 +319,6 @@ struct Decompiler
 		switch (storeInst.kind)
 		{
 		case SpiteIR::InstructionKind::Store:
-		case SpiteIR::InstructionKind::StoreFunc:
 			storeString = " = store ";
 			break;
 		case SpiteIR::InstructionKind::StorePtr:
