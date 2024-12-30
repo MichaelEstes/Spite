@@ -4,7 +4,7 @@ null := 0 as *void;
 
 extern
 {
-	#link linux "libm.so";
+	#link linux "libc.so";
 	#link windows "msvcrt.dll";
 
 	*byte malloc(size: uint);

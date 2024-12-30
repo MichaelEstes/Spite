@@ -501,6 +501,7 @@ struct Tokens
 			}
 			else if (!escaped && currVal == val[0] && val.Count() > 1)
 			{
+				bool singleQuote = val[0] == '\'';
 				val.start += 1;
 				val.last -= 1;
 				if (hasEscapedChar)
@@ -526,7 +527,7 @@ struct Tokens
 					val.last = escapedStr->end() - 1;
 				}
 
-				if (val.Count() == 1)
+				if (val.Count() == 1 && singleQuote)
 				{
 					token = tokens->CreateToken(val, pos, TokenType::Literal, UniqueType::ByteLiteral);
 				}

@@ -36,7 +36,7 @@ struct LLVMBuilder
 	llvm::Module module;
 
 	llvm::Type* intType;
-	llvm::Type* int32Type;
+	llvm::IntegerType* int32Type;
 	llvm::StructType* strType;
 
 	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
@@ -60,7 +60,13 @@ struct LLVMBuilder
 		//module.print(llvm::outs(), nullptr);
 		if (llvm::verifyModule(module, &llvm::errs())) {
 			llvm::errs() << "Module verification failed!\n";
+			return;
 		}
+	}
+
+	void Compile()
+	{
+
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -360,10 +366,23 @@ struct LLVMBuilder
 
 	void BuildSwitch(SpiteIR::Instruction* inst)
 	{
-	}
+		llvm::IntegerType* testType = llvm::cast<llvm::IntegerType>(ToLLVMType(inst->switch_.test.type, context));
+		llvm::Value* testPtr = GetLocalValue(inst->switch_.test.reg);
+		llvm::Value* testValue = builder.CreateLoad(
+			ToLLVMType(inst->switch_.test.type, context),
+			testPtr
+		);
 
-	void BuildExternCall(SpiteIR::Instruction* inst)
-	{
+		size_t caseCount = inst->switch_.cases->size();
+		llvm::BasicBlock* defaultBlock = labelMap[inst->switch_.defaultCase];
+		llvm::SwitchInst* switchInst = builder.CreateSwitch(testValue, defaultBlock, caseCount);
+
+		for (auto& [caseTest, label] : *inst->switch_.cases)
+		{
+			llvm::ConstantInt* caseTestValue = llvm::ConstantInt::get(testType, caseTest);
+			llvm::BasicBlock* caseBlock = labelMap[label];
+			switchInst->addCase(caseTestValue, caseBlock);
+		}
 	}
 
 	void BuildParams(eastl::vector<SpiteIR::Operand>* params,
@@ -382,7 +401,6 @@ struct LLVMBuilder
 		}
 	}
 
-
 	void BuildCall(SpiteIR::Instruction* inst)
 	{
 		std::vector<llvm::Value*> args;
@@ -394,6 +412,11 @@ struct LLVMBuilder
 		{
 			builder.CreateStore(callResult, GetLocalValue(inst->call.result));
 		}
+	}
+
+	void BuildExternCall(SpiteIR::Instruction* inst)
+	{
+		BuildCall(inst);
 	}
 
 	void BuildCallPtr(SpiteIR::Instruction* inst)

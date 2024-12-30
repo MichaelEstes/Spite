@@ -40,7 +40,6 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 message(STATUS "Including LLVM Dirs: ${LLVM_INCLUDE_DIRS}")
-set(LLVM_ENABLE_DUMP ON)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)

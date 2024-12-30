@@ -69,7 +69,7 @@ string _string::Append(toAppend: string)
 	for (j .. toAppend.count)
 		buffer[i + j]~ = toAppend[j]~;
 
-	return _string(totalCount, buffer);
+	return string(totalCount, buffer);
 }
 
 _string::AppendIn(toAppend: string)
