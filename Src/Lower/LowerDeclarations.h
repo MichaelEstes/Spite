@@ -597,7 +597,6 @@ struct LowerDeclarations
 		function->metadata.externFunc = context.ir->AllocateExternFunction();
 		function->metadata.externFunc->libs = GetPlatformLibs(externFunc->externFunction.links);
 		function->metadata.externFunc->externName = externFunc->externFunction.externName->val.ToString();
-		function->metadata.externFunc->callName = externFunc->externFunction.callName->val.ToString();
 		context.functionMap[function->name] = function;
 		context.functionASTMap[function] = { externFunc, nullptr };
 		package->functions[function->name] = function;

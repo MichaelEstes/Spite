@@ -1135,7 +1135,18 @@ struct TypeInferer
 
 		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
 		{
-			return IsAssignable(left->pointerType.type, right->pointerType.type, stmntContext);
+			Type* leftPointeeType = left->pointerType.type;
+			Type* rightPointeeType = right->pointerType.type;
+
+			if (leftPointeeType->typeID == PrimitiveType &&
+				leftPointeeType->primitiveType.type == UniqueType::Void)
+				return true;
+
+			if (rightPointeeType->typeID == PrimitiveType &&
+				rightPointeeType->primitiveType.type == UniqueType::Void)
+				return true;
+
+			return IsAssignable(leftPointeeType, rightPointeeType, stmntContext);
 		}
 
 		if (left->typeID == TypeID::ArrayType && right->typeID == TypeID::ArrayType)

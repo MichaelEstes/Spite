@@ -2,6 +2,7 @@
 
 #include "EASTL/string.h"
 #include "dyncall.h"
+#include "dynload.h"
 #include "../IR.h"
 #include "../../Log/Logger.h"
 
@@ -10,33 +11,30 @@ typedef void (*func_ptr)();
 DCCallVM* dynCallVM;
 
 eastl::hash_map<SpiteIR::Function*, func_ptr> funcCache;
+eastl::hash_map<eastl::string, DLLib*> libCache;
 
-#ifdef WIN32
-
-const char* platform = "windows";
-
-#include <windows.h>
-func_ptr FindFunction(const eastl::string& name, const eastl::string& lib)
+func_ptr FindFunction(const eastl::string& name, eastl::string* lib)
 {
-	HMODULE hModule = LoadLibraryA(lib.c_str());
-	if (!hModule) return nullptr;
-
-	func_ptr func = (func_ptr)GetProcAddress(hModule, name.c_str());
+	DLLib* dlLib = nullptr;
+	if (lib)
+	{
+		dlLib = libCache[*lib];
+		if (!dlLib)
+		{
+			dlLib = dlLoadLibrary(lib->c_str());
+			libCache[*lib] = dlLib;
+		}
+	}
+		
+	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
 	return func;
 }
 
+#ifdef WIN32
+const char* platform = "windows";
 #else UNIX
-
 const char* platform = "linux";
-
-#include <dlfcn.h>
-func_ptr FindFunction(const eastl::string& name)
-{
-
-}
-
 #endif 
-
 
 void CreateDynCallVM()
 {
@@ -49,21 +47,14 @@ void CreateDynCallVM()
 
 void DestroyDynCallVM()
 {
+	for (auto& [name, lib] : libCache)
+	{
+		dlFreeLibrary(lib);
+	}
+	libCache.clear();
 	dcFree(dynCallVM);
 	dynCallVM = nullptr;
 }
-
-//void CallExternalFunction(const eastl::string& name)
-//{
-//	func_ptr func = FindFunction(name);
-//	double r;
-//	DCCallVM* vm = dcNewCallVM(4096);
-//	dcMode(vm, DC_CALL_C_DEFAULT);
-//	dcReset(vm);
-//	dcArgFloat(vm, 4.2373);
-//	r = dcCallFloat(vm, (DCpointer)func);
-//	dcFree(vm);
-//}
 
 void BuildDCArg(SpiteIR::Type* type, void* value)
 {
@@ -115,23 +106,20 @@ void BuildDCArg(SpiteIR::Type* type, void* value)
 
 		return;
 	}
-
-	case SpiteIR::TypeKind::StateType:
-		return;
-	case SpiteIR::TypeKind::StructureType:
-		return;
 	case SpiteIR::TypeKind::PointerType:
 		dcArgPointer(dynCallVM, *(void**)value);
 		return;
+	case SpiteIR::TypeKind::StateType:
+	case SpiteIR::TypeKind::StructureType:
 	case SpiteIR::TypeKind::DynamicArrayType:
-		return;
 	case SpiteIR::TypeKind::FixedArrayType:
-		return;
 	case SpiteIR::TypeKind::FunctionType:
-		return;
+		break;
 	default:
-		return;
+		break;
 	}
+
+	Logger::FatalError("ExternCall:BuildDCArg Unable to create arg for type");
 }
 
 eastl::string* FindLibForPlatform(eastl::vector<SpiteIR::PlatformLib>* platformToLib)
@@ -265,11 +253,19 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 	func_ptr func = funcCache[function];
 	if (!func)
 	{
-		eastl::string& name = function->metadata.externFunc->callName;
+		eastl::string& name = function->metadata.externFunc->externName;
 		eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
-		func = FindFunction(name, *lib);
-		if (!func) Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-				name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+		func = FindFunction(name, lib);
+		if (!func)
+		{
+			if (lib)
+				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+						name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+			else
+				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+					name + "' for platform '" + platform + "'");
+		}
+
 		funcCache[function] = func;
 	}
 

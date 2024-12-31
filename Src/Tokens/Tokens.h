@@ -484,9 +484,13 @@ struct Tokens
 				return '\a';
 			case '\\':
 				return '\\';
+			case '0':
+				return '\0';
 			default:
 				break;
 			}
+
+			return '\0';
 		}
 
 		inline void GetToken(char* curr, char* next, Position& pos, Tokens* tokens, Token*& token)

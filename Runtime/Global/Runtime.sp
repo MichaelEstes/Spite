@@ -7,12 +7,6 @@ extern
 	void GetModuleFileNameW(hModule: *void, lpFilename: *int16, nSize: int32);
 }
 
-extern
-{
-	#link linux "libc.so";
-	#link windows "msvcrt.dll";
-}
-
 enum OS_Kind: int
 {
 	Windows = 0,
@@ -119,14 +113,35 @@ string IntToString(i: int)
 	return {count, heapBuf} as string;
 }
 
-string FloatToString(f: float)
+floatFormatStr := ['%', 'i', '\0'];
+
+string FloatToString(f: float, precision := 4)
 {
 	if (f == 0.0) return "0.0";
 
-	return "";
+    integerPart: int = f as int;
+	intStr := IntToString(integerPart);
+
+    decimals: float = f - integerPart;
+	decimalsInt := 0;
+
+	buf := alloc(precision);
+	for (i .. precision) {
+        decimals *= 10;
+		digit := decimals as byte;
+		buf[i]~ = digit + '0';
+        decimals -= digit;
+    }
+	decimalsStr := {precision, buf} as string;
+
+    result := intStr + "." + decimalsStr;
+	delete intStr;
+	delete decimalsStr;
+
+    return result;
 }
 
-string _SerializeType(value: any, type: *_Type)
+string _SerializeType(value: *void, type: *_Type)
 {
 	typeKind := type.kind;
 	typeData := type.type;
@@ -170,5 +185,5 @@ string _SerializeType(value: any, type: *_Type)
 _log(value: any, type: *_Type)
 {
 	str := _SerializeType(value, type);
-	Print
+	log str;
 }

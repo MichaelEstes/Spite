@@ -31,7 +31,7 @@ void copy_bytes(dst: *byte, src: *byte, toCopy: uint)
 
 void fill_memory(dst: *byte, item: *byte, itemSize: uint, dstSize: uint)
 {
-	//assert dstSize % itemSize == 0;
+	assert dstSize % itemSize == 0;
 
 	for (i .. dstSize)
 	{

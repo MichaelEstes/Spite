@@ -447,7 +447,6 @@ namespace SpiteIR
 	{
 		Array<PlatformLib>* libs;
 		string externName;
-		string callName;
 	};
 
 	struct Function
