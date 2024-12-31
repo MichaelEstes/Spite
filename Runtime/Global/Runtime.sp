@@ -122,14 +122,20 @@ string FloatToString(f: float, precision := 4)
     integerPart: int = f as int;
 	intStr := IntToString(integerPart);
 
+	if (f < 0.0) 
+	{
+		f *= -1;
+		integerPart *= -1;
+	}
     decimals: float = f - integerPart;
 	decimalsInt := 0;
 
 	buf := alloc(precision);
-	for (i .. precision) {
+	for (i .. precision) 
+	{
         decimals *= 10;
 		digit := decimals as byte;
-		buf[i]~ = digit + '0';
+		buf[i]~ = '0' + digit;
         decimals -= digit;
     }
 	decimalsStr := {precision, buf} as string;
@@ -141,7 +147,7 @@ string FloatToString(f: float, precision := 4)
     return result;
 }
 
-string _SerializeType(value: *void, type: *_Type)
+string _SerializeType(value: *byte, type: *_Type)
 {
 	typeKind := type.kind;
 	typeData := type.type;
@@ -159,7 +165,7 @@ string _SerializeType(value: *void, type: *_Type)
 					if(bPtr~) return "true";
 					else return "false";
 				}
-				case (_PrimitiveKind.Byte) return IntToString((value as *byte)~);
+				case (_PrimitiveKind.Byte) return IntToString(value~);
 				case (_PrimitiveKind.I16) return IntToString((value as *int16)~);
 				case (_PrimitiveKind.I32) return IntToString((value as *int32)~);
 				case (_PrimitiveKind.I64) return IntToString((value as *int64)~);
