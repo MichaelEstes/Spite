@@ -779,11 +779,10 @@ inline eastl::string BuildConstructorName(Stmnt* con,
 		BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
 
-inline eastl::string BuildOperatorMethodName(Stmnt* op,
+inline eastl::string BuildOperatorMethodName(Stmnt* op, eastl::string& stateName,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return OperatorToString(op->stateOperator.op->uniqueType) +
-		_BuildStateName(op->package, op->stateOperator.stateName) + '_' +
+	return OperatorToString(op->stateOperator.op->uniqueType) + stateName + '_' +
 		BuildConOpParamsTypeString(op->stateOperator.decl, generics, templates);
 }
 

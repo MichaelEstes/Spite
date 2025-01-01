@@ -58,6 +58,11 @@ bool _string::operator::!()
 	return !this.count;
 }
 
+*byte _string::Last()
+{
+	return this[this.count - 1];
+}
+
 string _string::Append(toAppend: string)
 {
 	totalCount := this.count + toAppend.count;

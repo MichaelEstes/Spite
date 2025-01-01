@@ -1031,13 +1031,11 @@ struct Interpreter
 		case SpiteIR::TypeKind::StructureType:
 		{
 			eastl::string out = "{";
-			size_t offset = 0;
 			for (SpiteIR::Member& inner : *type->structureType.members)
 			{
-				void* memberStart = ((char*)start) + offset;
+				void* memberStart = ((char*)start) + inner.offset;
 				out += " " + LogValue(memberStart, inner.value->type, logged);
 				out += ",";
-				offset += inner.value->type->size;
 			}
 			out.back() = ' ';
 			out += "}";

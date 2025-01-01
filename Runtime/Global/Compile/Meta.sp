@@ -316,7 +316,7 @@ state _Type
 	type: ?{
 		primitive: {isSigned: bool, primitiveKind: _PrimitiveKind},
 		stateType: *_State,
-		structureType: {types: *_Interop_Vector<*_Type>, names: *_Interop_Vector<_Interop_String>},
+		structureType: *_Interop_Vector<_Member>,
 		pointer: *_Type,
 		reference: *_Type,
 		dynamicArray: *_Type,
@@ -394,7 +394,7 @@ state _State
 	size: uint,
 	alignment: uint,
 
-	flags: int32,
+	flags: uint,
 
 	members: _Interop_Vector<_Member>,
 	methods: _Interop_Vector<*_Function>,

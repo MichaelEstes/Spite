@@ -3651,6 +3651,9 @@ struct LowerDefinitions
 		thisValue = DereferenceToSinglePointer(thisValue);
 		if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
 			thisValue = BuildTypeReference(GetCurrentLabel(), thisValue);
+		else
+			thisValue.type->kind = SpiteIR::TypeKind::ReferenceType;
+
 		return thisValue;
 	}
 

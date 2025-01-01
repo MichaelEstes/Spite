@@ -513,10 +513,8 @@ struct LLVMBuilder
 		llvm::Type* type = ToLLVMType(srcType, context, true);
 
 		eastl::vector<SpiteIR::Member>* members = GetMembersForType(srcType);
-		if (members)
+		if (members && load.offset.kind == SpiteIR::OperandKind::Literal)
 		{
-			Assert(load.offset.kind == SpiteIR::OperandKind::Literal);
-
 			intmax_t offset = load.offset.literal.intLiteral;
 			size_t memberIndex = GetMemberIndexForOffset(members, offset);
 			llvm::Value* index = llvm::ConstantInt::get(int32Type, memberIndex);

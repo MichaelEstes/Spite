@@ -2,14 +2,31 @@ package _
 
 state _Interop_Vector<T>
 {
-	begin: *void,
-	end: *void,
+	begin: *T,
+	end: *T,
 	allocator: [2]*void
 }
 
 *T _Interop_Vector::operator::[](index: uint)
 {
 	return this.begin[index];
+}
+
+Iterator _Interop_Vector::operator::in()
+{
+	return {null, -1};
+}
+
+bool _Interop_Vector::next(it: Iterator)
+{
+	it.index += 1;
+	count := (this.end - this.begin) as int / #sizeof T;
+	return it.index < count;
+}
+
+*T _Interop_Vector::current(it: Iterator)
+{
+	return this[it.index];
 }
 
 string _Interop_Vector::log() => "Interop Vector";
@@ -38,7 +55,7 @@ state _Interop_String
 	str: [(#sizeof int) * 3]byte
 }
 
-string _Interop_String::log()
+string _Interop_String::ToString()
 {
 	count := (#sizeof int) * 3;
 	flag := this.str[count - 1];
@@ -55,4 +72,9 @@ string _Interop_String::log()
 		while(this.str[size] && size < count) size += 1;
 		return {size, fixed this.str} as string;
 	}
+}
+
+string _Interop_String::log()
+{
+	return this.ToString();
 }

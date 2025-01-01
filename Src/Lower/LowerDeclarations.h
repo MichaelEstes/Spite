@@ -406,7 +406,7 @@ struct LowerDeclarations
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
 		SpiteIR::Function* op = context.ir->AllocateFunction(package);
-		op->name = BuildOperatorMethodName(opStmnt, generics, templates);
+		op->name = BuildOperatorMethodName(opStmnt, state->name, generics, templates);
 		op->returnType = TypeToIRType(context.ir, opStmnt->stateOperator.returnType, this,
 			generics, templates);
 

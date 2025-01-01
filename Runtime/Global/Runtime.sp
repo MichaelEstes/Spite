@@ -113,14 +113,13 @@ string IntToString(i: int)
 	return {count, heapBuf} as string;
 }
 
-floatFormatStr := ['%', 'i', '\0'];
-
 string FloatToString(f: float, precision := 4)
 {
 	if (f == 0.0) return "0.0";
 
     integerPart: int = f as int;
 	intStr := IntToString(integerPart);
+	defer delete intStr;
 
 	if (f < 0.0) 
 	{
@@ -139,11 +138,9 @@ string FloatToString(f: float, precision := 4)
         decimals -= digit;
     }
 	decimalsStr := {precision, buf} as string;
+	defer delete decimalsStr;
 
     result := intStr + "." + decimalsStr;
-	delete intStr;
-	delete decimalsStr;
-
     return result;
 }
 
@@ -175,10 +172,46 @@ string _SerializeType(value: *byte, type: *_Type)
 				case (_PrimitiveKind.String) return (value as *string)~;
 			}
 		}
-		case (_TypeKind.StateType) break;
-		case (_TypeKind.UnionType) break;
-		case (_TypeKind.StructureType) break;
-		case (_TypeKind.FunctionType) break;
+		case (_TypeKind.StateType)
+		{
+			_state := typeData.stateType;
+			out := _state.name.ToString() + " : {\n";
+
+			for (member: *_Member in _state.members)
+			{
+				out = out + " " + member.value.name.ToString() + ": ";
+				memberValue := value + member.offset;
+				out = out + _SerializeType(memberValue, member.value.type);
+				out = out + ",";
+			}
+
+			out.Last()~ = ' ';
+			out = out + "\n}";
+			return out;
+		}
+		case (_TypeKind.StructureType)
+		{
+			out := "struct {\n";
+			for (member: *_Member in typeData.structureType)
+			{
+				memberValue := value + member.offset;
+				out = out + " " + _SerializeType(memberValue, member.value.type) + ",";
+			}
+
+			out.Last()~ = ' ';
+			out = out + "\n}";
+			return out;
+		}
+		case (_TypeKind.UnionType)
+		{
+			out := "union { " + IntToString(type.size) + " bytes }";
+			return out;
+		}
+		case (_TypeKind.FunctionType)
+		{
+			ptrInt := value as int;
+			return "func (@" + IntToString(ptrInt) + ")";
+		}
 		case (_TypeKind.PointerType) break;
 		case (_TypeKind.DynamicArrayType) break;
 		case (_TypeKind.FixedArrayType) break;
