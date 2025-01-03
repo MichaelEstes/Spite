@@ -7,6 +7,15 @@ extern
 	void GetModuleFileNameW(hModule: *void, lpFilename: *int16, nSize: int32);
 }
 
+extern
+{
+	#link linux "libc.so";
+	#link windows "msvcrt.dll";
+
+	int32 putchar(c: int32);
+	int32 _snprintf(buffer: *byte, count: uint, format: *byte, arg: float);
+}
+
 enum OS_Kind: int
 {
 	Windows = 0,
@@ -72,12 +81,13 @@ string GetExecDir()
 
 void Print(str: string)
 {
-
+	for (i .. str.count) putchar(str[i]~ as int32);
 }
 
 void PrintLine(str: string)
 {
-
+	Print(str);
+	putchar('\n');
 }
 
 string IntToString(i: int)
@@ -113,35 +123,40 @@ string IntToString(i: int)
 	return {count, heapBuf} as string;
 }
 
+floatFormatStr := "%f";
+
 string FloatToString(f: float, precision := 4)
 {
-	if (f == 0.0) return "0.0";
+	len := _snprintf(null, 0, floatFormatStr.str, f);
+	buffer := alloc(len + 1);
+	_snprintf(buffer, len + 1, floatFormatStr.str, f);
+	return {len as int, buffer} as string;
 
-    integerPart: int = f as int;
-	intStr := IntToString(integerPart);
-	defer delete intStr;
-
-	if (f < 0.0) 
-	{
-		f *= -1;
-		integerPart *= -1;
-	}
-    decimals: float = f - integerPart;
-	decimalsInt := 0;
-
-	buf := alloc(precision);
-	for (i .. precision) 
-	{
-        decimals *= 10;
-		digit := decimals as byte;
-		buf[i]~ = '0' + digit;
-        decimals -= digit;
-    }
-	decimalsStr := {precision, buf} as string;
-	defer delete decimalsStr;
-
-    result := intStr + "." + decimalsStr;
-    return result;
+    //integerPart: int = f as int;
+	//intStr := IntToString(integerPart);
+	//defer delete intStr;
+	//
+	//if (f < 0.0) 
+	//{
+	//	f *= -1;
+	//	integerPart *= -1;
+	//}
+    //decimals: float = f - integerPart;
+	//decimalsInt := 0;
+	//
+	//buf := alloc(precision);
+	//for (i .. precision) 
+	//{
+    //    decimals *= 10;
+	//	digit := decimals as byte;
+	//	buf[i]~ = '0' + digit;
+    //    decimals -= digit;
+    //}
+	//decimalsStr := {precision, buf} as string;
+	//defer delete decimalsStr;
+	//
+    //result := intStr + "." + decimalsStr;
+    //return result;
 }
 
 string _SerializeType(value: *byte, type: *_Type)
@@ -212,17 +227,74 @@ string _SerializeType(value: *byte, type: *_Type)
 			ptrInt := value as int;
 			return "func (@" + IntToString(ptrInt) + ")";
 		}
-		case (_TypeKind.PointerType) break;
-		case (_TypeKind.DynamicArrayType) break;
-		case (_TypeKind.FixedArrayType) break;
-		case (_TypeKind.ReferenceType) break;
+		case (_TypeKind.PointerType)
+		{
+			value = (value as **byte)~
+			ptrInt := value as int;
+			out := "Ptr @" + IntToString(ptrInt) + " ";
+
+			if (ptrInt) out = out + _SerializeType(value, typeData.pointer);
+			else out = out + "null";
+
+			return out;
+		}
+		case (_TypeKind.ReferenceType)
+		{
+			ptrInt := value as int;
+			out := "Ref @" + IntToString(ptrInt) + " ";
+
+			if (ptrInt) out = out + _SerializeType(value, typeData.reference);
+			else out = out + "nullref (error)";
+
+			return out;
+		}
+		case (_TypeKind.DynamicArrayType)
+		{
+			itemType := typeData.dynamicArray;
+			itemSize := itemType.size;
+			
+			arr := value as *array;
+			count := arr.count;
+			start := arr.start;
+
+			if (!count) return "[]";
+
+			out := "[";
+			for (i .. count)
+			{
+				offset := i * itemSize;
+				itemStart := start + offset;
+				out = out + " " + _SerializeType(itemStart, itemType) + ",";
+			}
+
+			out.Last()~ = ' ';
+			out = out + "]";
+			return out;
+		}
+		case (_TypeKind.FixedArrayType)
+		{
+			itemType := typeData.fixedArray.type;
+			itemSize := itemType.size;
+			count := typeData.fixedArray.count;
+
+			out := "fixed [";
+			for (i .. count)
+			{
+				offset := i * itemSize;
+				itemStart := value + offset;
+				out = out + " " + _SerializeType(itemStart, itemType) + ",";
+			}
+			out.Last()~ = ' ';
+			out = out + "]";
+			return out;
+		}
 	}
 
-	return "";
+	return "Error: Invalid type for _SerializeType";
 }
 
 _log(value: any, type: *_Type)
 {
 	str := _SerializeType(value, type);
-	log str;
+	PrintLine(str);
 }

@@ -136,6 +136,7 @@ struct LowerDefinitions
 	SpiteIR::Function* makeArrayFrom = nullptr;
 	SpiteIR::Function* sizeArray = nullptr;
 
+	SpiteIR::Function* logFunc = nullptr;
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
 
@@ -162,6 +163,7 @@ struct LowerDefinitions
 		makeArrayFrom = FindPackageFunction(runtime, "__make_array_from");
 		sizeArray = FindPackageFunction(runtime, "__size_array");
 
+		logFunc = FindPackageFunction(runtime, "___log");
 		allocFunc = FindPackageFunction(runtime, "__alloc");
 		deallocFunc = FindPackageFunction(runtime, "__dealloc");
 
@@ -741,7 +743,6 @@ struct LowerDefinitions
 			break;
 		case LogStmnt:
 		{
-			eastl::vector<SpiteIR::Operand>* toLog = context.ir->AllocateArray<SpiteIR::Operand>();
 			for (Expr* expr : *stmnt->logStmnt.exprs)
 			{
 				ScopeValue logValue = BuildExpr(expr, stmnt);
@@ -759,9 +760,16 @@ struct LowerDefinitions
 						logValue = { alloc.result, alloc.type };
 					}
 				}
-				toLog->push_back(BuildRegisterOperand(logValue));
+
+				eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
+				ScopeValue typeData = StoreTypeInfo(logValue.type);
+				logValue = BuildTypeReference(GetCurrentLabel(), logValue);
+
+				params->push_back(BuildRegisterOperand(logValue));
+				params->push_back(BuildRegisterOperand(typeData));
+				SpiteIR::Instruction* call = BuildCall(logFunc, funcContext.curr, params, 
+					GetCurrentLabel());
 			}
-			SpiteIR::Instruction* logInst = BuildLog(GetCurrentLabel(), toLog);
 			break;
 		}
 		default:
@@ -909,12 +917,13 @@ struct LowerDefinitions
 
 		SpiteIR::Label* ifThenLabel = BuildLabelBody(thenName, stmnt->conditional.body);
 		fromBranch->branch.true_ = ifThenLabel;
+		SpiteIR::Label* returnLabel = GetCurrentLabel();
 
 		SpiteIR::Label* ifElseLabel = BuildLabel(elseName);
 		AddLabel(ifElseLabel);
 		fromBranch->branch.false_ = ifElseLabel;
 
-		return ifThenLabel;
+		return returnLabel;
 	}
 
 	void BuildIfStmnt(Stmnt* stmnt)
@@ -1087,6 +1096,7 @@ struct LowerDefinitions
 		AddLabel(forInBodyLabel);
 		SpiteIR::Allocate currentAlloc = BuildAllocate(currReturnType);
 		BuildCall(currFunc, currentAlloc.result, params, GetCurrentLabel());
+
 		ScopeValue currValue = HandleAutoCast({ currentAlloc.result, currentAlloc.type }, defType);
 		AddValueToCurrentScope(def.name->val, currValue, defStmnt);
 
@@ -1153,7 +1163,6 @@ struct LowerDefinitions
 		SpiteIR::Instruction* bodyToInc = BuildJump(currentBodyLabel);
 		AddLabel(forIncLabel);
 		bodyToInc->jump.label = forIncLabel;
-
 
 		SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forIncLabel, init));
 		SpiteIR::Instruction* storeInc = BuildStore(forIncLabel, BuildRegisterOperand(init),
@@ -1362,7 +1371,8 @@ struct LowerDefinitions
 			SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(), cmpOp);
 
 			SpiteIR::Label* deferBodyLabel = BuildLabelBody(deferStartName, deferred.body);
-			SpiteIR::Instruction* bodyToEnd = BuildJump(deferBodyLabel);
+			SpiteIR::Label* currentDeferBodyLabel = GetCurrentLabel();
+			SpiteIR::Instruction* bodyToEnd = BuildJump(currentDeferBodyLabel);
 			bodyToEnd->jump.label = deferEndLabel;
 
 			AddLabel(deferEndLabel);
@@ -3165,6 +3175,15 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	ScopeValue BuildTypePointer(SpiteIR::Label* label, const ScopeValue& value)
+	{
+		SpiteIR::Type* refType = MakePointerType(value.type, context.ir);
+		SpiteIR::Allocate alloc = BuildAllocate(refType);
+		SpiteIR::Instruction* reference = BuildReference(label, AllocateToOperand(alloc),
+			BuildRegisterOperand(value));
+		return { alloc.result, alloc.type };
+	}
+
 	ScopeValue BuildTypeReference(SpiteIR::Label* label, const ScopeValue& value)
 	{
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType) return value;
@@ -4010,13 +4029,5 @@ struct LowerDefinitions
 		assert->assert.test = test;
 		assert->assert.message = message;
 		return assert;
-	}
-
-	SpiteIR::Instruction* BuildLog(SpiteIR::Label* label, eastl::vector<SpiteIR::Operand>* operands)
-	{
-		SpiteIR::Instruction* log = CreateInstruction(label);
-		log->kind = SpiteIR::InstructionKind::Log;
-		log->log.operands = operands;
-		return log;
 	}
 };

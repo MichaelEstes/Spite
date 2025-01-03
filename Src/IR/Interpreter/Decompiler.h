@@ -257,9 +257,6 @@ struct Decompiler
 		case SpiteIR::InstructionKind::UnOp:
 			DecompileUnaryOp(inst);
 			break;
-		case SpiteIR::InstructionKind::Log:
-			DecompileLog(inst);
-			break;
 		default:
 			break;
 		}
@@ -488,17 +485,6 @@ struct Decompiler
 		}
 
 		out += WriteOperand(unOpInst.unOp.operand);
-		Write(out);
-	}
-
-	void DecompileLog(SpiteIR::Instruction& logInst)
-	{
-		eastl::string out = "log ";
-		for (SpiteIR::Operand& operand : *logInst.log.operands)
-		{
-			out += WriteOperand(operand) + ",";
-		}
-		out.pop_back();
 		Write(out);
 	}
 };

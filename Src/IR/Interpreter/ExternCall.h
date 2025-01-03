@@ -68,6 +68,9 @@ void BuildDCArg(SpiteIR::Type* type, void* value)
 			dcArgBool(dynCallVM, *(bool*)value);
 			return;
 		case SpiteIR::PrimitiveKind::Byte:
+		case SpiteIR::PrimitiveKind::I16:
+		case SpiteIR::PrimitiveKind::I32:
+		case SpiteIR::PrimitiveKind::I64:
 		case SpiteIR::PrimitiveKind::Int:
 			switch (type->size)
 			{
@@ -85,8 +88,9 @@ void BuildDCArg(SpiteIR::Type* type, void* value)
 				dcArgLongLong(dynCallVM, *(int64_t*)value);
 				return;
 			default:
-				return;
+				break;
 			}
+		case SpiteIR::PrimitiveKind::F32:
 		case SpiteIR::PrimitiveKind::Float:
 			switch (type->size)
 			{
@@ -97,14 +101,14 @@ void BuildDCArg(SpiteIR::Type* type, void* value)
 				dcArgDouble(dynCallVM, *(double*)value);
 				return;
 			default:
-				return;
+				break;
 			}
 			return;
 		case SpiteIR::PrimitiveKind::String:
-			return;
+			break;
 		}
 
-		return;
+		break;
 	}
 	case SpiteIR::TypeKind::PointerType:
 		dcArgPointer(dynCallVM, *(void**)value);
@@ -151,15 +155,18 @@ void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 		case SpiteIR::PrimitiveKind::Void:
 		{
 			dcCallVoid(dynCallVM, func);
-			break;
+			return;
 		}
 		case SpiteIR::PrimitiveKind::Bool:
 		{
 			bool ret = dcCallBool(dynCallVM, func);
 			CopyValue(type->size, &ret, dst);
-			break;
+			return;
 		}
 		case SpiteIR::PrimitiveKind::Byte:
+		case SpiteIR::PrimitiveKind::I16:
+		case SpiteIR::PrimitiveKind::I32:
+		case SpiteIR::PrimitiveKind::I64:
 		case SpiteIR::PrimitiveKind::Int:
 			switch (type->size)
 			{
@@ -167,30 +174,31 @@ void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 			{
 				char ret = dcCallChar(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			case 2:
 			{
 				int16_t ret = dcCallShort(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			case 4:
 			{
 				int32_t ret = dcCallInt(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			case 8:
 			case 16:
 			{
 				int64_t ret = dcCallLongLong(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			default:
 				break;
 			}
+		case SpiteIR::PrimitiveKind::F32:
 		case SpiteIR::PrimitiveKind::Float:
 			switch (type->size)
 			{
@@ -198,13 +206,13 @@ void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 			{
 				float ret = dcCallFloat(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			case 8:
 			{
 				double ret = dcCallDouble(dynCallVM, func);
 				CopyValue(type->size, &ret, dst);
-				break;
+				return;
 			}
 			default:
 				break;
@@ -216,27 +224,23 @@ void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
 
 		break;
 	}
-
-	case SpiteIR::TypeKind::StateType:
-		break;
-	case SpiteIR::TypeKind::StructureType:
-		break;
 	case SpiteIR::TypeKind::PointerType:
 	{
 		void* ret = dcCallPointer(dynCallVM, func);
 		CopyValue(type->size, &ret, dst);
-		break;
+		return;
 	}
+	case SpiteIR::TypeKind::StructureType:
+	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::DynamicArrayType:
-		break;
 	case SpiteIR::TypeKind::FixedArrayType:
-		break;
 	case SpiteIR::TypeKind::FunctionType:
 		break;
 	default:
 		break;
 	}
 
+	Logger::FatalError("ExternCall:CallDCFunc Invalid agument type passed in to external call");
 }
 
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst)

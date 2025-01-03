@@ -152,7 +152,6 @@ namespace SpiteIR
 		Switch,
 		BinOp,
 		UnOp,
-		Log,
 		Assert
 	};
 

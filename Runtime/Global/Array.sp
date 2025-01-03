@@ -71,7 +71,7 @@ bool array::next(it: Iterator)
 
 any array::current(it: Iterator)
 {
-	return this[it.index];
+	return this.start[it.index * this.itemBytes];	
 }
 
 array::Clear()

@@ -328,9 +328,6 @@ struct LLVMBuilder
 		case SpiteIR::InstructionKind::Assert:
 			BuildAssert(inst);
 			break;
-		case SpiteIR::InstructionKind::Log:
-			BuildLog(inst);
-			break;
 		default:
 			break;
 		}
@@ -1103,10 +1100,6 @@ struct LLVMBuilder
 	}
 
 	void BuildAssert(SpiteIR::Instruction* inst)
-	{
-	}
-
-	void BuildLog(SpiteIR::Instruction* inst)
 	{
 	}
 };
