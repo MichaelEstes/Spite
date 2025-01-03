@@ -1,15 +1,23 @@
 #pragma once
 
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/Attributes.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/MC/TargetRegistry.h"
 
 #include "../../Config/Config.h"
 #include "./LLVMTypes.h"
@@ -57,16 +65,97 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
-		//module.print(llvm::outs(), nullptr);
+		BuildMain();
+
 		if (llvm::verifyModule(module, &llvm::errs())) {
 			llvm::errs() << "Module verification failed!\n";
 			return;
+		}
+		//module.print(llvm::outs(), nullptr);
+
+		Compile();
+	}
+
+	void BuildMain()
+	{
+		std::vector<llvm::Type*> mainParams = { int32Type, builder.getInt8PtrTy()->getPointerTo() };
+		llvm::FunctionType* mainFuncType = llvm::FunctionType::get(intType, mainParams, false);
+
+		llvm::Function* mainFunc = llvm::Function::Create(
+			mainFuncType,
+			llvm::Function::ExternalLinkage,
+			"main",
+			module
+		);
+
+		llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(context, "entry", mainFunc);
+		builder.SetInsertPoint(mainEntry);
+
+		for (SpiteIR::Package* package : ir->packages)
+		{
+			if (package->initializer)
+			{
+				llvm::Function* llvmFunc = functionMap[package->initializer];
+				llvm::Value* initCall = builder.CreateCall(llvmFunc, {});
+			}
+		}
+
+		SpiteIR::Function* entryFunc = ir->entry;
+		llvm::Function* entryLLVMFunc = functionMap[entryFunc];
+		llvm::Value* entryCall = builder.CreateCall(entryLLVMFunc, {});
+		if (!IsVoidType(entryFunc->returnType))
+		{
+			builder.CreateRet(entryCall);
+		}
+		else
+		{
+			builder.CreateRet(llvm::ConstantInt::get(intType, 0));
 		}
 	}
 
 	void Compile()
 	{
+		// Set up the target machine
+		auto targetTriple = llvm::sys::getDefaultTargetTriple();
+		module.setTargetTriple(targetTriple);
 
+		std::string error;
+		const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
+		
+		if (!target) {
+			llvm::errs() << "Error: " << error << "\n";
+			return;
+		}
+		//
+		//auto cpu = "generic";
+		//auto features = "";
+		//llvm::TargetOptions opt;
+		//auto targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
+		//
+		//module.setDataLayout(targetMachine->createDataLayout());
+		//
+		//// Open a file for the object output
+		//auto output = "output.o";
+		//std::error_code EC;
+		//llvm::raw_fd_ostream dest(output, EC, llvm::sys::fs::OF_None);
+		//
+		//if (EC) {
+		//	llvm::errs() << "Could not open file: " << EC.message() << "\n";
+		//	return;
+		//}
+		//
+		//// Add the pass for code generation
+		//llvm::legacy::PassManager pass;
+		//if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile)) {
+		//	llvm::errs() << "TargetMachine can't emit a file of this type\n";
+		//	return;
+		//}
+		//
+		//// Run the pass manager to generate the object file
+		//pass.run(module);
+		//dest.flush();
+		//
+		//llvm::outs() << "Wrote " << output << "\n";
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)

@@ -13,6 +13,7 @@ extern
 	#link windows "msvcrt.dll";
 
 	int32 putchar(c: int32);
+	int32 puts(buffer: *byte);
 	int32 _snprintf(buffer: *byte, count: uint, format: *byte, arg: float);
 }
 
@@ -127,9 +128,11 @@ floatFormatStr := "%f";
 
 string FloatToString(f: float, precision := 4)
 {
-	len := _snprintf(null, 0, floatFormatStr.str, f);
+	format := floatFormatStr.str;
+	len := _snprintf(null, 0, format, f);
 	buffer := alloc(len + 1);
-	_snprintf(buffer, len + 1, floatFormatStr.str, f);
+	_snprintf(buffer, len + 1, format, f);
+
 	return {len as int, buffer} as string;
 
     //integerPart: int = f as int;

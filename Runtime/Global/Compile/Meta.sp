@@ -252,7 +252,6 @@ enum _InstructionKind: int
 	Switch,
 	BinOp,
 	UnOp,
-	Log,
 	Assert
 }
 
