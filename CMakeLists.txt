@@ -86,7 +86,7 @@ else()
 	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/out/build)
 endif()
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)
 
 target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload_s dyncallback_s)
 add_dependencies(Spite_Lang dyncall)

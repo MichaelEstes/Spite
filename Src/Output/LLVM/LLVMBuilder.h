@@ -67,7 +67,8 @@ struct LLVMBuilder
 
 		BuildMain();
 
-		if (llvm::verifyModule(module, &llvm::errs())) {
+		if (llvm::verifyModule(module, &llvm::errs())) 
+		{
 			llvm::errs() << "Module verification failed!\n";
 			return;
 		}
@@ -78,7 +79,7 @@ struct LLVMBuilder
 
 	void BuildMain()
 	{
-		std::vector<llvm::Type*> mainParams = { int32Type, builder.getInt8PtrTy()->getPointerTo() };
+		std::vector<llvm::Type*> mainParams = { int32Type, builder.getPtrTy() };
 		llvm::FunctionType* mainFuncType = llvm::FunctionType::get(intType, mainParams, false);
 
 		llvm::Function* mainFunc = llvm::Function::Create(
@@ -113,49 +114,156 @@ struct LLVMBuilder
 		}
 	}
 
+	void InitializeTarget()
+	{
+		llvm::InitializeAllTargetInfos();
+		llvm::InitializeAllTargets();
+		llvm::InitializeAllTargetMCs();
+		llvm::InitializeAllAsmParsers();
+		llvm::InitializeAllAsmPrinters();
+	}
+
+	llvm::Triple::ArchType GetTargetArch()
+	{
+		switch (config.arch)
+		{
+		case X64:
+			return llvm::Triple::x86_64;
+		case X86:
+			return llvm::Triple::x86;
+		case Arm32:
+			return llvm::Triple::arm;
+		case Arm64:
+			return llvm::Triple::aarch64;
+		case ArchInvalid:
+			break;
+		default:
+			break;
+		}
+
+		return llvm::Triple::UnknownArch;
+	}
+
+	llvm::Triple::OSType GetTargetOS()
+	{
+		switch (config.os)
+		{
+		case Windows:
+			return llvm::Triple::Win32;
+		case Android:
+		case Linux:
+			return llvm::Triple::Linux;
+		case Mac:
+			return llvm::Triple::MacOSX;
+		case Ios:
+			return llvm::Triple::IOS;
+		case OsInvalid:
+			break;
+		default:
+			break;
+		}
+
+		return llvm::Triple::UnknownOS;
+	}
+
+	llvm::Triple::EnvironmentType GetTargetEnvironment() {
+		switch (config.os)
+		{
+		case Windows:
+			return llvm::Triple::MSVC;
+		case Android:
+			return llvm::Triple::Android;
+		case Linux:
+			return llvm::Triple::GNU;
+		default:
+			break;
+		}
+
+		return llvm::Triple::UnknownEnvironment;
+	}
+
+	llvm::Triple::VendorType GetTargetVendor()
+	{
+		switch (config.os)
+		{
+		case Ios:
+			return llvm::Triple::Apple;
+		default:
+			break;
+		}
+
+		return llvm::Triple::UnknownVendor;
+	}
+
+
+	std::string BuildTargetTriple()
+	{
+		llvm::Triple triple;
+		triple.setArch(GetTargetArch());
+		triple.setOS(GetTargetOS());
+		triple.setEnvironment(GetTargetEnvironment());
+		triple.setVendor(GetTargetVendor());
+
+		return triple.getTriple();
+	}
+
+	eastl::string GetDestExt()
+	{
+		switch (config.os)
+		{
+		case Windows:
+			return ".obj";
+		default:
+			break;
+		}
+
+		return ".o";
+	}
+
 	void Compile()
 	{
+		InitializeTarget();
+
 		// Set up the target machine
-		auto targetTriple = llvm::sys::getDefaultTargetTriple();
+		std::string targetTriple = BuildTargetTriple();
 		module.setTargetTriple(targetTriple);
 
 		std::string error;
 		const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
 		
-		if (!target) {
+		if (!target) 
+		{
 			llvm::errs() << "Error: " << error << "\n";
 			return;
 		}
-		//
-		//auto cpu = "generic";
-		//auto features = "";
-		//llvm::TargetOptions opt;
-		//auto targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
-		//
-		//module.setDataLayout(targetMachine->createDataLayout());
-		//
-		//// Open a file for the object output
-		//auto output = "output.o";
-		//std::error_code EC;
-		//llvm::raw_fd_ostream dest(output, EC, llvm::sys::fs::OF_None);
-		//
-		//if (EC) {
-		//	llvm::errs() << "Could not open file: " << EC.message() << "\n";
-		//	return;
-		//}
-		//
-		//// Add the pass for code generation
-		//llvm::legacy::PassManager pass;
-		//if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile)) {
-		//	llvm::errs() << "TargetMachine can't emit a file of this type\n";
-		//	return;
-		//}
-		//
-		//// Run the pass manager to generate the object file
-		//pass.run(module);
-		//dest.flush();
-		//
-		//llvm::outs() << "Wrote " << output << "\n";
+		
+		std::string cpu = "generic";
+		std::string features = "";
+		llvm::TargetOptions opt;
+		llvm::TargetMachine* targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
+	
+		module.setDataLayout(targetMachine->createDataLayout());
+		
+		const char* outputFileName = (config.name + GetDestExt()).c_str();
+		std::error_code EC;
+		llvm::raw_fd_ostream dest(outputFileName, EC, llvm::sys::fs::OF_None);
+		
+		if (EC) 
+		{
+			llvm::errs() << "Could not open file: " << EC.message() << "\n";
+			return;
+		}
+		
+		llvm::legacy::PassManager pass;
+		if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CodeGenFileType::ObjectFile)) 
+		{
+			llvm::errs() << "TargetMachine can't emit a file of this type\n";
+			return;
+		}
+		
+		pass.run(module);
+		dest.flush();
+		llvm::outs() << "Wrote " << outputFileName << "\n";
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -741,7 +849,7 @@ struct LLVMBuilder
 				if (!count)
 				{
 					llvm::Constant* byteNullPtr = llvm::ConstantPointerNull::get(
-						llvm::Type::getInt8PtrTy(context)
+						builder.getPtrTy()
 					);
 					value = llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
 						{ countValue, byteNullPtr });
