@@ -62,13 +62,13 @@ std::filesystem::path GetExecutableDir()
 	return std::filesystem::path{ path }.parent_path() / "";
 }
 
-#else UNIX
+#elif __unix__
 
 #include <unistd.h>
 std::filesystem::path GetExecutableDir()
 {
 	char path[PATH_MAX];
-	ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+	size_t count = readlink("/proc/self/exe", path, PATH_MAX);
 	path[count] = '\0';
 	return std::filesystem::path{ path }.parent_path() / "";
 }
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 
 	{
 		GlobalTable globalTable = GlobalTable();
-		Arena parserArena = Arena((files.size() + 1 ) * sizeof Parser);
+		Arena parserArena = Arena((files.size() + 1) * sizeof(Parser));
 		for (const string& file : files)
 		{
 			Parser* parser = parserArena.EmplaceScalar<Parser>(file);

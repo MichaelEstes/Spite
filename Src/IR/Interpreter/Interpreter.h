@@ -8,9 +8,10 @@
 #ifdef WIN32
 const size_t os = 0;
 const size_t arch = 0;
-#else UNIX
+#elif __unix__
 const size_t os = 1;
 const size_t arch = 0;
+#else
 #endif 
 
 extern std::filesystem::path execDir;

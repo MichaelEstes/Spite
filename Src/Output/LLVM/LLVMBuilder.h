@@ -16,7 +16,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/TargetParser/Host.h"
 #include "llvm/MC/TargetRegistry.h"
 
 #include "../../Config/Config.h"
@@ -36,7 +35,6 @@ struct LLVMBuilder
 	eastl::hash_map<size_t, llvm::GlobalVariable*> globalVarMap;
 	eastl::hash_map<size_t, llvm::Value*> localVarMap;
 	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
-	SpiteIR::Function* currFunction;
 	Arena arena;
 
 	llvm::LLVMContext context;
@@ -57,11 +55,9 @@ struct LLVMBuilder
 
 	void Build()
 	{
-		BuildPackageDeclarations(ir->runtime);
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackageDeclarations(package);
 
-		BuildPackage(ir->runtime);
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
@@ -72,7 +68,7 @@ struct LLVMBuilder
 			llvm::errs() << "Module verification failed!\n";
 			return;
 		}
-		//module.print(llvm::outs(), nullptr);
+		module.print(llvm::outs(), nullptr);
 
 		Compile();
 	}
@@ -186,6 +182,8 @@ struct LLVMBuilder
 	{
 		switch (config.os)
 		{
+		case Windows:
+			return llvm::Triple::PC;
 		case Ios:
 			return llvm::Triple::Apple;
 		default:
@@ -224,13 +222,11 @@ struct LLVMBuilder
 	{
 		InitializeTarget();
 
-		// Set up the target machine
 		std::string targetTriple = BuildTargetTriple();
 		module.setTargetTriple(targetTriple);
 
 		std::string error;
 		const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
-		
 		if (!target) 
 		{
 			llvm::errs() << "Error: " << error << "\n";
@@ -245,9 +241,20 @@ struct LLVMBuilder
 		module.setDataLayout(targetMachine->createDataLayout());
 		
 		const char* outputFileName = (config.name + GetDestExt()).c_str();
+		std::filesystem::path output = std::filesystem::current_path() / "Build" / outputFileName;
+
+		std::string directory = output.parent_path().string();
+		if (!directory.empty()) {
+			std::error_code ec = llvm::sys::fs::create_directories(directory);
+			if (ec) {
+				llvm::errs() << "Error creating directories: " << ec.message() << "\n";
+				return; // Handle the error appropriately
+			}
+		}
+
+
 		std::error_code EC;
-		llvm::raw_fd_ostream dest(outputFileName, EC, llvm::sys::fs::OF_None);
-		
+		llvm::raw_fd_ostream dest(output.string(), EC, llvm::sys::fs::OF_None);
 		if (EC) 
 		{
 			llvm::errs() << "Could not open file: " << EC.message() << "\n";
@@ -317,12 +324,27 @@ struct LLVMBuilder
 
 	void BuildFunctionDeclaration(SpiteIR::Function* function)
 	{
-		llvm::Function* llvmFunc = llvm::Function::Create(
-			FunctionToLLVMType(function, context),
-			llvm::Function::ExternalLinkage,
-			ToTwine(function->name),
-			module
-		);
+		llvm::Function* llvmFunc;
+		if (!function->metadata.externFunc)
+		{
+			llvmFunc = llvm::Function::Create(
+				FunctionToLLVMType(function, context),
+				llvm::Function::ExternalLinkage,
+				ToTwine(function->name),
+				module
+			);
+		}
+		else
+		{
+			llvmFunc = llvm::Function::Create(
+				FunctionToLLVMType(function, context),
+				llvm::Function::ExternalLinkage,
+				"",
+				module
+			);
+			llvm::Twine name = ToTwine(function->metadata.externFunc->externName);
+			llvmFunc->setName(name);
+		}
 
 		if (function->IsInline())
 		{
@@ -347,7 +369,6 @@ struct LLVMBuilder
 
 	void BuildFunction(SpiteIR::Function* function)
 	{
-		currFunction = function;
 		if (function->metadata.externFunc)
 		{
 			return;

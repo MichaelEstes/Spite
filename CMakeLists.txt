@@ -32,7 +32,7 @@ ExternalProject_Add(dyncall
 include_directories(${DYNCALL_INCLUDE_DIR})
 link_directories(${DYNCALL_LIB_DIR})
 
-find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM 17 REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
 add_definitions(${LLVM_DEFINITIONS_LIST})

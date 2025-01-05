@@ -39,6 +39,8 @@ struct ExprChecker
 		{
 			def->definition.assignment = InferGenericExpr(generics, def->definition.assignment, templateArgs);
 		}
+
+		return def;
 	}
 
 	Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templateArgs)

@@ -32,7 +32,7 @@ func_ptr FindFunction(const eastl::string& name, eastl::string* lib)
 
 #ifdef WIN32
 const char* platform = "windows";
-#else UNIX
+#elif __unix__
 const char* platform = "linux";
 #endif 
 
@@ -144,7 +144,7 @@ void CopyValue(size_t size, const void* ptr, char* dst)
 	}
 }
 
-void CallDCFunc(SpiteIR::Type* type, func_ptr func, char* dst)
+void CallDCFunc(SpiteIR::Type* type, void* func, char* dst)
 {
 	switch (type->kind)
 	{
@@ -273,5 +273,5 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		funcCache[function] = func;
 	}
 
-	CallDCFunc(function->returnType, func, dst);
+	CallDCFunc(function->returnType, (void*)func, dst);
 }
