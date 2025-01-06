@@ -281,9 +281,9 @@ struct LowerDefinitions
 
 		if (deferredCompiles.size())
 		{
-			context.interpreter->Initialize(context.ir);
 			while (deferredCompiles.size() > 0)
 			{
+				context.interpreter->Initialize(context.ir);
 				DeferredCompile comp = deferredCompiles.back();
 				SpiteIR::Function* func = comp.compileFunc;
 				SpiteIR::Instruction* store = comp.storeInst;
@@ -2001,8 +2001,15 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::StructureType:
-			//@todo
+		{
+			for (size_t i = 0; i < type->structureType.members->size(); i++)
+			{
+				SpiteIR::Member& member = type->structureType.members->at(i);
+				ScopeValue memberValue = LoadStructureMember({ dst, type }, &member);
+				BuildDefaultValue(memberValue.type, memberValue.reg, label);
+			}
 			break;
+		}
 		case SpiteIR::TypeKind::PointerType:
 		case SpiteIR::TypeKind::FunctionType:
 		{
@@ -2868,9 +2875,14 @@ struct LowerDefinitions
 		Stmnt* compileStmnt = expr->compileExpr.compile;
 		SpiteIR::Function* compileFunc = BuildCompileStmnt(compileStmnt);
 
+		// Gets replaced with the compile time return value
+		SpiteIR::Operand placeHolderSrc = SpiteIR::Operand();
+		placeHolderSrc.kind = SpiteIR::OperandKind::Void;
+		placeHolderSrc.type = compileFunc->returnType;
+
 		SpiteIR::Allocate alloc = BuildAllocate(compileFunc->returnType);
-		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
-			BuildRegisterOperand(InvalidScopeValue));
+		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc), 
+			placeHolderSrc);
 
 		deferredCompiles.push_back({ compileFunc, store });
 		return { alloc.result,	alloc.type };

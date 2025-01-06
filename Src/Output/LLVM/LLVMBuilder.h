@@ -35,6 +35,7 @@ struct LLVMBuilder
 	eastl::hash_map<size_t, llvm::GlobalVariable*> globalVarMap;
 	eastl::hash_map<size_t, llvm::Value*> localVarMap;
 	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
+	eastl::hash_map<eastl::string, llvm::Function*> externalFunctionMap;
 	Arena arena;
 
 	llvm::LLVMContext context;
@@ -58,19 +59,27 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackageDeclarations(package);
 
+		Logger::Info("LLVMBuilder: Built LLVM Declarations");
+
 		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
+		Logger::Info("LLVMBuilder: Built LLVM Definitions");
+
 		BuildMain();
+
+		Logger::Info("LLVMBuilder: Built entry point");
 
 		if (llvm::verifyModule(module, &llvm::errs())) 
 		{
 			llvm::errs() << "Module verification failed!\n";
 			return;
 		}
-		module.print(llvm::outs(), nullptr);
+		Logger::Info("LLVMBuilder: Verified module");
+		//module.print(llvm::outs(), nullptr);
 
 		Compile();
+		Logger::Info("LLVMBuilder: Compiled module");
 	}
 
 	void BuildMain()
@@ -205,7 +214,7 @@ struct LLVMBuilder
 		return triple.getTriple();
 	}
 
-	eastl::string GetDestExt()
+	std::string GetDestExt()
 	{
 		switch (config.os)
 		{
@@ -240,7 +249,8 @@ struct LLVMBuilder
 	
 		module.setDataLayout(targetMachine->createDataLayout());
 		
-		const char* outputFileName = (config.name + GetDestExt()).c_str();
+		std::string outputName(config.name.c_str());
+		std::string outputFileName = outputName + GetDestExt();
 		std::filesystem::path output = std::filesystem::current_path() / "Build" / outputFileName;
 
 		std::string directory = output.parent_path().string();
@@ -262,7 +272,7 @@ struct LLVMBuilder
 		}
 		
 		llvm::legacy::PassManager pass;
-		if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CodeGenFileType::ObjectFile)) 
+		if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile)) 
 		{
 			llvm::errs() << "TargetMachine can't emit a file of this type\n";
 			return;
@@ -310,16 +320,46 @@ struct LLVMBuilder
 
 	void BuildGlobalVariable(SpiteIR::GlobalVariable* globalVar)
 	{
+		llvm::Type* type = ToLLVMType(globalVar->type, context);
 		llvm::GlobalVariable* llvmGlobalVar = new llvm::GlobalVariable(
 			module,
-			ToLLVMType(globalVar->type, context),
+			type,
 			false,
 			llvm::GlobalValue::ExternalLinkage,
-			nullptr,
+			llvm::UndefValue::get(type),
 			GlobalVariableName(globalVar)
 		);
 
 		globalVarMap[globalVar->index] = llvmGlobalVar;
+	}
+
+	bool ExternFunctionIsForTarget(eastl::vector<SpiteIR::PlatformLib>* libs)
+	{
+		for (SpiteIR::PlatformLib& lib : *libs)
+		{
+			switch (config.os)
+			{
+			case Windows:
+				if (lib.platform == "windows") return true;
+				break;
+			case Linux:
+				if (lib.platform == "linux") return true;
+				break;
+			case Mac:
+				if (lib.platform == "mac") return true;
+				break;
+			case Android:
+				if (lib.platform == "android" || lib.platform == "linux") return true;
+				break;
+			case Ios:
+				if (lib.platform == "ios") return true;
+				break;
+			default:
+				break;
+			}
+		}
+
+		return false;
 	}
 
 	void BuildFunctionDeclaration(SpiteIR::Function* function)
@@ -333,22 +373,36 @@ struct LLVMBuilder
 				ToTwine(function->name),
 				module
 			);
+
+			if (function->IsInline())
+			{
+				llvmFunc->addFnAttr(llvm::Attribute::InlineHint);
+			}
 		}
 		else
 		{
+			if (!ExternFunctionIsForTarget(function->metadata.externFunc->libs)) return;
+
+			eastl::string& funcName = function->name;
+			if (MapHas(externalFunctionMap, funcName))
+			{
+				Logger::Warning("LLVMBuilder:BuildFunctionDeclaration multiple external functions with the name \""
+					+ funcName + "\", if they're linked to different libs one will be wrong");
+				
+				functionMap[function] = externalFunctionMap[funcName];
+				return;
+			}
+
 			llvmFunc = llvm::Function::Create(
 				FunctionToLLVMType(function, context),
 				llvm::Function::ExternalLinkage,
 				"",
 				module
 			);
-			llvm::Twine name = ToTwine(function->metadata.externFunc->externName);
+			llvm::Twine name = ToTwine(funcName);
 			llvmFunc->setName(name);
-		}
 
-		if (function->IsInline())
-		{
-			llvmFunc->addFnAttr(llvm::Attribute::InlineHint);
+			externalFunctionMap[funcName] = llvmFunc;
 		}
 
 		functionMap[function] = llvmFunc;
@@ -621,11 +675,17 @@ struct LLVMBuilder
 		std::vector<llvm::Value*> args;
 		BuildParams(inst->call.params, args);
 
-		llvm::Function* llvmFunc = functionMap[inst->call.function];
-		llvm::Value* callResult = builder.CreateCall(llvmFunc, args);
-		if (!IsVoidType(inst->call.function->returnType))
+		SpiteIR::Function* func = inst->call.function;
+		llvm::Function* llvmFunc = functionMap[func];
+		// Platform specific functions will not be in the function map when building for
+		// a different target, this is fine as long as that code is behind a target check
+		if (llvmFunc)
 		{
-			builder.CreateStore(callResult, GetLocalValue(inst->call.result));
+			llvm::Value* callResult = builder.CreateCall(llvmFunc, args);
+			if (!IsVoidType(inst->call.function->returnType))
+			{
+				builder.CreateStore(callResult, GetLocalValue(inst->call.result));
+			}
 		}
 	}
 

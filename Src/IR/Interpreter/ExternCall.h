@@ -13,6 +13,15 @@ DCCallVM* dynCallVM;
 eastl::hash_map<SpiteIR::Function*, func_ptr> funcCache;
 eastl::hash_map<eastl::string, DLLib*> libCache;
 
+#ifdef WIN32
+const char* platform = "windows";
+const char* libExt = ".dll";
+#elif __unix__
+const char* platform = "linux";
+const char* libExt = ".so";
+#endif 
+
+
 func_ptr FindFunction(const eastl::string& name, eastl::string* lib)
 {
 	DLLib* dlLib = nullptr;
@@ -21,7 +30,8 @@ func_ptr FindFunction(const eastl::string& name, eastl::string* lib)
 		dlLib = libCache[*lib];
 		if (!dlLib)
 		{
-			dlLib = dlLoadLibrary(lib->c_str());
+			eastl::string libName = *lib + libExt;
+			dlLib = dlLoadLibrary(libName.c_str());
 			libCache[*lib] = dlLib;
 		}
 	}
@@ -29,12 +39,6 @@ func_ptr FindFunction(const eastl::string& name, eastl::string* lib)
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
 	return func;
 }
-
-#ifdef WIN32
-const char* platform = "windows";
-#elif __unix__
-const char* platform = "linux";
-#endif 
 
 void CreateDynCallVM()
 {
@@ -264,7 +268,7 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		{
 			if (lib)
 				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-						name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+						name + "' for platform '" + platform + "' in lib '" + *lib + libExt + "'");
 			else
 				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
 					name + "' for platform '" + platform + "'");

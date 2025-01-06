@@ -2,8 +2,8 @@ package Math
 
 extern
 {
-	#link linux "libm.so";
-	#link windows "msvcrt.dll";
+	#link linux "libm";
+	#link windows "msvcrt";
 
 	float64 sqrt(val: float64);
 }

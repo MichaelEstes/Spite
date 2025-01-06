@@ -15,7 +15,7 @@ ExternalProject_Add(EASTL
     GIT_REPOSITORY https://github.com/electronicarts/EASTL.git
     GIT_TAG master
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/EASTL/build -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-	BUILD_BYPRODUCTS ${EASTL_LIB_DIR}/EASTL.lib ${EASTL_LIB_DIR}/libEASTL.a ${EASTL_BUILD_DIR}/doc/EASTL.natvis
+	BUILD_BYPRODUCTS ${EASTL_LIB_DIR}/libEASTL.a ${EASTL_LIB_DIR}/EASTL.lib ${EASTL_BUILD_DIR}/doc/EASTL.natvis
 )
 include_directories(${EASTL_INCLUDE_DIR})
 link_directories(${EASTL_LIB_DIR})
@@ -77,13 +77,11 @@ if(MSVC)
 	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/EASTL.lib)
 	add_custom_target(NatVis SOURCES ${EASTL_BUILD_DIR}/doc/EASTL.natvis)
 else()
-	set(CMAKE_BUILD_TYPE "Release")
 	#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 	set(CMAKE_CXX_FLAGS_DEBUG "-g")
 	set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 
-	set(EASTL_LIBRARY debug ${EASTL_LIB_DIR}/libEASTL.a)
-	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/out/build)
+	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/libEASTL.a)
 endif()
 
 llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)

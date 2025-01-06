@@ -96,7 +96,8 @@ int main(int argc, char** argv)
 	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (config.dir.length() > 0)
 	{
-		FindAllSourceFilesInDir(files, std::filesystem::path{ config.dir.c_str() });
+		FindAllSourceFilesInDir(files, 
+			std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() }));
 	}
 
 	execDir = GetExecutableDir();
@@ -200,10 +201,10 @@ int main(int argc, char** argv)
 		}
 
 		size_t elapsedScanTime = builderProfiler.End();
-		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output for " + config.file);
+		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output");
 	}
 
-	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile " + config.file);
+	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile");
 
 	return 0;
 }

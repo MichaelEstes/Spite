@@ -2,19 +2,30 @@ package _
 
 extern
 {
-	#link windows "Kernel32.dll";
+	#link windows "kernel32";
 
 	void GetModuleFileNameW(hModule: *void, lpFilename: *int16, nSize: int32);
 }
 
 extern
 {
-	#link linux "libc.so";
-	#link windows "msvcrt.dll";
+	#link linux "libc";
+	#link windows "msvcrt";
 
 	int32 putchar(c: int32);
 	int32 puts(buffer: *byte);
+}
+
+extern
+{
+	#link windows "msvcrt";
 	int32 _snprintf(buffer: *byte, count: uint, format: *byte, arg: float);
+}
+
+extern
+{
+	#link linux "libc";
+	int32 snprintf(buffer: *byte, count: uint, format: *byte, arg: float);
 }
 
 enum OS_Kind: int
@@ -66,15 +77,10 @@ string GetExecDirLinux()
 
 string GetExecDir()
 {
-	osGetExecDir := #compile ::string() {
-		if(targetOs == OS_Kind.Windows)
-		{
-			return GetExecDirWindows;
-		}
-		else
-		{
-			return GetExecDirLinux;
-		}
+	osGetExecDir := #compile ::string() 
+	{
+		if(targetOs == OS_Kind.Windows) return GetExecDirWindows;
+		else return GetExecDirLinux;
 	}
 
 	return osGetExecDir();
@@ -124,14 +130,20 @@ string IntToString(i: int)
 	return {count, heapBuf} as string;
 }
 
+PrintFloat := #compile ::int32(*byte, uint, *byte, float) 
+{
+	if(targetOs == OS_Kind.Windows) return _snprintf;
+	else return snprintf;
+}
+
 floatFormatStr := "%f";
 
 string FloatToString(f: float, precision := 4)
 {
 	format := floatFormatStr.str;
-	len := _snprintf(null, 0, format, f);
+	len := PrintFloat(null, 0, format, f);
 	buffer := alloc(len + 1);
-	_snprintf(buffer, len + 1, format, f);
+	PrintFloat(buffer, len + 1, format, f);
 
 	return {len as int, buffer} as string;
 

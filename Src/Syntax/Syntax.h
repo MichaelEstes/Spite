@@ -402,6 +402,9 @@ struct Syntax
 			symbolTable->AddExternFunc(node);
 			return node;
 		}
+
+		node->nodeID = StmntID::InvalidStmnt;
+		return node;
 	}
 
 	void ParseState()
