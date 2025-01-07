@@ -11,6 +11,7 @@ inline bool IsStringType(SpiteIR::Type* type);
 
 SpiteIR::State* stringState = nullptr;
 SpiteIR::State* arrayState = nullptr;
+SpiteIR::State* typeMetaState = nullptr;
 
 SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 {
@@ -44,6 +45,121 @@ eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 
 	return types;
 }
+
+size_t HashIRType(const SpiteIR::Type* type)
+{
+	switch (type->kind)
+	{
+	case SpiteIR::TypeKind::PrimitiveType:
+		return type->size + type->alignment + type->primitive.isSigned;
+	case SpiteIR::TypeKind::StateType:
+		return (size_t)type->stateType.state;
+	case SpiteIR::TypeKind::UnionType:
+	case SpiteIR::TypeKind::StructureType:
+	{
+		size_t hash = 0;
+		eastl::string_hash<eastl::string> strHash;
+		for (SpiteIR::Member& member : *type->structureType.members)
+		{
+			hash += HashIRType(member.value->type) + member.offset;
+			hash += strHash(member.value->name);
+		}
+		return hash;
+	}
+	case SpiteIR::TypeKind::PointerType:
+		return 3 + HashIRType(type->pointer.type);
+	case SpiteIR::TypeKind::ReferenceType:
+		return 4 + HashIRType(type->reference.type);
+	case SpiteIR::TypeKind::DynamicArrayType:
+		return 5 + HashIRType(type->dynamicArray.type);
+	case SpiteIR::TypeKind::FixedArrayType:
+		return 6 + type->fixedArray.count + HashIRType(type->fixedArray.type);
+	case SpiteIR::TypeKind::FunctionType:
+	{
+		size_t hash = 7 + HashIRType(type->function.returnType);
+		for (SpiteIR::Type* param : *type->function.params)
+		{
+			hash += HashIRType(param);
+		}
+		return hash;
+	}
+	default:
+		break;
+	}
+}
+
+struct IRTypeHash
+{
+	size_t operator()(const SpiteIR::Type* type) const
+	{
+		return HashIRType(type);
+	}
+};
+
+bool IsIRTypeEqual(const SpiteIR::Type* l, const SpiteIR::Type* r)
+{
+	if (l->kind != r->kind || l->size != r->size || l->alignment != r->alignment ||
+		l->byValue != r->byValue) return false;
+
+	switch (l->kind)
+	{
+	case SpiteIR::TypeKind::PrimitiveType:
+		return l->primitive.isSigned == r->primitive.isSigned &&
+			l->primitive.kind == r->primitive.kind;
+	case SpiteIR::TypeKind::StateType:
+		return l->stateType.state == r->stateType.state;
+	case SpiteIR::TypeKind::UnionType:
+	case SpiteIR::TypeKind::StructureType:
+	{
+		size_t count = l->structureType.members->size();
+		if (count != r->structureType.members->size()) return false;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			SpiteIR::Member& lMember = l->structureType.members->at(i);
+			SpiteIR::Member& rMember = r->structureType.members->at(i);
+			if (lMember.value->name != rMember.value->name ||
+				!IsIRTypeEqual(lMember.value->type, rMember.value->type)) return false;
+		}
+
+		return true;
+	}
+	case SpiteIR::TypeKind::PointerType:
+		return IsIRTypeEqual(l->pointer.type, r->pointer.type);
+	case SpiteIR::TypeKind::ReferenceType:
+		return IsIRTypeEqual(l->reference.type, r->reference.type);
+	case SpiteIR::TypeKind::DynamicArrayType:
+		return IsIRTypeEqual(l->dynamicArray.type, r->dynamicArray.type);
+	case SpiteIR::TypeKind::FixedArrayType:
+		return l->fixedArray.count == r->fixedArray.count &&
+			IsIRTypeEqual(l->fixedArray.type, r->fixedArray.type);
+	case SpiteIR::TypeKind::FunctionType:
+	{
+		size_t count = l->function.params->size();
+		if (count != r->function.params->size() ||
+			!IsIRTypeEqual(l->function.returnType, r->function.returnType)) return false;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			SpiteIR::Type* lParam = l->function.params->at(i);
+			SpiteIR::Type* rParam = r->function.params->at(i);
+			if (!IsIRTypeEqual(lParam, rParam)) return false;
+		}
+
+		return true;
+	}
+	default:
+		break;
+	}
+}
+
+struct IRTypeEqual
+{
+	bool operator()(const SpiteIR::Type* l, const SpiteIR::Type* r) const
+	{
+		return IsIRTypeEqual(l, r);
+	}
+};
 
 bool IRTypesAssignable(const eastl::vector<SpiteIR::Type*>& left, const eastl::vector<SpiteIR::Type*>& right)
 {

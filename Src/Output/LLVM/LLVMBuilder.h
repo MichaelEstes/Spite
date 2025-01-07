@@ -36,6 +36,7 @@ struct LLVMBuilder
 	eastl::hash_map<size_t, llvm::Value*> localVarMap;
 	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
 	eastl::hash_map<eastl::string, llvm::Function*> externalFunctionMap;
+	eastl::hash_map<SpiteIR::Type*, llvm::GlobalVariable*, IRTypeHash, IRTypeEqual> typeMetadataMap;
 	Arena arena;
 
 	llvm::LLVMContext context;
@@ -76,21 +77,35 @@ struct LLVMBuilder
 			return;
 		}
 		Logger::Info("LLVMBuilder: Verified module");
-		//module.print(llvm::outs(), nullptr);
+		module.print(llvm::outs(), nullptr);
 
 		Compile();
 		Logger::Info("LLVMBuilder: Compiled module");
 	}
 
+	void BuildTypeData()
+	{
+		while (typeMetadataMap.size())
+		{
+			auto& [type, globalVar] = *typeMetadataMap.begin();
+			typeMetadataMap.erase(type);
+
+		}
+	}
+
 	void BuildMain()
 	{
-		std::vector<llvm::Type*> mainParams = { int32Type, builder.getPtrTy() };
-		llvm::FunctionType* mainFuncType = llvm::FunctionType::get(intType, mainParams, false);
+		llvm::PointerType* argvType = llvm::PointerType::get(
+			llvm::PointerType::get(llvm::IntegerType::getInt8Ty(context), 0),
+			0
+		);
+		std::vector<llvm::Type*> mainParams = { int32Type, argvType };
+		llvm::FunctionType* mainFuncType = llvm::FunctionType::get(int32Type, mainParams, false);
 
 		llvm::Function* mainFunc = llvm::Function::Create(
 			mainFuncType,
 			llvm::Function::ExternalLinkage,
-			"main",
+			"__main",
 			module
 		);
 
@@ -105,6 +120,8 @@ struct LLVMBuilder
 				llvm::Value* initCall = builder.CreateCall(llvmFunc, {});
 			}
 		}
+
+		BuildTypeData();
 
 		SpiteIR::Function* entryFunc = ir->entry;
 		llvm::Function* entryLLVMFunc = functionMap[entryFunc];
@@ -861,6 +878,27 @@ struct LLVMBuilder
 		);
 	}
 
+	inline llvm::GlobalVariable* BuildTypeValue(SpiteIR::Type* type)
+	{
+		if (MapHas(typeMetadataMap, type))
+		{
+			return typeMetadataMap[type];
+		}
+
+		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
+		llvm::GlobalVariable* typeVar = new llvm::GlobalVariable(
+			module,
+			llvmType,
+			false,
+			llvm::GlobalValue::ExternalLinkage,
+			llvm::UndefValue::get(llvmType),
+			""
+		);
+
+		typeMetadataMap[type] = typeVar;
+		return typeVar;
+	}
+
 	inline llvm::Value* BuildOperandValue(SpiteIR::Operand& src)
 	{
 		llvm::Value* value = nullptr;
@@ -973,6 +1011,11 @@ struct LLVMBuilder
 			value = llvmFunc;
 			break;
 		}
+		case SpiteIR::OperandKind::TypeData:
+		{
+			value = BuildTypeValue(src.type);
+			break;
+		}
 		default:
 			break;
 		}
@@ -982,9 +1025,10 @@ struct LLVMBuilder
 
 	void BuildStore(SpiteIR::Instruction* inst)
 	{
-		llvm::Value* dst = GetLocalValue(inst->store.dst.reg);
 		llvm::Value* value = BuildOperandValue(inst->store.src);
-		if (value) builder.CreateStore(value, dst);
+		if (!value) return;
+		llvm::Value* dst = GetLocalValue(inst->store.dst.reg);
+		builder.CreateStore(value, dst);
 	}
 
 	void BuildStorePtr(SpiteIR::Instruction* inst)

@@ -9,6 +9,7 @@
 extern Config config;
 extern SpiteIR::State* stringState;
 extern SpiteIR::State* arrayState;
+extern SpiteIR::State* typeMetaState;
 
 const size_t InvalidRegister = (size_t)-1;
 const size_t PackageRegister = (size_t)-2;
@@ -125,6 +126,7 @@ struct LowerDefinitions
 	SymbolTable* symbolTable = nullptr;
 
 	eastl::hash_set<SpiteIR::Package*> loweredPackages;
+	eastl::vector<SpiteIR::Function*> anonFunctions;
 	eastl::deque<DeferredCompile> deferredCompiles;
 
 	Stmnt* currentStmnt = nullptr;
@@ -139,8 +141,6 @@ struct LowerDefinitions
 	SpiteIR::Function* logFunc = nullptr;
 	SpiteIR::Function* allocFunc = nullptr;
 	SpiteIR::Function* deallocFunc = nullptr;
-
-	SpiteIR::State* typeMetaState = nullptr;
 
 	SpiteIR::Type* castBool;
 	SpiteIR::Type* castInt;
@@ -278,6 +278,11 @@ struct LowerDefinitions
 		}
 
 		BuildGlobalVariables(package);
+
+		for (SpiteIR::Function* anonFunc : anonFunctions)
+		{
+			anonFunc->parent->functions[anonFunc->name] = anonFunc;
+		}
 
 		if (deferredCompiles.size())
 		{
@@ -2813,6 +2818,7 @@ struct LowerDefinitions
 		BuildAnonFunctionName(func->name);
 		func->returnType = returnType;
 		func->block = context.ir->AllocateBlock(func);
+		anonFunctions.push_back(func);
 
 		for (size_t i = 0; i < funcDecl.parameters->size(); i++)
 		{
@@ -2853,6 +2859,7 @@ struct LowerDefinitions
 		BuildAnonFunctionName(func->name);
 		func->returnType = returnType;
 		func->block = context.ir->AllocateBlock(func);
+		anonFunctions.push_back(func);
 
 		FunctionContext prev = funcContext;
 		funcContext = FunctionContext();
