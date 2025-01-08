@@ -2859,7 +2859,6 @@ struct LowerDefinitions
 		BuildAnonFunctionName(func->name);
 		func->returnType = returnType;
 		func->block = context.ir->AllocateBlock(func);
-		anonFunctions.push_back(func);
 
 		FunctionContext prev = funcContext;
 		funcContext = FunctionContext();

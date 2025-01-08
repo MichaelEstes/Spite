@@ -13,7 +13,7 @@ enum _ParentKind: int32
 	Member,
 	State,
 	Package,
-	IR,
+	IR
 }
 
 state _Parent
@@ -29,7 +29,7 @@ state _Parent
 		memberParent: *_Member,
 		stateParent: *_State,
 		packageParent: *_Package,
-		iRParent: *_IR,
+		iRParent: *_IR
 	}
 }
 
@@ -75,7 +75,7 @@ enum _OperandKind: int32
 	Register,
 	Literal,
 	StructLiteral,
-	Function,
+	Function
 }
 
 state _Operand
@@ -180,7 +180,7 @@ enum _BinaryOpKind: int32
 	Less,
 	Greater,
 	LessEqual,
-	GreaterEqual,
+	GreaterEqual
 }
 
 state _BinaryOp
@@ -195,14 +195,14 @@ enum _UnaryOpKind: int32
 {
 	Subtract,
 	Not,
-	XOr,
+	XOr
 }
 
 state _UnaryOp
 {
 	kind: _UnaryOpKind,
 	operand: _Operand,
-	result: uint,
+	result: uint
 }
 
 state _Log
@@ -275,7 +275,7 @@ state _Instruction
 		binOp: _BinaryOp,
 		unOp: _UnaryOp,
 		log_: _Log,
-		assert_: _Assert,
+		assert_: _Assert
 	}
 }
 
@@ -384,7 +384,7 @@ enum StateFlags: int32
 	Size = 1 << 1,
 	SOA = 1 << 2,
 	Serialized = 1 << 3,
-	NoAlign = 1 << 4,
+	NoAlign = 1 << 4
 }
 
 state _State
@@ -395,13 +395,13 @@ state _State
 
 	flags: uint,
 
+	name: _Interop_String,
 	members: _Interop_Vector<_Member>,
 	methods: _Interop_Vector<*_Function>,
 	operators: _Interop_Map<_Interop_String, _Interop_Vector<*_Function>>,
 	constructors: _Interop_Vector<*_Function>,
 	defaultConstructor: *_Function,
-	destructor: *_Function,
-	name: _Interop_String,
+	destructor: *_Function
 }
 
 state _Package
@@ -414,7 +414,7 @@ state _Package
 	globalVariableLookup: _Interop_Map<_Interop_String, uint>,
 	states: _Interop_Map<_Interop_String, *_State>,
 	functions: _Interop_Map<_Interop_String, *_Function>,
-	initializer: *_Function,
+	initializer: *_Function
 }
 
 state _IR

@@ -43,13 +43,15 @@ struct LLVMBuilder
 	llvm::IRBuilder<> builder;
 	llvm::Module module;
 
-	llvm::Type* intType;
+	llvm::Type* boolType;
 	llvm::IntegerType* int32Type;
+	llvm::Type* intType;
 	llvm::StructType* strType;
 
 	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
+		boolType = llvm::IntegerType::getInt1Ty(context);
 		intType = ToLLVMType(CreateIntType(ir), context);
 		int32Type = llvm::IntegerType::getInt32Ty(context);
 		strType = StateToLLVMType(stringState, context);
@@ -83,13 +85,149 @@ struct LLVMBuilder
 		Logger::Info("LLVMBuilder: Compiled module");
 	}
 
+	void BuildTypeIntData(int offset, intmax_t value, llvm::Value* valuePtr,
+		llvm::Type* structType, llvm::Type* valueType)
+	{
+		llvm::Value* ptr = builder.CreateStructGEP(
+			structType,
+			valuePtr,
+			offset
+		);
+		builder.CreateStore(
+			llvm::ConstantInt::get(valueType, value),
+			ptr
+		);
+	}
+
+	llvm::Value* CastMember(SpiteIR::Member& member, llvm::Value* ptr)
+	{
+		llvm::Type* type = llvm::PointerType::get(ToLLVMType(member.value->type, context), 0);
+		llvm::Value* castedPtr = builder.CreateBitCast(ptr, type);
+		return castedPtr;
+	}
+
+	void StoreStateData(llvm::Value* ptr, SpiteIR::State* state, SpiteIR::Type* stateType)
+	{
+		llvm::Type* llvmType = ToLLVMType(stateType, context);
+		llvm::GlobalVariable* stateVarPtr = new llvm::GlobalVariable(
+			module,
+			llvmType,
+			false,
+			llvm::GlobalValue::ExternalLinkage,
+			llvm::UndefValue::get(llvmType),
+			""
+		);
+
+		BuildTypeIntData(0, 0, stateVarPtr, llvmType, intType);
+		BuildTypeIntData(1, state->size, stateVarPtr, llvmType, intType);
+		BuildTypeIntData(2, state->alignment, stateVarPtr, llvmType, intType);
+		BuildTypeIntData(3, state->flags, stateVarPtr, llvmType, intType);
+	}
+
+	llvm::Value* BuildTypeArray(eastl::vector<SpiteIR::Type*> types)
+	{
+
+	}
+
+	void BuildTypeUnionData(SpiteIR::Type* type, llvm::Value* unionPtr)
+	{
+		eastl::vector<SpiteIR::Member>* unionMembers = typeMetaState->members.back().value->type->structureType.members;
+		switch (type->kind)
+		{
+		case SpiteIR::TypeKind::PrimitiveType:
+		{
+			SpiteIR::Member& member = unionMembers->at(0);
+			llvm::Value* ptr = CastMember(member, unionPtr);
+			llvm::Type* primitiveType = ToLLVMType(member.value->type, context);
+			BuildTypeIntData(0, type->primitive.isSigned, ptr, primitiveType, boolType);
+			BuildTypeIntData(1, static_cast<int>(type->primitive.kind), ptr, primitiveType, int32Type);
+			break;
+		}
+		case SpiteIR::TypeKind::StateType:
+		{
+			SpiteIR::Member& member = unionMembers->at(1);
+			llvm::Value* ptr = CastMember(member, unionPtr);
+			SpiteIR::Type* stateType = member.value->type->pointer.type;
+			StoreStateData(ptr, type->stateType.state, stateType);
+			break;
+		}
+		case SpiteIR::TypeKind::UnionType:
+		case SpiteIR::TypeKind::StructureType:
+		{
+			llvm::Value* ptr = CastMember(unionMembers->at(2), unionPtr);
+			break;
+		}
+		case SpiteIR::TypeKind::PointerType:
+		{
+			llvm::Value* ptr = CastMember(unionMembers->at(3), unionPtr);
+			builder.CreateStore(BuildTypeValue(type->pointer.type), ptr);
+			break;
+		}
+		case SpiteIR::TypeKind::ReferenceType:
+		{
+			llvm::Value* ptr = CastMember(unionMembers->at(4), unionPtr);
+			builder.CreateStore(BuildTypeValue(type->reference.type), ptr);
+			break;
+		}
+		case SpiteIR::TypeKind::DynamicArrayType:
+		{
+			llvm::Value* ptr = CastMember(unionMembers->at(5), unionPtr);
+			builder.CreateStore(BuildTypeValue(type->dynamicArray.type), ptr);
+			break;
+		}
+		case SpiteIR::TypeKind::FixedArrayType:
+		{
+			SpiteIR::Member& member = unionMembers->at(6);
+			llvm::Value* ptr = CastMember(member, unionPtr);
+			llvm::Type* fixedArrayType = ToLLVMType(member.value->type, context);
+			BuildTypeIntData(0, type->fixedArray.count, ptr, fixedArrayType, intType);
+			llvm::Value* typePtr = builder.CreateStructGEP(
+				fixedArrayType,
+				ptr,
+				1
+			);
+			builder.CreateStore(BuildTypeValue(type->fixedArray.type), typePtr);
+			break;
+		}
+		case SpiteIR::TypeKind::FunctionType:
+		{
+			SpiteIR::Member& member = unionMembers->at(7);
+			llvm::Value* ptr = CastMember(member, unionPtr);
+			llvm::Type* functionType = ToLLVMType(member.value->type, context);
+			llvm::Value* returnTypePtr = builder.CreateStructGEP(
+				functionType,
+				ptr,
+				0
+			);
+			builder.CreateStore(BuildTypeValue(type->fixedArray.type), returnTypePtr);
+
+			break;
+		}
+		default:
+			break;
+		}
+
+	}
+
 	void BuildTypeData()
 	{
+		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
 		while (typeMetadataMap.size())
 		{
 			auto& [type, globalVar] = *typeMetadataMap.begin();
-			typeMetadataMap.erase(type);
+			
+			BuildTypeIntData(0, type->size, globalVar, llvmType, intType);
+			BuildTypeIntData(1, type->alignment, globalVar, llvmType, intType);
+			BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, int32Type);
+			BuildTypeIntData(3, type->byValue, globalVar, llvmType, boolType);
+			llvm::Value* unionPtr = builder.CreateStructGEP(
+				llvmType,
+				globalVar,
+				4
+			);
+			BuildTypeUnionData(type, unionPtr);
 
+			typeMetadataMap.erase(type);
 		}
 	}
 
@@ -112,6 +250,8 @@ struct LLVMBuilder
 		llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(context, "entry", mainFunc);
 		builder.SetInsertPoint(mainEntry);
 
+		BuildTypeData();
+
 		for (SpiteIR::Package* package : ir->packages)
 		{
 			if (package->initializer)
@@ -120,8 +260,6 @@ struct LLVMBuilder
 				llvm::Value* initCall = builder.CreateCall(llvmFunc, {});
 			}
 		}
-
-		BuildTypeData();
 
 		SpiteIR::Function* entryFunc = ir->entry;
 		llvm::Function* entryLLVMFunc = functionMap[entryFunc];

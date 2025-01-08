@@ -303,7 +303,7 @@ struct LowerDeclarations
 
 		state->parent = package;
 		state->name = name;
-		state->metadata.flags = stateStmnt->state.insetFlags;
+		state->flags = stateStmnt->state.insetFlags;
 
 		package->states[state->name] = state;
 		context.stateMap[state->name] = state;

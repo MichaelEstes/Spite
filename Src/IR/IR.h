@@ -490,22 +490,19 @@ namespace SpiteIR
 		size_t size = 0;
 		size_t alignment = 0;
 
-		struct
-		{
-			size_t flags = 0;
-		} metadata;
+		size_t flags = 0;
 
+		string name;
 		Array<Member> members;
 		Array<Function*> methods;
 		HashMap<string, Array<Function*>> operators;
 		Array<Function*> constructors;
 		Function* defaultConstructor;
 		Function* destructor = nullptr;
-		string name;
 
 		inline bool IsValueType()
 		{
-			return metadata.flags & StateFlags::ValueType;
+			return flags & StateFlags::ValueType;
 		}
 	};
 

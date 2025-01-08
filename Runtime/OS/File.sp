@@ -11,5 +11,6 @@ state File
 string ReadFile(path: string, mode: int32)
 {
 
+	return "";
 }
 
