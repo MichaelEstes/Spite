@@ -52,7 +52,7 @@ string _Interop_Map::log() => "Interop Map";
 
 state _Interop_String
 {
-	str: [(#sizeof int) * 3]byte
+	str: [(#sizeof int) * 4]byte
 }
 
 string _Interop_String::ToString()
