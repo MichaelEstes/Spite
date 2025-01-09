@@ -253,7 +253,7 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 
 	for (size_t i = 0; i < params.size(); i++)
 	{
-		SpiteIR::Type* type = function->arguments.at(i)->value->type;
+		SpiteIR::Type* type = function->arguments.at(i)->value.type;
 		void* value = params.at(i);
 		BuildDCArg(type, value);
 	}

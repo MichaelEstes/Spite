@@ -19,7 +19,7 @@ SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 	{
 		return GetStateForType(type->reference.type);
 	}
-	if (type->kind == SpiteIR::TypeKind::StateType)
+	else if (type->kind == SpiteIR::TypeKind::StateType)
 	{
 		return type->stateType.state;
 	}
@@ -38,9 +38,9 @@ SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
 	eastl::vector<SpiteIR::Type*> types;
-	for (SpiteIR::Member& member : state->members)
+	for (SpiteIR::Member* member : state->members)
 	{
-		types.push_back(member.value->type);
+		types.push_back(member->value.type);
 	}
 
 	return types;
@@ -59,10 +59,10 @@ size_t HashIRType(const SpiteIR::Type* type)
 	{
 		size_t hash = 0;
 		eastl::string_hash<eastl::string> strHash;
-		for (SpiteIR::Member& member : *type->structureType.members)
+		for (SpiteIR::Member* member : *type->structureType.members)
 		{
-			hash += HashIRType(member.value->type) + member.offset;
-			hash += strHash(member.value->name);
+			hash += HashIRType(member->value.type) + member->offset;
+			hash += strHash(member->value.name);
 		}
 		return hash;
 	}
@@ -116,10 +116,10 @@ bool IsIRTypeEqual(const SpiteIR::Type* l, const SpiteIR::Type* r)
 
 		for (size_t i = 0; i < count; i++)
 		{
-			SpiteIR::Member& lMember = l->structureType.members->at(i);
-			SpiteIR::Member& rMember = r->structureType.members->at(i);
-			if (lMember.value->name != rMember.value->name ||
-				!IsIRTypeEqual(lMember.value->type, rMember.value->type)) return false;
+			SpiteIR::Member* lMember = l->structureType.members->at(i);
+			SpiteIR::Member* rMember = r->structureType.members->at(i);
+			if (lMember->value.name != rMember->value.name ||
+				!IsIRTypeEqual(lMember->value.type, rMember->value.type)) return false;
 		}
 
 		return true;
@@ -217,8 +217,8 @@ eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 	else
 	{
 		eastl::vector<SpiteIR::Type*> types = eastl::vector<SpiteIR::Type*>();
-		for (SpiteIR::Member& member : *type->structureType.members)
-			types.push_back(member.value->type);
+		for (SpiteIR::Member* member : *type->structureType.members)
+			types.push_back(member->value.type);
 
 		return types;
 	}
@@ -946,7 +946,7 @@ SpiteIR::Type* IRFunctionToFunctionType(SpiteIR::IR* ir, SpiteIR::Function* func
 
 	for (SpiteIR::Argument* arg : function->arguments)
 	{
-		funcType->function.params->push_back(arg->value->type);
+		funcType->function.params->push_back(arg->value.type);
 	}
 	return funcType;
 }
@@ -963,20 +963,20 @@ SpiteIR::Type* BuildFixedArray(SpiteIR::IR* ir, size_t count, SpiteIR::Type* typ
 }
 
 struct SizeAndAlignment { size_t size; size_t alignment; };
-SizeAndAlignment CalculateSizeAndAlignForMembers(eastl::vector<SpiteIR::Member>* members)
+SizeAndAlignment CalculateSizeAndAlignForMembers(eastl::vector<SpiteIR::Member*>* members)
 {
 	size_t offset = 0;
 	size_t alignment = 1;
 
-	for (SpiteIR::Member& member : *members)
+	for (SpiteIR::Member* member : *members)
 	{
-		SpiteIR::Type* memberType = member.value->type;
+		SpiteIR::Type* memberType = member->value.type;
 		if (!memberType->alignment) return { 0, 0 };
 		size_t memberAlignment = memberType->alignment;
 		size_t padding = (memberAlignment - (offset % memberAlignment)) % memberAlignment;
 		offset += padding;
 
-		member.offset = offset;
+		member->offset = offset;
 		if (memberAlignment > alignment) alignment = memberAlignment;
 		offset += memberType->size;
 	}
@@ -1313,16 +1313,15 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StructureType;
-		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member*>();
 		for (size_t i = 0; i < type->explicitType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->explicitType.declarations->at(i);
 			auto& def = stmnt->definition;
 			SpiteIR::Type* memberType = TypeToIRType(ir, def.type, lower, generics, templates);
-			SpiteIR::Member member = SpiteIR::Member();
-			member.value = ir->AllocateValue();
-			member.value->type = memberType;
-			member.value->name = def.name->val.ToString();
+			SpiteIR::Member* member = ir->AllocateMember();
+			member->value.type = memberType;
+			member->value.name = def.name->val.ToString();
 			irType->structureType.members->push_back(member);
 		}
 		SetStructuredTypeSizeAndAlign(irType, lower);
@@ -1332,13 +1331,12 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	{
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StructureType;
-		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member*>();
 		for (size_t i = 0; i < type->anonType.types->size(); i++)
 		{
 			SpiteIR::Type* memberType = TypeToIRType(ir, type->anonType.types->at(i), lower, generics, templates);
-			SpiteIR::Member member = SpiteIR::Member();
-			member.value = ir->AllocateValue();
-			member.value->type = memberType;
+			SpiteIR::Member* member = ir->AllocateMember();
+			member->value.type = memberType;
 			irType->structureType.members->push_back(member);
 		}
 		SetStructuredTypeSizeAndAlign(irType, lower);
@@ -1350,7 +1348,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->kind = SpiteIR::TypeKind::UnionType;
 		irType->size = 0;
 		irType->alignment = 1;
-		irType->structureType.members = ir->AllocateArray<SpiteIR::Member>();
+		irType->structureType.members = ir->AllocateArray<SpiteIR::Member*>();
 		for (size_t i = 0; i < type->unionType.declarations->size(); i++)
 		{
 			Stmnt* stmnt = type->unionType.declarations->at(i);
@@ -1362,10 +1360,9 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			}
 			if (memberType->size > irType->size) irType->size = memberType->size;
 			if (memberType->alignment > irType->alignment) irType->alignment = memberType->alignment;
-			SpiteIR::Member member = SpiteIR::Member();
-			member.value = ir->AllocateValue();
-			member.value->type = memberType;
-			member.value->name = def.name->val.ToString();
+			SpiteIR::Member* member = ir->AllocateMember();
+			member->value.type = memberType;
+			member->value.name = def.name->val.ToString();
 			irType->structureType.members->push_back(member);
 		}
 		return irType;

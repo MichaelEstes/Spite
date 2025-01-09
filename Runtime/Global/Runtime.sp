@@ -207,7 +207,7 @@ string _SerializeType(value: *byte, type: *_Type)
 			_state := typeData.stateType;
 			out := _state.name.ToString() + " : {\n";
 
-			for (member: *_Member in _state.members)
+			for (member: **_Member in _state.members)
 			{
 				out = out + " " + member.value.name.ToString() + ": ";
 				memberValue := value + member.offset;
@@ -222,7 +222,7 @@ string _SerializeType(value: *byte, type: *_Type)
 		case (_TypeKind.StructureType)
 		{
 			out := "struct {\n";
-			for (member: *_Member in typeData.structureType)
+			for (member: **_Member in typeData.structureType)
 			{
 				memberValue := value + member.offset;
 				out = out + " " + _SerializeType(memberValue, member.value.type) + ",";

@@ -79,7 +79,7 @@ struct LLVMBuilder
 			return;
 		}
 		Logger::Info("LLVMBuilder: Verified module");
-		module.print(llvm::outs(), nullptr);
+		//module.print(llvm::outs(), nullptr);
 
 		Compile();
 		Logger::Info("LLVMBuilder: Compiled module");
@@ -99,11 +99,44 @@ struct LLVMBuilder
 		);
 	}
 
-	llvm::Value* CastMember(SpiteIR::Member& member, llvm::Value* ptr)
+	llvm::Value* CastMember(SpiteIR::Member* member, llvm::Value* ptr)
 	{
-		llvm::Type* type = llvm::PointerType::get(ToLLVMType(member.value->type, context), 0);
+		llvm::Type* type = llvm::PointerType::get(ToLLVMType(member->value.type, context), 0);
 		llvm::Value* castedPtr = builder.CreateBitCast(ptr, type);
 		return castedPtr;
+	}
+
+	void BuildInteropString(eastl::string& str, SpiteIR::Type* interopStringType, llvm::Value* ptr)
+	{
+		llvm::StringRef strRef = ToStringRef(str);
+		llvm::Constant* strConstant = llvm::ConstantDataArray::getString(context, strRef, true);
+		llvm::ArrayType* byteArrayType = llvm::ArrayType::get(
+			llvm::Type::getInt8Ty(context),
+			str.size() + 1
+		);
+		llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
+			module,
+			byteArrayType,
+			true,
+			llvm::GlobalValue::PrivateLinkage,
+			strConstant,
+			""
+		);
+
+		llvm::Type* charPtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
+		std::vector<llvm::Type*> structElemTypes = { charPtrType, intType, intType, intType };
+		llvm::Type* strType = llvm::StructType::get(context, structElemTypes);
+		llvm::Value* strValuePtr = builder.CreateBitCast(ptr, llvm::PointerType::get(strType, 0));
+
+		llvm::Value* strBeginPtr = builder.CreateStructGEP(
+			strType,
+			strValuePtr,
+			0
+		);
+		builder.CreateStore(globalStr, strBeginPtr);
+		BuildTypeIntData(1, str.size(), strValuePtr, strType, intType);
+		BuildTypeIntData(2, 0, strValuePtr, strType, intType);
+		BuildTypeIntData(3, 0, strValuePtr, strType, intType);
 	}
 
 	void StoreStateData(llvm::Value* ptr, SpiteIR::State* state, SpiteIR::Type* stateType)
@@ -122,6 +155,15 @@ struct LLVMBuilder
 		BuildTypeIntData(1, state->size, stateVarPtr, llvmType, intType);
 		BuildTypeIntData(2, state->alignment, stateVarPtr, llvmType, intType);
 		BuildTypeIntData(3, state->flags, stateVarPtr, llvmType, intType);
+		llvm::Value* strPtr = builder.CreateStructGEP(
+			llvmType,
+			stateVarPtr,
+			4
+		);
+		SpiteIR::Type* strType = stateType->stateType.state->members.at(4)->value.type;
+		BuildInteropString(state->name, strType, strPtr);
+
+		builder.CreateStore(stateVarPtr, ptr);
 	}
 
 	llvm::Value* BuildTypeArray(eastl::vector<SpiteIR::Type*> types)
@@ -131,23 +173,23 @@ struct LLVMBuilder
 
 	void BuildTypeUnionData(SpiteIR::Type* type, llvm::Value* unionPtr)
 	{
-		eastl::vector<SpiteIR::Member>* unionMembers = typeMetaState->members.back().value->type->structureType.members;
+		eastl::vector<SpiteIR::Member*>* unionMembers = typeMetaState->members.back()->value.type->structureType.members;
 		switch (type->kind)
 		{
 		case SpiteIR::TypeKind::PrimitiveType:
 		{
-			SpiteIR::Member& member = unionMembers->at(0);
+			SpiteIR::Member* member = unionMembers->at(0);
 			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* primitiveType = ToLLVMType(member.value->type, context);
+			llvm::Type* primitiveType = ToLLVMType(member->value.type, context);
 			BuildTypeIntData(0, type->primitive.isSigned, ptr, primitiveType, boolType);
 			BuildTypeIntData(1, static_cast<int>(type->primitive.kind), ptr, primitiveType, int32Type);
 			break;
 		}
 		case SpiteIR::TypeKind::StateType:
 		{
-			SpiteIR::Member& member = unionMembers->at(1);
+			SpiteIR::Member* member = unionMembers->at(1);
 			llvm::Value* ptr = CastMember(member, unionPtr);
-			SpiteIR::Type* stateType = member.value->type->pointer.type;
+			SpiteIR::Type* stateType = member->value.type->pointer.type;
 			StoreStateData(ptr, type->stateType.state, stateType);
 			break;
 		}
@@ -177,9 +219,9 @@ struct LLVMBuilder
 		}
 		case SpiteIR::TypeKind::FixedArrayType:
 		{
-			SpiteIR::Member& member = unionMembers->at(6);
+			SpiteIR::Member* member = unionMembers->at(6);
 			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* fixedArrayType = ToLLVMType(member.value->type, context);
+			llvm::Type* fixedArrayType = ToLLVMType(member->value.type, context);
 			BuildTypeIntData(0, type->fixedArray.count, ptr, fixedArrayType, intType);
 			llvm::Value* typePtr = builder.CreateStructGEP(
 				fixedArrayType,
@@ -191,9 +233,9 @@ struct LLVMBuilder
 		}
 		case SpiteIR::TypeKind::FunctionType:
 		{
-			SpiteIR::Member& member = unionMembers->at(7);
+			SpiteIR::Member* member = unionMembers->at(7);
 			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* functionType = ToLLVMType(member.value->type, context);
+			llvm::Type* functionType = ToLLVMType(member->value.type, context);
 			llvm::Value* returnTypePtr = builder.CreateStructGEP(
 				functionType,
 				ptr,
@@ -604,7 +646,7 @@ struct LLVMBuilder
 		{
 			arg.setName(RegisterName(reg));
 			localVarMap[reg] = &arg;
-			SpiteIR::Type* argType = function->arguments.at(i)->value->type;
+			SpiteIR::Type* argType = function->arguments.at(i)->value.type;
 			reg += argType->size;
 			i += 1;
 		}
@@ -866,19 +908,19 @@ struct LLVMBuilder
 		}
 	}
 
-	size_t GetMemberIndexForOffset(eastl::vector<SpiteIR::Member>* members, size_t offset)
+	size_t GetMemberIndexForOffset(eastl::vector<SpiteIR::Member*>* members, size_t offset)
 	{
 		for (size_t i = 0; i < members->size(); i++)
 		{
-			SpiteIR::Member& member = members->at(i);
-			if (member.offset == offset) return i;
+			SpiteIR::Member* member = members->at(i);
+			if (member->offset == offset) return i;
 		}
 
 		Logger::FatalError("LLVMBuilder:GetMemberIndexForOffset Unable to find member index");
 		return 0;
 	}
 
-	eastl::vector<SpiteIR::Member>* GetMembersForType(SpiteIR::Type* type)
+	eastl::vector<SpiteIR::Member*>* GetMembersForType(SpiteIR::Type* type)
 	{
 		SpiteIR::State* state = GetStateForType(type);
 		if (state)
@@ -908,7 +950,7 @@ struct LLVMBuilder
 		llvm::Type* type = ToLLVMType(load.src.type, context);
 		llvm::Value* ptr = GetLocalValue(load.src.reg);
 
-		eastl::vector<SpiteIR::Member>* members = GetMembersForType(load.src.type);
+		eastl::vector<SpiteIR::Member*>* members = GetMembersForType(load.src.type);
 		if (members)
 		{
 			Assert(load.offset.kind == SpiteIR::OperandKind::Literal);
@@ -942,7 +984,7 @@ struct LLVMBuilder
 		llvm::Value* ptr = builder.CreateLoad(ptrType, GetLocalValue(load.src.reg));
 		llvm::Type* type = ToLLVMType(srcType, context, true);
 
-		eastl::vector<SpiteIR::Member>* members = GetMembersForType(srcType);
+		eastl::vector<SpiteIR::Member*>* members = GetMembersForType(srcType);
 		if (members && load.offset.kind == SpiteIR::OperandKind::Literal)
 		{
 			intmax_t offset = load.offset.literal.intLiteral;
@@ -1127,7 +1169,7 @@ struct LLVMBuilder
 		case SpiteIR::OperandKind::StructLiteral:
 		{
 			llvm::Constant* zero = llvm::ConstantInt::get(int32Type, 0);
-			eastl::vector<SpiteIR::Member>* members = GetMembersForType(src.type);
+			eastl::vector<SpiteIR::Member*>* members = GetMembersForType(src.type);
 			llvm::Value* valuePtr = builder.CreateAlloca(type, nullptr);
 			for (size_t i = 0; i < src.structLiteral->size(); i++)
 			{

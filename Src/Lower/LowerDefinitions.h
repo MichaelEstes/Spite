@@ -360,10 +360,10 @@ struct LowerDefinitions
 			storeOp.kind = SpiteIR::OperandKind::StructLiteral;
 			SpiteIR::State* state = type->stateType.state;
 			eastl::vector<SpiteIR::Operand>* opArr = context.ir->AllocateArray<SpiteIR::Operand>();
-			for (SpiteIR::Member& member : state->members)
+			for (SpiteIR::Member* member : state->members)
 			{
-				size_t offset = member.offset;
-				opArr->push_back(CreateValueOperand((char*)value + offset, member.value->type));
+				size_t offset = member->offset;
+				opArr->push_back(CreateValueOperand((char*)value + offset, member->value.type));
 			}
 			storeOp.structLiteral = opArr;
 			break;
@@ -372,10 +372,10 @@ struct LowerDefinitions
 		{
 			storeOp.kind = SpiteIR::OperandKind::StructLiteral;
 			eastl::vector<SpiteIR::Operand>* opArr = context.ir->AllocateArray<SpiteIR::Operand>();
-			for (SpiteIR::Member& member : *type->structureType.members)
+			for (SpiteIR::Member* member : *type->structureType.members)
 			{
-				opArr->push_back(CreateValueOperand((char*)value + member.offset, 
-					member.value->type));
+				opArr->push_back(CreateValueOperand((char*)value + member->offset, 
+					member->value.type));
 			}
 			storeOp.structLiteral = opArr;
 			break;
@@ -583,7 +583,7 @@ struct LowerDefinitions
 		if (funcStmnt->nodeID == StmntID::StateStmnt)
 		{
 			//Default state constructor
-			SpiteIR::Type* argRefType = function->arguments.front()->value->type;
+			SpiteIR::Type* argRefType = function->arguments.front()->value.type;
 			SpiteIR::Type* stateType = argRefType->reference.type;
 			SpiteIR::Label* label = BuildLabel("entry");
 			AddLabel(label);
@@ -640,8 +640,8 @@ struct LowerDefinitions
 			SpiteIR::Argument* arg = function->arguments.at(i);
 			Stmnt* param = funcDecl->functionDecl.parameters->at(i);
 
-			SpiteIR::Allocate alloc = BuildAllocate(arg->value->type);
-			StringView name = StringView(arg->value->name.c_str());
+			SpiteIR::Allocate alloc = BuildAllocate(arg->value.type);
+			StringView name = StringView(arg->value.name.c_str());
 			AddValueToCurrentScope(name, { alloc.result, alloc.type }, param);
 		}
 	}
@@ -1696,13 +1696,13 @@ struct LowerDefinitions
 		return { InvalidRegister, primType };
 	}
 
-	SpiteIR::Member* FindMember(eastl::vector<SpiteIR::Member>& members, StringView& ident)
+	SpiteIR::Member* FindMember(eastl::vector<SpiteIR::Member*>& members, StringView& ident)
 	{
-		for (SpiteIR::Member& member : members)
+		for (SpiteIR::Member* member : members)
 		{
-			if (member.value->name == ident)
+			if (member->value.name == ident)
 			{
-				return &member;
+				return member;
 			}
 		}
 
@@ -1711,24 +1711,24 @@ struct LowerDefinitions
 
 	SpiteIR::Member* FindStateMember(SpiteIR::State* state, StringView& ident)
 	{
-		eastl::vector<SpiteIR::Member>& members = state->members;
+		eastl::vector<SpiteIR::Member*>& members = state->members;
 		return FindMember(members, ident);
 	}
 
 	SpiteIR::Member* FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
 	{
 		size_t offset = 0;
-		eastl::vector<SpiteIR::Member>* members = type->structureType.members;
+		eastl::vector<SpiteIR::Member*>* members = type->structureType.members;
 		return FindMember(*members, ident);
 	}
 
 	SpiteIR::Type* FindTypeForUnionMember(SpiteIR::Type* type, StringView& ident)
 	{
-		eastl::vector<SpiteIR::Member>* members = type->structureType.members;
-		for (SpiteIR::Member& member : *members)
+		eastl::vector<SpiteIR::Member*>* members = type->structureType.members;
+		for (SpiteIR::Member* member : *members)
 		{
-			eastl::string& name = member.value->name;
-			SpiteIR::Type* memberType = member.value->type;
+			eastl::string& name = member->value.name;
+			SpiteIR::Type* memberType = member->value.type;
 			if (name == ident)
 			{
 				return memberType;
@@ -1738,15 +1738,21 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	// Dereferencing is hidden on member selection to a single degree, multiple degrees of pointers require
-	// manual dereferencing (val: **Type, val~.member)
+	// Dereferencing is hidden on member selection
 	ScopeValue DereferenceToSinglePointer(ScopeValue value)
 	{
 		// Reference to a pointer, dereference
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType &&
 			value.type->reference.type->kind == SpiteIR::TypeKind::PointerType)
 		{
-			return BuildTypeDereference(GetCurrentLabel(), value);
+			return DereferenceToSinglePointer(BuildTypeDereference(GetCurrentLabel(), value));
+		}
+		// Pointer to a pointer, dereference
+		else if (value.type->kind == SpiteIR::TypeKind::PointerType &&
+					value.type->pointer.type->kind == SpiteIR::TypeKind::PointerType)
+		{
+			value.type->kind = SpiteIR::TypeKind::ReferenceType;
+			return DereferenceToSinglePointer(BuildTypeDereference(GetCurrentLabel(), value));
 		}
 
 		return value;
@@ -1839,7 +1845,7 @@ struct LowerDefinitions
 
 	ScopeValue LoadStructureMember(const ScopeValue& of, SpiteIR::Member* member)
 	{
-		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(member->value->type, context.ir));
+		SpiteIR::Allocate alloc = BuildAllocate(MakeReferenceType(member->value.type, context.ir));
 		SpiteIR::Instruction* loadInst = BuildLoad(GetCurrentLabel(), AllocateToOperand(alloc),
 			BuildRegisterOperand(of), BuildLiteralInt(member->offset), indexByte);
 		return { alloc.result, alloc.type };
@@ -1902,7 +1908,7 @@ struct LowerDefinitions
 			{
 				SpiteIR::Member* member = FindStructureTypeMember(derefed, ident);
 				Assert(member);
-				offsetAndType = { member->offset, member->value->type };
+				offsetAndType = { member->offset, member->value.type };
 			}
 			else if (derefed->kind == SpiteIR::TypeKind::UnionType)
 			{
@@ -1914,7 +1920,7 @@ struct LowerDefinitions
 				SpiteIR::State* state = GetStateForType(derefed);
 				SpiteIR::Member* member = FindStateMember(state, ident);
 				Assert(member);
-				offsetAndType = { member->offset, member->value->type };
+				offsetAndType = { member->offset, member->value.type };
 			}
 
 			SpiteIR::Type* referencedMember = MakeReferenceType(offsetAndType.type, context.ir);
@@ -1993,9 +1999,9 @@ struct LowerDefinitions
 			Stmnt* stateStmnt = stateAST.node;
 			for (size_t i = 0; i < type->stateType.state->members.size(); i++)
 			{
-				SpiteIR::Member& member = type->stateType.state->members.at(i);
+				SpiteIR::Member* member = type->stateType.state->members.at(i);
 				Stmnt* memberDecl = stateStmnt->state.members->at(i);
-				ScopeValue memberValue = LoadStructureMember({ dst, type }, &member);
+				ScopeValue memberValue = LoadStructureMember({ dst, type }, member);
 				if (memberDecl->definition.assignment)
 				{
 					ScopeValue value = BuildExpr(memberDecl->definition.assignment, stateStmnt);
@@ -2009,8 +2015,8 @@ struct LowerDefinitions
 		{
 			for (size_t i = 0; i < type->structureType.members->size(); i++)
 			{
-				SpiteIR::Member& member = type->structureType.members->at(i);
-				ScopeValue memberValue = LoadStructureMember({ dst, type }, &member);
+				SpiteIR::Member* member = type->structureType.members->at(i);
+				ScopeValue memberValue = LoadStructureMember({ dst, type }, member);
 				BuildDefaultValue(memberValue.type, memberValue.reg, label);
 			}
 			break;
@@ -2261,12 +2267,11 @@ struct LowerDefinitions
 		{
 			derivedType = context.ir->AllocateType();
 			derivedType->kind = SpiteIR::TypeKind::StructureType;
-			derivedType->structureType.members = context.ir->AllocateArray<SpiteIR::Member>();
+			derivedType->structureType.members = context.ir->AllocateArray<SpiteIR::Member*>();
 			for (ScopeValue& value : values)
 			{
-				SpiteIR::Member member = SpiteIR::Member();
-				member.value = context.ir->AllocateValue();
-				member.value->type = value.type;
+				SpiteIR::Member* member = context.ir->AllocateMember();
+				member->value.type = value.type;
 				derivedType->structureType.members->push_back(member);
 			}
 			SetStructuredTypeSizeAndAlign(derivedType, this);
@@ -2295,14 +2300,13 @@ struct LowerDefinitions
 		eastl::vector<ScopeValue> values;
 		SpiteIR::Type* structType = context.ir->AllocateType();
 		structType->kind = SpiteIR::TypeKind::StructureType;
-		structType->structureType.members = context.ir->AllocateArray<SpiteIR::Member>();
+		structType->structureType.members = context.ir->AllocateArray<SpiteIR::Member*>();
 		for (Stmnt* def : *explicitType.values)
 		{
 			ScopeValue value = BuildVarDefinition(def);
-			SpiteIR::Member member = SpiteIR::Member();
-			member.value = context.ir->AllocateValue();
-			member.value->type = value.type;
-			member.value->name = def->definition.name->ToString();
+			SpiteIR::Member* member = context.ir->AllocateMember();
+			member->value.type = value.type;
+			member->value.name = def->definition.name->ToString();
 			structType->structureType.members->push_back(member);
 			structType->size += value.type->size;
 			values.push_back(value);
@@ -2827,9 +2831,8 @@ struct LowerDefinitions
 			if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
 
 			SpiteIR::Argument* arg = context.ir->AllocateArgument();
-			arg->value = context.ir->AllocateValue();
-			arg->value->type = argType;
-			arg->value->name = param->definition.name->val.ToString();
+			arg->value.type = argType;
+			arg->value.name = param->definition.name->val.ToString();
 			arg->parent = func;
 			func->arguments.push_back(arg);
 		}
@@ -3205,6 +3208,7 @@ struct LowerDefinitions
 	ScopeValue BuildTypeReference(SpiteIR::Label* label, const ScopeValue& value)
 	{
 		if (value.type->kind == SpiteIR::TypeKind::ReferenceType) return value;
+
 		SpiteIR::Type* refType = MakeReferenceType(value.type, context.ir);
 		SpiteIR::Allocate alloc = BuildAllocate(refType);
 		SpiteIR::Instruction* reference = BuildReference(label, AllocateToOperand(alloc),
@@ -3258,7 +3262,7 @@ struct LowerDefinitions
 		paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
 		for (size_t i = 1; i < conFunc->arguments.size(); i++)
 		{
-			SpiteIR::Type* argType = conFunc->arguments.at(i)->value->type;
+			SpiteIR::Type* argType = conFunc->arguments.at(i)->value.type;
 			paramOps->push_back(BuildRegisterOperand(HandleAutoCast(paramValues.at(i), argType)));
 		}
 
@@ -3278,7 +3282,7 @@ struct LowerDefinitions
 			int match = 1;
 			for (size_t i = 1; i < params->size(); i++)
 			{
-				SpiteIR::Type* argType = func->arguments.at(i)->value->type;
+				SpiteIR::Type* argType = func->arguments.at(i)->value.type;
 				SpiteIR::Type* paramType = params->at(i).type;
 				int argMatch = IsIRTypeAssignable(argType, paramType);
 				if (argMatch == 0)
@@ -3316,7 +3320,7 @@ struct LowerDefinitions
 			if (rhs)
 			{
 				eastl::vector<SpiteIR::Argument*>& args = func->arguments;
-				SpiteIR::Type* argType = args.at(1)->value->type;
+				SpiteIR::Type* argType = args.at(1)->value.type;
 				int match = IsIRTypeAssignable(argType, rhs);
 				if (match == 2 && !opFunc) opFunc = func;
 				else if (match == 1)
@@ -3343,11 +3347,11 @@ struct LowerDefinitions
 		SpiteIR::Function* operatorFunc = FindStateOperator(state, op, rhsType);
 
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
-		params->push_back(BuildRegisterOperand(HandleAutoCast(of, operatorFunc->arguments.at(0)->value->type)));
+		params->push_back(BuildRegisterOperand(HandleAutoCast(of, operatorFunc->arguments.at(0)->value.type)));
 		if (rhs)
 		{
 			params->push_back(BuildRegisterOperand(HandleAutoCast(*rhs,
-				operatorFunc->arguments.at(1)->value->type)));
+				operatorFunc->arguments.at(1)->value.type)));
 		}
 
 		SpiteIR::Allocate alloc = BuildAllocate(operatorFunc->returnType);
@@ -3597,7 +3601,7 @@ struct LowerDefinitions
 		{
 			Expr* param = exprParams->at(i);
 			ScopeValue value = BuildExpr(param, stmnt);
-			SpiteIR::Type* argType = irFunction->arguments.at(argOffset + i)->value->type;
+			SpiteIR::Type* argType = irFunction->arguments.at(argOffset + i)->value.type;
 			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 		}
 
@@ -3619,7 +3623,7 @@ struct LowerDefinitions
 				Stmnt* stmntParam = funcStmntParams->at(i);
 				Assert(stmntParam->definition.assignment);
 
-				SpiteIR::Type* argType = irFunction->arguments.at(i)->value->type;
+				SpiteIR::Type* argType = irFunction->arguments.at(i)->value.type;
 				ScopeValue value = BuildExpr(stmntParam->definition.assignment, stmnt);
 				params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 			}

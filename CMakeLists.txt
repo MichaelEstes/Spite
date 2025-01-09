@@ -67,7 +67,7 @@ add_executable (Spite_Lang
 "Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h" "Src/Containers/Array.h" 
 "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" 
 "Src/Syntax/TypeInference.h" "Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" 
-"Src/Output/LLVM/LLVMTypes.h" )
+"Src/Output/LLVM/LLVMTypes.h"  )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)

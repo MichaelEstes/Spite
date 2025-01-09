@@ -122,7 +122,7 @@ struct Interpreter
 		{
 			SpiteIR::Operand& param = params->at(i);
 			SpiteIR::Argument* arg = args.at(i);
-			CopyValue(param.reg, arg->value->type, stackFrameStart + offset, frame);
+			CopyValue(param.reg, arg->value.type, stackFrameStart + offset, frame);
 			offset += param.type->size;
 		}
 	}

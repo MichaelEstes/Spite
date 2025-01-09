@@ -35,13 +35,13 @@ inline llvm::Twine ToTwine(const eastl::string& str)
 	return llvm::Twine(str.cbegin());
 }
 
-void CreateStructType(llvm::StructType* structType, eastl::vector<SpiteIR::Member>& members, llvm::LLVMContext& context)
+void CreateStructType(llvm::StructType* structType, eastl::vector<SpiteIR::Member*>& members, llvm::LLVMContext& context)
 {
 	std::vector<llvm::Type*> memberTypes;
 
-	for (SpiteIR::Member& member : members)
+	for (SpiteIR::Member* member : members)
 	{
-		memberTypes.push_back(ToLLVMType(member.value->type, context));
+		memberTypes.push_back(ToLLVMType(member->value.type, context));
 	}
 
 	structType->setBody(memberTypes);
@@ -61,7 +61,7 @@ llvm::FunctionType* FunctionToLLVMType(SpiteIR::Function* function, llvm::LLVMCo
 	llvm::Type* returnType = ToLLVMType(function->returnType, context);
 	std::vector<llvm::Type*> paramTypes;
 	for (SpiteIR::Argument* param : function->arguments)
-		paramTypes.push_back(ToLLVMType(param->value->type, context));
+		paramTypes.push_back(ToLLVMType(param->value.type, context));
 
 	return llvm::FunctionType::get(returnType, paramTypes, false);
 }

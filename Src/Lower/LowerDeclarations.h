@@ -142,9 +142,9 @@ struct LowerDeclarations
 		{
 			if (type->kind == SpiteIR::TypeKind::UnionType)
 			{
-				for (SpiteIR::Member& member : *type->structureType.members)
+				for (SpiteIR::Member* member : *type->structureType.members)
 				{
-					SpiteIR::Type* memberType = member.value->type;
+					SpiteIR::Type* memberType = member->value.type;
 					if (memberType->size > type->size) type->size = memberType->size;
 					if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
 				}
@@ -225,9 +225,9 @@ struct LowerDeclarations
 			Logger::FatalError("LowerDeclarations:BuildStateSize Unable to calculate state size due to cyclical reference in: " + state->name);
 		}
 
-		for (SpiteIR::Member& member : state->members)
+		for (SpiteIR::Member* member : state->members)
 		{
-			SpiteIR::Type* memberType = member.value->type;
+			SpiteIR::Type* memberType = member->value.type;
 			if (memberType->kind == SpiteIR::TypeKind::StateType)
 			{
 				BuildStateSize(memberType->stateType.state, outer);
@@ -313,10 +313,9 @@ struct LowerDeclarations
 	void BuildMemberForState(SpiteIR::State* state, Stmnt* memberStmnt, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Member member = SpiteIR::Member();
-		member.value = context.ir->AllocateValue();
-		member.value->type = TypeToIRType(context.ir, memberStmnt->definition.type, this, generics, templates);
-		member.value->name = memberStmnt->definition.name->val.ToString();
+		SpiteIR::Member* member = context.ir->AllocateMember();
+		member->value.type = TypeToIRType(context.ir, memberStmnt->definition.type, this, generics, templates);
+		member->value.name = memberStmnt->definition.name->val.ToString();
 		state->members.push_back(member);
 	}
 
@@ -349,8 +348,7 @@ struct LowerDeclarations
 	void BuildMethodThisArgument(SpiteIR::State* state, SpiteIR::Function* method, SpiteIR::IR* ir)
 	{
 		SpiteIR::Argument* arg = ir->AllocateArgument();
-		arg->value = ir->AllocateValue();
-		arg->value->name = "this";
+		arg->value.name = "this";
 		arg->parent = method;
 
 		SpiteIR::Type* thisType = ir->AllocateType();
@@ -362,7 +360,7 @@ struct LowerDeclarations
 			thisType->alignment = state->alignment;
 		}
 		else context.toResolveStateSize.push_back(thisType);
-		arg->value->type = MakeReferenceType(thisType, context.ir);
+		arg->value.type = MakeReferenceType(thisType, context.ir);
 
 		method->arguments.push_back(arg);
 	}
@@ -545,9 +543,8 @@ struct LowerDeclarations
 		if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
 
 		SpiteIR::Argument* arg = context.ir->AllocateArgument();
-		arg->value = context.ir->AllocateValue();
-		arg->value->type = argType;
-		arg->value->name = param->definition.name->val.ToString();
+		arg->value.type = argType;
+		arg->value.name = param->definition.name->val.ToString();
 		arg->parent = function;
 		function->arguments.push_back(arg);
 	}

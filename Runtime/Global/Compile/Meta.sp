@@ -315,7 +315,7 @@ state _Type
 	type: ?{
 		primitive: {isSigned: bool, primitiveKind: _PrimitiveKind},
 		stateType: *_State,
-		structureType: *_Interop_Vector<_Member>,
+		structureType: *_Interop_Vector<*_Member>,
 		pointer: *_Type,
 		reference: *_Type,
 		dynamicArray: *_Type,
@@ -341,7 +341,7 @@ state _GlobalVariable
 state _Argument
 {
 	parent: *_Function,
-	value: *_Value
+	value: _Value
 }
 
 enum FunctionFlags: int
@@ -375,7 +375,7 @@ state _Function
 
 state _Member
 {
-	value: *_Value,
+	value: _Value,
 	offset: uint
 }
 
@@ -396,7 +396,7 @@ state _State
 	flags: uint,
 
 	name: _Interop_String,
-	members: _Interop_Vector<_Member>,
+	members: _Interop_Vector<*_Member>,
 	methods: _Interop_Vector<*_Function>,
 	operators: _Interop_Map<_Interop_String, _Interop_Vector<*_Function>>,
 	constructors: _Interop_Vector<*_Function>,

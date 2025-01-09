@@ -379,7 +379,7 @@ namespace SpiteIR
 
 			struct
 			{
-				Array<Member>* members;
+				Array<Member*>* members;
 			} structureType;
 
 			struct
@@ -428,7 +428,7 @@ namespace SpiteIR
 	struct Argument
 	{
 		Function* parent;
-		Value* value;
+		Value value;
 	}; 
 
 	enum FunctionFlags : int
@@ -471,7 +471,7 @@ namespace SpiteIR
 
 	struct Member
 	{
-		Value* value;
+		Value value;
 		size_t offset = 0;
 	};
 
@@ -493,7 +493,7 @@ namespace SpiteIR
 		size_t flags = 0;
 
 		string name;
-		Array<Member> members;
+		Array<Member*> members;
 		Array<Function*> methods;
 		HashMap<string, Array<Function*>> operators;
 		Array<Function*> constructors;
@@ -567,11 +567,6 @@ namespace SpiteIR
 			return arena.Emplace<State>();
 		}
 
-		inline Member* AllocateMember()
-		{
-			return arena.Emplace<Member>();
-		}
-
 		inline Function* AllocateFunction(Package* parent)
 		{
 			Function* func = arena.Emplace<Function>();
@@ -589,9 +584,9 @@ namespace SpiteIR
 			return arena.Emplace<Argument>();
 		}
 
-		inline Value* AllocateValue()
+		inline Member* AllocateMember()
 		{
-			return arena.Emplace<Value>();
+			return arena.Emplace<Member>();
 		}
 
 		inline GlobalVariable* AllocateGlobalVariable()
