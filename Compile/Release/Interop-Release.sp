@@ -4,7 +4,7 @@ state _Interop_Vector<T>
 {
 	begin: *T,
 	end: *T,
-	allocator: [2]*void
+	allocator: *void
 }
 
 *T _Interop_Vector::operator::[](index: uint)
@@ -44,15 +44,15 @@ state _Interop_Map<Key, Value>
 	bucketArr: *void,
 	bucketCount: uint,
 	elementCount: uint,
-	rehash: [16]byte,
-	allocator: *void
+	rehash: *void,
+	allocator: *void,
 }
 
 string _Interop_Map::log() => "Interop Map";
 
 state _Interop_String
 {
-	str: [(#sizeof int) * 4]byte
+	str: [(#sizeof int) * 3]byte
 }
 
 string _Interop_String::ToString()

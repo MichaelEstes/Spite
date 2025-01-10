@@ -481,7 +481,7 @@ namespace SpiteIR
 		SOA = ToBit(2),
 		Serialized = ToBit(3),
 		NoAlign = ToBit(4),
-		ValueType = ToBit(5),
+		ValueType = ToBit(5)
 	};
 
 	struct State

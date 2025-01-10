@@ -1,75 +1,39 @@
 #pragma once
 
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetOptions.h"
-#include "llvm/MC/TargetRegistry.h"
-
-#include "../../Config/Config.h"
-#include "./LLVMTypes.h"
-#include "../../IR/IR.h"
-#include "../../Lower/LowerUtils.h"
-
-extern Config config;
-extern SpiteIR::State* stringState;
-extern SpiteIR::State* arrayState;
+#include "./LLVMEntry.h"
+#include "./LLVMCompile.h"
+#include "./LLVMOptimize.h"
 
 struct LLVMBuilder
 {
-	SpiteIR::IR* ir;
+	LLVMContext llvmContext;
 
-	eastl::hash_map<SpiteIR::Function*, llvm::Function*> functionMap;
-	eastl::hash_map<size_t, llvm::GlobalVariable*> globalVarMap;
-	eastl::hash_map<size_t, llvm::Value*> localVarMap;
-	eastl::hash_map<SpiteIR::Label*, llvm::BasicBlock*> labelMap;
-	eastl::hash_map<eastl::string, llvm::Function*> externalFunctionMap;
-	eastl::hash_map<SpiteIR::Type*, llvm::GlobalVariable*, IRTypeHash, IRTypeEqual> typeMetadataMap;
-	Arena arena;
+	llvm::LLVMContext& context;
+	llvm::IRBuilder<>& builder;
+	llvm::Module& module;
 
-	llvm::LLVMContext context;
-	llvm::IRBuilder<> builder;
-	llvm::Module module;
-
-	llvm::Type* boolType;
-	llvm::IntegerType* int32Type;
-	llvm::Type* intType;
-	llvm::StructType* strType;
-
-	LLVMBuilder(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
-	{
-		this->ir = ir;
-		boolType = llvm::IntegerType::getInt1Ty(context);
-		intType = ToLLVMType(CreateIntType(ir), context);
-		int32Type = llvm::IntegerType::getInt32Ty(context);
-		strType = StateToLLVMType(stringState, context);
-	}
+	LLVMBuilder(SpiteIR::IR* ir) : llvmContext(ir), 
+		context(llvmContext.context),
+		builder(llvmContext.builder),
+		module(llvmContext.module)
+	{}
 
 	void Build()
 	{
-		for (SpiteIR::Package* package : ir->packages)
+		LLVMCompile compiler = LLVMCompile(llvmContext);
+		if (!compiler.Initialize()) return;
+
+		for (SpiteIR::Package* package : llvmContext.ir->packages)
 			BuildPackageDeclarations(package);
 
 		Logger::Info("LLVMBuilder: Built LLVM Declarations");
 
-		for (SpiteIR::Package* package : ir->packages)
+		for (SpiteIR::Package* package : llvmContext.ir->packages)
 			BuildPackage(package);
 
 		Logger::Info("LLVMBuilder: Built LLVM Definitions");
 
-		BuildMain();
+		LLVMEntry(llvmContext).BuildMain();
 
 		Logger::Info("LLVMBuilder: Built entry point");
 
@@ -79,405 +43,17 @@ struct LLVMBuilder
 			return;
 		}
 		Logger::Info("LLVMBuilder: Verified module");
-		//module.print(llvm::outs(), nullptr);
 
-		Compile();
-		Logger::Info("LLVMBuilder: Compiled module");
-	}
+		LLVMOptimize(llvmContext).Optimize();
+		Logger::Info("LLVMBuilder: Optimized module");
 
-	void BuildTypeIntData(int offset, intmax_t value, llvm::Value* valuePtr,
-		llvm::Type* structType, llvm::Type* valueType)
-	{
-		llvm::Value* ptr = builder.CreateStructGEP(
-			structType,
-			valuePtr,
-			offset
-		);
-		builder.CreateStore(
-			llvm::ConstantInt::get(valueType, value),
-			ptr
-		);
-	}
+		std::string fileName = "output.ll";
+		std::error_code ec;
+		llvm::raw_fd_ostream dest(fileName, ec, llvm::sys::fs::OF_None);
+		module.print(dest, nullptr);
 
-	llvm::Value* CastMember(SpiteIR::Member* member, llvm::Value* ptr)
-	{
-		llvm::Type* type = llvm::PointerType::get(ToLLVMType(member->value.type, context), 0);
-		llvm::Value* castedPtr = builder.CreateBitCast(ptr, type);
-		return castedPtr;
-	}
-
-	void BuildInteropString(eastl::string& str, SpiteIR::Type* interopStringType, llvm::Value* ptr)
-	{
-		llvm::StringRef strRef = ToStringRef(str);
-		llvm::Constant* strConstant = llvm::ConstantDataArray::getString(context, strRef, true);
-		llvm::ArrayType* byteArrayType = llvm::ArrayType::get(
-			llvm::Type::getInt8Ty(context),
-			str.size() + 1
-		);
-		llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
-			module,
-			byteArrayType,
-			true,
-			llvm::GlobalValue::PrivateLinkage,
-			strConstant,
-			""
-		);
-
-		llvm::Type* charPtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
-		std::vector<llvm::Type*> structElemTypes = { charPtrType, intType, intType, intType };
-		llvm::Type* strType = llvm::StructType::get(context, structElemTypes);
-		llvm::Value* strValuePtr = builder.CreateBitCast(ptr, llvm::PointerType::get(strType, 0));
-
-		llvm::Value* strBeginPtr = builder.CreateStructGEP(
-			strType,
-			strValuePtr,
-			0
-		);
-		builder.CreateStore(globalStr, strBeginPtr);
-		BuildTypeIntData(1, str.size(), strValuePtr, strType, intType);
-		BuildTypeIntData(2, 0, strValuePtr, strType, intType);
-		BuildTypeIntData(3, 0, strValuePtr, strType, intType);
-	}
-
-	void StoreStateData(llvm::Value* ptr, SpiteIR::State* state, SpiteIR::Type* stateType)
-	{
-		llvm::Type* llvmType = ToLLVMType(stateType, context);
-		llvm::GlobalVariable* stateVarPtr = new llvm::GlobalVariable(
-			module,
-			llvmType,
-			false,
-			llvm::GlobalValue::ExternalLinkage,
-			llvm::UndefValue::get(llvmType),
-			""
-		);
-
-		BuildTypeIntData(0, 0, stateVarPtr, llvmType, intType);
-		BuildTypeIntData(1, state->size, stateVarPtr, llvmType, intType);
-		BuildTypeIntData(2, state->alignment, stateVarPtr, llvmType, intType);
-		BuildTypeIntData(3, state->flags, stateVarPtr, llvmType, intType);
-		llvm::Value* strPtr = builder.CreateStructGEP(
-			llvmType,
-			stateVarPtr,
-			4
-		);
-		SpiteIR::Type* strType = stateType->stateType.state->members.at(4)->value.type;
-		BuildInteropString(state->name, strType, strPtr);
-
-		builder.CreateStore(stateVarPtr, ptr);
-	}
-
-	llvm::Value* BuildTypeArray(eastl::vector<SpiteIR::Type*> types)
-	{
-
-	}
-
-	void BuildTypeUnionData(SpiteIR::Type* type, llvm::Value* unionPtr)
-	{
-		eastl::vector<SpiteIR::Member*>* unionMembers = typeMetaState->members.back()->value.type->structureType.members;
-		switch (type->kind)
-		{
-		case SpiteIR::TypeKind::PrimitiveType:
-		{
-			SpiteIR::Member* member = unionMembers->at(0);
-			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* primitiveType = ToLLVMType(member->value.type, context);
-			BuildTypeIntData(0, type->primitive.isSigned, ptr, primitiveType, boolType);
-			BuildTypeIntData(1, static_cast<int>(type->primitive.kind), ptr, primitiveType, int32Type);
-			break;
-		}
-		case SpiteIR::TypeKind::StateType:
-		{
-			SpiteIR::Member* member = unionMembers->at(1);
-			llvm::Value* ptr = CastMember(member, unionPtr);
-			SpiteIR::Type* stateType = member->value.type->pointer.type;
-			StoreStateData(ptr, type->stateType.state, stateType);
-			break;
-		}
-		case SpiteIR::TypeKind::UnionType:
-		case SpiteIR::TypeKind::StructureType:
-		{
-			llvm::Value* ptr = CastMember(unionMembers->at(2), unionPtr);
-			break;
-		}
-		case SpiteIR::TypeKind::PointerType:
-		{
-			llvm::Value* ptr = CastMember(unionMembers->at(3), unionPtr);
-			builder.CreateStore(BuildTypeValue(type->pointer.type), ptr);
-			break;
-		}
-		case SpiteIR::TypeKind::ReferenceType:
-		{
-			llvm::Value* ptr = CastMember(unionMembers->at(4), unionPtr);
-			builder.CreateStore(BuildTypeValue(type->reference.type), ptr);
-			break;
-		}
-		case SpiteIR::TypeKind::DynamicArrayType:
-		{
-			llvm::Value* ptr = CastMember(unionMembers->at(5), unionPtr);
-			builder.CreateStore(BuildTypeValue(type->dynamicArray.type), ptr);
-			break;
-		}
-		case SpiteIR::TypeKind::FixedArrayType:
-		{
-			SpiteIR::Member* member = unionMembers->at(6);
-			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* fixedArrayType = ToLLVMType(member->value.type, context);
-			BuildTypeIntData(0, type->fixedArray.count, ptr, fixedArrayType, intType);
-			llvm::Value* typePtr = builder.CreateStructGEP(
-				fixedArrayType,
-				ptr,
-				1
-			);
-			builder.CreateStore(BuildTypeValue(type->fixedArray.type), typePtr);
-			break;
-		}
-		case SpiteIR::TypeKind::FunctionType:
-		{
-			SpiteIR::Member* member = unionMembers->at(7);
-			llvm::Value* ptr = CastMember(member, unionPtr);
-			llvm::Type* functionType = ToLLVMType(member->value.type, context);
-			llvm::Value* returnTypePtr = builder.CreateStructGEP(
-				functionType,
-				ptr,
-				0
-			);
-			builder.CreateStore(BuildTypeValue(type->fixedArray.type), returnTypePtr);
-
-			break;
-		}
-		default:
-			break;
-		}
-
-	}
-
-	void BuildTypeData()
-	{
-		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
-		while (typeMetadataMap.size())
-		{
-			auto& [type, globalVar] = *typeMetadataMap.begin();
-			
-			BuildTypeIntData(0, type->size, globalVar, llvmType, intType);
-			BuildTypeIntData(1, type->alignment, globalVar, llvmType, intType);
-			BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, int32Type);
-			BuildTypeIntData(3, type->byValue, globalVar, llvmType, boolType);
-			llvm::Value* unionPtr = builder.CreateStructGEP(
-				llvmType,
-				globalVar,
-				4
-			);
-			BuildTypeUnionData(type, unionPtr);
-
-			typeMetadataMap.erase(type);
-		}
-	}
-
-	void BuildMain()
-	{
-		llvm::PointerType* argvType = llvm::PointerType::get(
-			llvm::PointerType::get(llvm::IntegerType::getInt8Ty(context), 0),
-			0
-		);
-		std::vector<llvm::Type*> mainParams = { int32Type, argvType };
-		llvm::FunctionType* mainFuncType = llvm::FunctionType::get(int32Type, mainParams, false);
-
-		llvm::Function* mainFunc = llvm::Function::Create(
-			mainFuncType,
-			llvm::Function::ExternalLinkage,
-			"__main",
-			module
-		);
-
-		llvm::BasicBlock* mainEntry = llvm::BasicBlock::Create(context, "entry", mainFunc);
-		builder.SetInsertPoint(mainEntry);
-
-		BuildTypeData();
-
-		for (SpiteIR::Package* package : ir->packages)
-		{
-			if (package->initializer)
-			{
-				llvm::Function* llvmFunc = functionMap[package->initializer];
-				llvm::Value* initCall = builder.CreateCall(llvmFunc, {});
-			}
-		}
-
-		SpiteIR::Function* entryFunc = ir->entry;
-		llvm::Function* entryLLVMFunc = functionMap[entryFunc];
-		llvm::Value* entryCall = builder.CreateCall(entryLLVMFunc, {});
-		if (!IsVoidType(entryFunc->returnType))
-		{
-			builder.CreateRet(entryCall);
-		}
-		else
-		{
-			builder.CreateRet(llvm::ConstantInt::get(intType, 0));
-		}
-	}
-
-	void InitializeTarget()
-	{
-		llvm::InitializeAllTargetInfos();
-		llvm::InitializeAllTargets();
-		llvm::InitializeAllTargetMCs();
-		llvm::InitializeAllAsmParsers();
-		llvm::InitializeAllAsmPrinters();
-	}
-
-	llvm::Triple::ArchType GetTargetArch()
-	{
-		switch (config.arch)
-		{
-		case X64:
-			return llvm::Triple::x86_64;
-		case X86:
-			return llvm::Triple::x86;
-		case Arm32:
-			return llvm::Triple::arm;
-		case Arm64:
-			return llvm::Triple::aarch64;
-		case ArchInvalid:
-			break;
-		default:
-			break;
-		}
-
-		return llvm::Triple::UnknownArch;
-	}
-
-	llvm::Triple::OSType GetTargetOS()
-	{
-		switch (config.os)
-		{
-		case Windows:
-			return llvm::Triple::Win32;
-		case Android:
-		case Linux:
-			return llvm::Triple::Linux;
-		case Mac:
-			return llvm::Triple::MacOSX;
-		case Ios:
-			return llvm::Triple::IOS;
-		case OsInvalid:
-			break;
-		default:
-			break;
-		}
-
-		return llvm::Triple::UnknownOS;
-	}
-
-	llvm::Triple::EnvironmentType GetTargetEnvironment() {
-		switch (config.os)
-		{
-		case Windows:
-			return llvm::Triple::MSVC;
-		case Android:
-			return llvm::Triple::Android;
-		case Linux:
-			return llvm::Triple::GNU;
-		default:
-			break;
-		}
-
-		return llvm::Triple::UnknownEnvironment;
-	}
-
-	llvm::Triple::VendorType GetTargetVendor()
-	{
-		switch (config.os)
-		{
-		case Windows:
-			return llvm::Triple::PC;
-		case Ios:
-			return llvm::Triple::Apple;
-		default:
-			break;
-		}
-
-		return llvm::Triple::UnknownVendor;
-	}
-
-
-	std::string BuildTargetTriple()
-	{
-		llvm::Triple triple;
-		triple.setArch(GetTargetArch());
-		triple.setOS(GetTargetOS());
-		triple.setEnvironment(GetTargetEnvironment());
-		triple.setVendor(GetTargetVendor());
-
-		return triple.getTriple();
-	}
-
-	std::string GetDestExt()
-	{
-		switch (config.os)
-		{
-		case Windows:
-			return ".obj";
-		default:
-			break;
-		}
-
-		return ".o";
-	}
-
-	void Compile()
-	{
-		InitializeTarget();
-
-		std::string targetTriple = BuildTargetTriple();
-		module.setTargetTriple(targetTriple);
-
-		std::string error;
-		const llvm::Target* target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
-		if (!target) 
-		{
-			llvm::errs() << "Error: " << error << "\n";
-			return;
-		}
-		
-		std::string cpu = "generic";
-		std::string features = "";
-		llvm::TargetOptions opt;
-		llvm::TargetMachine* targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
-	
-		module.setDataLayout(targetMachine->createDataLayout());
-		
-		std::string outputName(config.name.c_str());
-		std::string outputFileName = outputName + GetDestExt();
-		std::filesystem::path output = std::filesystem::current_path() / "Build" / outputFileName;
-
-		std::string directory = output.parent_path().string();
-		if (!directory.empty()) {
-			std::error_code ec = llvm::sys::fs::create_directories(directory);
-			if (ec) {
-				llvm::errs() << "Error creating directories: " << ec.message() << "\n";
-				return; // Handle the error appropriately
-			}
-		}
-
-
-		std::error_code EC;
-		llvm::raw_fd_ostream dest(output.string(), EC, llvm::sys::fs::OF_None);
-		if (EC) 
-		{
-			llvm::errs() << "Could not open file: " << EC.message() << "\n";
-			return;
-		}
-		
-		llvm::legacy::PassManager pass;
-		if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, llvm::CGFT_ObjectFile)) 
-		{
-			llvm::errs() << "TargetMachine can't emit a file of this type\n";
-			return;
-		}
-		
-		pass.run(module);
-		dest.flush();
-		llvm::outs() << "Wrote " << outputFileName << "\n";
+		if(compiler.Compile())
+			Logger::Info("LLVMBuilder: Compiled module");
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -508,13 +84,6 @@ struct LLVMBuilder
 		StateToLLVMType(state, context);
 	}
 
-	llvm::Twine GlobalVariableName(SpiteIR::GlobalVariable* globalVar)
-	{
-		eastl::string* name = arena.EmplaceScalar<eastl::string>();
-		*name = "g" + eastl::to_string(globalVar->index);
-		return ToTwine(*name);
-	}
-
 	void BuildGlobalVariable(SpiteIR::GlobalVariable* globalVar)
 	{
 		llvm::Type* type = ToLLVMType(globalVar->type, context);
@@ -524,10 +93,10 @@ struct LLVMBuilder
 			false,
 			llvm::GlobalValue::ExternalLinkage,
 			llvm::UndefValue::get(type),
-			GlobalVariableName(globalVar)
+			llvmContext.GlobalVariableName(globalVar)
 		);
 
-		globalVarMap[globalVar->index] = llvmGlobalVar;
+		llvmContext.globalVarMap[globalVar->index] = llvmGlobalVar;
 	}
 
 	bool ExternFunctionIsForTarget(eastl::vector<SpiteIR::PlatformLib>* libs)
@@ -581,12 +150,12 @@ struct LLVMBuilder
 			if (!ExternFunctionIsForTarget(function->metadata.externFunc->libs)) return;
 
 			eastl::string& funcName = function->name;
-			if (MapHas(externalFunctionMap, funcName))
+			if (MapHas(llvmContext.externalFunctionMap, funcName))
 			{
 				Logger::Warning("LLVMBuilder:BuildFunctionDeclaration multiple external functions with the name \""
 					+ funcName + "\", if they're linked to different libs one will be wrong");
 				
-				functionMap[function] = externalFunctionMap[funcName];
+				llvmContext.functionMap[function] = llvmContext.externalFunctionMap[funcName];
 				return;
 			}
 
@@ -599,10 +168,10 @@ struct LLVMBuilder
 			llvm::Twine name = ToTwine(funcName);
 			llvmFunc->setName(name);
 
-			externalFunctionMap[funcName] = llvmFunc;
+			llvmContext.externalFunctionMap[funcName] = llvmFunc;
 		}
 
-		functionMap[function] = llvmFunc;
+		llvmContext.functionMap[function] = llvmFunc;
 	}
 
 	void BuildPackage(SpiteIR::Package* package)
@@ -625,17 +194,10 @@ struct LLVMBuilder
 			return;
 		}
 
-		localVarMap.clear();
-		llvm::Function* llvmFunc = functionMap.at(function);
+		llvmContext.localVarMap.clear();
+		llvm::Function* llvmFunc = llvmContext.functionMap.at(function);
 		BuildFunctionArgs(function, llvmFunc);
 		BuildBlock(function, llvmFunc, function->block);
-	}
-
-	llvm::Twine RegisterName(size_t reg)
-	{
-		eastl::string* name = arena.EmplaceScalar<eastl::string>();
-		*name = "r" + eastl::to_string(reg);
-		return ToTwine(*name);
 	}
 
 	void BuildFunctionArgs(SpiteIR::Function* function, llvm::Function* llvmFunc)
@@ -644,8 +206,8 @@ struct LLVMBuilder
 		size_t i = 0;
 		for (llvm::Argument& arg : llvmFunc->args())
 		{
-			arg.setName(RegisterName(reg));
-			localVarMap[reg] = &arg;
+			arg.setName(llvmContext.RegisterName(reg));
+			llvmContext.localVarMap[reg] = &arg;
 			SpiteIR::Type* argType = function->arguments.at(i)->value.type;
 			reg += argType->size;
 			i += 1;
@@ -661,7 +223,7 @@ struct LLVMBuilder
 		for (size_t i = 1; i < block->labels.size(); i++)
 		{
 			SpiteIR::Label* label = block->labels.at(i);
-			labelMap[label] = CreateBasicBlock(llvmFunc, label);
+			llvmContext.labelMap[label] = CreateBasicBlock(llvmFunc, label);
 		}
 
 		// Skip allocations for function arguments
@@ -676,24 +238,8 @@ struct LLVMBuilder
 		for (size_t i = 1; i < block->labels.size(); i++)
 		{
 			SpiteIR::Label* label = block->labels.at(i);
-			BuildLabel(labelMap[label], label);
+			BuildLabel(llvmContext.labelMap[label], label);
 		}
-	}
-
-	void BuildEntry(SpiteIR::Function* function, llvm::Function* llvmFunc, SpiteIR::Block* block,
-		SpiteIR::Label* label)
-	{
-		llvm::BasicBlock* entryBlock = CreateBasicBlock(llvmFunc, label);
-		builder.SetInsertPoint(entryBlock);
-
-		// Skip allocations for function arguments
-		for (size_t i = function->arguments.size(); i < block->allocations.size(); i++)
-		{
-			SpiteIR::Allocate& alloc = block->allocations.at(i);
-			BuildAllocate(alloc);
-		}
-
-		BuildInstructions(label);
 	}
 
 	void BuildAllocate(SpiteIR::Allocate& alloc)
@@ -701,9 +247,9 @@ struct LLVMBuilder
 		llvm::AllocaInst* allocaInst = builder.CreateAlloca(
 			ToLLVMType(alloc.type, context),
 			nullptr,
-			RegisterName(alloc.result)
+			llvmContext.RegisterName(alloc.result)
 		);
-		localVarMap[alloc.result] = allocaInst;
+		llvmContext.localVarMap[alloc.result] = allocaInst;
 	}
 
 	llvm::BasicBlock* CreateBasicBlock(llvm::Function* llvmFunc, SpiteIR::Label* label)
@@ -728,12 +274,12 @@ struct LLVMBuilder
 
 	llvm::Value* GetLocalValue(size_t reg)
 	{
-		return localVarMap[reg];
+		return llvmContext.localVarMap[reg];
 	}
 
 	llvm::Value* GetGlobalValue(size_t reg)
 	{
-		return globalVarMap[reg];
+		return llvmContext.globalVarMap[reg];
 	}
 
 	void BuildInstruction(SpiteIR::Instruction* inst)
@@ -819,15 +365,15 @@ struct LLVMBuilder
 
 	void BuildJump(SpiteIR::Instruction* inst)
 	{
-		builder.CreateBr(labelMap[inst->jump.label]);
+		builder.CreateBr(llvmContext.labelMap[inst->jump.label]);
 	}
 
 	void BuildBranch(SpiteIR::Instruction* inst)
 	{
 		llvm::Value* test = builder.CreateLoad(ToLLVMType(inst->branch.test.type, context),
-			localVarMap[inst->branch.test.reg]);
-		builder.CreateCondBr(test, labelMap[inst->branch.true_],
-			labelMap[inst->branch.false_]);
+			llvmContext.localVarMap[inst->branch.test.reg]);
+		builder.CreateCondBr(test, llvmContext.labelMap[inst->branch.true_],
+			llvmContext.labelMap[inst->branch.false_]);
 	}
 
 	void BuildSwitch(SpiteIR::Instruction* inst)
@@ -840,13 +386,13 @@ struct LLVMBuilder
 		);
 
 		size_t caseCount = inst->switch_.cases->size();
-		llvm::BasicBlock* defaultBlock = labelMap[inst->switch_.defaultCase];
+		llvm::BasicBlock* defaultBlock = llvmContext.labelMap[inst->switch_.defaultCase];
 		llvm::SwitchInst* switchInst = builder.CreateSwitch(testValue, defaultBlock, caseCount);
 
 		for (auto& [caseTest, label] : *inst->switch_.cases)
 		{
 			llvm::ConstantInt* caseTestValue = llvm::ConstantInt::get(testType, caseTest);
-			llvm::BasicBlock* caseBlock = labelMap[label];
+			llvm::BasicBlock* caseBlock = llvmContext.labelMap[label];
 			switchInst->addCase(caseTestValue, caseBlock);
 		}
 	}
@@ -873,7 +419,7 @@ struct LLVMBuilder
 		BuildParams(inst->call.params, args);
 
 		SpiteIR::Function* func = inst->call.function;
-		llvm::Function* llvmFunc = functionMap[func];
+		llvm::Function* llvmFunc = llvmContext.functionMap[func];
 		// Platform specific functions will not be in the function map when building for
 		// a different target, this is fine as long as that code is behind a target check
 		if (llvmFunc)
@@ -935,14 +481,6 @@ struct LLVMBuilder
 		return nullptr;
 	}
 
-	void BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, llvm::Value* dst,
-		bool inBounds)
-	{
-		llvm::Value* zero = llvm::ConstantInt::get(int32Type, 0);
-		llvm::Value* gepValue = builder.CreateGEP(type, src, { zero, index }, "", inBounds);
-		builder.CreateStore(gepValue, dst);
-	}
-
 	void BuildLoad(SpiteIR::Instruction* inst)
 	{
 		auto& load = inst->load;
@@ -957,8 +495,8 @@ struct LLVMBuilder
 
 			intmax_t offset = load.offset.literal.intLiteral;
 			size_t memberIndex = GetMemberIndexForOffset(members, offset);
-			llvm::Value* index = llvm::ConstantInt::get(int32Type, memberIndex);
-			BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
+			llvm::Value* index = llvm::ConstantInt::get(llvmContext.int32Type, memberIndex);
+			llvmContext.BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
 		}
 		else if (load.src.type->kind == SpiteIR::TypeKind::FixedArrayType)
 		{
@@ -968,7 +506,7 @@ struct LLVMBuilder
 				ToLLVMType(load.offset.type, context),
 				GetLocalValue(load.offset.reg)
 			);
-			BuildGEPInst(type, ptr, offset, GetLocalValue(load.dst.reg), false);
+			llvmContext.BuildGEPInst(type, ptr, offset, GetLocalValue(load.dst.reg), false);
 		}
 		else
 		{
@@ -989,8 +527,8 @@ struct LLVMBuilder
 		{
 			intmax_t offset = load.offset.literal.intLiteral;
 			size_t memberIndex = GetMemberIndexForOffset(members, offset);
-			llvm::Value* index = llvm::ConstantInt::get(int32Type, memberIndex);
-			BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
+			llvm::Value* index = llvm::ConstantInt::get(llvmContext.int32Type, memberIndex);
+			llvmContext.BuildGEPInst(type, ptr, index, GetLocalValue(load.dst.reg), true);
 		}
 		else
 		{
@@ -998,7 +536,7 @@ struct LLVMBuilder
 			if (load.offset.kind == SpiteIR::OperandKind::Literal)
 			{
 				intmax_t index = load.offset.literal.intLiteral;
-				offset = llvm::ConstantInt::get(int32Type, index);
+				offset = llvm::ConstantInt::get(llvmContext.int32Type, index);
 			}
 			else
 			{
@@ -1021,7 +559,7 @@ struct LLVMBuilder
 				builder.CreateStore(gepValue, dstPtr);
 			}
 			else
-				BuildGEPInst(type, ptr, offset, dstPtr, false);
+				llvmContext.BuildGEPInst(type, ptr, offset, dstPtr, false);
 		}
 	}
 
@@ -1049,34 +587,13 @@ struct LLVMBuilder
 			""
 		);
 
-		llvm::Constant* zero = llvm::ConstantInt::get(int32Type, 0);
+		llvm::Constant* zero = llvm::ConstantInt::get(llvmContext.int32Type, 0);
 		llvm::Constant* indices[] = { zero, zero };
 		return llvm::ConstantExpr::getGetElementPtr(
 			byteArrayType,
 			globalStr,
 			indices
 		);
-	}
-
-	inline llvm::GlobalVariable* BuildTypeValue(SpiteIR::Type* type)
-	{
-		if (MapHas(typeMetadataMap, type))
-		{
-			return typeMetadataMap[type];
-		}
-
-		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
-		llvm::GlobalVariable* typeVar = new llvm::GlobalVariable(
-			module,
-			llvmType,
-			false,
-			llvm::GlobalValue::ExternalLinkage,
-			llvm::UndefValue::get(llvmType),
-			""
-		);
-
-		typeMetadataMap[type] = typeVar;
-		return typeVar;
 	}
 
 	inline llvm::Value* BuildOperandValue(SpiteIR::Operand& src)
@@ -1124,7 +641,8 @@ struct LLVMBuilder
 					// But fuck it, we ball
 					else
 					{
-						llvm::Constant* intValue = llvm::ConstantInt::get(intType, src.literal.intLiteral);
+						llvm::Constant* intValue = llvm::ConstantInt::get(llvmContext.intType, 
+							src.literal.intLiteral);
 						value = builder.CreateIntToPtr(intValue, type);
 						break;
 					}
@@ -1143,7 +661,8 @@ struct LLVMBuilder
 			{
 				eastl::string* str = src.literal.stringLiteral;
 				size_t count = str->size();
-				llvm::Constant* countValue = llvm::ConstantInt::get(intType, count);
+				llvm::Constant* countValue = llvm::ConstantInt::get(llvmContext.intType, 
+					count);
 
 				if (!count)
 				{
@@ -1168,7 +687,7 @@ struct LLVMBuilder
 		}
 		case SpiteIR::OperandKind::StructLiteral:
 		{
-			llvm::Constant* zero = llvm::ConstantInt::get(int32Type, 0);
+			llvm::Constant* zero = llvm::ConstantInt::get(llvmContext.int32Type, 0);
 			eastl::vector<SpiteIR::Member*>* members = GetMembersForType(src.type);
 			llvm::Value* valuePtr = builder.CreateAlloca(type, nullptr);
 			for (size_t i = 0; i < src.structLiteral->size(); i++)
@@ -1178,7 +697,7 @@ struct LLVMBuilder
 				llvm::Value* itemPointer = builder.CreateInBoundsGEP(
 					type,
 					valuePtr,
-					{ zero, llvm::ConstantInt::get(int32Type, i) }
+					{ zero, llvm::ConstantInt::get(llvmContext.int32Type, i) }
 				);
 				builder.CreateStore(itemValue, itemPointer);
 			}
@@ -1187,13 +706,13 @@ struct LLVMBuilder
 		}
 		case SpiteIR::OperandKind::Function:
 		{
-			llvm::Function* llvmFunc = functionMap[src.function];
+			llvm::Function* llvmFunc = llvmContext.functionMap[src.function];
 			value = llvmFunc;
 			break;
 		}
 		case SpiteIR::OperandKind::TypeData:
 		{
-			value = BuildTypeValue(src.type);
+			value = llvmContext.BuildTypeValue(src.type);
 			break;
 		}
 		default:

@@ -1738,7 +1738,7 @@ struct LowerDefinitions
 		return nullptr;
 	}
 
-	// Dereferencing is hidden on member selection
+	// Dereferencing is hidden on member selection and method calls
 	ScopeValue DereferenceToSinglePointer(ScopeValue value)
 	{
 		// Reference to a pointer, dereference

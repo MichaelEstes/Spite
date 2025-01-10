@@ -86,6 +86,8 @@ size_t HashIRType(const SpiteIR::Type* type)
 	default:
 		break;
 	}
+
+	return (size_t)-1;
 }
 
 struct IRTypeHash
@@ -151,6 +153,8 @@ bool IsIRTypeEqual(const SpiteIR::Type* l, const SpiteIR::Type* r)
 	default:
 		break;
 	}
+
+	return false;
 }
 
 struct IRTypeEqual

@@ -52,6 +52,12 @@ file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/Runtime")
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Runtime")
 file(COPY ${RUNTIME_PATH} DESTINATION "${CMAKE_BINARY_DIR}/Runtime")
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	file(COPY "${PROJECT_SOURCE_DIR}/Compile/Debug" DESTINATION "${CMAKE_BINARY_DIR}/Runtime/Compile")
+else()
+	file(COPY "${PROJECT_SOURCE_DIR}/Compile/Release" DESTINATION "${CMAKE_BINARY_DIR}/Runtime/Compile")
+endif()
+
 # Add source to this project's executable.
 add_executable (Spite_Lang 
 "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "Src/Parsing/Parser.cpp"
@@ -67,7 +73,8 @@ add_executable (Spite_Lang
 "Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h" "Src/Containers/Array.h" 
 "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" 
 "Src/Syntax/TypeInference.h" "Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" 
-"Src/Output/LLVM/LLVMTypes.h"  )
+"Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" 
+"Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
