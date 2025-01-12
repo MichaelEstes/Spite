@@ -74,7 +74,7 @@ add_executable (Spite_Lang
 "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" 
 "Src/Syntax/TypeInference.h" "Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" 
 "Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" 
-"Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h")
+"Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h" "Src/Output/C/CBuilder.h" "Src/Output/C/CTypes.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)

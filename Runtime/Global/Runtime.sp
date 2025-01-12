@@ -88,7 +88,7 @@ string GetExecDir()
 
 void Print(str: string)
 {
-	for (i .. str.count) putchar(str[i]~ as int32);
+	for (i .. str.count) putchar(str[i]~);
 }
 
 void PrintLine(str: string)

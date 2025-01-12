@@ -37,7 +37,7 @@ struct LLVMEntry
 		builder.SetInsertPoint(mainEntry);
 
 		BuildTypeData();
-
+		
 		for (SpiteIR::Package* package : llvmContext.ir->packages)
 		{
 			if (package->initializer)
@@ -93,27 +93,29 @@ struct LLVMEntry
 			""
 		);
 
-		SpiteIR::Type* valueType = memberType->stateType.state->members.at(0)->value.type;
-		llvm::Type* llvmValueType = ToLLVMType(valueType, context);
 		llvm::Value* valuePtr = builder.CreateStructGEP(
 			llvmType,
 			memberVar,
 			0
 		);
+		SpiteIR::Type* valueType = memberType->stateType.state->members.at(0)->value.type;
+		llvm::Type* llvmValueType = ToLLVMType(valueType, context);
 		llvm::Value* valueTypePtr = builder.CreateStructGEP(
 			llvmValueType,
 			valuePtr,
 			0
 		);
-		builder.CreateStore(llvmContext.BuildTypeValue(member->value.type), valueTypePtr);
+
+		llvm::Value* typeValue = llvmContext.BuildTypeValue(member->value.type);
+		builder.CreateStore(typeValue, valueTypePtr);
 		llvm::Value* valueNamePtr = builder.CreateStructGEP(
 			llvmValueType,
 			valuePtr,
 			1
 		);
-		//SpiteIR::Type* strType = valueType->stateType.state->members.at(1)->value.type;
-		//BuildInteropString(member->value.name, strType, valueNamePtr);
-		//BuildTypeIntData(1, member->offset, memberVar, llvmType, llvmContext.intType);
+		SpiteIR::Type* strType = valueType->stateType.state->members.at(1)->value.type;
+		BuildInteropString(member->value.name, strType, valueNamePtr);
+		BuildTypeIntData(1, member->offset, memberVar, llvmType, llvmContext.intType);
 
 		return memberVar;
 	}
@@ -140,20 +142,20 @@ struct LLVMEntry
 		{
 			SpiteIR::Member* member = members.at(i);
 			llvm::Value* memberPtr = CreateMember(member, memberType);
-			//llvm::Value* index = llvm::ConstantInt::get(llvmContext.int32Type, i);
-			//llvmContext.BuildGEPInst(llvmMemberArrayType, memberPtr, index, memberArr, true);
+			llvm::Value* index = llvm::ConstantInt::get(llvmContext.int32Type, i);
+			llvmContext.BuildGEPInst(llvmMemberArrayType, memberPtr, index, memberArr, true);
 		}
 		
-		//llvm::Value* beginPtr = builder.CreateStructGEP(llvmType, ptr, 0);
-		//llvm::Value* endPtr = builder.CreateStructGEP(llvmType, ptr, 1);
-		//
-		//llvm::Value* beginPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
-		//	{ llvm::ConstantInt::get(llvmContext.int32Type, 0) });
-		//llvm::Value* endPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
-		//	{ llvm::ConstantInt::get(llvmContext.int32Type, members.size() - 1) });
-		//
-		//builder.CreateStore(beginPtrValue, beginPtr);
-		//builder.CreateStore(endPtrValue, endPtr);
+		llvm::Value* beginPtr = builder.CreateStructGEP(llvmType, ptr, 0);
+		llvm::Value* endPtr = builder.CreateStructGEP(llvmType, ptr, 1);
+		
+		llvm::Value* beginPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
+			{ llvm::ConstantInt::get(llvmContext.int32Type, 0) });
+		llvm::Value* endPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
+			{ llvm::ConstantInt::get(llvmContext.int32Type, members.size() - 1) });
+		
+		builder.CreateStore(beginPtrValue, beginPtr);
+		builder.CreateStore(endPtrValue, endPtr);
 	}
 
 	void BuildInteropString(eastl::string& str, SpiteIR::Type* interopStringType, llvm::Value* ptr)
@@ -196,7 +198,7 @@ struct LLVMEntry
 			module,
 			llvmType,
 			false,
-			llvm::GlobalValue::ExternalLinkage,
+			llvm::GlobalValue::PrivateLinkage,
 			llvm::UndefValue::get(llvmType),
 			""
 		);

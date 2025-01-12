@@ -1,59 +1,33 @@
 #pragma once
+#pragma once
 
-#include "./LLVMEntry.h"
-#include "./LLVMCompile.h"
-#include "./LLVMOptimize.h"
+#include "../../IR/IR.h"
+#include "../../Lower/LowerUtils.h"
 
-struct LLVMBuilder
+/*
+struct CBuilder
 {
-	LLVMContext llvmContext;
-
-	llvm::LLVMContext& context;
-	llvm::IRBuilder<>& builder;
-	llvm::Module& module;
-
-	LLVMBuilder(SpiteIR::IR* ir) : llvmContext(ir),
-		context(llvmContext.context),
-		builder(llvmContext.builder),
-		module(llvmContext.module)
-	{}
+	SpiteIR::IR* ir;
+	CBuilder(SpiteIR::IR* ir)
+	{
+		this->ir = ir;
+	}
 
 	void Build()
 	{
-		LLVMCompile compiler = LLVMCompile(llvmContext);
-		if (!compiler.Initialize()) return;
-
-		for (SpiteIR::Package* package : llvmContext.ir->packages)
+		for (SpiteIR::Package* package : ir->packages)
 			BuildPackageDeclarations(package);
 
-		Logger::Info("LLVMBuilder: Built LLVM Declarations");
+		Logger::Info("CBuilder: Built C Declarations");
 
-		for (SpiteIR::Package* package : llvmContext.ir->packages)
+		for (SpiteIR::Package* package : ir->packages)
 			BuildPackage(package);
 
-		Logger::Info("LLVMBuilder: Built LLVM Definitions");
+		Logger::Info("CBuilder: Built C Definitions");
 
-		LLVMEntry(llvmContext).BuildMain();
+		//LLVMEntry(llvmContext).BuildMain();
 
-		Logger::Info("LLVMBuilder: Built entry point");
-
-		if (llvm::verifyModule(module, &llvm::errs()))
-		{
-			llvm::errs() << "Module verification failed!\n";
-			return;
-		}
-		Logger::Info("LLVMBuilder: Verified module");
-
-		//LLVMOptimize(llvmContext).Optimize();
-		//Logger::Info("LLVMBuilder: Optimized module");
-
-		std::string fileName = "output.ll";
-		std::error_code ec;
-		llvm::raw_fd_ostream dest(fileName, ec, llvm::sys::fs::OF_None);
-		module.print(dest, nullptr);
-
-		if (compiler.Compile())
-			Logger::Info("LLVMBuilder: Compiled module");
+		Logger::Info("CBuilder: Built entry point");
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -478,6 +452,29 @@ struct LLVMBuilder
 	{
 		auto& load = inst->load;
 
+		//llvm::Value* offset;
+		//if (load.offset.kind == SpiteIR::OperandKind::Literal)
+		//{
+		//	intmax_t index = load.offset.literal.intLiteral * load.indexType->size;
+		//	offset = llvm::ConstantInt::get(llvmContext.int32Type, index);
+		//}
+		//else
+		//{
+		//	Assert(load.offset.kind == SpiteIR::OperandKind::Register);
+		//	llvm::Type* offsetType = ToLLVMType(load.offset.type, context);
+		//	llvm::Value* offsetValue = builder.CreateLoad(
+		//		offsetType,
+		//		GetLocalValue(load.offset.reg)
+		//	);
+		//	offset = builder.CreateMul(offsetValue, llvm::ConstantInt::get(offsetType,
+		//		load.indexType->size));
+		//}
+		//
+		//llvm::Value* ptr = GetLocalValue(load.src.reg);
+		//llvm::Value* dstPtr = GetLocalValue(load.dst.reg);
+		//llvm::Value* indexedPtr = builder.CreateGEP(builder.getInt8Ty(), ptr, offset);
+		//builder.CreateStore(indexedPtr, dstPtr);
+
 		llvm::Type* type = ToLLVMType(load.src.type, context);
 		llvm::Value* ptr = GetLocalValue(load.src.reg);
 		llvm::Value* dstPtr = GetLocalValue(load.dst.reg);
@@ -494,20 +491,17 @@ struct LLVMBuilder
 				ptr,
 				memberIndex
 			);
-			llvm::StoreInst* inst = builder.CreateStore(memberPtr, dstPtr);
-			inst->setMetadata("load", llvm::MDNode::get(context, llvm::MDString::get(context, "load")));
+			builder.CreateStore(memberPtr, dstPtr);
 		}
 		else if (load.src.type->kind == SpiteIR::TypeKind::FixedArrayType)
 		{
 			Assert(load.offset.kind == SpiteIR::OperandKind::Register);
 
-			llvm::LoadInst* offset = builder.CreateLoad(
+			llvm::Value* offset = builder.CreateLoad(
 				ToLLVMType(load.offset.type, context),
 				GetLocalValue(load.offset.reg)
 			);
-			offset->setMetadata("load_offset", llvm::MDNode::get(context, llvm::MDString::get(context, "load_offset")));
-			llvm::StoreInst* inst = llvmContext.BuildGEPInst(type, ptr, offset, dstPtr, false);
-			inst->setMetadata("load_gep", llvm::MDNode::get(context, llvm::MDString::get(context, "load_gep")));
+			llvmContext.BuildGEPInst(type, ptr, offset, dstPtr, false);
 		}
 		else
 		{
@@ -518,6 +512,32 @@ struct LLVMBuilder
 	void BuildLoadPtrOffset(SpiteIR::Instruction* inst)
 	{
 		auto& load = inst->load;
+
+		//llvm::Value* offset;
+		//if (load.offset.kind == SpiteIR::OperandKind::Literal)
+		//{
+		//	intmax_t index = load.offset.literal.intLiteral * load.indexType->size;
+		//	offset = llvm::ConstantInt::get(llvmContext.int32Type, index);
+		//}
+		//else
+		//{
+		//	llvm::Type* offsetType = ToLLVMType(load.offset.type, context);
+		//	llvm::Value* offsetValue = builder.CreateLoad(
+		//		offsetType,
+		//		GetLocalValue(load.offset.reg)
+		//	);
+		//	offset = builder.CreateMul(offsetValue, llvm::ConstantInt::get(offsetType,
+		//		load.indexType->size));
+		//}
+		//
+		//llvm::Value* ptr = builder.CreateLoad(
+		//	ToLLVMType(load.src.type, context),
+		//	GetLocalValue(load.src.reg)
+		//);
+		//llvm::Value* dstPtr = GetLocalValue(load.dst.reg);
+		//llvm::Value* indexedPtr = builder.CreateGEP(builder.getInt8Ty(), ptr, offset);
+		//builder.CreateStore(indexedPtr, dstPtr);
+
 
 		SpiteIR::Type* srcType = GetDereferencedType(load.src.type);
 		llvm::Type* ptrType = ToLLVMType(load.src.type, context);
@@ -538,8 +558,7 @@ struct LLVMBuilder
 				ptr,
 				memberIndex
 			);
-			llvm::StoreInst* storeInst = builder.CreateStore(memberPtr, dstPtr);
-			storeInst->setMetadata("load_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "load_ptr")));
+			builder.CreateStore(memberPtr, dstPtr);
 		}
 		else
 		{
@@ -552,26 +571,20 @@ struct LLVMBuilder
 			else
 			{
 				Assert(load.offset.kind == SpiteIR::OperandKind::Register);
-				llvm::LoadInst* loadInst = builder.CreateLoad(
+				offset = builder.CreateLoad(
 					ToLLVMType(load.offset.type, context),
 					GetLocalValue(load.offset.reg)
 				);
-				loadInst->setMetadata("load_ptr_offset", llvm::MDNode::get(context, llvm::MDString::get(context, "load_ptr_offset")));
-				offset = loadInst;
 			}
 
 			if (srcType->kind != SpiteIR::TypeKind::FixedArrayType)
 			{
 				// Pointer arithmetic
 				llvm::Value* gepPtr = builder.CreateGEP(type, ptr, offset);
-				llvm::StoreInst* storeInst = builder.CreateStore(gepPtr, dstPtr);
-				storeInst->setMetadata("load_ptr_arith", llvm::MDNode::get(context, llvm::MDString::get(context, "load_ptr_arith")));
+				builder.CreateStore(gepPtr, dstPtr);
 			}
 			else
-			{
-				llvm::StoreInst* storeInst = llvmContext.BuildGEPInst(type, ptr, offset, dstPtr, false);
-				storeInst->setMetadata("load_ptr_gep", llvm::MDNode::get(context, llvm::MDString::get(context, "load_ptr_gep")));
-			}
+				llvmContext.BuildGEPInst(type, ptr, offset, dstPtr, false);
 		}
 	}
 
@@ -579,8 +592,7 @@ struct LLVMBuilder
 	{
 		llvm::Value* globalPtrValue = GetGlobalValue(inst->loadGlobal.src);
 		llvm::Value* dst = GetLocalValue(inst->loadGlobal.dst.reg);
-		llvm::StoreInst* storeInst = builder.CreateStore(globalPtrValue, dst);
-		storeInst->setMetadata("load_global", llvm::MDNode::get(context, llvm::MDString::get(context, "load_global")));
+		builder.CreateStore(globalPtrValue, dst);
 	}
 
 	inline llvm::Constant* BuildStringLiteral(eastl::string* str)
@@ -608,12 +620,10 @@ struct LLVMBuilder
 		{
 		case SpiteIR::OperandKind::Register:
 		{
-			llvm::LoadInst* loadInst = builder.CreateLoad(
+			value = builder.CreateLoad(
 				type,
-				GetLocalValue(src.reg)			
+				GetLocalValue(src.reg)
 			);
-			loadInst->setMetadata("store_value", llvm::MDNode::get(context, llvm::MDString::get(context, "store_value")));
-			value = loadInst;
 			break;
 		}
 		case SpiteIR::OperandKind::Literal:
@@ -671,7 +681,7 @@ struct LLVMBuilder
 				size_t count = str->size();
 				llvm::Constant* countValue = llvm::ConstantInt::get(llvmContext.intType,
 					count);
-				
+
 				value = llvm::ConstantStruct::get(
 					llvm::cast<llvm::StructType>(type),
 					{ countValue, BuildStringLiteral(src.literal.stringLiteral) }
@@ -713,8 +723,7 @@ struct LLVMBuilder
 			break;
 		}
 
-		llvm::StoreInst* storeInst = builder.CreateStore(value, dstPtr);
-		storeInst->setMetadata("store_operand", llvm::MDNode::get(context, llvm::MDString::get(context, "store_operand")));
+		builder.CreateStore(value, dstPtr);
 	}
 
 	void BuildStore(SpiteIR::Instruction* inst)
@@ -726,12 +735,10 @@ struct LLVMBuilder
 	{
 		llvm::Value* srcValuePtr = GetLocalValue(inst->store.src.reg);
 		llvm::Type* srcType = ToLLVMType(inst->store.src.type, context);
-		llvm::LoadInst* srcValue = builder.CreateLoad(srcType, srcValuePtr);
-		srcValue->setMetadata("store_ptr_src", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr_src")));
+		llvm::Value* srcValue = builder.CreateLoad(srcType, srcValuePtr);
 
 		llvm::Value* dstValuePtr = GetLocalValue(inst->store.dst.reg);
-		llvm::StoreInst* storeInst = builder.CreateStore(srcValue, dstValuePtr);
-		storeInst->setMetadata("store_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr")));
+		builder.CreateStore(srcValue, dstValuePtr);
 	}
 
 	void BuildMove(SpiteIR::Instruction* inst)
@@ -743,52 +750,35 @@ struct LLVMBuilder
 			ToLLVMType(inst->store.src.type, context),
 			srcPtr
 		);
-		srcValuePtr->setMetadata("move_src_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "move_src_ptr")));
-
-		llvm::LoadInst* srcValue = builder.CreateLoad(
+		llvm::Value* srcValue = builder.CreateLoad(
 			ToLLVMType(inst->store.dst.type, context),
 			srcValuePtr
 		);
-		srcValue->setMetadata("move_src_value", llvm::MDNode::get(context, llvm::MDString::get(context, "move_src_value")));
 
-
-		llvm::LoadInst* dstValuePtr = builder.CreateLoad(
+		llvm::Value* dstValuePtr = builder.CreateLoad(
 			ToLLVMType(inst->store.src.type, context),
 			dstPtr
 		);
-		dstValuePtr->setMetadata("move_dst_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "move_dst_ptr")));
-
 
 		llvm::StoreInst* store = builder.CreateStore(srcValue, dstValuePtr);
-		dstValuePtr->setMetadata("move_store", llvm::MDNode::get(context, llvm::MDString::get(context, "move_store")));
 	}
 
 	void BuildReference(SpiteIR::Instruction* inst)
 	{
 		llvm::Value* srcPtr = GetLocalValue(inst->store.src.reg);
 		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
-		llvm::StoreInst* store = builder.CreateStore(srcPtr, dstPtr);
-		store->setMetadata("reference", llvm::MDNode::get(context, llvm::MDString::get(context, "reference")));
+		builder.CreateStore(srcPtr, dstPtr);
 	}
 
 	void BuildDereference(SpiteIR::Instruction* inst)
 	{
 		llvm::Value* srcPtr = GetLocalValue(inst->store.src.reg);
-		llvm::LoadInst* srcValuePtr = builder.CreateLoad(
+		llvm::Value* srcValue = builder.CreateLoad(
 			ToLLVMType(inst->store.src.type, context),
 			srcPtr
 		);
-		srcValuePtr->setMetadata("dereference_load_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_load_ptr")));
-		
-		llvm::LoadInst* srcValue = builder.CreateLoad(
-			ToLLVMType(inst->store.dst.type, context),
-			srcValuePtr
-		);
-		srcValue->setMetadata("dereference_load_value", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_load_value")));
-
 		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
-		llvm::StoreInst* store = builder.CreateStore(srcValue, dstPtr);
-		store->setMetadata("dereference_store", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_store")));
+		builder.CreateStore(srcValue, dstPtr);
 	}
 
 	void BuildCast(SpiteIR::Instruction* inst)
@@ -1152,3 +1142,4 @@ struct LLVMBuilder
 	{
 	}
 };
+*/

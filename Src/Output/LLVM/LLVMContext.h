@@ -46,6 +46,15 @@ struct LLVMContext
 	llvm::Type* intType;
 	llvm::StructType* strType;
 
+	llvm::NamedMDNode* storeNode;
+	llvm::NamedMDNode* storePtrNode;
+	llvm::NamedMDNode* loadNode;
+	llvm::NamedMDNode* loadPtrNode;
+	llvm::NamedMDNode* loadGlobalNode;
+	llvm::NamedMDNode* referenceNode;
+	llvm::NamedMDNode* dereferenceNode;
+
+
 	LLVMContext(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
@@ -53,6 +62,14 @@ struct LLVMContext
 		intType = ToLLVMType(CreateIntType(ir), context);
 		int32Type = llvm::IntegerType::getInt32Ty(context);
 		strType = StateToLLVMType(stringState, context);
+
+		storeNode = module.getOrInsertNamedMetadata("store");
+		storePtrNode = module.getOrInsertNamedMetadata("storePtr");
+		loadNode = module.getOrInsertNamedMetadata("load");
+		loadPtrNode = module.getOrInsertNamedMetadata("loadPtr");
+		loadGlobalNode = module.getOrInsertNamedMetadata("loadGlobal");
+		referenceNode = module.getOrInsertNamedMetadata("reference");
+		dereferenceNode = module.getOrInsertNamedMetadata("dereference");
 	}
 
 	llvm::Twine GlobalVariableName(SpiteIR::GlobalVariable* globalVar)
@@ -66,6 +83,13 @@ struct LLVMContext
 	{
 		eastl::string* name = arena.EmplaceScalar<eastl::string>();
 		*name = "r" + eastl::to_string(reg);
+		return ToTwine(*name);
+	}
+
+	llvm::Twine ArgumentName(size_t reg)
+	{
+		eastl::string* name = arena.EmplaceScalar<eastl::string>();
+		*name = "a" + eastl::to_string(reg);
 		return ToTwine(*name);
 	}
 
@@ -90,11 +114,11 @@ struct LLVMContext
 		return typeVar;
 	}
 
-	void BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, llvm::Value* dst,
+	llvm::StoreInst* BuildGEPInst(llvm::Type* type, llvm::Value* src, llvm::Value* index, llvm::Value* dst,
 		bool inBounds)
 	{
 		llvm::Value* zero = llvm::ConstantInt::get(int32Type, 0);
-		llvm::Value* gepValue = builder.CreateGEP(type, src, { zero, index }, "", inBounds);
-		builder.CreateStore(gepValue, dst);
+		llvm::Value* gepPtr = builder.CreateGEP(type, src, { zero, index }, "", inBounds);
+		return builder.CreateStore(gepPtr, dst);
 	}
 };
