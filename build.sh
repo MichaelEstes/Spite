@@ -1,5 +1,6 @@
 echo Building Spite Lang;
 cd ./Build;
+cmake ..;
 make;
 echo Running Spite Lang;
 ./Spite_Lang -file ../Test/Test.sp -dir ../Test -entry Init -os linux;

@@ -52,25 +52,27 @@ string _Interop_Map::log() => "Interop Map";
 
 state _Interop_String
 {
-	str: [(#sizeof int) * 3]byte
+	str: *byte,
+	count: uint,
+	allocator: *void
 }
 
 string _Interop_String::ToString()
 {
 	count := (#sizeof int) * 3;
-	flag := this.str[count - 1];
+	buf := this.str as [count]byte;
+	flag := buf[count - 1];
 	heapAllocated: bool = !!(flag & 0x80);
 
 	if (heapAllocated)
 	{
-		heapStr := (fixed this.str) as *{str: *byte, count: uint};
-		return {heapStr.count, heapStr.str} as string;
+		return {this.count, this.str} as string;
 	}
 	else
 	{
 		size := 0;
-		while(this.str[size] && size < count) size += 1;
-		return {size, fixed this.str} as string;
+		while(buf[size] && size < count) size += 1;
+		return {size, fixed buf} as string;
 	}
 }
 

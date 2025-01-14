@@ -201,6 +201,12 @@ inline bool IsAssignableString(SpiteIR::Type* type)
 		type->stateType.state->name == "___string");
 }
 
+inline bool IsBoolType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PrimitiveType &&
+		type->primitive.kind == SpiteIR::PrimitiveKind::Bool;
+}
+
 inline bool IsIntLikeType(SpiteIR::Type* type)
 {
 	return type->kind == SpiteIR::TypeKind::PrimitiveType &&

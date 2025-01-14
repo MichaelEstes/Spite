@@ -74,6 +74,31 @@ struct LLVMEntry
 		);
 	}
 
+	void BuildTypeBoolData(int offset, bool value, llvm::Value* valuePtr, llvm::Type* structType)
+	{
+		llvm::Value* ptr = builder.CreateStructGEP(
+			structType,
+			valuePtr,
+			offset
+		);
+
+		if (value)
+		{
+			builder.CreateStore(
+				llvm::ConstantInt::getTrue(context),
+				ptr
+			);
+		}
+		else
+		{
+			builder.CreateStore(
+				llvm::ConstantInt::getFalse(context),
+				ptr
+			);
+		}
+
+	}
+
 	llvm::Value* CastMember(SpiteIR::Member* member, llvm::Value* ptr)
 	{
 		llvm::Type* type = llvm::PointerType::get(ToLLVMType(member->value.type, context), 0);
@@ -175,12 +200,8 @@ struct LLVMEntry
 			""
 		);
 
-		llvm::Type* charPtrType = llvm::PointerType::get(llvm::Type::getInt8Ty(context), 0);
-		std::vector<llvm::Type*> structElemTypes = { charPtrType, llvmContext.intType, 
-			llvmContext.intType, llvmContext.intType };
-		llvm::Type* strType = llvm::StructType::get(context, structElemTypes);
+		llvm::Type* strType = ToLLVMType(interopStringType, context);
 		llvm::Value* strValuePtr = builder.CreateBitCast(ptr, llvm::PointerType::get(strType, 0));
-
 		llvm::Value* strBeginPtr = builder.CreateStructGEP(
 			strType,
 			strValuePtr,
@@ -241,7 +262,7 @@ struct LLVMEntry
 			SpiteIR::Member* member = unionMembers->at(0);
 			llvm::Value* ptr = CastMember(member, unionPtr);
 			llvm::Type* primitiveType = ToLLVMType(member->value.type, context);
-			BuildTypeIntData(0, type->primitive.isSigned, ptr, primitiveType, llvmContext.boolType);
+			BuildTypeBoolData(0, type->primitive.isSigned, ptr, primitiveType);
 			BuildTypeIntData(1, static_cast<int>(type->primitive.kind), ptr, primitiveType, llvmContext.int32Type);
 			break;
 		}
@@ -321,7 +342,7 @@ struct LLVMEntry
 			BuildTypeIntData(0, type->size, globalVar, llvmType, llvmContext.intType);
 			BuildTypeIntData(1, type->alignment, globalVar, llvmType, llvmContext.intType);
 			BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, llvmContext.int32Type);
-			BuildTypeIntData(3, type->byValue, globalVar, llvmType, llvmContext.boolType);
+			BuildTypeBoolData(3, type->byValue, globalVar, llvmType);
 			llvm::Value* unionPtr = builder.CreateStructGEP(
 				llvmType,
 				globalVar,

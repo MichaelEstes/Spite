@@ -276,7 +276,7 @@ struct Interpreter
 		else
 			offset = *(intmax_t*)(void*)(stackFrameStart + loadInst.load.offset.reg) * loadInst.load.indexType->size;
 
-		char* start = (char*)*(size_t*)(void*)(stackFrameStart + loadInst.load.src.reg);
+		char* start = *(char**)(void*)(stackFrameStart + loadInst.load.src.reg);
 		char* indexed = start + offset;
 		*(size_t*)(void*)(stackFrameStart + loadInst.load.dst.reg) = (size_t)indexed;
 	}
@@ -368,7 +368,7 @@ struct Interpreter
 
 	inline void InterpretStorePtr(SpiteIR::Instruction& storeInst)
 	{
-		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.dst.reg);
+		char* ptr = *(char**)(void*)(stackFrameStart + storeInst.store.dst.reg);
 		char* src = stackFrameStart + storeInst.store.src.reg;
 		memcpy(ptr, src, storeInst.store.src.type->size);
 	}
@@ -388,7 +388,7 @@ struct Interpreter
 
 	inline void InterpretDereference(SpiteIR::Instruction& storeInst)
 	{
-		char* ptr = (char*)*(size_t*)(void*)(stackFrameStart + storeInst.store.src.reg);
+		char* ptr = *(char**)(void*)(stackFrameStart + storeInst.store.src.reg);
 		char* dst = stackFrameStart + storeInst.store.dst.reg;
 		memcpy(dst, ptr, storeInst.store.dst.type->size);
 	}

@@ -176,10 +176,9 @@ string FloatToString(f: float, precision := 4)
 
 string _SerializeType(value: *byte, type: *_Type)
 {
-	typeKind := type.kind;
 	typeData := type.type;
 
-	switch (typeKind)
+	switch (type.kind)
 	{
 		case (_TypeKind.PrimitiveType)
 		{
@@ -291,6 +290,7 @@ string _SerializeType(value: *byte, type: *_Type)
 			itemType := typeData.fixedArray.type;
 			itemSize := itemType.size;
 			count := typeData.fixedArray.count;
+			putchar(count);
 
 			out := "fixed [";
 			for (i .. count)
