@@ -889,9 +889,14 @@ struct LLVMBuilder
 		}
 		case SpiteIR::TypeKind::PointerType:
 		{
-			llvm::Value* ptrToInt = builder.CreatePtrToInt(fromPtr, toType);
-			builder.CreateStore(ptrToInt, toPtr);
-			return;
+			if (IsIntLikeType(inst->cast.to.type))
+			{
+				llvm::Value* fromValuePtr = builder.CreateLoad(fromType, fromPtr);
+				llvm::Value* ptrToInt = builder.CreatePtrToInt(fromValuePtr, toType);
+				builder.CreateStore(ptrToInt, toPtr);
+				return;
+			}
+			//continue
 		}
 		case SpiteIR::TypeKind::ReferenceType:
 		{

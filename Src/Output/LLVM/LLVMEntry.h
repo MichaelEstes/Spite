@@ -150,8 +150,10 @@ struct LLVMEntry
 	{
 		llvm::Type* llvmType = ToLLVMType(memberArrayType, context);
 		SpiteIR::Type* memberPtrType = memberArrayType->stateType.state->members.at(0)->value.type->pointer.type;
-		llvm::Type* llvmMemberArrayType = llvm::ArrayType::get(ToLLVMType(memberPtrType, context),
-			members.size());
+		llvm::Type* llvmMemberArrayType = llvm::ArrayType::get(
+			ToLLVMType(memberPtrType, context),
+			members.size()
+		);
 
 		llvm::GlobalVariable* memberArr = new llvm::GlobalVariable(
 			module,
@@ -167,33 +169,38 @@ struct LLVMEntry
 		{
 			SpiteIR::Member* member = members.at(i);
 			llvm::Value* memberPtr = CreateMember(member, memberType);
-			llvm::Value* index = llvm::ConstantInt::get(llvmContext.int32Type, i);
-			llvmContext.BuildGEPInst(llvmMemberArrayType, memberPtr, index, memberArr, true);
+			llvm::Value* arrPtr = builder.CreateStructGEP(llvmMemberArrayType, memberArr, i);
+			llvm::StoreInst* memberStore = builder.CreateStore(memberPtr, arrPtr);
+			memberStore->setMetadata("store_member", llvm::MDNode::get(context, llvm::MDString::get(context, "store_member")));
 		}
 		
 		llvm::Value* beginPtr = builder.CreateStructGEP(llvmType, ptr, 0);
 		llvm::Value* endPtr = builder.CreateStructGEP(llvmType, ptr, 1);
 		
-		llvm::Value* beginPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
-			{ llvm::ConstantInt::get(llvmContext.int32Type, 0) });
-		llvm::Value* endPtrValue = builder.CreateGEP(llvmMemberArrayType, memberArr,
-			{ llvm::ConstantInt::get(llvmContext.int32Type, members.size() - 1) });
+		llvm::Value* beginPtrValue = builder.CreateStructGEP(
+			llvmMemberArrayType,
+			memberArr,
+			0
+		);
+		llvm::Value* endPtrValue = builder.CreateStructGEP(
+			llvmMemberArrayType, 
+			memberArr,
+			members.size()
+		);
 		
-		builder.CreateStore(beginPtrValue, beginPtr);
-		builder.CreateStore(endPtrValue, endPtr);
+		llvm::StoreInst* beginStore = builder.CreateStore(beginPtrValue, beginPtr);
+		beginStore->setMetadata("store_begin", llvm::MDNode::get(context, llvm::MDString::get(context, "store_begin")));
+		llvm::StoreInst* endStore = builder.CreateStore(endPtrValue, endPtr);
+		endStore->setMetadata("store_end", llvm::MDNode::get(context, llvm::MDString::get(context, "store_end")));
 	}
 
 	void BuildInteropString(eastl::string& str, SpiteIR::Type* interopStringType, llvm::Value* ptr)
 	{
 		llvm::StringRef strRef = ToStringRef(str);
 		llvm::Constant* strConstant = llvm::ConstantDataArray::getString(context, strRef, true);
-		llvm::ArrayType* byteArrayType = llvm::ArrayType::get(
-			llvm::Type::getInt8Ty(context),
-			str.size() + 1
-		);
 		llvm::GlobalVariable* globalStr = new llvm::GlobalVariable(
 			module,
-			byteArrayType,
+			strConstant->getType(),
 			true,
 			llvm::GlobalValue::PrivateLinkage,
 			strConstant,
@@ -201,15 +208,16 @@ struct LLVMEntry
 		);
 
 		llvm::Type* strType = ToLLVMType(interopStringType, context);
-		llvm::Value* strValuePtr = builder.CreateBitCast(ptr, llvm::PointerType::get(strType, 0));
 		llvm::Value* strBeginPtr = builder.CreateStructGEP(
 			strType,
-			strValuePtr,
+			ptr,
 			0
 		);
-		builder.CreateStore(globalStr, strBeginPtr);
-		BuildTypeIntData(1, str.size(), strValuePtr, strType, llvmContext.intType);
-		BuildTypeIntData(2, 0, strValuePtr, strType, llvmContext.intType);
+		llvm::StoreInst* beginStore = builder.CreateStore(globalStr, strBeginPtr);
+		beginStore->setMetadata("store_str_begin", llvm::MDNode::get(context, llvm::MDString::get(context, "store_str_begin")));
+		BuildTypeIntData(1, str.size(), ptr, strType, llvmContext.intType);
+		// To set the heap allocated bit flag that C++ strings use
+		BuildTypeIntData(2, 9223372036854775808, ptr, strType, llvmContext.intType);
 	}
 
 	void StoreStateData(llvm::Value* ptr, SpiteIR::State* state, SpiteIR::Type* stateType)
@@ -224,7 +232,11 @@ struct LLVMEntry
 			""
 		);
 
-		BuildTypeIntData(0, 0, stateVarPtr, llvmType, llvmContext.intType);
+		llvm::Value* packagePtr = builder.CreateStructGEP(llvmType, stateVarPtr, 0);
+		builder.CreateStore(
+			llvm::ConstantPointerNull::get(builder.getPtrTy()),
+			packagePtr
+		);
 		BuildTypeIntData(1, state->size, stateVarPtr, llvmType, llvmContext.intType);
 		BuildTypeIntData(2, state->alignment, stateVarPtr, llvmType, llvmContext.intType);
 		BuildTypeIntData(3, state->flags, stateVarPtr, llvmType, llvmContext.intType);
@@ -244,7 +256,24 @@ struct LLVMEntry
 		);
 		BuildMemberArray(state->members, membersPtr, memberArrayType);
 
-		builder.CreateStore(stateVarPtr, ptr);
+		llvm::StoreInst* storeStatePtr = builder.CreateStore(stateVarPtr, ptr);
+		storeStatePtr->setMetadata("store_state", llvm::MDNode::get(context, llvm::MDString::get(context, "store_state")));
+	}
+
+	void StoreStructureData(llvm::Value* ptr, eastl::vector<SpiteIR::Member*>* members, 
+		SpiteIR::Type* memberArrayType)
+	{
+		llvm::Type* llvmType = ToLLVMType(memberArrayType, context);
+		llvm::GlobalVariable* memberArrayPtr = new llvm::GlobalVariable(
+			module,
+			llvmType,
+			false,
+			llvm::GlobalValue::PrivateLinkage,
+			llvm::UndefValue::get(llvmType),
+			""
+		);
+		BuildMemberArray(*members, memberArrayPtr, memberArrayType);
+		builder.CreateStore(memberArrayPtr, ptr);
 	}
 
 	llvm::Value* BuildTypeArray(eastl::vector<SpiteIR::Type*> types)
@@ -277,7 +306,10 @@ struct LLVMEntry
 		case SpiteIR::TypeKind::UnionType:
 		case SpiteIR::TypeKind::StructureType:
 		{
-			llvm::Value* ptr = CastMember(unionMembers->at(2), unionPtr);
+			SpiteIR::Member* member = unionMembers->at(2);
+			llvm::Value* ptr = CastMember(member, unionPtr);
+			SpiteIR::Type* memberArrayType = member->value.type->pointer.type;
+			StoreStructureData(ptr, type->structureType.members, memberArrayType);
 			break;
 		}
 		case SpiteIR::TypeKind::PointerType:
@@ -335,6 +367,8 @@ struct LLVMEntry
 	void BuildTypeData()
 	{
 		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
+
+		eastl::hash_set<SpiteIR::Type*, IRTypeHash, IRTypeEqual> seenTypes;
 		while (llvmContext.typeMetadataMap.size())
 		{
 			auto& [type, globalVar] = *llvmContext.typeMetadataMap.begin();
