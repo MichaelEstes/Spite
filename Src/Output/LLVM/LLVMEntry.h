@@ -171,7 +171,6 @@ struct LLVMEntry
 			llvm::Value* memberPtr = CreateMember(member, memberType);
 			llvm::Value* arrPtr = builder.CreateStructGEP(llvmMemberArrayType, memberArr, i);
 			llvm::StoreInst* memberStore = builder.CreateStore(memberPtr, arrPtr);
-			memberStore->setMetadata("store_member", llvm::MDNode::get(context, llvm::MDString::get(context, "store_member")));
 		}
 		
 		llvm::Value* beginPtr = builder.CreateStructGEP(llvmType, ptr, 0);
@@ -189,9 +188,7 @@ struct LLVMEntry
 		);
 		
 		llvm::StoreInst* beginStore = builder.CreateStore(beginPtrValue, beginPtr);
-		beginStore->setMetadata("store_begin", llvm::MDNode::get(context, llvm::MDString::get(context, "store_begin")));
 		llvm::StoreInst* endStore = builder.CreateStore(endPtrValue, endPtr);
-		endStore->setMetadata("store_end", llvm::MDNode::get(context, llvm::MDString::get(context, "store_end")));
 	}
 
 	void BuildInteropString(eastl::string& str, SpiteIR::Type* interopStringType, llvm::Value* ptr)
@@ -214,7 +211,6 @@ struct LLVMEntry
 			0
 		);
 		llvm::StoreInst* beginStore = builder.CreateStore(globalStr, strBeginPtr);
-		beginStore->setMetadata("store_str_begin", llvm::MDNode::get(context, llvm::MDString::get(context, "store_str_begin")));
 		BuildTypeIntData(1, str.size(), ptr, strType, llvmContext.intType);
 		// To set the heap allocated bit flag that C++ strings use
 		BuildTypeIntData(2, 9223372036854775808, ptr, strType, llvmContext.intType);
@@ -257,7 +253,6 @@ struct LLVMEntry
 		BuildMemberArray(state->members, membersPtr, memberArrayType);
 
 		llvm::StoreInst* storeStatePtr = builder.CreateStore(stateVarPtr, ptr);
-		storeStatePtr->setMetadata("store_state", llvm::MDNode::get(context, llvm::MDString::get(context, "store_state")));
 	}
 
 	void StoreStructureData(llvm::Value* ptr, eastl::vector<SpiteIR::Member*>* members, 
@@ -276,9 +271,49 @@ struct LLVMEntry
 		builder.CreateStore(memberArrayPtr, ptr);
 	}
 
-	llvm::Value* BuildTypeArray(eastl::vector<SpiteIR::Type*> types)
+	void StoreTypeArray(llvm::Value* ptr, eastl::vector<SpiteIR::Type*>* types, SpiteIR::Type* typeArrayType)
 	{
+		llvm::Type* llvmType = ToLLVMType(typeArrayType, context);
+		SpiteIR::Type* typePtrType = typeArrayType->stateType.state->members.at(0)->value.type->pointer.type;
+		llvm::Type* llvmTypeArrayType = llvm::ArrayType::get(
+			ToLLVMType(typePtrType, context),
+			types->size()
+		);
 
+		llvm::GlobalVariable* typeArr = new llvm::GlobalVariable(
+			module,
+			llvmTypeArrayType,
+			false,
+			llvm::GlobalValue::PrivateLinkage,
+			llvm::UndefValue::get(llvmTypeArrayType),
+			""
+		);
+
+		SpiteIR::Type* typeOfType = typePtrType->pointer.type;
+		for (size_t i = 0; i < types->size(); i++)
+		{
+			SpiteIR::Type* type = types->at(i);
+			llvm::Value* typePtr = llvmContext.BuildTypeValue(type);
+			llvm::Value* arrPtr = builder.CreateStructGEP(llvmTypeArrayType, typeArr, i);
+			llvm::StoreInst* typeStore = builder.CreateStore(typePtr, arrPtr);
+		}
+
+		llvm::Value* beginPtr = builder.CreateStructGEP(llvmType, ptr, 0);
+		llvm::Value* endPtr = builder.CreateStructGEP(llvmType, ptr, 1);
+
+		llvm::Value* beginPtrValue = builder.CreateStructGEP(
+			llvmTypeArrayType,
+			typeArr,
+			0
+		);
+		llvm::Value* endPtrValue = builder.CreateStructGEP(
+			llvmTypeArrayType,
+			typeArr,
+			types->size()
+		);
+
+		llvm::StoreInst* beginStore = builder.CreateStore(beginPtrValue, beginPtr);
+		llvm::StoreInst* endStore = builder.CreateStore(endPtrValue, endPtr);
 	}
 
 	void BuildTypeUnionData(SpiteIR::Type* type, llvm::Value* unionPtr)
@@ -354,8 +389,14 @@ struct LLVMEntry
 				ptr,
 				0
 			);
-			builder.CreateStore(llvmContext.BuildTypeValue(type->fixedArray.type), returnTypePtr);
-
+			builder.CreateStore(llvmContext.BuildTypeValue(type->function.returnType), returnTypePtr);
+			llvm::Value* paramTypesPtr = builder.CreateStructGEP(
+				functionType,
+				ptr,
+				1
+			);
+			SpiteIR::Type* typeArrayType = member->value.type->structureType.members->at(1)->value.type->pointer.type;
+			StoreTypeArray(paramTypesPtr, type->function.params, typeArrayType);
 			break;
 		}
 		default:
@@ -369,22 +410,24 @@ struct LLVMEntry
 		llvm::StructType* llvmType = StateToLLVMType(typeMetaState, context);
 
 		eastl::hash_set<SpiteIR::Type*, IRTypeHash, IRTypeEqual> seenTypes;
-		while (llvmContext.typeMetadataMap.size())
+		while (seenTypes.size() != llvmContext.typeMetadataMap.size())
 		{
-			auto& [type, globalVar] = *llvmContext.typeMetadataMap.begin();
+			for (auto& [type, globalVar] : llvmContext.typeMetadataMap)
+			{
+				if (MapHas(seenTypes, type)) continue;
 
-			BuildTypeIntData(0, type->size, globalVar, llvmType, llvmContext.intType);
-			BuildTypeIntData(1, type->alignment, globalVar, llvmType, llvmContext.intType);
-			BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, llvmContext.int32Type);
-			BuildTypeBoolData(3, type->byValue, globalVar, llvmType);
-			llvm::Value* unionPtr = builder.CreateStructGEP(
-				llvmType,
-				globalVar,
-				4
-			);
-			BuildTypeUnionData(type, unionPtr);
-
-			llvmContext.typeMetadataMap.erase(type);
+				seenTypes.insert(type);
+				BuildTypeIntData(0, type->size, globalVar, llvmType, llvmContext.intType);
+				BuildTypeIntData(1, type->alignment, globalVar, llvmType, llvmContext.intType);
+				BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, llvmContext.int32Type);
+				BuildTypeBoolData(3, type->byValue, globalVar, llvmType);
+				llvm::Value* unionPtr = builder.CreateStructGEP(
+					llvmType,
+					globalVar,
+					4
+				);
+				BuildTypeUnionData(type, unionPtr);
+			}
 		}
 	}
 };
