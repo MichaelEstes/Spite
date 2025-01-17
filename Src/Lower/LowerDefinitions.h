@@ -65,8 +65,8 @@ struct FunctionContext
 	size_t anonFuncCount = 0;
 	size_t deferCount = 0;
 	size_t switchCaseCount = 0;
-	Stmnt* currStmnt;
-	Expr* currExpr;
+	Stmnt* currStmnt = nullptr;
+	Expr* currExpr = nullptr;
 	Flags<64> flags;
 
 	void IncrementRegister(SpiteIR::Type* type)
@@ -107,6 +107,8 @@ struct FunctionContext
 		anonFuncCount = 0;
 		deferCount = 0;
 		switchCaseCount = 0;
+		currStmnt = nullptr;
+		currExpr = nullptr;
 		flags.ClearAll();
 	}
 };
@@ -583,6 +585,7 @@ struct LowerDefinitions
 		if (funcStmnt->nodeID == StmntID::StateStmnt)
 		{
 			//Default state constructor
+			funcContext.currStmnt = funcStmnt;
 			SpiteIR::Type* argRefType = function->arguments.front()->value.type;
 			SpiteIR::Type* stateType = argRefType->reference.type;
 			SpiteIR::Label* label = BuildLabel("entry");
@@ -1751,7 +1754,7 @@ struct LowerDefinitions
 		else if (value.type->kind == SpiteIR::TypeKind::PointerType &&
 					value.type->pointer.type->kind == SpiteIR::TypeKind::PointerType)
 		{
-			value.type->kind = SpiteIR::TypeKind::ReferenceType;
+			value.type = MakeReferenceType(value.type->pointer.type, context.ir);
 			return DereferenceToSinglePointer(BuildTypeDereference(GetCurrentLabel(), value));
 		}
 
@@ -2530,7 +2533,7 @@ struct LowerDefinitions
 		Expr* toRef = expr->referenceExpr.of;
 		ScopeValue refValue = BuildExpr(toRef, stmnt);
 		ScopeValue value = BuildTypeReference(GetCurrentLabel(), refValue);
-		value.type->kind = SpiteIR::TypeKind::PointerType;
+		value.type = MakePointerType(value.type->reference.type, context.ir);
 		return value;
 	}
 
@@ -2989,8 +2992,8 @@ struct LowerDefinitions
 		SpiteIR::InstructionMetadata* metadata = context.ir->AllocateInstructionMetadata();
 		metadata->label = label;
 		metadata->block = GetCurrentBlock();
-		metadata->statementPosition = funcContext.currStmnt->start->pos;
-		metadata->expressionPosition = funcContext.currExpr->start->pos;
+		if (funcContext.currStmnt) metadata->statementPosition = funcContext.currStmnt->start->pos;
+		if (funcContext.currExpr) metadata->expressionPosition = funcContext.currExpr->start->pos;
 		return metadata;
 	}
 
@@ -3693,7 +3696,7 @@ struct LowerDefinitions
 		if (thisValue.type->kind != SpiteIR::TypeKind::PointerType)
 			thisValue = BuildTypeReference(GetCurrentLabel(), thisValue);
 		else
-			thisValue.type->kind = SpiteIR::TypeKind::ReferenceType;
+			thisValue.type = MakeReferenceType(thisValue.type->pointer.type, context.ir);
 
 		return thisValue;
 	}
