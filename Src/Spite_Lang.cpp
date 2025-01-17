@@ -93,12 +93,18 @@ int main(int argc, char** argv)
 
 	config = ParseConfig(argc, argv);
 
-	eastl::hash_set<string> files = eastl::hash_set<string>();	
+	std::filesystem::path dir;
 	if (config.dir.length() > 0)
 	{
-		FindAllSourceFilesInDir(files, 
-			std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() }));
+		dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
 	}
+	else
+	{
+		dir = std::filesystem::current_path();
+	}
+
+	eastl::hash_set<string> files = eastl::hash_set<string>();	
+	FindAllSourceFilesInDir(files, dir);
 
 	execDir = GetExecutableDir();
 	std::filesystem::path runTimeDir = execDir / "Runtime";
@@ -125,14 +131,30 @@ int main(int argc, char** argv)
 			globalTable.InsertTable(symbolTable);
 		}
 
-		Parser* parser = parserArena.EmplaceContainer<Parser>(entry);
-		SymbolTable* entryTable = parser->Parse();
-		if (!entryTable)
+		SymbolTable* entryTable = nullptr;
+		if (!entry.empty())
 		{
-			Logger::PrintErrors();
-			return 1;
+			Parser* parser = parserArena.EmplaceContainer<Parser>(entry);
+			entryTable = parser->Parse();
+			if (!entryTable)
+			{
+				Logger::PrintErrors();
+				return 1;
+			}
+			globalTable.InsertTable(entryTable);
 		}
-		globalTable.InsertTable(entryTable);
+		else
+		{
+			StringView entryName = StringView(config.entry.c_str());
+			entryTable = globalTable.FindSymbolTable(entryName);
+			if (!entryTable)
+			{
+				eastl::string entryError = "No entry file provided and no package found with name: " + config.entry;
+				Logger::Error(entryError);
+				return 1;
+			}
+		}
+
 		globalTable.entryTable = entryTable;
 		globalTable.entryFunc = CheckEntryFunction(entryTable);
 		globalTable.SetRuntimeTable();

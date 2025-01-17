@@ -37,6 +37,14 @@ struct Interpreter
 		delete global;
 	}
 
+	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
+	{
+		size_t index = package->globalVariableLookup[name];
+		SpiteIR::GlobalVariable* var = package->globalVariables[index];
+		bool* val = (bool*)(void*)(global + var->index);
+		*val = value;
+	}
+
 	inline void SetGlobalInt(SpiteIR::Package* package, const eastl::string& name, intmax_t value)
 	{
 		size_t index = package->globalVariableLookup[name];
@@ -66,6 +74,8 @@ struct Interpreter
 
 		SetGlobalInt(runtime, "__arch", arch);
 		SetGlobalInt(runtime, "__targetArch", config.arch);
+
+		SetGlobalBool(runtime, "__interpreted", true);
 
 		SetGlobalString(runtime, "__exec_dir", new eastl::string(execDir.string().c_str()));
 	}

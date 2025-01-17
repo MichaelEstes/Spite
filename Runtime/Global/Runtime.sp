@@ -50,7 +50,7 @@ os := OS_Kind.Windows;
 targetOs := OS_Kind.Windows;
 arch := Arch_Kind.X64;
 targetArch := Arch_Kind.X64;
-interpreted := true;
+interpreted := false;
 exec_dir := "";
 
 string GetExecDirWindows()

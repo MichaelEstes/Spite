@@ -2,13 +2,12 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.8)
-include(ExternalProject)
-include(CPack)
-
 project ("Spite_Lang")
+include(ExternalProject)
 
-set(CPACK_PACKAGE_NAME "Spite Lang")
-set(CPACK_PACKAGE_VERSION "-0.0.1")
+set(CPACK_PACKAGE_NAME "Spite")
+set(CPACK_PACKAGE_VERSION "0.0.1")
+set(CPACK_PACKAGE_VENDOR "Spite Lang")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Spite Lang Installer")
 
 set(EASTL_ROOT_DIR ${CMAKE_BINARY_DIR}/EASTL)
@@ -53,9 +52,10 @@ if (POLICY CMP0141)
 endif()
 
 set(RUNTIME_PATH "${PROJECT_SOURCE_DIR}/Runtime/")
-file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/Runtime")
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/Runtime")
-file(COPY ${RUNTIME_PATH} DESTINATION "${CMAKE_BINARY_DIR}/Runtime")
+set(RUNTIME_DST_PATH "${CMAKE_BINARY_DIR}/Runtime/")
+file(REMOVE_RECURSE ${RUNTIME_DST_PATH})
+file(MAKE_DIRECTORY ${RUNTIME_DST_PATH})
+file(COPY ${RUNTIME_PATH} DESTINATION ${RUNTIME_DST_PATH})
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	file(COPY "${PROJECT_SOURCE_DIR}/Compile/Debug" DESTINATION "${CMAKE_BINARY_DIR}/Runtime/Compile")
@@ -89,6 +89,9 @@ if(MSVC)
 	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/EASTL.lib)
 	add_custom_target(NatVis SOURCES ${EASTL_BUILD_DIR}/doc/EASTL.natvis)
 	set(CPACK_GENERATOR "NSIS")
+	set(CPACK_NSIS_MODIFY_PATH ON)
+	set(CPACK_NSIS_MUI_ICON  "${PROJECT_SOURCE_DIR}/spite.ico")
+
 else()
 	#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 	set(CMAKE_CXX_FLAGS_DEBUG "-g")
@@ -101,6 +104,10 @@ endif()
 llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)
 
 target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload_s dyncallback_s)
+set_target_properties(Spite_Lang PROPERTIES OUTPUT_NAME "spite")
 add_dependencies(Spite_Lang dyncall)
 add_dependencies(Spite_Lang EASTL)
 
+install(DIRECTORY ${RUNTIME_DST_PATH} DESTINATION ./bin/Runtime)
+install(TARGETS Spite_Lang RUNTIME DESTINATION bin)
+include(CPack)

@@ -26,7 +26,7 @@ public:
 		std::ifstream file = std::ifstream(fileLoc.c_str(), std::fstream::in);
 		if (file.fail())
 		{
-			Logger::FatalError("Unable to open src file: " + fileLoc);
+			Logger::FatalError("Scanner:Init Unable to open src file: " + fileLoc);
 		}
 
 		file.seekg(0, std::ios::end);

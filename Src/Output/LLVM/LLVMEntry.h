@@ -56,7 +56,7 @@ struct LLVMEntry
 		}
 		else
 		{
-			builder.CreateRet(llvm::ConstantInt::get(llvmContext.intType, 0));
+			builder.CreateRet(llvm::ConstantInt::get(llvmContext.int32Type, 0));
 		}
 	}
 
