@@ -46,15 +46,6 @@ struct LLVMContext
 	llvm::Type* intType;
 	llvm::StructType* strType;
 
-	llvm::NamedMDNode* storeNode;
-	llvm::NamedMDNode* storePtrNode;
-	llvm::NamedMDNode* loadNode;
-	llvm::NamedMDNode* loadPtrNode;
-	llvm::NamedMDNode* loadGlobalNode;
-	llvm::NamedMDNode* referenceNode;
-	llvm::NamedMDNode* dereferenceNode;
-
-
 	LLVMContext(SpiteIR::IR* ir) : builder(context), module(ToStringRef(config.name), context)
 	{
 		this->ir = ir;
@@ -62,14 +53,6 @@ struct LLVMContext
 		intType = ToLLVMType(CreateIntType(ir), context);
 		int32Type = llvm::IntegerType::getInt32Ty(context);
 		strType = StateToLLVMType(stringState, context);
-
-		storeNode = module.getOrInsertNamedMetadata("store");
-		storePtrNode = module.getOrInsertNamedMetadata("storePtr");
-		loadNode = module.getOrInsertNamedMetadata("load");
-		loadPtrNode = module.getOrInsertNamedMetadata("loadPtr");
-		loadGlobalNode = module.getOrInsertNamedMetadata("loadGlobal");
-		referenceNode = module.getOrInsertNamedMetadata("reference");
-		dereferenceNode = module.getOrInsertNamedMetadata("dereference");
 	}
 
 	llvm::Twine GlobalVariableName(SpiteIR::GlobalVariable* globalVar)

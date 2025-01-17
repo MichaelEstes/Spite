@@ -412,11 +412,13 @@ struct LLVMEntry
 		eastl::hash_set<SpiteIR::Type*, IRTypeHash, IRTypeEqual> seenTypes;
 		while (seenTypes.size() != llvmContext.typeMetadataMap.size())
 		{
-			for (auto& [type, globalVar] : llvmContext.typeMetadataMap)
+			// @TODO make a custom structure for the type/variable lookup that can check if an iterator has been invalidated
+			eastl::hash_map<SpiteIR::Type*, llvm::GlobalVariable*, IRTypeHash, IRTypeEqual> toIterate(llvmContext.typeMetadataMap);
+			for (auto& [type, globalVar] : toIterate)
 			{
 				if (MapHas(seenTypes, type)) continue;
-
 				seenTypes.insert(type);
+
 				BuildTypeIntData(0, type->size, globalVar, llvmType, llvmContext.intType);
 				BuildTypeIntData(1, type->alignment, globalVar, llvmType, llvmContext.intType);
 				BuildTypeIntData(2, static_cast<int>(type->kind), globalVar, llvmType, llvmContext.int32Type);

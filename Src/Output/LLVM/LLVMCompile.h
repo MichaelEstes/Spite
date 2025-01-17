@@ -195,7 +195,7 @@ struct LLVMCompile
 
 		pass.run(module);
 		dest.flush();
-		llvm::outs() << "Wrote " << outputFileName << "\n";
+		llvm::outs() << "Wrote " << output.string() << "\n";
 		return true;
 	}
 };
