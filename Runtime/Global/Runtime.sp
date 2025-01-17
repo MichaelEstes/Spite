@@ -144,7 +144,7 @@ string FloatToString(f: float, precision := 4)
 	len := PrintFloat(null, 0, format, f);
 	buffer := alloc(len + 1);
 	PrintFloat(buffer, len + 1, format, f);
-
+	
 	return {len as int, buffer} as string;
 
     //integerPart: int = f as int;

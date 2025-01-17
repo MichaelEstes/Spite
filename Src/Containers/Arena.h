@@ -77,7 +77,7 @@ struct Arena
 	}
 
 	template<typename T, typename... Args>
-	T* EmplaceScalar(Args&&... args)
+	T* EmplaceContainer(Args&&... args)
 	{
 		T* valPtr = Emplace<T, Args...>(args...);
 		DestructorContainer* destroy = new DestructorContainer((void(*)(void*))DestroyItem<T>, (void*)valPtr);

@@ -104,9 +104,6 @@ int main(int argc, char** argv)
 	std::filesystem::path runTimeDir = execDir / "Runtime";
 	FindAllSourceFilesInDir(files, runTimeDir);
 
-	/*BuildConfig("C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\Args.txt",
-		"C:\\Users\\Flynn\\Documents\\Spite_Lang\\Src\\Config\\NewConfig.h");*/
-
 	string entry(std::filesystem::canonical(config.file.c_str()).string().c_str());
 	files.erase(entry);
 
@@ -118,7 +115,7 @@ int main(int argc, char** argv)
 		Arena parserArena = Arena((files.size() + 1) * sizeof(Parser));
 		for (const string& file : files)
 		{
-			Parser* parser = parserArena.EmplaceScalar<Parser>(file);
+			Parser* parser = parserArena.EmplaceContainer<Parser>(file);
 			SymbolTable* symbolTable = parser->Parse();
 			if (!symbolTable)
 			{
@@ -128,7 +125,7 @@ int main(int argc, char** argv)
 			globalTable.InsertTable(symbolTable);
 		}
 
-		Parser* parser = parserArena.EmplaceScalar<Parser>(entry);
+		Parser* parser = parserArena.EmplaceContainer<Parser>(entry);
 		SymbolTable* entryTable = parser->Parse();
 		if (!entryTable)
 		{
@@ -159,7 +156,6 @@ int main(int argc, char** argv)
 			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax");
 		}
 
-		//globalTable.Print();
 		Profiler lowerProfiler = Profiler();
 		Lower lower = Lower(&globalTable, &interpreter);
 		ir = lower.BuildIR(entryTable);
@@ -171,28 +167,29 @@ int main(int argc, char** argv)
 		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
-	Profiler interpretProfiler = Profiler();
-	//Decompiler decompiler = Decompiler();
-	//decompiler.Decompile(ir);
-	//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
-	//
-	//interpretProfiler.Reset();
-	//int64_t value = *(int64_t*)interpreter.Interpret(ir);
-	Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
-
 	{
 		Profiler builderProfiler = Profiler();
 		switch (config.output)
 		{
 		case Llvm:
+		case Ir:
 		{
 			LLVMBuilder builder = LLVMBuilder(ir);
 			builder.Build();
 			break;
 		}
+		case Run:
+		{
+			Profiler interpretProfiler = Profiler();
+			//Decompiler decompiler = Decompiler();
+			//decompiler.Decompile(ir);
+			//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
+			//interpretProfiler.Reset();
+			int value = *(int*)(void*)interpreter.Interpret(ir);
+			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+			return value;
+		}
 		case C:
-			break;
-		case Ir:
 			break;
 		case OutputInvalid:
 			break;
@@ -200,12 +197,10 @@ int main(int argc, char** argv)
 			break;
 		}
 
-		size_t elapsedScanTime = builderProfiler.End();
-		Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build output");
+		Logger::Info("Took " + eastl::to_string(builderProfiler.End()) + "/s to build output");
 	}
 
 	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile");
-
 	return 0;
 }
 

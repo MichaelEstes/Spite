@@ -154,21 +154,29 @@ struct LLVMCompile
 		return ".o";
 	}
 
-	bool Compile()
+	std::filesystem::path CreateOutputPath(std::string ext)
 	{
 		std::string outputName(config.name.c_str());
 		std::string outputFileName = outputName + GetDestExt();
 		std::filesystem::path output = std::filesystem::current_path() / "Build" / outputFileName;
 
 		std::string directory = output.parent_path().string();
-		if (!directory.empty()) {
+		if (!directory.empty()) 
+		{
 			std::error_code ec = llvm::sys::fs::create_directories(directory);
-			if (ec) {
+			if (ec) 
+			{
 				llvm::errs() << "Error creating directories: " << ec.message() << "\n";
-				return false;
+				Logger::FatalError("LLVMCompile:CreateOutputPath Unable to create build directory");
 			}
 		}
 
+		return output;
+	}
+
+	bool Compile()
+	{		
+		std::filesystem::path output = CreateOutputPath(GetDestExt());
 
 		std::error_code EC;
 		llvm::raw_fd_ostream dest(output.string(), EC, llvm::sys::fs::OF_None);

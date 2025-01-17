@@ -3,8 +3,13 @@
 #
 cmake_minimum_required (VERSION 3.8)
 include(ExternalProject)
+include(CPack)
 
 project ("Spite_Lang")
+
+set(CPACK_PACKAGE_NAME "Spite Lang")
+set(CPACK_PACKAGE_VERSION "-0.0.1")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Spite Lang Installer")
 
 set(EASTL_ROOT_DIR ${CMAKE_BINARY_DIR}/EASTL)
 set(EASTL_BUILD_DIR ${EASTL_ROOT_DIR}/build)
@@ -70,11 +75,11 @@ add_executable (Spite_Lang
 "Src/Checking/ExprChecker.h" "Src/Checking/CheckerUtils.h" "Src/Syntax/GlobalTable.h" 
 "Src/Checking/Checker.h" "Src/Syntax/SyntaxUtils.h" "Src/Syntax/SyntaxUtils.cpp" "Src/IR/IR.h" 
 "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" "Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h" 
-"Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h"  
-"Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" 
-"Src/Syntax/TypeInference.h" "Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" 
-"Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" 
-"Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h")
+"Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h" "Src/Lower/LowerContext.h" 
+"Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" "Src/Syntax/TypeInference.h"
+"Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" "Src/Output/LLVM/LLVMTypes.h" 
+"Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" 
+"Src/Output/LLVM/LLVMOptimize.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
@@ -83,12 +88,14 @@ endif()
 if(MSVC)
 	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/EASTL.lib)
 	add_custom_target(NatVis SOURCES ${EASTL_BUILD_DIR}/doc/EASTL.natvis)
+	set(CPACK_GENERATOR "NSIS")
 else()
 	#set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 	set(CMAKE_CXX_FLAGS_DEBUG "-g")
-	set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/libEASTL.a)
+	set(CPACK_GENERATOR "DEB;RPM")
 endif()
 
 llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)

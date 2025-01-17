@@ -629,18 +629,18 @@ namespace SpiteIR
 		template<typename T>
 		inline Array<T>* AllocateArray()
 		{
-			return arena.EmplaceScalar<Array<T>>();
+			return arena.EmplaceContainer<Array<T>>();
 		}
 
 		template<typename Key, typename Value>
 		inline HashMap<Key, Value>* AllocateHashMap()
 		{
-			return arena.EmplaceScalar<HashMap<Key, Value>>();
+			return arena.EmplaceContainer<HashMap<Key, Value>>();
 		}
 
 		inline string* AllocateString()
 		{
-			return arena.EmplaceScalar<string>();
+			return arena.EmplaceContainer<string>();
 		}
 	};
 }

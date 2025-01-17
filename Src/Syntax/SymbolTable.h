@@ -549,13 +549,13 @@ struct SymbolTable
 	template<typename T>
 	inline eastl::vector<T*>* CreateVectorPtr()
 	{
-		return arena->EmplaceScalar<eastl::vector<T*>>();
+		return arena->EmplaceContainer<eastl::vector<T*>>();
 	}
 
 	template<typename T>
 	inline eastl::vector<T>* CreateVector()
 	{
-		return arena->EmplaceScalar<eastl::vector<T>>();
+		return arena->EmplaceContainer<eastl::vector<T>>();
 	}
 
 	inline Type* CreateTypePtr(TypeID typeID)

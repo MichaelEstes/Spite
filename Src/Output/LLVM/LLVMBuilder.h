@@ -44,13 +44,17 @@ struct LLVMBuilder
 		}
 		Logger::Info("LLVMBuilder: Verified module");
 
-		//LLVMOptimize(llvmContext).Optimize();
-		//Logger::Info("LLVMBuilder: Optimized module");
+		LLVMOptimize(llvmContext).Optimize();
+		Logger::Info("LLVMBuilder: Optimized module");
 
-		std::string fileName = "output.ll";
-		std::error_code ec;
-		llvm::raw_fd_ostream dest(fileName, ec, llvm::sys::fs::OF_None);
-		module.print(dest, nullptr);
+		if (config.output == Ir)
+		{
+			std::filesystem::path output = compiler.CreateOutputPath(".ll");
+			std::error_code ec;
+			llvm::raw_fd_ostream dest(output.string(), ec, llvm::sys::fs::OF_None);
+			module.print(dest, nullptr);
+			return;
+		}
 
 		if (compiler.Compile())
 			Logger::Info("LLVMBuilder: Compiled module");

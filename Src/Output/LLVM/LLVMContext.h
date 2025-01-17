@@ -74,21 +74,21 @@ struct LLVMContext
 
 	llvm::Twine GlobalVariableName(SpiteIR::GlobalVariable* globalVar)
 	{
-		eastl::string* name = arena.EmplaceScalar<eastl::string>();
+		eastl::string* name = arena.EmplaceContainer<eastl::string>();
 		*name = "g" + eastl::to_string(globalVar->index);
 		return ToTwine(*name);
 	}
 
 	llvm::Twine RegisterName(size_t reg)
 	{
-		eastl::string* name = arena.EmplaceScalar<eastl::string>();
+		eastl::string* name = arena.EmplaceContainer<eastl::string>();
 		*name = "r" + eastl::to_string(reg);
 		return ToTwine(*name);
 	}
 
 	llvm::Twine ArgumentName(size_t reg)
 	{
-		eastl::string* name = arena.EmplaceScalar<eastl::string>();
+		eastl::string* name = arena.EmplaceContainer<eastl::string>();
 		*name = "a" + eastl::to_string(reg);
 		return ToTwine(*name);
 	}

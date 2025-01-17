@@ -9,6 +9,7 @@ enum Output
 	Llvm,
 	C,
 	Ir,
+	Run,
 	OutputInvalid
 };
 
@@ -17,6 +18,7 @@ inline Output StringToOutput(const eastl::string& str)
 	if (str == "llvm") return Output::Llvm;
 	else if (str == "c") return Output::C;
 	else if (str == "ir") return Output::Ir;
+	else if (str == "run") return Output::Run;
 	return Output::OutputInvalid;
 }
 
