@@ -142,6 +142,13 @@ struct GlobalTable
 		return symbolTable->FindState(name->val);
 	}
 
+	StateSymbol* FindStateSymbol(Token* package, Token* name)
+	{
+		SymbolTable* symbolTable = FindSymbolTable(package->val);
+		if (!symbolTable) return nullptr;
+		return symbolTable->FindStateSymbol(name->val);
+	}
+
 	inline Stmnt* FindScopedState(Token* name, SymbolTable* symbolTable)
 	{
 		StringView& stateName = name->val;

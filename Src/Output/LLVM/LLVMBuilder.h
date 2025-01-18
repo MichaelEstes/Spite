@@ -26,26 +26,26 @@ struct LLVMBuilder
 		for (SpiteIR::Package* package : llvmContext.ir->packages)
 			BuildPackageDeclarations(package);
 
-		Logger::Info("LLVMBuilder: Built LLVM Declarations");
+		Logger::Debug("LLVMBuilder: Built LLVM Declarations");
 
 		for (SpiteIR::Package* package : llvmContext.ir->packages)
 			BuildPackage(package);
 
-		Logger::Info("LLVMBuilder: Built LLVM Definitions");
+		Logger::Debug("LLVMBuilder: Built LLVM Definitions");
 
 		LLVMEntry(llvmContext).BuildMain();
 
-		Logger::Info("LLVMBuilder: Built entry point");
+		Logger::Debug("LLVMBuilder: Built entry point");
 
 		if (llvm::verifyModule(module, &llvm::errs()))
 		{
 			llvm::errs() << "Module verification failed!\n";
 			return;
 		}
-		Logger::Info("LLVMBuilder: Verified module");
+		Logger::Debug("LLVMBuilder: Verified module");
 
 		LLVMOptimize(llvmContext).Optimize();
-		Logger::Info("LLVMBuilder: Optimized module");
+		Logger::Debug("LLVMBuilder: Optimized module");
 
 		if (config.output == Ir)
 		{
@@ -57,7 +57,7 @@ struct LLVMBuilder
 		}
 
 		if (compiler.Compile())
-			Logger::Info("LLVMBuilder: Compiled module");
+			Logger::Debug("LLVMBuilder: Compiled module");
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -610,6 +610,8 @@ struct LLVMBuilder
 
 		switch (src.kind)
 		{
+		case SpiteIR::OperandKind::Void:
+			return;
 		case SpiteIR::OperandKind::Register:
 		{
 			llvm::LoadInst* loadInst = builder.CreateLoad(
@@ -624,6 +626,8 @@ struct LLVMBuilder
 		{
 			switch (src.literal.kind)
 			{
+			case SpiteIR::PrimitiveKind::Void:
+				return;
 			case SpiteIR::PrimitiveKind::Bool:
 				value = llvm::ConstantInt::get(type, src.literal.byteLiteral);
 				break;

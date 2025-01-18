@@ -198,7 +198,12 @@ string _SerializeType(value: *byte, type: *_Type)
 				case (_PrimitiveKind.Int) return IntToString((value as *int)~);
 				case (_PrimitiveKind.F32) return FloatToString((value as *float32)~);
 				case (_PrimitiveKind.Float) return FloatToString((value as *float64)~);
-				case (_PrimitiveKind.String) return (value as *string)~;
+				case (_PrimitiveKind.String)
+				{
+					str := (value as *string)~;
+					if(str.count) return str;
+					return '""';
+				}
 			}
 		}
 		case (_TypeKind.StateType)

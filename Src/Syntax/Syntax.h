@@ -571,7 +571,17 @@ struct Syntax
 	{
 		Stmnt* node = CreateStmnt(curr, StmntID::CompileStmnt);
 		Advance();
-		Type* type = ParseType();
+
+		Type* type = nullptr;
+		if (Expect(UniqueType::FatArrow) || Expect(UniqueType::Lbrace))
+		{
+			type = CreateVoidType();
+		}
+		else
+		{
+			type = ParseType();
+		}
+
 		if (type->typeID != TypeID::InvalidType)
 		{
 			node->compileStmnt.returnType = type;

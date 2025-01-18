@@ -175,7 +175,7 @@ int main(int argc, char** argv)
 				return 1;
 			}
 
-			Logger::Info("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax");
+			Logger::Debug("Took " + eastl::to_string(checkerProfiler.End()) + "/s to check syntax");
 		}
 
 		Profiler lowerProfiler = Profiler();
@@ -186,7 +186,7 @@ int main(int argc, char** argv)
 			Logger::PrintErrors();
 			return 1;
 		}
-		Logger::Info("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
+		Logger::Debug("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
 	{
@@ -205,10 +205,10 @@ int main(int argc, char** argv)
 			Profiler interpretProfiler = Profiler();
 			//Decompiler decompiler = Decompiler();
 			//decompiler.Decompile(ir);
-			//Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
+			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 			//interpretProfiler.Reset();
 			int value = *(int*)(void*)interpreter.Interpret(ir);
-			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+			Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;
 		}
 		case C:
@@ -219,10 +219,10 @@ int main(int argc, char** argv)
 			break;
 		}
 
-		Logger::Info("Took " + eastl::to_string(builderProfiler.End()) + "/s to build output");
+		Logger::Debug("Took " + eastl::to_string(builderProfiler.End()) + "/s to build output");
 	}
 
-	Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to compile");
+	Logger::Debug("Took " + eastl::to_string(profiler.End()) + "/s to compile");
 	return 0;
 }
 

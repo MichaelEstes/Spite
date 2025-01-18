@@ -86,6 +86,14 @@ public:
 		std::cout << "INFO: " << msg << '\n';
 	}
 
+	static void Debug(const eastl::string& msg)
+	{
+#ifdef NDEBUG
+#else
+		std::cout << "DEBUG: " << msg << '\n';
+#endif
+	}
+
 	static void Log(const eastl::string& msg, bool newLine = true, int depth = 0)
 	{
 		for (int i = 0; i < depth; i++) std::cout << '\t';

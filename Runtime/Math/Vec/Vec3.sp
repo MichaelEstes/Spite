@@ -4,7 +4,6 @@ import Math
 
 state Vec3
 {
-	[soa]
 	x: float,
 	y: float,
 	z: float

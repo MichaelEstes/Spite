@@ -23,7 +23,7 @@ SymbolTable* Parser::Parse()
 	}
 
 	float elapsedScanTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to process " + file);
+	Logger::Debug("Took " + eastl::to_string(elapsedScanTime) + "/s to process " + file);
 	profiler = Profiler();
 
 	Syntax syntax = Syntax(tokens);
@@ -36,6 +36,6 @@ SymbolTable* Parser::Parse()
 	//syntax.Print();
 
 	elapsedScanTime = profiler.End();
-	Logger::Info("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + file);
+	Logger::Debug("Took " + eastl::to_string(elapsedScanTime) + "/s to build syntax for " + file);
 	return syntax.symbolTable;
 }

@@ -24,9 +24,11 @@ struct TypeChecker
 				return false;
 			}
 
+			// Might be able to remove this check, mirrored in ExprChecker
 			size_t genericsCount = generics->generics.names->size();
 			size_t templatesCount = templates->templateExpr.templateArgs->size();
-			if (genericsCount != templatesCount)
+			if (templatesCount < RequiredGenericsCount(generics) ||
+				templatesCount > genericsCount)
 			{
 				if (error) AddError(token, "TypeChecker:CheckTypeGenerics Expected "
 					+ eastl::to_string(genericsCount)

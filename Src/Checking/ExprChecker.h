@@ -377,6 +377,12 @@ struct ExprChecker
 			{
 				functionCall.callKind = FunctionCallKind::ConstructorCall;
 				StateSymbol* stateSymbol = context.globalTable->FindScopedStateSymbol(functionStmnt->state.name, context.symbolTable);
+				if (!stateSymbol)
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Unable to resolve state symbol, missing import");
+					return;
+				}
+
 
 				// Every state has a default constructor
 				if (paramCount == 0)

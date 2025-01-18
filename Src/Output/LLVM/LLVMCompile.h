@@ -25,7 +25,7 @@ struct LLVMCompile
 		eastl::string targetTripleStr = targetTriple.c_str();
 		eastl::string targetTripleMsg = "LLVMCompile:Initialize Triple target: "
 			+ targetTripleStr;
-		Logger::Info(targetTripleMsg);
+		Logger::Debug(targetTripleMsg);
 		module.setTargetTriple(targetTriple);
 
 		std::string error;
