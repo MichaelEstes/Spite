@@ -15,9 +15,15 @@ GenericFunction<ToLog>()
 }
 
 // Generics can have default templates
-state SizedArray<Size, Type = int>
+state SizedArray<Size, Type = int> 
 {
 	arr: [Size]Type
+}
+
+SizedArray::()
+{
+	// arr is allocated, but not initialized, set each item to default
+	for (i .. Size) this.arr[i] = Type();
 }
 
 Main()
@@ -31,8 +37,6 @@ Main()
 	// outputs 19.2
 
 	sizedArray := SizedArray<4>();
-	// arr is allocated, but not initialized, set each item to 0
-	for (i .. 4) sizedArray.arr[i] = 0;
 	log sizedArray;
 	// outputs { arr: fixed [ 0, 0, 0, 0 ] } 
 }
