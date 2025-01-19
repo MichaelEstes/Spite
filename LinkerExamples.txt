@@ -1,0 +1,5 @@
+// Link.exe (Windows)
+link /OUT:output.exe a.obj /LIBPATH:"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\lib\x64" /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\ucrt\x64" /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\um\x64" kernel32.lib msvcrt.lib libucrt.lib libvcruntime.lib oldnames.lib legacy_stdio_definitions.lib
+
+// lld (Linux)
+ld -o output a.o -L /lib/gcc/x86_64-linux-gnu /lib/x86_64-linux-gnu/crti.o /lib/x86_64-linux-gnu/crtn.o /lib/x86_64-linux-gnu/crt1.o -dynamic-linker /lib64/ld-linux-x86-64.so.2 -lc -lm;

@@ -1,1 +1,0 @@
-link /OUT:output.exe a.obj /LIBPATH:"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\lib\x64" /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\ucrt\x64" /LIBPATH:"C:\Program Files (x86)\Windows Kits\10\Lib\10.0.22621.0\um\x64" kernel32.lib msvcrt.lib libucrt.lib libvcruntime.lib oldnames.lib legacy_stdio_definitions.lib
