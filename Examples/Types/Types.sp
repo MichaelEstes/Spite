@@ -61,7 +61,7 @@ Main()
 		return val * 2;
 	}
 
-	// Union types (Can be assigned from any type represented in the union)
+	// Union types (Can be assigned as any type represented in the union)
 	unionType: ?{ i: int, f: float, s: string } = 0;
 
 	// Templated types
