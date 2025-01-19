@@ -8,6 +8,14 @@ state MyState
 	i: int,
 }
 
+enum MyEnum
+{
+	Left,
+	Right,
+	Up,
+	Down,
+}
+
 Main()
 {
 	// Primitive types
@@ -40,6 +48,7 @@ Main()
 
 	// Named types
 	stateType: MyState = MyState();
+	enumType: MyEnum = MyEnum.Left;
 
 	// Pointer types
 	pointerType: *MyState = stateType@;
