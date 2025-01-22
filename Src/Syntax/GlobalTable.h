@@ -39,6 +39,16 @@ struct GlobalTable
 		}
 	}
 
+	void Finalize()
+	{
+		for (auto& [key, symbolTable] : packageToSymbolTable)
+		{
+			symbolTable->Finalize();
+		}
+
+		runtimeTable->Finalize();
+	}
+
 	inline size_t GetSize()
 	{
 		size_t size = 0;

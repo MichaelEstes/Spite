@@ -23,6 +23,13 @@ Vec3::(vec: {x: float, y: float, z: float})
 	this.z = vec.z;
 }
 
+Vec3::(vec: [3]float)
+{
+	this.x = vec[0];
+	this.y = vec[1];
+	this.z = vec[2];
+}
+
 float Vec3::SqrLength() => this.x * this.x + this.y * this.y + this.z * this.z;
 
 float Vec3::Length() => Math.Sqrt(this.SqrLength());

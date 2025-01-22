@@ -134,8 +134,6 @@ struct Syntax
 		{
 			ParseNext();
 		}
-
-		symbolTable->Finalize();
 	}
 
 	inline bool Expect(UniqueType type, const eastl::string& errMsg = "")
@@ -572,16 +570,7 @@ struct Syntax
 		Stmnt* node = CreateStmnt(curr, StmntID::CompileStmnt);
 		Advance();
 
-		Type* type = nullptr;
-		if (Expect(UniqueType::FatArrow) || Expect(UniqueType::Lbrace))
-		{
-			type = CreateVoidType();
-		}
-		else
-		{
-			type = ParseType();
-		}
-
+		Type* type = ParseType();
 		if (type->typeID != TypeID::InvalidType)
 		{
 			node->compileStmnt.returnType = type;
@@ -1388,7 +1377,7 @@ struct Syntax
 	Stmnt* ParseDefinition()
 	{
 		Token* start = curr;
-		Expect(TokenType::Identifier, "Expected an identifier");
+		Expect(TokenType::Identifier, "Syntax:ParseDefinition Expected an identifier");
 		switch (Peek()->uniqueType)
 		{
 		case UniqueType::ImplicitAssign:
@@ -1453,7 +1442,7 @@ struct Syntax
 	Stmnt* ParseDeclaration()
 	{
 		Token* start = curr;
-		if (Expect(TokenType::Identifier, "Expected an identifier") &&
+		if (Expect(TokenType::Identifier, "Syntax:ParseDeclaration Expected an identifier") &&
 			ThenExpect(UniqueType::Colon, "Expected a colon (':') after identifier in explicit definition"))
 		{
 			Advance();
@@ -1941,6 +1930,7 @@ struct Syntax
 			return ParseAlignOfExpr();
 
 		case UniqueType::TypeOfTok:
+		case UniqueType::TypeOfExactTok:
 			return ParseTypeOfExpr();
 
 		default:
@@ -2008,10 +1998,12 @@ struct Syntax
 	Expr* ParseTypeOfExpr()
 	{
 		Expr* typeOfExpr = CreateExpr(curr, ExprID::TypeOfExpr);
+		bool exact = curr->uniqueType == UniqueType::TypeOfExactTok;
 		Advance();
 		Expr* expr = ParseTypeOrPrimaryExpr();
 		if (expr->typeID == ExprID::InvalidExpr) AddError(typeOfExpr->start, "Syntax:ParseTypeOfExpr #typeof must be followed by a type or primary expression");
 		typeOfExpr->typeOfExpr.expr = expr;
+		typeOfExpr->typeOfExpr.exact = exact;
 		if (Expect(UniqueType::Semicolon)) Advance();
 		return typeOfExpr;
 	}

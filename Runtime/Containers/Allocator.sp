@@ -1,4 +1,4 @@
-package Allocators
+package Allocator
 
 state Allocator<Context>
 {

@@ -131,6 +131,8 @@ struct LowerDefinitions
 	eastl::vector<SpiteIR::Function*> anonFunctions;
 	eastl::deque<DeferredCompile> deferredCompiles;
 
+	eastl::hash_map<SpiteIR::Type*, SpiteIR::Type*, IRTypeHash, IRTypeEqual> typeUniqueMap;
+
 	Stmnt* currentStmnt = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	eastl::vector<Token*> currGenerics;
@@ -770,7 +772,7 @@ struct LowerDefinitions
 				}
 
 				eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
-				ScopeValue typeData = StoreTypeInfo(logValue.type);
+				ScopeValue typeData = StoreTypeInfo(logValue.type, false);
 				logValue = BuildTypeReference(GetCurrentLabel(), logValue);
 
 				params->push_back(BuildRegisterOperand(logValue));
@@ -1406,20 +1408,18 @@ struct LowerDefinitions
 		Assert(stmnt->returnStmnt.expr);
 		auto& ret = stmnt->returnStmnt;
 
-
-		SpiteIR::Label* label = GetCurrentLabel();
 		if (ret.expr->typeID == ExprID::TypeExpr &&
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
 		{
-			BuildVoidReturn(label);
+			BuildVoidReturn(GetCurrentLabel());
 		}
 		else
 		{
 
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
 			value = BuildTypeDereference(GetCurrentLabel(), value);
-			BuildReturnOp(label, BuildRegisterOperand(HandleAutoCast(value, funcContext.function->returnType)));
+			BuildReturnOp(GetCurrentLabel(), BuildRegisterOperand(HandleAutoCast(value, funcContext.function->returnType)));
 		}
 	}
 
@@ -1799,6 +1799,7 @@ struct LowerDefinitions
 				ScopeValue value = ScopeValue();
 				value.reg = StmntRegister;
 				value.stmnt = stmnt;
+				return value;
 			}
 			case FunctionStmnt:
 				return FindFunctionValue(stmnt);
@@ -2960,8 +2961,19 @@ struct LowerDefinitions
 		return MakePointerType(type, context.ir);
 	}
 
-	ScopeValue StoreTypeInfo(SpiteIR::Type* type)
+	ScopeValue StoreTypeInfo(SpiteIR::Type* type, bool exact)
 	{
+		if (!exact)
+		{
+			if (MapHas(typeUniqueMap, type))
+			{
+				type = typeUniqueMap[type];
+			}
+			else
+			{
+				typeUniqueMap[type] = type;
+			}
+		}
 		SpiteIR::Operand typeOp = SpiteIR::Operand();
 		typeOp.kind = SpiteIR::OperandKind::TypeData;
 		typeOp.type = type;
@@ -2978,13 +2990,13 @@ struct LowerDefinitions
 		if (expr->typeOfExpr.expr->typeID == ExprID::TypeExpr)
 		{
 			SpiteIR::Type* type = ToIRType(expr->typeOfExpr.expr->typeExpr.type);
-			return StoreTypeInfo(type);
+			return StoreTypeInfo(type, expr->typeOfExpr.exact);
 		}
 
 		ScopeValue value = BuildExpr(expr->typeOfExpr.expr, stmnt);
 		SpiteIR::Type* type = value.type;
 		if (type->kind == SpiteIR::TypeKind::ReferenceType) type = type->reference.type;
-		return StoreTypeInfo(type);
+		return StoreTypeInfo(type, expr->typeOfExpr.exact);
 	}
 
 	SpiteIR::InstructionMetadata* CreateInstructionMetadata(SpiteIR::Label* label)
@@ -3540,10 +3552,7 @@ struct LowerDefinitions
 
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
-		if (expr->functionCallExpr.callKind == FunctionCallKind::UnknownCall)
-		{
-			Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
-		}
+		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
 		auto& funcCall = expr->functionCallExpr;
 		SpiteIR::Function* irFunction = nullptr;
 

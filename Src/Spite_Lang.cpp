@@ -93,18 +93,17 @@ int main(int argc, char** argv)
 
 	config = ParseConfig(argc, argv);
 
-	std::filesystem::path dir;
+	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (config.dir.length() > 0)
 	{
-		dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
+		std::filesystem::path dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
+		FindAllSourceFilesInDir(files, dir);
 	}
-	else
+	else if (!config.file.length())
 	{
-		dir = std::filesystem::current_path();
+		std::filesystem::path dir = std::filesystem::current_path();
+		FindAllSourceFilesInDir(files, dir);
 	}
-
-	eastl::hash_set<string> files = eastl::hash_set<string>();	
-	FindAllSourceFilesInDir(files, dir);
 
 	execDir = GetExecutableDir();
 	std::filesystem::path runTimeDir = execDir / "Runtime";
@@ -158,6 +157,7 @@ int main(int argc, char** argv)
 		globalTable.entryTable = entryTable;
 		globalTable.entryFunc = CheckEntryFunction(entryTable);
 		globalTable.SetRuntimeTable();
+		globalTable.Finalize();
 		if (Logger::HasErrors())
 		{
 			Logger::PrintErrors();

@@ -49,5 +49,4 @@ Main()
 	// outputs { id: 9, name: Spitee, position: struct { 99.320000, 104.199997 } }
 	log player3;
 	// outputs { id: 9, name: Spitee, position: struct { 99.320000, 104.199997 } }
-
 }

@@ -50,6 +50,7 @@ enum UniqueType
 	SizeOfTok,
 	AlignOfTok,
 	TypeOfTok,
+	TypeOfExactTok,
 	Extern,
 	Enum,
 	Where,

@@ -2,6 +2,6 @@ package Main
 
 Main()
 {
-	#compile => PrintLine("Hello ");
-	PrintLine("World");
+	#compile void => log "Hello ";
+	log "World";
 }

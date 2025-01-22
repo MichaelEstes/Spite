@@ -182,6 +182,7 @@ struct Expr
 		struct
 		{
 			Expr* expr;
+			bool exact;
 		} typeOfExpr;
 	};
 

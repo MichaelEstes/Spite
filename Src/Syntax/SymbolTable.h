@@ -453,7 +453,7 @@ struct SymbolTable
 
 		for (auto& [key, value] : toMerge->stateMap)
 		{
-			AddState(value.state);
+			if (value.state) AddState(value.state);
 			for (Stmnt* cons : value.constructors) AddConstructor(cons);
 			for (Stmnt* method : value.methods) AddMethod(method);
 			for (Stmnt* op : value.operators) AddOperator(op);
