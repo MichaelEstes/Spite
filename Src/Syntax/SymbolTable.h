@@ -753,7 +753,7 @@ struct SymbolTable
 			identRight->identifierExpr.identifier = type->importedType.typeName;
 
 			selectExpr->selectorExpr.on = identLeft;
-			selectExpr->selectorExpr.on = identRight;
+			selectExpr->selectorExpr.select = identRight;
 			return selectExpr;
 		}
 		case TemplatedType:

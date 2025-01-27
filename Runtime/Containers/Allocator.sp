@@ -1,40 +1,101 @@
 package Allocator
 
-state Allocator<Context>
+state Allocator<Type> 
 {
-	alloc: ::*byte(int, Context),
-	dealloc: ::(*byte, Context),
-	context: Context
+	ptr: *Type
 }
 
-Allocator::(alloc: ::*byte(int, Context), dealloc: ::(*byte, Context), 
-			context: Context)
+*Type Allocator::operator::[](index: int) => this.ptr[index];
+
+*Type Allocator::Alloc(count: int)
 {
-	this.alloc = alloc;
-	this.dealloc = dealloc;
-	this.context = context;
+	this.ptr = alloc(count * #sizeof Type) as *Type;
+	return this.ptr;
 }
 
-*byte Allocator::Alloc(size: int)
+*Type Allocator::Resize(count: int)
 {
-	return this.alloc(size, this.context);
+	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
+	return this.ptr;
 }
 
-Allocator::Dealloc(ptr: *byte)
+Allocator::Dealloc()
 {
-	this.dealloc(ptr, this.context);
+	dealloc(this.ptr);
 }
 
-defaultAllocator := Allocator<*void>(
-	::*byte(size: int, context: *void) => {
-		return alloc(size);
-	},
-	::(ptr: *byte, context: *void) => {
-		dealloc(ptr);
-	},
-	null
-)
+state InitAllocator<Type>
+{
+	ptr: *Type,
+	count: int
+}
 
+*Type InitAllocator::operator::[](index: int) => this.ptr[index];
 
+*Type InitAllocator::Alloc(count: int)
+{
+	this.count = count;
+	this.ptr = alloc(count * #sizeof Type) as *Type;
+	if (this.ptr)
+	{
+		for (i .. count) this.ptr[i]~ = Type();
+	}
 
+	return this.ptr;
+}
 
+*Type InitAllocator::Resize(count: int)
+{
+	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
+	if (this.ptr)
+	{
+		curr := this.count;
+		while (curr < this.count)
+		{
+			this.ptr[curr]~ = Type();
+			curr += 1;
+		}
+	}
+
+	this.count = count;
+	return this.ptr;
+}
+
+InitAllocator::Dealloc()
+{
+	for (i .. this.count) delete this.ptr[i]~;
+	dealloc(this.ptr);
+}
+
+state ZeroedAllocator<Type>
+{
+	ptr: *Type,
+	count: int
+}
+
+*Type ZeroedAllocator::operator::[](index: int) => this.ptr[index];
+
+*Type ZeroedAllocator::Alloc(count: int)
+{
+	this.count = count;
+	this.ptr = alloc_zeroed(count, #sizeof Type) as *Type;
+	return this.ptr;
+}
+
+*Type ZeroedAllocator::Resize(count: int)
+{
+	resized := alloc_zeroed(count, #sizeof Type) as *Type;
+	if (resized)
+	{
+		for (i .. count) resized[i]~ = this.ptr[i]~;
+	}
+
+	this.ptr = resized;
+	this.count = count;
+	return this.ptr;
+}
+
+ZeroedAllocator::Dealloc()
+{
+	dealloc(this.ptr);
+}

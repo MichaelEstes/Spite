@@ -8,6 +8,8 @@ extern
 	#link windows "msvcrt";
 
 	*byte malloc(size: uint);
+	*byte realloc(ptr: *void, size: uint);
+	*byte calloc(count: uint, size: uint);
 	void free(ptr: *void);
 }
 
@@ -16,9 +18,14 @@ extern
 	return malloc(size);
 }
 
-void dealloc(ptr: *byte)
+*byte alloc_zeroed(count: uint, size: uint)
 {
-	free(ptr as *void);
+	return calloc(count, size);
+}
+
+void dealloc(ptr: *void)
+{
+	free(ptr);
 }
 
 void copy_bytes(dst: *byte, src: *byte, toCopy: uint)
