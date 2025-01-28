@@ -52,21 +52,24 @@ struct TypeInferer
 		}
 		case SelectorExpr:
 		{
-			Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
-			if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
-			{
-				return globalTable->FindStateMemberOrMethodStmnt(stmnt,
-					expr->selectorExpr.select->identifierExpr.identifier,
-					symbolTable);
-			}
-			else if (scopeUtils.IsPackageExpr(expr))
+			if (scopeUtils.IsPackageExpr(expr))
 			{
 				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
 				return GetDeclarationStmntForExpr(expr->selectorExpr.select, package);
 			}
 			else
 			{
-				return nullptr;
+				Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
+				if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
+				{
+					return globalTable->FindStateMemberOrMethodStmnt(stmnt,
+						expr->selectorExpr.select->identifierExpr.identifier,
+						symbolTable);
+				}
+				else
+				{
+					return nullptr;
+				}
 			}
 		}
 		case TemplateExpr:
@@ -440,6 +443,10 @@ struct TypeInferer
 			Stmnt* unionMember = FindTypeMember(type->unionType.declarations, name);
 			return unionMember->definition.type;
 		}
+		else if (type->typeID == TypeID::AnyType)
+		{
+			return type;
+		}
 
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
@@ -450,6 +457,11 @@ struct TypeInferer
 				return enumStmnt->enumStmnt.type;
 			}
 
+			if (globalTable->IsGenericOfStmnt(type, context, symbolTable))
+			{
+				return symbolTable->CreateTypePtr(TypeID::AnyType);
+			}
+			
 			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
 			return nullptr;
 		}
@@ -763,6 +775,9 @@ struct TypeInferer
 		if (right->typeID == TypeID::ValueType)
 			return GetOperatorType(op, left, right->valueType.type);
 
+		if (IsAny(left)) return left;
+		if (IsAny(right)) return right;
+
 		switch (left->typeID)
 		{
 		case PrimitiveType:
@@ -802,9 +817,6 @@ struct TypeInferer
 				if (booleanOp) return &boolType;
 				else return left;
 			}
-
-			// AddError pointers are ints, can't operate with anything other than ints
-			// To think about, if both operands are pointer should it treat them as the underlying types?
 			break;
 		}
 		break;

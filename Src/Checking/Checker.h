@@ -101,9 +101,8 @@ struct Checker
 	{
 		for (Expr* templ : *templates)
 		{
-			if (templ->typeID != ExprID::IdentifierExpr) continue;
-
-			Token* templTok = templ->identifierExpr.identifier;
+			Token* templTok = GetTokenForTemplate(templ);
+			if (!templTok) continue;
 
 			for (Token* genericName : *generics->generics.names)
 			{
@@ -155,9 +154,9 @@ struct Checker
 
 							for (Expr* forward : *toForward)
 							{
-								if (forward->typeID == ExprID::IdentifierExpr)
+								Token* name = GetTokenForTemplate(forward);
+								if (name)
 								{
-									Token* name = forward->identifierExpr.identifier;
 									size_t forwardIndex = FindGenericIndex(generics, name);
 									if (forwardIndex != (size_t)-1)
 									{

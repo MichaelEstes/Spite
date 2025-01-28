@@ -228,7 +228,7 @@ struct LowerDefinitions
 		if (IsStateFunction(stmnt))
 		{
 			Token* stateName = GetStateName(stmnt);
-			Stmnt* state = symbolTable->FindState(stateName->val);
+			Stmnt* state = context.globalTable->FindScopedState(stateName, symbolTable);
 			AddGenericsToCurrent(state);
 		}
 
@@ -1888,7 +1888,12 @@ struct LowerDefinitions
 		{
 			SpiteIR::State* state = GetStateForType(value.type);
 			SpiteIR::Member* member = FindStateMember(state, ident);
-			Assert(member);
+			if (!member)
+			{
+				SpiteIR::Function* method = FindStateFunction(state, ident.ToString());
+				if (method) return StoreFunctionValue(method);
+				else Logger::FatalErrorAt("LowerDefinitions:BuildSelected Unable to find member or method for state", selected->start->pos);
+			}
 			return LoadStructureMember(value, member);
 		}
 		else if (value.type->kind == SpiteIR::TypeKind::StructureType)
@@ -1923,7 +1928,13 @@ struct LowerDefinitions
 			{
 				SpiteIR::State* state = GetStateForType(derefed);
 				SpiteIR::Member* member = FindStateMember(state, ident);
-				Assert(member);
+				if (!member)
+				{
+					SpiteIR::Function* method = FindStateFunction(state, ident.ToString());
+					if (method) return StoreFunctionValue(method);
+					else Logger::FatalErrorAt("LowerDefinitions:BuildSelected Unable to find member or method for state", selected->start->pos);
+				}
+
 				offsetAndType = { member->offset, member->value.type };
 			}
 
@@ -3577,7 +3588,7 @@ struct LowerDefinitions
 			return BuildFunctionTypeCall(expr, stmnt);
 		case UnresolvedGenericCall:
 		{
-			ScopeValue resolvedValue = ResolveGenericFunctionCall(expr, stmnt);
+			ScopeValue resolvedValue = ResolveGenericFunctionCall(expr, stmnt, params);
 			if (resolvedValue.reg == FunctionRegister)
 			{
 				irFunction = resolvedValue.function;
@@ -3710,19 +3721,25 @@ struct LowerDefinitions
 		return thisValue;
 	}
 
+	ScopeValue AddMethodThisParameter(Expr* funcExpr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
+	{
+		Expr* caller = GetCallerExprMethodCall(funcExpr);
+		ScopeValue thisValue = MakeThisParameterReference(BuildExpr(caller, stmnt));
+		SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
+		params->push_back(ref);
+		return thisValue;
+	}
+
 	SpiteIR::Function* FindFunctionForMemberCall(Expr* expr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
 	{
 		Expr* functionExpr = expr->functionCallExpr.function;
-		Expr* caller = GetCallerExprMethodCall(functionExpr);
 		Stmnt* methodStmnt = expr->functionCallExpr.functionStmnt;
 		StringView& packageName = methodStmnt->package->val;
 		eastl::string methodName;
 
-		ScopeValue thisValue = MakeThisParameterReference(BuildExpr(caller, stmnt));
+		ScopeValue thisValue = AddMethodThisParameter(functionExpr, stmnt, params);
 		SpiteIR::State* state = GetStateForType(GetDereferencedType(thisValue.type));
 		Assert(state);
-		SpiteIR::Operand ref = BuildRegisterOperand(thisValue);
-		params->push_back(ref);
 
 		if (functionExpr->typeID == ExprID::TemplateExpr)
 		{
@@ -3822,24 +3839,24 @@ struct LowerDefinitions
 		return FindFunction(packageName, functionName);
 	}
 
-	ScopeValue ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt)
+	ScopeValue ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
 	{
 		Expr* caller = ExpandTemplate(expr->functionCallExpr.function);
 
 		if (caller->typeID == ExprID::TypeExpr)
 		{
-			eastl::vector<Expr*>* params = expr->functionCallExpr.params;
+			eastl::vector<Expr*>* funcParams = expr->functionCallExpr.params;
 			SpiteIR::Type* type = ToIRType(caller->typeExpr.type);
 			if (type->kind == SpiteIR::TypeKind::PrimitiveType)
 			{
-				return CreatePrimitiveForParams(type, params, stmnt);
+				return CreatePrimitiveForParams(type, funcParams, stmnt);
 			}
 			else
 			{
 				SpiteIR::State* state = GetStateForType(type);
 				if (state)
 				{
-					return FindAndCallStateConstructor(state, params, stmnt);
+					return FindAndCallStateConstructor(state, funcParams, stmnt);
 				}
 			}
 		}
@@ -3850,6 +3867,16 @@ struct LowerDefinitions
 
 		if (value.reg == FunctionRegister)
 		{
+			SpiteIR::Function* func = value.function;
+			if (func->IsMethod())
+			{
+				AddMethodThisParameter(caller, stmnt, params);
+			}
+			else if (func->IsConstructor())
+			{
+				expr->functionCallExpr.callKind = FunctionCallKind::ConstructorCall;
+			}
+
 			return value;
 		}
 

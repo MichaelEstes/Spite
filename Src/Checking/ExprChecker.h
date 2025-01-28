@@ -256,13 +256,22 @@ struct ExprChecker
 	}
 
 	void AddTemplatesToExpand(Stmnt* stmnt, eastl::vector<Expr*>* templateArgs, Token* start,
-		Expr* ofExpr = nullptr)
+		Expr* ofExpr = nullptr, Type* ofType = nullptr)
 	{
 		if (!stmnt)
 		{
 			if (ofExpr && context.globalTable->IsGenericOfStmnt(ofExpr, context.currentContext, context.symbolTable))
 			{
 				Token* genericTok = GetTokenForTemplate(ofExpr);
+				DeferredTemplateForwarded toDefer = DeferredTemplateForwarded();
+				toDefer.genericName = genericTok;
+				toDefer.templatesToForward = templateArgs;
+				deferred.deferredForwardedTemplates[context.currentContext].push_back(toDefer);
+				return;
+			}
+			else if (ofType && context.globalTable->IsGenericOfStmnt(ofType, context.currentContext, context.symbolTable))
+			{
+				Token* genericTok = ofType->namedType.typeName;
 				DeferredTemplateForwarded toDefer = DeferredTemplateForwarded();
 				toDefer.genericName = genericTok;
 				toDefer.templatesToForward = templateArgs;
@@ -334,7 +343,7 @@ struct ExprChecker
 		Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
 		Expr* templateExpr = type->templatedType.templates;
 		eastl::vector<Expr*>* templateArgs = templateExpr->templateExpr.templateArgs;
-		AddTemplatesToExpand(state, templateArgs, templateExpr->start);
+		AddTemplatesToExpand(state, templateArgs, templateExpr->start, nullptr, type->templatedType.type);
 	}
 
 	void CheckGenerics(Expr* expr)
@@ -382,7 +391,6 @@ struct ExprChecker
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Unable to resolve state symbol, missing import");
 					return;
 				}
-
 
 				// Every state has a default constructor
 				if (paramCount == 0)

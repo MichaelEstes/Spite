@@ -620,6 +620,29 @@ Expr* _ExpandTemplate(Expr* expr, eastl::vector<Token*>* generics, eastl::vector
 	return expr;
 }
 
+Type* _ExpandTypeTemplates(Type* type, eastl::vector<Token*>* generics,
+	eastl::vector<Expr*>* templates)
+{
+	if (type->typeID != TypeID::NamedType || !generics || !generics->size()) return type;
+
+	size_t genericsCount = generics->size();
+	Token* genericToken = type->namedType.typeName;
+	for (int i = 0; i < genericsCount; i++)
+	{
+		Token* token = generics->at(i);
+		if (token->val == genericToken->val)
+		{
+			Expr* templ = _ExpandTemplate(templates->at(i), generics, templates);
+			if (templ->typeID == ExprID::TypeExpr)
+			{
+				return templ->typeExpr.type;
+			}
+		}
+	}
+
+	return type;
+}
+
 eastl::vector<Expr*> _ExpandTemplates(eastl::vector<Expr*>* exprs, eastl::vector<Token*>* generics, 
 	eastl::vector<Expr*>* templates)
 {
@@ -932,7 +955,10 @@ template<typename Low>
 SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
 {
 	SpiteIR::State* state = lower->context.FindState(val);
-	if (!state) lower->context.toResolveStateType.push_back({ val, type });
+	if (!state)
+	{
+		lower->context.toResolveStateType.push_back({ val, type });
+	}
 	else if (!state->size && type) lower->context.toResolveStateSize.push_back(type);
 	else if (type)
 	{
@@ -1098,6 +1124,8 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 		{
 			return EvaluateConstantIntExpr(def->definition.assignment, lower, generics, templates);
 		}
+
+		break;
 	}
 	case BinaryExpr:
 	{
@@ -1190,6 +1218,8 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 				return lower->context.FindEnumValue(enumStmnt, member->val);
 			}
 		}
+
+		break;
 	}
 	case SizeOfExpr:
 		return lower->GetSizeOf(expr, generics, templates);
@@ -1315,7 +1345,8 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->kind = SpiteIR::TypeKind::StateType;
 		eastl::vector<Expr*>* templateArgs = type->templatedType.templates->templateExpr.templateArgs;
 		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates);
-		eastl::string typeName = BuildTypeString(type->templatedType.type) + BuildTemplatedString(&expandedArgs);
+		eastl::string typeName = BuildTypeString(_ExpandTypeTemplates(type->templatedType.type, generics, templates)) + 
+			BuildTemplatedString(&expandedArgs);
 		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;
 	}

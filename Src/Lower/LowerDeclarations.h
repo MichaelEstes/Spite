@@ -371,6 +371,7 @@ struct LowerDeclarations
 		SpiteIR::Function* con = context.ir->AllocateFunction(package);
 		con->name = BuildDefaultConstructorName(stateStmnt, templates);
 		con->returnType = CreateVoidType(context.ir);
+		SetConstructorFlag(con);
 
 		BuildMethodThisArgument(state, con, context.ir);
 		state->defaultConstructor = con;
@@ -385,6 +386,8 @@ struct LowerDeclarations
 		SpiteIR::Function* con = context.ir->AllocateFunction(package);
 		con->name = BuildConstructorName(conStmnt, generics, templates);
 		con->returnType = CreateVoidType(context.ir);
+		SetConstructorFlag(con);
+		SetInlineFlag(con, conStmnt);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, con, context.ir);
@@ -407,6 +410,8 @@ struct LowerDeclarations
 		op->name = BuildOperatorMethodName(opStmnt, state->name, generics, templates);
 		op->returnType = TypeToIRType(context.ir, opStmnt->stateOperator.returnType, this,
 			generics, templates);
+		SetMethodFlag(op);
+		SetInlineFlag(op, opStmnt);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, op, context.ir);
@@ -464,6 +469,8 @@ struct LowerDeclarations
 		SpiteIR::Function* method = context.ir->AllocateFunction(package);
 		method->name = name;
 		method->returnType = TypeToIRType(context.ir, methodStmnt->method.returnType, this, generics, templates);
+		SetMethodFlag(method);
+		SetInlineFlag(method, methodStmnt);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, method, context.ir);
@@ -485,6 +492,7 @@ struct LowerDeclarations
 		SpiteIR::Function* destructor = context.ir->AllocateFunction(package);
 		destructor->name = BuildDestructorName(state);
 		destructor->returnType = CreateVoidType(context.ir);
+		SetMethodFlag(destructor);
 
 		// First argument is this argument
 		BuildMethodThisArgument(state, destructor, context.ir);
@@ -523,6 +531,7 @@ struct LowerDeclarations
 		SpiteIR::Function* function = context.ir->AllocateFunction(package);
 		function->name = name;
 		function->returnType = TypeToIRType(context.ir, funcStmnt->function.returnType, this, generics, templates);
+		SetInlineFlag(function, funcStmnt);
 
 		for (size_t i = 0; i < funcStmnt->function.decl->functionDecl.parameters->size(); i++)
 		{
@@ -597,5 +606,24 @@ struct LowerDeclarations
 		context.functionMap[function->name] = function;
 		context.functionASTMap[function] = { externFunc, nullptr };
 		package->functions[function->name] = function;
+	}
+
+	void SetInlineFlag(SpiteIR::Function* function, Stmnt* funcStmnt)
+	{
+		Stmnt* decl = GetDeclForFunc(funcStmnt);
+		if (decl->functionDecl.body.statement)
+		{
+			function->metadata.flags |= SpiteIR::FunctionFlags::Inline;
+		}
+	}
+
+	void SetMethodFlag(SpiteIR::Function* function)
+	{
+		function->metadata.flags |= SpiteIR::FunctionFlags::IsMethod;
+	}
+
+	void SetConstructorFlag(SpiteIR::Function* function)
+	{
+		function->metadata.flags |= SpiteIR::FunctionFlags::IsConstructor;
 	}
 };

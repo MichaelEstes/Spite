@@ -13,40 +13,6 @@ struct TypeChecker
 
 	TypeChecker(CheckerContext& context) : context(context), utils(context) {}
 
-	bool CheckTypeGenerics(Stmnt* state, Expr* templates, Token* token, bool error = true)
-	{
-		Stmnt* generics = GetGenerics(state);
-		if (generics)
-		{
-			if (!templates)
-			{
-				if (error) AddError(token, "TypeChecker:CheckTypeGenerics No templates provided for generic type");
-				return false;
-			}
-
-			// Might be able to remove this check, mirrored in ExprChecker
-			size_t genericsCount = generics->generics.names->size();
-			size_t templatesCount = templates->templateExpr.templateArgs->size();
-			if (templatesCount < RequiredGenericsCount(generics) ||
-				templatesCount > genericsCount)
-			{
-				if (error) AddError(token, "TypeChecker:CheckTypeGenerics Expected "
-					+ eastl::to_string(genericsCount)
-					+ " templates, but was provided "
-					+ eastl::to_string(templatesCount)
-					+ " templates");
-				return false;
-			}
-		}
-		else if (templates)
-		{
-			if (error) AddError(token, "TypeChecker:CheckTypeGenerics Templates provided for non-generic type");
-			return false;
-		}
-
-		return true;
-	}
-
 	bool CheckImportedType(Type* type, Expr* templates, bool error = true)
 	{
 		Stmnt* state = context.globalTable->FindState(type->importedType.packageName,
@@ -64,7 +30,7 @@ struct TypeChecker
 			return false;
 		}
 
-		return CheckTypeGenerics(state, templates, type->importedType.typeName, error);
+		return true;
 	}
 
 	bool CheckNamedType(Type* type, Expr* templates, bool error = true)
@@ -77,7 +43,7 @@ struct TypeChecker
 			type->importedType.packageName = state->package;
 			type->importedType.typeName = name;
 
-			return CheckTypeGenerics(state, templates, type->importedType.typeName, error);
+			return true;
 		}
 		else
 		{
@@ -92,7 +58,10 @@ struct TypeChecker
 			{
 				if (error)
 					AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
+				return false;
 			}
+			
+			return true;
 		}
 
 		return false;
@@ -105,6 +74,7 @@ struct TypeChecker
 		{
 			AddError(assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: "
 				+ ToString(assignment));
+			return;
 		}
 		*type = *inferredType;
 	}

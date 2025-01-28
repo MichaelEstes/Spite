@@ -159,6 +159,32 @@ struct GlobalTable
 		return symbolTable->FindStateSymbol(name->val);
 	}
 
+	template<typename T>
+	T* FindFromImports(SymbolTable* symbolTable, StringView& value, T*(SymbolTable::*find)(StringView&))
+	{
+		T* found = nullptr;
+		eastl::vector<SymbolTable*> topLevelImports = eastl::vector<SymbolTable*>();
+
+		for (Stmnt* import : symbolTable->imports)
+		{
+			StringView& package = import->importStmnt.packageName->val;
+			SymbolTable* importedSymbolTable = FindSymbolTable(package);
+			if (!importedSymbolTable) continue;
+
+			found = (importedSymbolTable->*find)(value);
+			if (found) return found;
+			topLevelImports.push_back(importedSymbolTable);
+		}
+
+		for (SymbolTable* importedSymbolTable : topLevelImports)
+		{
+			found = FindFromImports(importedSymbolTable, value, find);
+			if (found) return found;
+		}
+
+		return nullptr;
+	}
+
 	inline Stmnt* FindScopedState(Token* name, SymbolTable* symbolTable)
 	{
 		StringView& stateName = name->val;
@@ -166,14 +192,8 @@ struct GlobalTable
 		Stmnt* state = symbolTable->FindState(stateName);
 		if (state) return state;
 
-		for (Stmnt* import : symbolTable->imports)
-		{
-			StringView& package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			state = symbolTable->FindState(stateName);
-			if (state) return state;
-		}
+		state = FindFromImports(symbolTable, stateName, &SymbolTable::FindState);
+		if (state) return state;
 
 		return runtimeTable->FindState(stateName);
 	}
@@ -185,14 +205,8 @@ struct GlobalTable
 		StateSymbol* state = symbolTable->FindStateSymbol(stateName);
 		if (state) return state;
 
-		for (Stmnt* import : symbolTable->imports)
-		{
-			StringView& package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			state = symbolTable->FindStateSymbol(stateName);
-			if (state) return state;
-		}
+		state = FindFromImports(symbolTable, stateName, &SymbolTable::FindStateSymbol);
+		if (state) return state;
 
 		return runtimeTable->FindStateSymbol(stateName);;
 	}
@@ -222,14 +236,8 @@ struct GlobalTable
 		Stmnt* enumStmnt = symbolTable->FindEnum(enumName);
 		if (enumStmnt) return enumStmnt;
 
-		for (Stmnt * import : symbolTable->imports)
-		{
-			StringView & package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			enumStmnt = symbolTable->FindEnum(enumName);
-			if (enumStmnt) return enumStmnt;
-		}
+		enumStmnt = FindFromImports(symbolTable, enumName, &SymbolTable::FindEnum);
+		if (enumStmnt) return enumStmnt;
 
 		return runtimeTable->FindEnum(enumName);
 	}
@@ -241,14 +249,8 @@ struct GlobalTable
 		Stmnt* stmnt = symbolTable->FindFunction(functionName);
 		if (stmnt) return stmnt;
 
-		for (Stmnt * import : symbolTable->imports)
-		{
-			StringView & package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			stmnt = symbolTable->FindFunction(functionName);
-			if (stmnt) return stmnt;
-		}
+		stmnt = FindFromImports(symbolTable, functionName, &SymbolTable::FindFunction);
+		if (stmnt) return stmnt;
 
 		stmnt = runtimeTable->FindFunction(functionName);
 		if (stmnt) return stmnt;
@@ -263,16 +265,10 @@ struct GlobalTable
 		Stmnt* stmnt = symbolTable->FindGlobalVariable(globalVarName);
 		if (stmnt) return stmnt;
 
-		for (Stmnt * import : symbolTable->imports)
-		{
-			StringView & package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			stmnt = symbolTable->FindGlobalVariable(globalVarName);
-			if (stmnt) return stmnt;
-		}
+		stmnt = FindFromImports(symbolTable, globalVarName, &SymbolTable::FindGlobalVariable);
+		if (stmnt) return stmnt;
 
-		return runtimeTable->FindGlobalVariable(globalVarName);;
+		return runtimeTable->FindGlobalVariable(globalVarName);
 	}
 
 	inline Stmnt* FindScopedExternFunc(Token* name, SymbolTable* symbolTable)
@@ -282,22 +278,16 @@ struct GlobalTable
 		Stmnt* stmnt = symbolTable->FindExternalFunction(externFuncName);
 		if (stmnt) return stmnt;
 
-		for (Stmnt* import : symbolTable->imports)
-		{
-			StringView & package = import->importStmnt.packageName->val;
-			SymbolTable* symbolTable = FindSymbolTable(package);
-			if (!symbolTable) continue;
-			stmnt = symbolTable->FindExternalFunction(externFuncName);
-			if (stmnt) return stmnt;
-		}
+		stmnt = FindFromImports(symbolTable, externFuncName, &SymbolTable::FindExternalFunction);
+		if (stmnt) return stmnt;
 
 		return runtimeTable->FindExternalFunction(externFuncName);
 	}
 
 	inline Stmnt* FindScopedValue(Token* name, SymbolTable* symbolTable)
 	{
-		Stmnt* found = FindScopedState(name, symbolTable);
-		if (!found) found = FindScopedFunction(name, symbolTable);
+		Stmnt* found = FindScopedFunction(name, symbolTable);
+		if (!found) found = FindScopedState(name, symbolTable);
 		if (!found) found = FindScopedGlobalVar(name, symbolTable);
 		if (!found) found = FindScopedEnum(name, symbolTable);
 		if (!found) found = FindScopedExternFunc(name, symbolTable);
@@ -325,8 +315,24 @@ struct GlobalTable
 		return FindScopedState(stateName, symbolTable);
 	}
 
+	Type* GetBaseType(Type* type)
+	{
+		if (!type) return type;
+
+		switch (type->typeID)
+		{
+		case TemplatedType:
+			return GetBaseType(type->templatedType.type);
+		default:
+			break;
+		}
+
+		return type;
+	}
+
 	bool IsGenericOfStmnt(Type* type, Stmnt* stmnt, SymbolTable* symbolTable)
 	{
+		type = GetBaseType(type);
 		if (!type || !stmnt || type->typeID != TypeID::NamedType) return false;
 
 		Token* ident = type->namedType.typeName;

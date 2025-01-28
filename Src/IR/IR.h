@@ -434,6 +434,8 @@ namespace SpiteIR
 	enum FunctionFlags : int
 	{
 		Inline = ToBit(1),
+		IsMethod = ToBit(2),
+		IsConstructor = ToBit(3),
 	};
 
 	struct PlatformLib
@@ -466,6 +468,16 @@ namespace SpiteIR
 		inline bool IsInline()
 		{
 			return metadata.flags & FunctionFlags::Inline;
+		}
+
+		inline bool IsMethod()
+		{
+			return metadata.flags & FunctionFlags::IsMethod;
+		}
+
+		inline bool IsConstructor()
+		{
+			return metadata.flags & FunctionFlags::IsConstructor;
 		}
 	};
 
