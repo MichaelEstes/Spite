@@ -853,6 +853,8 @@ struct TypeInferer
 			return GetUnaryType(op, type->valueType.type);
 		case TemplatedType:
 			return GetUnaryType(op, type->templatedType.type);
+		case AnyType:
+			return type;
 		default:
 			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}

@@ -353,11 +353,24 @@ struct Interpreter
 		}
 		case SpiteIR::OperandKind::StructLiteral:
 		{
-			size_t offset = 0;
-			for (SpiteIR::Operand& op : *src.structLiteral)
+			SpiteIR::Type* srcType = src.type;
+			if (srcType->kind == SpiteIR::TypeKind::StructureType)
 			{
-				StoreOperand(op, (char*)dst + offset);
-				offset += op.type->size;
+				for (size_t i = 0; i < src.structLiteral->size(); i++)
+				{
+					SpiteIR::Operand& op = src.structLiteral->at(i);
+					size_t offset = srcType->structureType.members->at(i)->offset;
+					StoreOperand(op, (char*)dst + offset);
+				}
+			}
+			else
+			{
+				size_t offset = 0;
+				for (SpiteIR::Operand& op : *src.structLiteral)
+				{
+					StoreOperand(op, (char*)dst + offset);
+					offset += op.type->size;
+				}
 			}
 			break;
 		}

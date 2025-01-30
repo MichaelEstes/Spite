@@ -788,7 +788,7 @@ struct LowerDefinitions
 		}
 	}
 
-	ScopeValue BuildVarDefinition(Stmnt* stmnt)
+	ScopeValue BuildVarAssignment(Stmnt* stmnt)
 	{
 		auto& def = stmnt->definition;
 		SpiteIR::Type* defType = ToIRType(def.type);
@@ -811,8 +811,15 @@ struct LowerDefinitions
 		{
 			value = BuildTypeDereference(GetCurrentLabel(), value);
 		}
-		AddValueToCurrentScope(def.name->val, value, stmnt);
-		funcContext.scopeUtils.AddToTopScope(def.name->val, stmnt);
+		return value;
+	}
+
+	ScopeValue BuildVarDefinition(Stmnt* stmnt)
+	{
+		ScopeValue value = BuildVarAssignment(stmnt);
+		StringView& name = stmnt->definition.name->val;
+		AddValueToCurrentScope(name, value, stmnt);
+		funcContext.scopeUtils.AddToTopScope(name, stmnt);
 		return value;
 	}
 
@@ -2309,7 +2316,6 @@ struct LowerDefinitions
 
 	ScopeValue BuildExplicitTypeExpr(Expr* expr, Stmnt* stmnt)
 	{
-		SpiteIR::Label* label = GetCurrentLabel();
 		auto& explicitType = expr->explicitTypeExpr;
 
 		eastl::vector<ScopeValue> values;
@@ -2318,12 +2324,12 @@ struct LowerDefinitions
 		structType->structureType.members = context.ir->AllocateArray<SpiteIR::Member*>();
 		for (Stmnt* def : *explicitType.values)
 		{
-			ScopeValue value = BuildVarDefinition(def);
+			ScopeValue value = BuildVarAssignment(def);
+			value = BuildTypeDereference(GetCurrentLabel(), value);
 			SpiteIR::Member* member = context.ir->AllocateMember();
 			member->value.type = value.type;
 			member->value.name = def->definition.name->ToString();
 			structType->structureType.members->push_back(member);
-			structType->size += value.type->size;
 			values.push_back(value);
 		}
 		SetStructuredTypeSizeAndAlign(structType, this);
@@ -2528,16 +2534,19 @@ struct LowerDefinitions
 	{
 		Expr* toDeref = expr->dereferenceExpr.of;
 		ScopeValue value = BuildTypeDereference(GetCurrentLabel(), BuildExpr(toDeref, stmnt));
-		Assert(value.type->kind == SpiteIR::TypeKind::PointerType);
+		if (value.type->kind == SpiteIR::TypeKind::PointerType)
+		{
+			// This looks wrong since we're making the type a reference type in a function called dereference
+			// But a reference type signals to treat operations against it as a value
+			// which is what we want when we dereference a pointer
+			SpiteIR::Type* type = MakeReferenceType(value.type->pointer.type, context.ir);
+			SpiteIR::Allocate alloc = BuildAllocate(type);
+			SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
+				BuildRegisterOperand(value));
+			return { alloc.result, alloc.type };
+		}
 
-		// This looks wrong since we're making the type a reference type in a function called dereference
-		// But a reference type signals to treat operations against it as a value
-		// which is what we want when we dereference a pointer
-		SpiteIR::Type* type = MakeReferenceType(value.type->pointer.type, context.ir);
-		SpiteIR::Allocate alloc = BuildAllocate(type);
-		SpiteIR::Instruction* store = BuildStore(GetCurrentLabel(), AllocateToOperand(alloc),
-			BuildRegisterOperand(value));
-		return { alloc.result, alloc.type };
+		return value;
 	}
 
 	ScopeValue BuildReferenceExpr(Expr* expr, Stmnt* stmnt)
