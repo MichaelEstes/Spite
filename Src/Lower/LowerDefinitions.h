@@ -1162,7 +1162,15 @@ struct LowerDefinitions
 		ScopeValue to = BuildTypeDereference(GetCurrentLabel(), toValue);
 
 		SpiteIR::Allocate alloc = BuildAllocate(to.type);
-		ScopeValue init = BuildDefaultValue(alloc.type, alloc.result, fromLabel);
+		ScopeValue init;
+		if (def.assignment)
+		{
+			init = BuildExpr(def.assignment, defStmnt);
+		}
+		else
+		{
+			init = BuildDefaultValue(alloc.type, alloc.result, fromLabel);
+		}
 		AddValueToCurrentScope(def.name->val, init, defStmnt);
 
 		SpiteIR::Instruction* toCond = BuildJump(fromLabel);

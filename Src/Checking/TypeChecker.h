@@ -191,7 +191,7 @@ struct TypeChecker
 			if (forStmnt.rangeFor)
 			{
 				if (!IsIntLike(type))					
-					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer");
+					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer type");
 			}
 			else
 			{
@@ -202,6 +202,11 @@ struct TypeChecker
 			decl->definition.type = type;
 			forStmnt.isDeclaration = true;
 			forStmnt.iterated.declaration = decl;
+		}
+
+		if (!forStmnt.rangeFor && forStmnt.iterated.declaration->definition.assignment)
+		{
+			AddError(node->start, "For in loop variable declarations cannot have assignments");
 		}
 	}
 

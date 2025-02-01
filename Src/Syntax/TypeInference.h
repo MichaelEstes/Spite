@@ -461,7 +461,7 @@ struct TypeInferer
 			{
 				return symbolTable->CreateTypePtr(TypeID::AnyType);
 			}
-			
+
 			AddError(of->start, "TypeInferer:GetSelectorType No state found for type: " + ToString(type));
 			return nullptr;
 		}

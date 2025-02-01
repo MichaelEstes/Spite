@@ -208,7 +208,7 @@ int main(int argc, char** argv)
 			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 			//interpretProfiler.Reset();
 			int value = *(int*)(void*)interpreter.Interpret(ir);
-			Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;
 		}
 		case C:

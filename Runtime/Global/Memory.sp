@@ -28,6 +28,15 @@ void dealloc(ptr: *void)
 	free(ptr);
 }
 
+void zero_out_bytes(dst: *void, byteCount: uint)
+{
+	dstBytes := dst as *byte;
+	for (i .. byteCount)
+	{
+		dstBytes[i]~ = byte(0);
+	}
+}
+
 void copy_bytes(dst: *byte, src: *byte, toCopy: uint)
 {
 	for (i .. toCopy)

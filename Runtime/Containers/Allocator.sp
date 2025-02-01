@@ -5,15 +5,15 @@ state Allocator<Type>
 	ptr: *Type
 }
 
-*Type Allocator::operator::[](index: int) => this.ptr[index];
+*Type Allocator::operator::[](index: uint) => this.ptr[index];
 
-*Type Allocator::Alloc(count: int)
+*Type Allocator::Alloc(count: uint)
 {
 	this.ptr = alloc(count * #sizeof Type) as *Type;
 	return this.ptr;
 }
 
-*Type Allocator::Resize(count: int)
+*Type Allocator::Resize(count: uint, prevCount: uint)
 {
 	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
 	return this.ptr;
@@ -27,37 +27,38 @@ Allocator::Dealloc()
 state InitAllocator<Type>
 {
 	ptr: *Type,
-	count: int
+	count: uint
 }
 
-*Type InitAllocator::operator::[](index: int) => this.ptr[index];
+*Type InitAllocator::operator::[](index: uint) => this.ptr[index];
 
-*Type InitAllocator::Alloc(count: int)
+*Type InitAllocator::Alloc(count: uint)
 {
-	this.count = count;
 	this.ptr = alloc(count * #sizeof Type) as *Type;
-	if (this.ptr)
+	if (this.ptr) 
 	{
 		for (i .. count) this.ptr[i]~ = Type();
+		this.count = count;
 	}
+	else this.count = 0;
 
 	return this.ptr;
 }
 
-*Type InitAllocator::Resize(count: int)
+*Type InitAllocator::Resize(count: uint, prevCount: uint)
 {
 	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
 	if (this.ptr)
 	{
-		curr := this.count;
-		while (curr < this.count)
+		curr := prevCount;
+		while (curr < count)
 		{
 			this.ptr[curr]~ = Type();
 			curr += 1;
 		}
-	}
+		this.count = count;
+	} else this.count = 0;
 
-	this.count = count;
 	return this.ptr;
 }
 
@@ -70,28 +71,24 @@ InitAllocator::Dealloc()
 state ZeroedAllocator<Type>
 {
 	ptr: *Type,
-	count: int
 }
 
-*Type ZeroedAllocator::operator::[](index: int) => this.ptr[index];
+*Type ZeroedAllocator::operator::[](index: uint) => this.ptr[index];
 
-*Type ZeroedAllocator::Alloc(count: int)
+*Type ZeroedAllocator::Alloc(count: uint)
 {
-	this.count = count;
 	this.ptr = alloc_zeroed(count, #sizeof Type) as *Type;
 	return this.ptr;
 }
 
-*Type ZeroedAllocator::Resize(count: int)
+*Type ZeroedAllocator::Resize(count: uint, prevCount: uint)
 {
-	resized := alloc_zeroed(count, #sizeof Type) as *Type;
-	if (resized)
+	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
+	if (this.ptr)
 	{
-		for (i .. count) resized[i]~ = this.ptr[i]~;
+		zero_out_bytes(this.ptr[prevCount], (count - prevCount) * #sizeof Type);
 	}
 
-	this.ptr = resized;
-	this.count = count;
 	return this.ptr;
 }
 

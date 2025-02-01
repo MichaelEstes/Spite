@@ -1129,10 +1129,11 @@ struct Syntax
 			Advance();
 			if (Expect(TokenType::Identifier, "Expected identifier after '(' in 'for' statement"))
 			{
-				if (Peek()->uniqueType == UniqueType::Colon)
+				if (Peek()->uniqueType == UniqueType::Colon || 
+					Peek()->uniqueType == UniqueType::ImplicitAssign)
 				{
 					node->forStmnt.isDeclaration = true;
-					node->forStmnt.iterated.declaration = ParseDeclaration();
+					node->forStmnt.iterated.declaration = ParseDeclOrDef();
 				}
 				else
 				{

@@ -142,7 +142,7 @@ struct PackageChecker
 
 	void CheckDestructor(Stmnt* destructor)
 	{
-		context.currentContext = nullptr;
+		context.currentContext = destructor;
 		if (!destructor) return; // Destructor not required
 		CheckFunctionDecl(destructor->destructor.decl, destructor);
 	}
