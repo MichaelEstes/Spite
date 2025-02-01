@@ -21,11 +21,10 @@ struct Lower
 		LowerDeclarations lowerDecl = LowerDeclarations(context);
 		SpiteIR::Package* runtime = lowerDecl.BuildPackageDeclarations(context.globalTable->runtimeTable);
 		ir->SetRuntimePackage(runtime);
-		//lowerDecl.BuildDeclarations();
 		SpiteIR::Package* entryPkg = lowerDecl.BuildPackageDeclarations(entry);
+		lowerDecl.Resolve();
 
 		LowerDefinitions lowerDef = LowerDefinitions(context);
-		//lowerDef.BuildDefinitions();
 		lowerDef.BuildPackageDefinitions(runtime);
 		lowerDef.BuildPackageDefinitions(entryPkg);
 

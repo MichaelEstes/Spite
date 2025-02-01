@@ -80,6 +80,52 @@ struct LowerDeclarations
 		}
 	}
 
+	void Resolve()
+	{
+		while (context.toResolveStateType.size() > 0)
+		{
+			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
+			eastl::string& typeName = eastl::get<0>(val);
+			SpiteIR::Type* type = eastl::get<1>(val);
+			type->stateType.state = FindState(this, typeName, type);
+			context.toResolveStateType.pop_back();
+		}
+
+		for (SpiteIR::Package* package : context.ir->packages)
+		{
+			for (auto& [key, state] : package->states)
+			{
+				BuildStateSize(state);
+			}
+		}
+
+		while (context.toResolveStateSize.size() > 0)
+		{
+			SpiteIR::Type* val = context.toResolveStateSize.back();
+			val->size = val->stateType.state->size;
+			val->alignment = val->stateType.state->alignment;
+			val->byValue = val->stateType.state->IsValueType();
+			context.toResolveStateSize.pop_back();
+		}
+
+		for (SpiteIR::Type* type : context.toResolveSizeAndAlignment)
+		{
+			if (type->kind == SpiteIR::TypeKind::UnionType)
+			{
+				for (SpiteIR::Member* member : *type->structureType.members)
+				{
+					SpiteIR::Type* memberType = member->value.type;
+					if (memberType->size > type->size) type->size = memberType->size;
+					if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
+				}
+			}
+			else
+			{
+				SetStructuredTypeSizeAndAlign(type, this);
+			}
+		}
+	}
+
 	SpiteIR::Package* BuildPackageDeclarations(SymbolTable* symbolTable)
 	{
 		StringView& packageName = symbolTable->package->val;
@@ -113,46 +159,6 @@ struct LowerDeclarations
 		for (auto& [key, value] : symbolTable->stateMap)
 		{
 			BuildStateDeclarations(package, value);
-		}
-
-		while (context.toResolveStateType.size() > 0)
-		{
-			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
-			eastl::string& typeName = eastl::get<0>(val);
-			SpiteIR::Type* type = eastl::get<1>(val);
-			type->stateType.state = FindState(this, typeName, type);
-			context.toResolveStateType.pop_back();
-		}
-
-		for (auto& [key, state] : package->states)
-		{
-			BuildStateSize(state);
-		}
-
-		while (context.toResolveStateSize.size() > 0)
-		{
-			SpiteIR::Type* val = context.toResolveStateSize.back();
-			val->size = val->stateType.state->size;
-			val->alignment = val->stateType.state->alignment;
-			val->byValue = val->stateType.state->IsValueType();
-			context.toResolveStateSize.pop_back();
-		}
-
-		for (SpiteIR::Type* type : context.toResolveSizeAndAlignment)
-		{
-			if (type->kind == SpiteIR::TypeKind::UnionType)
-			{
-				for (SpiteIR::Member* member : *type->structureType.members)
-				{
-					SpiteIR::Type* memberType = member->value.type;
-					if (memberType->size > type->size) type->size = memberType->size;
-					if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
-				}
-			}
-			else
-			{
-				SetStructuredTypeSizeAndAlign(type, this);
-			}
 		}
 
 		for (auto& [key, value] : symbolTable->functionMap)
