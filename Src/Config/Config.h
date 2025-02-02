@@ -76,7 +76,7 @@ struct Config
 	eastl::string name = "a";
 	Output output = Output::Llvm;
 	Arch arch = Arch::X64;
-	Os os = Os::Windows;
+	Os os = Os::OsInvalid;
 	bool comments = false;
 	int targetArchByteWidth = 8;
 	size_t interpreterStackSize = 2000000;

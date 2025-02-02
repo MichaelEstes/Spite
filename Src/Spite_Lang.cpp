@@ -54,6 +54,8 @@ Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 
 #ifdef WIN32
 
+Os currentOS = Os::Windows;
+
 #include <windows.h>
 std::filesystem::path GetExecutableDir()
 {
@@ -63,6 +65,8 @@ std::filesystem::path GetExecutableDir()
 }
 
 #elif __unix__
+
+Os currentOS = Os::Linux;
 
 #include <unistd.h>
 std::filesystem::path GetExecutableDir()
@@ -92,14 +96,15 @@ int main(int argc, char** argv)
 	Profiler profiler = Profiler();
 
 	config = ParseConfig(argc, argv);
+	if (config.os == Os::OsInvalid) config.os = currentOS;
 
 	eastl::hash_set<string> files = eastl::hash_set<string>();	
-	if (config.dir.length() > 0)
+	if (!config.dir.empty())
 	{
 		std::filesystem::path dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
 		FindAllSourceFilesInDir(files, dir);
 	}
-	else if (!config.file.length())
+	else if (!config.file.empty())
 	{
 		std::filesystem::path dir = std::filesystem::current_path();
 		FindAllSourceFilesInDir(files, dir);
@@ -109,8 +114,12 @@ int main(int argc, char** argv)
 	std::filesystem::path runTimeDir = execDir / "Runtime";
 	FindAllSourceFilesInDir(files, runTimeDir);
 
-	string entry(std::filesystem::canonical(config.file.c_str()).string().c_str());
-	files.erase(entry);
+	string entry;
+	if (!config.file.empty())
+	{
+		entry = std::filesystem::canonical(config.file.c_str()).string().c_str();
+		files.erase(entry);
+	}
 
 	SpiteIR::IR* ir = nullptr;
 	Interpreter interpreter = Interpreter(config.interpreterStackSize);
