@@ -26,6 +26,7 @@ struct CheckerUtils
 		size_t paramCount = params->size();
 		size_t requiredParamCount = RequiredFunctionParamCount(calledFor);
 		if (requiredParamCount > paramCount) return false;
+		if (paramCount > funcParams->size()) return false;
 
 		for (size_t i = 0; i < paramCount; i++)
 		{

@@ -529,7 +529,7 @@ struct SymbolTable
 		for (auto& [key, stateSymbol] : stateMap)
 		{
 			Stmnt* state = stateSymbol.state;
-			if (state->state.generics)
+			if (state && state->state.generics)
 			{
 				SetGenericThis(stateSymbol);
 			}
