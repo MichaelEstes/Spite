@@ -1,4 +1,4 @@
-package Allocator
+package _
 
 state Allocator<Type> 
 {
@@ -19,7 +19,7 @@ state Allocator<Type>
 	return this.ptr;
 }
 
-Allocator::Dealloc()
+Allocator::Dealloc(count: uint)
 {
 	dealloc(this.ptr);
 }
@@ -27,7 +27,6 @@ Allocator::Dealloc()
 state InitAllocator<Type>
 {
 	ptr: *Type,
-	count: uint
 }
 
 *Type InitAllocator::operator::[](index: uint) => this.ptr[index];
@@ -38,9 +37,7 @@ state InitAllocator<Type>
 	if (this.ptr) 
 	{
 		for (i .. count) this.ptr[i]~ = Type();
-		this.count = count;
 	}
-	else this.count = 0;
 
 	return this.ptr;
 }
@@ -56,15 +53,14 @@ state InitAllocator<Type>
 			this.ptr[curr]~ = Type();
 			curr += 1;
 		}
-		this.count = count;
-	} else this.count = 0;
+	}
 
 	return this.ptr;
 }
 
-InitAllocator::Dealloc()
+InitAllocator::Dealloc(count: uint)
 {
-	for (i .. this.count) delete this.ptr[i]~;
+	for (i .. count) delete this.ptr[i]~;
 	dealloc(this.ptr);
 }
 
@@ -92,7 +88,7 @@ state ZeroedAllocator<Type>
 	return this.ptr;
 }
 
-ZeroedAllocator::Dealloc()
+ZeroedAllocator::Dealloc(count: uint)
 {
 	dealloc(this.ptr);
 }

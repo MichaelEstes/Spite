@@ -160,7 +160,8 @@ struct GlobalTable
 	}
 
 	template<typename T>
-	T* FindFromImports(SymbolTable* symbolTable, StringView& value, T*(SymbolTable::*find)(StringView&))
+	T* FindFromImports(SymbolTable* symbolTable, StringView& value, 
+		T*(SymbolTable::*find)(StringView&), eastl::hash_set<SymbolTable*> seen = eastl::hash_set<SymbolTable*>())
 	{
 		T* found = nullptr;
 		eastl::vector<SymbolTable*> topLevelImports = eastl::vector<SymbolTable*>();
@@ -169,8 +170,9 @@ struct GlobalTable
 		{
 			StringView& package = import->importStmnt.packageName->val;
 			SymbolTable* importedSymbolTable = FindSymbolTable(package);
-			if (!importedSymbolTable) continue;
+			if (!importedSymbolTable || MapHas(seen, importedSymbolTable)) continue;
 
+			seen.insert(importedSymbolTable);
 			found = (importedSymbolTable->*find)(value);
 			if (found) return found;
 			topLevelImports.push_back(importedSymbolTable);
@@ -178,7 +180,7 @@ struct GlobalTable
 
 		for (SymbolTable* importedSymbolTable : topLevelImports)
 		{
-			found = FindFromImports(importedSymbolTable, value, find);
+			found = FindFromImports(importedSymbolTable, value, find, seen);
 			if (found) return found;
 		}
 

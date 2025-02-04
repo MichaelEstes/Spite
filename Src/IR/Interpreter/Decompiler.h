@@ -20,7 +20,19 @@ struct Decompiler
 
 	void Print()
 	{
-		Logger::Info(output);
+		std::string outputFileName = "out.spir";
+		std::filesystem::path outputPath = std::filesystem::current_path() / "Build" / outputFileName;
+		std::string directory = outputPath.parent_path().string();
+		if (!directory.empty())
+		{
+			std::filesystem::create_directories(directory);
+		}
+		std::ofstream outfile(outputPath);
+		outfile << output;
+		outfile << std::endl;
+		outfile.close();
+
+		//Logger::Info(output);
 	}
 
 	void Write(const eastl::string& line)

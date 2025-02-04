@@ -92,22 +92,35 @@ state KeyValue<Key, Value>
 	value: *Value
 }
 
-state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key> 
+state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key>,
+	KeyAllocator = Allocator, ValueAllocator = Allocator, InitialCapacity = 16
 : where(key: Key) { Hash<Key>(key); Equals<Key>(key, key) == true; }>
 {
-	keys: []Key,
-	values: []Value,
-	status: []byte,
-	count: uint
+	keys: KeyAllocator<Key>,
+	values: ValueAllocator<Value>,
+	status: ZeroedAllocator<byte>,
+	count: uint,
+	capacity: uint
+}
+
+Map::()
+{
+	this.keys.Alloc(InitialCapacity);
+	this.values.Alloc(InitialCapacity);
+	this.status.Alloc(InitialCapacity);
+	this.capacity = InitialCapacity;
+	this.count = 0;
 }
 
 []KeyValue<Key, Value> Map::log()
 {
 	values := []KeyValue<Key, Value>;
-	for(i .. this.status.count)
+	for(i .. this.capacity)
 	{
-		if (this.status[i] == Full)
-			values.Add({this.keys[i]@, this.values[i]@} as KeyValue<Key, Value>);
+		if (this.status[i]~ == Full)
+		{
+			values.Add({this.keys[i], this.values[i]} as KeyValue<Key, Value>);
+		}
 	}
 
 	return values;
@@ -120,23 +133,23 @@ state Map<Key, Value, Hash = DefaultHash<Key>, Equals = DefaultEqual<Key>
 
 Iterator Map::operator::in()
 {
-	return {null, 0};
+	return {null, -1};
 }
 
 bool Map::next(it: Iterator)
 {
 	it.index += 1;
-	while(it.index < this.status.count && this.status[it.index] != Full)
+	while(it.index < this.capacity && this.status[it.index]~ != Full)
 	{
 		it.index += 1;
 	}
-	return it.index < this.status.count;
+	return it.index < this.capacity;
 }
 
 KeyValue<Key, Value> Map::current(it: Iterator)
 {
 	index := it.index;
-	return {this.keys[index]@, this.values[index]@} as KeyValue<Key, Value>;
+	return {this.keys[index], this.values[index]} as KeyValue<Key, Value>;
 }
 
 *Value Map::Find(key: Key)
@@ -144,21 +157,21 @@ KeyValue<Key, Value> Map::current(it: Iterator)
 	index := this.FindIndex(key);
 
 	if(index == InvalidIndex) return null;
-	return this.values[index]@;
+	return this.values[index];
 }
 
 uint Map::FindIndex(key: Key)
 {
 	hash: int = Hash(key);
-	index := hash % this.status.capacity;
+	index := hash % this.capacity;
 	start := index;
 
-	while (this.status[index] != Empty)
+	while (this.status[index]~ != Empty)
 	{
-		if (this.status[index] == Full && Equals(this.keys[index], key))
+		if (this.status[index]~ == Full && Equals(this.keys[index]~, key))
 			return index;
 
-		index = (index + 1) % this.status.capacity;
+		index = (index + 1) % this.capacity;
 		if (index == start) break;
 	}
 
@@ -172,70 +185,80 @@ bool Map::Has(key: Key)
 
 bool Map::Insert(key: Key, value: Value)
 {
-	if (this.count * 3 >= this.status.capacity * 2)
+	if (this.count * 3 >= this.capacity * 2)
 	{
-		this.ResizeTo((this.status.capacity + 1) * 2);
+		this.ResizeTo((this.capacity + 1) * 2);
 	}
 
 	this.count += 1;
-	return MapInsertInternal<Key, Value, Hash, Equals>(this.keys, this.values, this.status, key, value);
+	return this.InsertInternal(
+			key, 
+			value,
+			this.keys, 
+			this.values, 
+			this.status,
+			this.capacity
+	);
 }
 
 bool Map::Remove(key: Key)
 {
 	index := this.FindIndex(key);
 	if(index == InvalidIndex) return false;
-	this.status[index] = Deleted;
+	this.status[index]~ = Deleted;
+	this.count -= 1;
 	return true;
 }
 
-Map::ResizeTo(count: int)
+Map::ResizeTo(capacity: int)
 {	
-	newKeys := [count]Key;
-	newKeys.count = newKeys.capacity;
-	newValues := [count]Value;
-	newValues.count = newValues.capacity;
-	newStatus := [count]byte;
-	newStatus.count = newStatus.capacity;
+	newKeys := KeyAllocator<Key>();
+	newValues := ValueAllocator<Value>();
+	newStatus := ZeroedAllocator<byte>();
+	
+	newKeys.Alloc(capacity);
+	newValues.Alloc(capacity);
+	newStatus.Alloc(capacity);
 
-	for (i .. newStatus.count) newStatus[i] = Empty;
+	this.InsertAllInternal(newKeys, newValues, newStatus, capacity);
 
-	MapInsertAllInternal<Key, Value, Hash, Equals>(newKeys, newValues, newStatus, 
-													this.keys, this.values, this.status);
+	this.keys.Dealloc(this.capacity);
+	this.values.Dealloc(this.capacity);
+	this.status.Dealloc(this.capacity);
 
-	delete this.keys;
-	delete this.values;
-	delete this.status;
 	this.keys = newKeys;
 	this.values = newValues;
 	this.status = newStatus;
+	this.capacity = capacity;
 }
 
-bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
-													key: Key, value: Value)
+bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>, 
+						 values: ValueAllocator<Value>, status: ZeroedAllocator<byte>,
+						 capacity: uint)
 {
-	assert keys.count == values.count && values.count == status.count;
 	hash: uint = Hash(key);
-	index := hash % status.capacity;
+	index := hash % capacity;
 	start := index;
 	deletedIndex := InvalidIndex;
 
-	while (status[index] != Empty)
+	currStatus := status[index]~;
+	while (currStatus != Empty)
 	{
-		if (status[index] == Full && Equals(keys[index], key))
+		if (currStatus == Full && Equals(keys[index]~, key))
 		{
-			values[index] = value;
-			return true;
+			values[index]~ = value;
+			return false;
 		}
 
-		if (status[index] == Deleted)
+		if (currStatus == Deleted)
 		{
 			deletedIndex = index;
 		}
 		
-		index = (index + 1) % status.capacity;
-
+		index = (index + 1) % capacity;
 		if (index == start) break;
+
+		currStatus = status[index]~;
 	}
 
 	if (deletedIndex != InvalidIndex)
@@ -243,25 +266,29 @@ bool MapInsertInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, s
 		index = deletedIndex;
 	}
 
-	keys[index] = key;
-	values[index] = value;
-	status[index] = Full;
+	keys[index]~ = key;
+	values[index]~ = value;
+	status[index]~ = Full;
 	return true;
 }
 
-MapInsertAllInternal<Key, Value, Hash, Equals>(keys: []Key, values: []Value, status: []byte
-										insertKeys: []Key, insertValues: []Value, insertStatus: []byte)
+Map::InsertAllInternal(keys: KeyAllocator<Key>, values: ValueAllocator<Value>, 
+						status: ZeroedAllocator<byte>, capacity: uint)
 {
-	assert keys.count == values.count && values.count == status.count;
-	assert insertKeys.count == insertValues.count;
-
-	for (i .. insertStatus.count)
+	for (i .. this.capacity)
 	{
-		if(insertStatus[i] == Full)
+		if(this.status[i]~ == Full)
 		{
-			key := insertKeys[i]
-			value := insertValues[i]
-			MapInsertInternal<Key, Value, Hash, Equals>(keys, values, status, key, value);
+			key := this.keys[i]~;
+			value := this.values[i]~;
+			this.InsertInternal(
+				key, 
+				value,
+				keys, 
+				values, 
+				status,
+				capacity
+			);
 		}
 	}
 }

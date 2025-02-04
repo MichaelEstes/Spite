@@ -38,6 +38,7 @@ SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
 	eastl::vector<SpiteIR::Type*> types;
+	if (!state) return types;
 	for (SpiteIR::Member* member : state->members)
 	{
 		types.push_back(member->value.type);
@@ -197,7 +198,7 @@ inline bool IsStringType(SpiteIR::Type* type)
 
 inline bool IsAssignableString(SpiteIR::Type* type)
 {
-	return IsStringType(type) || (type->kind == SpiteIR::TypeKind::StateType && 
+	return IsStringType(type) || (type->kind == SpiteIR::TypeKind::StateType && type->stateType.state &&
 		type->stateType.state->name == "___string");
 }
 
@@ -924,8 +925,8 @@ inline eastl::string BuildDefaultConstructorName(Stmnt* state, eastl::vector<Exp
 inline eastl::string BuildConstructorName(Stmnt* con,
 	eastl::vector<Token*>* generics, eastl::vector<Expr*>* templates)
 {
-	return "con_" + _BuildStateName(con->package, con->constructor.stateName) + '_' +
-		BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
+	return "con_" + _BuildStateName(con->package, con->constructor.stateName) + BuildTemplatedString(templates) + 
+		'_' + BuildConOpParamsTypeString(con->constructor.decl, generics, templates);
 }
 
 inline eastl::string BuildOperatorMethodName(Stmnt* op, eastl::string& stateName,

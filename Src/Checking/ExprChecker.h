@@ -271,13 +271,14 @@ struct ExprChecker
 			}
 			else if (ofType && context.globalTable->IsGenericOfStmnt(ofType, context.currentContext, context.symbolTable))
 			{
-				Token* genericTok = ofType->namedType.typeName;
+				Token* genericTok = context.globalTable->GetBaseType(ofType)->namedType.typeName;
 				DeferredTemplateForwarded toDefer = DeferredTemplateForwarded();
 				toDefer.genericName = genericTok;
 				toDefer.templatesToForward = templateArgs;
 				deferred.deferredForwardedTemplates[context.currentContext].push_back(toDefer);
 				return;
 			}
+			else if (ofType && IsAny(ofType)) return;
 
 			AddError(start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
 			return;

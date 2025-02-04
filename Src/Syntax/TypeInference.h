@@ -443,7 +443,7 @@ struct TypeInferer
 			Stmnt* unionMember = FindTypeMember(type->unionType.declarations, name);
 			return unionMember->definition.type;
 		}
-		else if (type->typeID == TypeID::AnyType)
+		else if (IsAny(type))
 		{
 			return type;
 		}

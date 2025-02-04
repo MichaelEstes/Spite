@@ -104,7 +104,7 @@ int main(int argc, char** argv)
 		std::filesystem::path dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
 		FindAllSourceFilesInDir(files, dir);
 	}
-	else if (!config.file.empty())
+	else if (config.file.empty())
 	{
 		std::filesystem::path dir = std::filesystem::current_path();
 		FindAllSourceFilesInDir(files, dir);
@@ -212,10 +212,10 @@ int main(int argc, char** argv)
 		case Run:
 		{
 			Profiler interpretProfiler = Profiler();
-			//Decompiler decompiler = Decompiler();
-			//decompiler.Decompile(ir);
+			Decompiler decompiler = Decompiler();
+			decompiler.Decompile(ir);
 			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
-			//interpretProfiler.Reset();
+			interpretProfiler.Reset();
 			int value = *(int*)(void*)interpreter.Interpret(ir);
 			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;

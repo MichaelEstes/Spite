@@ -2821,8 +2821,22 @@ struct LowerDefinitions
 	{
 		SpiteIR::Label* label = GetCurrentLabel();
 		Type* type = expr->typeExpr.type;
-		SpiteIR::Allocate alloc = BuildAllocateForType(type);
-		SpiteIR::Type* irType = alloc.type;
+		SpiteIR::Type* irType = ToIRType(type);
+
+		if (irType->kind == SpiteIR::TypeKind::StateType && !irType->stateType.state)
+		{
+			Stmnt* stateStmnt = context.globalTable->FindStateForType(type, symbolTable);
+			Assert(stateStmnt);
+			if (stateStmnt)
+			{
+				ScopeValue stateValue;
+				stateValue.reg = StmntRegister;
+				stateValue.stmnt = stateStmnt;
+				return stateValue;
+			}
+		}
+
+		SpiteIR::Allocate alloc = BuildAllocate(irType);
 		size_t reg = alloc.result;
 
 		if (irType->kind == SpiteIR::TypeKind::DynamicArrayType)
@@ -3294,14 +3308,26 @@ struct LowerDefinitions
 		else retValue = BuildStateDefaultValue(state);
 		paramValues.push_back(retValue);
 
+
 		for (Expr* param : *params)
 		{
 			paramValues.push_back(BuildExpr(param, stmnt));
 		}
 
 		SpiteIR::Function* conFunc = FindStateConstructor(state, &paramValues);
-
 		eastl::vector<SpiteIR::Operand>* paramOps = context.ir->AllocateArray<SpiteIR::Operand>();
+		if (!conFunc)
+		{
+			if (!params->size())
+			{
+				paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
+				SpiteIR::Function* defaultConstructor = state->defaultConstructor;
+				BuildCall(defaultConstructor, funcContext.curr, paramOps, GetCurrentLabel());
+				return retValue;
+			}
+			else Logger::FatalError("LowerDefinitions:FindAndCallStateConstructor Unable to find state constructor with compatible overload");
+		}
+
 		paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
 		for (size_t i = 1; i < conFunc->arguments.size(); i++)
 		{
@@ -3348,7 +3374,6 @@ struct LowerDefinitions
 			}
 		}
 
-		Assert(opFunc);
 		return opFunc;
 	}
 
@@ -3859,10 +3884,10 @@ struct LowerDefinitions
 	ScopeValue ResolveGenericFunctionCall(Expr* expr, Stmnt* stmnt, eastl::vector<SpiteIR::Operand>* params)
 	{
 		Expr* caller = ExpandTemplate(expr->functionCallExpr.function);
+		eastl::vector<Expr*>* funcParams = expr->functionCallExpr.params;
 
 		if (caller->typeID == ExprID::TypeExpr)
 		{
-			eastl::vector<Expr*>* funcParams = expr->functionCallExpr.params;
 			SpiteIR::Type* type = ToIRType(caller->typeExpr.type);
 			if (type->kind == SpiteIR::TypeKind::PrimitiveType)
 			{
@@ -3895,6 +3920,11 @@ struct LowerDefinitions
 			}
 
 			return value;
+		}
+		else if (value.reg == StateRegister)
+		{
+			SpiteIR::State* state = value.state;
+			return FindAndCallStateConstructor(state, funcParams, stmnt);
 		}
 
 		return InvalidScopeValue;
