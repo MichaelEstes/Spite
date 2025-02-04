@@ -427,6 +427,10 @@ struct Interpreter
 				switch (castInst.cast.from.type->primitive.kind)
 				{
 				case SpiteIR::PrimitiveKind::Bool:
+				{
+					CastPrimitive<bool>(castInst.cast.from, castInst.cast.to);
+					break;
+				}
 				case SpiteIR::PrimitiveKind::Byte:
 				case SpiteIR::PrimitiveKind::I16:
 				case SpiteIR::PrimitiveKind::I32:
@@ -540,6 +544,10 @@ struct Interpreter
 		switch (to.type->primitive.kind)
 		{
 		case SpiteIR::PrimitiveKind::Bool:
+		{
+			TypeCast<Left, bool>(from, to);
+			break;
+		}
 		case SpiteIR::PrimitiveKind::Byte:
 		case SpiteIR::PrimitiveKind::I16:
 		case SpiteIR::PrimitiveKind::I32:
