@@ -211,6 +211,14 @@ struct Decompiler
 
 	void Decompile(SpiteIR::IR* ir)
 	{
+		for (SpiteIR::Package* package : ir->packages)
+		{
+			if (package->initializer)
+			{
+				DecompileFunction(package->initializer);
+			}
+		}
+
 		SpiteIR::Function* entry = ir->entry;
 		functionQueue.push_back(entry);
 

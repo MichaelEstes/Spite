@@ -34,7 +34,10 @@ Main()
 	floatType: float = 0.0;
 	float32Type: float32 = 0.0;
 
+	// Primitive types can be inferred by calling the type like a constructor
 	inferredPrimitiveType := int16(0);
+	// This also works, but it allocates an int and then casts
+	castedInferredPrimitiveType := 0 as int16;
 
 	// String types
 	stringType: string = "String";

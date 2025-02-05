@@ -18,11 +18,6 @@ struct PackageChecker
 
 	void Check()
 	{
-		for (Stmnt* key : context.symbolTable->imports)
-		{
-			CheckImport(key);
-		}
-
 		AddScope();
 		for (Stmnt* value : context.symbolTable->globalVals)
 		{
@@ -57,16 +52,6 @@ struct PackageChecker
 
 		context.scopeUtils.scopeQueue.pop_back();
 		if (context.scopeUtils.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
-	}
-
-	void CheckImport(Stmnt* imported)
-	{
-		Token* packageName = imported->importStmnt.packageName;
-		SymbolTable* table = context.globalTable->FindSymbolTable(packageName->val);
-		if (!table)
-		{
-			AddError(packageName, "PackageChecker:CheckImport No package found with name: " + packageName->ToString());
-		}
 	}
 
 	void AddScope()
@@ -276,7 +261,8 @@ struct PackageChecker
 			typeChecker.CheckSwitchType(node);
 
 			auto& switchStmnt = node->switchStmnt;
-			for (Stmnt* caseStmnt : *switchStmnt.cases) {
+			for (Stmnt* caseStmnt : *switchStmnt.cases) 
+			{
 				CheckStmnt(caseStmnt);
 			}
 
@@ -448,12 +434,11 @@ struct PackageChecker
 		case TemplateExpr:
 		{
 			if (expr->templateExpr.expr) CheckExpr(expr->templateExpr.expr);
+			exprChecker.CheckGenerics(expr);
 			for (Expr*& templArg : *expr->templateExpr.templateArgs)
 			{
 				CheckExpr(templArg);
 			}
-
-			exprChecker.CheckGenerics(expr);
 			break;
 		}
 		case TypeExpr:
@@ -533,11 +518,11 @@ struct PackageChecker
 		{
 			Expr* templs = type->templatedType.templates;
 			CheckType(type->templatedType.type, start, templs);
+			exprChecker.AddTemplatesFromTemplatedType(type);
 			for (Expr* templ : *templs->templateExpr.templateArgs)
 			{
 				CheckExpr(templ);
 			}
-			exprChecker.AddTemplatesFromTemplatedType(type);
 			break;
 		}
 		case FunctionType:

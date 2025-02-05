@@ -124,6 +124,15 @@ struct LowerDeclarations
 				SetStructuredTypeSizeAndAlign(type, this);
 			}
 		}
+
+		for (SpiteIR::Package* package : context.ir->packages)
+		{
+			SymbolTable* symbolTable = context.packageToSymbolTableMap[package];
+			for (Stmnt* value : symbolTable->globalVals)
+			{
+				BuildGlobalVariableDeclaration(package, value);
+			}
+		}
 	}
 
 	SpiteIR::Package* BuildPackageDeclarations(SymbolTable* symbolTable)
@@ -179,11 +188,6 @@ struct LowerDeclarations
 		for (auto& [key, value] : symbolTable->externFunctionMap)
 		{
 			BuildExternalFunctionDeclarations(package, value);
-		}
-
-		for (Stmnt* value : symbolTable->globalVals)
-		{
-			BuildGlobalVariableDeclaration(package, value);
 		}
 
 		return package;

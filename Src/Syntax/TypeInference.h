@@ -479,6 +479,10 @@ struct TypeInferer
 			Stmnt* method = FindStateMethod(stateSymbol, name);
 			if (!method)
 			{
+				if (scopeUtils.IsPackageExpr(of) && type->typeID == TypeID::ImportedType)
+				{
+					return GetImportedTypeForSelector(of, type);
+				}
 				AddError(of->start, "Unable to find member or method for type: " + ToString(type));
 				return nullptr;
 			}

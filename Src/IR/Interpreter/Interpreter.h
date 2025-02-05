@@ -84,11 +84,11 @@ struct Interpreter
 	{
 		delete global;
 		global = new char[ir->globalSize];
+		InitializeRuntimeValues(ir);
 		for (SpiteIR::Package* package : ir->packages)
 		{
 			if (package->initializer) InterpretFunction(package->initializer, 0);
 		}
-		InitializeRuntimeValues(ir);
 	}
 
 	void* Interpret(SpiteIR::IR* ir)

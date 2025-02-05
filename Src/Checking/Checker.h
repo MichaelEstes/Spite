@@ -7,6 +7,7 @@ struct Checker
 {
 	GlobalTable* globalTable;
 	DeferredContainer deferred;
+	eastl::hash_set<SymbolTable*> checkedPackages;
 
 	Checker(GlobalTable* globalTable)
 	{
@@ -20,11 +21,40 @@ struct Checker
 
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
-			PackageChecker packageChecker = PackageChecker(globalTable, value, deferred);
-			packageChecker.Check();
+			CheckPackage(value);
 		}
 
 		CheckDeferred();
+	}
+
+	void CheckPackage(SymbolTable* symbolTable)
+	{
+		if (MapHas(checkedPackages, symbolTable)) return;
+		checkedPackages.insert(symbolTable);
+		CheckImports(symbolTable);
+		PackageChecker packageChecker = PackageChecker(globalTable, symbolTable, deferred);
+		packageChecker.Check();
+	}
+
+	void CheckImports(SymbolTable* symbolTable)
+	{
+		for (Stmnt* key : symbolTable->imports)
+		{
+			CheckImport(key);
+		}
+	}
+
+	void CheckImport(Stmnt* imported)
+	{
+		Token* packageName = imported->importStmnt.packageName;
+		SymbolTable* table = globalTable->FindSymbolTable(packageName->val);
+		if (!table)
+		{
+			AddError(packageName, "PackageChecker:CheckImport No package found with name: " + packageName->ToString());
+			return;
+		}
+
+		CheckPackage(table);
 	}
 
 	void CheckDeferred()

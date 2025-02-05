@@ -1508,7 +1508,7 @@ struct LowerDefinitions
 			ret = BuildLiteral(expr);
 			break;
 		case IdentifierExpr:
-			ret = FindValueForIndent(expr);
+			ret = FindValueForIdent(expr);
 			break;
 		case PrimitiveExpr:
 			ret = BuildPrimitive(expr);
@@ -1648,7 +1648,7 @@ struct LowerDefinitions
 
 	}
 
-	ScopeValue FindValueForIndent(Expr* expr)
+	ScopeValue FindValueForIdent(Expr* expr)
 	{
 		Token* identTok = expr->identifierExpr.identifier;
 		StringView& ident = identTok->val;
@@ -1842,6 +1842,7 @@ struct LowerDefinitions
 		case ExprID::IdentifierExpr:
 		{
 			Stmnt* methodStmnt = FindStateMethod(stateSymbol, selected->identifierExpr.identifier->val);
+			if (!methodStmnt) break;
 			eastl::string methodName = BuildMethodName(state, methodStmnt);
 			if (FunctionExists(packageStr, methodName))
 			{
@@ -1880,7 +1881,25 @@ struct LowerDefinitions
 		}
 		else if (value.reg == StateRegister)
 		{
-			return BuildSelectedMethodValue(value.state, selected);
+
+			ScopeValue methodValue = BuildSelectedMethodValue(value.state, selected);
+			if (methodValue.reg == InvalidRegister)
+			{
+				SpiteIR::State* state = value.state;
+				Stmnt* stateStmnt = context.stateASTMap[state].node;
+				StringView& stateName = stateStmnt->state.name->val;
+				if (context.globalTable->IsPackage(stateName))
+				{
+					ScopeValue packageValue = InvalidScopeValue;
+					packageValue.reg = PackageRegister;
+					packageValue.package = context.packageMap[stateName];
+					return BuildSelected(packageValue, selected);
+				}
+				
+				Logger::FatalErrorAt("LowerDefinitions:BuildSelected Unable to create value for selector stmnt", selected->start->pos);
+			}
+
+			return methodValue;
 		}
 		else if (value.reg == StmntRegister)
 		{
