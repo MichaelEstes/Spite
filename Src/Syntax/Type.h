@@ -172,10 +172,15 @@ inline bool IsIntLike(Type* type)
 	return IsAny(type);
 }
 
+inline bool IsFunctionType(Type* type)
+{
+	return type->typeID == TypeID::FunctionType;
+}
+
 inline bool IsComparableToZero(Type* type)
 {
 	return (type->typeID == TypeID::PrimitiveType && (IsInt(type) || IsFloat(type)))
-		|| IsIntLike(type) || IsAny(type);
+		|| IsIntLike(type) || IsAny(type) || IsFunctionType(type);
 }
 
 inline bool IsString(Type* primitive)

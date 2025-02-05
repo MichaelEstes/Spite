@@ -477,12 +477,6 @@ struct ExprChecker
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");
 				}
-
-				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters,
-					&methodParams))
-				{
-					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");
-				}
 				return;
 			}
 			case StmntID::ExternFunctionDecl:
