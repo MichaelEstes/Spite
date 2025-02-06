@@ -504,7 +504,8 @@ struct Interpreter
 					break;
 				}
 			}
-			else if (castInst.cast.to.type->kind == SpiteIR::TypeKind::PointerType)
+			else if (castInst.cast.to.type->kind == SpiteIR::TypeKind::PointerType ||
+						castInst.cast.to.type->kind == SpiteIR::TypeKind::FunctionType)
 			{
 				CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
 			}
@@ -512,6 +513,7 @@ struct Interpreter
 		}
 		case SpiteIR::TypeKind::ReferenceType:
 		case SpiteIR::TypeKind::PointerType:
+		case SpiteIR::TypeKind::FunctionType:
 		{
 			CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
 			return;
@@ -520,7 +522,6 @@ struct Interpreter
 		case SpiteIR::TypeKind::StructureType:
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::FixedArrayType:
-		case SpiteIR::TypeKind::FunctionType:
 			break;
 		default:
 			break;

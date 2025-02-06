@@ -187,3 +187,10 @@ inline bool IsString(Type* primitive)
 {
 	return primitive->primitiveType.type == UniqueType::String || IsAny(primitive);
 }
+
+inline bool IsVoidPtr(Type* type)
+{
+	return type->typeID == TypeID::PointerType &&
+		type->pointerType.type->typeID == PrimitiveType &&
+		type->pointerType.type->primitiveType.type == UniqueType::Void;
+}

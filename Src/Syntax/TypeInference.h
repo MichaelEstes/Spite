@@ -810,16 +810,10 @@ struct TypeInferer
 			break;
 		case PointerType:
 		{
-			bool booleanOp = IsBooleanOperator(op);
-			if (IsInt(right))
+			if (IsBooleanOperator(op)) return &boolType;
+			if (IsInt(right) || IsIntLike(right))
 			{
-				if (booleanOp) return &boolType;
-				else return left;
-			}
-			else if (IsIntLike(right))
-			{
-				if (booleanOp) return &boolType;
-				else return left;
+				return left;
 			}
 			break;
 		}
@@ -831,6 +825,7 @@ struct TypeInferer
 		case TemplatedType:
 			return GetOperatorType(op, left->templatedType.type, right);
 		case FunctionType:
+			if (IsBooleanOperator(op)) return &boolType;
 			AddError(op, "You can't multiply functions");
 			break;
 		default:
@@ -1151,18 +1146,20 @@ struct TypeInferer
 			return isStringL == isStringR;
 		}
 
+		if (IsVoidPtr(left))
+		{
+			return right->typeID == TypeID::PointerType || right->typeID == TypeID::FunctionType;
+		}
+
+		if (IsVoidPtr(right))
+		{
+			return left->typeID == TypeID::PointerType || left->typeID == TypeID::FunctionType;
+		}
+
 		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
 		{
 			Type* leftPointeeType = left->pointerType.type;
 			Type* rightPointeeType = right->pointerType.type;
-
-			if (leftPointeeType->typeID == PrimitiveType &&
-				leftPointeeType->primitiveType.type == UniqueType::Void)
-				return true;
-
-			if (rightPointeeType->typeID == PrimitiveType &&
-				rightPointeeType->primitiveType.type == UniqueType::Void)
-				return true;
 
 			return IsAssignable(leftPointeeType, rightPointeeType, stmntContext);
 		}

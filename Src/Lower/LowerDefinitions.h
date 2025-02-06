@@ -2625,7 +2625,7 @@ struct LowerDefinitions
 			return BuildBinaryOp(left, right, op, label);
 		}
 
-		if (left.type->kind == SpiteIR::TypeKind::PointerType)
+		if (IsPointerLikeType(left.type))
 		{
 			ScopeValue intValue = BuildBinaryOpValue(PointerToInt(left), right, op);
 			if (intValue.type->primitive.kind != SpiteIR::PrimitiveKind::Bool)
@@ -2634,7 +2634,7 @@ struct LowerDefinitions
 			return intValue;
 		}
 
-		if (right.type->kind == SpiteIR::TypeKind::PointerType)
+		if (IsPointerLikeType(right.type))
 		{
 
 			ScopeValue intValue = BuildBinaryOpValue(left, PointerToInt(right), op);
@@ -2741,7 +2741,7 @@ struct LowerDefinitions
 			return BuildUnaryOp(value, op, label);
 		}
 
-		if (value.type->kind == SpiteIR::TypeKind::PointerType)
+		if (IsPointerLikeType(value.type))
 		{
 			ScopeValue intValue = BuildUnaryOpValue(PointerToInt(value), op);
 			if (intValue.type->primitive.kind != SpiteIR::PrimitiveKind::Bool)

@@ -222,6 +222,12 @@ inline bool IsFloatLikeType(SpiteIR::Type* type)
 		type->primitive.kind == SpiteIR::PrimitiveKind::Float);
 }
 
+inline bool IsPointerLikeType(SpiteIR::Type* type)
+{
+	return type->kind == SpiteIR::TypeKind::PointerType ||
+		type->kind == SpiteIR::TypeKind::FunctionType;
+}
+
 eastl::vector<SpiteIR::Type*> GetStructuredTypes(SpiteIR::Type* type)
 {
 	if (type->kind == SpiteIR::TypeKind::StateType) return GetStateTypes(type->stateType.state);

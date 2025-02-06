@@ -216,7 +216,7 @@ string _SerializeType(value: *byte, type: *_Type)
 				out = out + " " + member.value.name.ToString() + ": ";
 				memberValue := value + member.offset;
 				out = out + _SerializeType(memberValue, member.value.type);
-				out = out + ",";
+				out = out + ",\n";
 			}
 
 			out.Last()~ = ' ';
@@ -229,7 +229,7 @@ string _SerializeType(value: *byte, type: *_Type)
 			for (member: **_Member in typeData.structureType)
 			{
 				memberValue := value + member.offset;
-				out = out + " " + _SerializeType(memberValue, member.value.type) + ",";
+				out = out + " " + _SerializeType(memberValue, member.value.type) + ",\n";
 			}
 
 			out.Last()~ = ' ';
