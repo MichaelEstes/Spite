@@ -60,14 +60,24 @@ struct TypeInferer
 			else
 			{
 				Stmnt* stmnt = GetDeclarationStmntForExpr(expr->selectorExpr.on);
+				Token* ident = expr->selectorExpr.select->identifierExpr.identifier;
 				if (stmnt && stmnt->nodeID == StmntID::StateStmnt)
 				{
-					return globalTable->FindStateMemberOrMethodStmnt(stmnt,
-						expr->selectorExpr.select->identifierExpr.identifier,
-						symbolTable);
+					return globalTable->FindStateMemberOrMethodStmnt(stmnt, ident, symbolTable);
 				}
 				else
 				{
+					Type* inferred = InferType(expr->selectorExpr.on);
+					if (inferred->typeID == TypeID::UnionType)
+					{
+						for (Stmnt* decl : *inferred->unionType.declarations)
+						{
+							if (decl->definition.name->val == ident->val)
+							{
+								return globalTable->FindStateForType(decl->definition.type, symbolTable);
+							}
+						}
+					}
 					return nullptr;
 				}
 			}
@@ -1060,7 +1070,7 @@ struct TypeInferer
 	bool IsExprGenericOf(Stmnt* stmnt, Expr* expr)
 	{
 		if (!stmnt) return globalTable->IsGenericOfStmnt(expr, context, symbolTable);
-		if (!expr || expr->typeID != ExprID::IdentifierExpr) return false;
+		if (!expr) return false;
 
 		return globalTable->IsGenericOfStmnt(expr, stmnt, symbolTable);
 	}

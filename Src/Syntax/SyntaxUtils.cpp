@@ -187,7 +187,6 @@ bool operator==(const Expr& left, const Expr& right)
 	switch (left.typeID)
 	{
 	case InvalidExpr:
-		//Maybe this should return false?
 		return true;
 	case LiteralExpr:
 		return left.literalExpr.val->val == right.literalExpr.val->val;

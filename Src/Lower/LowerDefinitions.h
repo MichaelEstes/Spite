@@ -1912,7 +1912,7 @@ struct LowerDefinitions
 				return BuildStoredLiteralIntForType(value, ToIRType(enumStmnt->enumStmnt.type));
 			}
 			default:
-				break;
+				return InvalidScopeValue;
 			}
 		}
 

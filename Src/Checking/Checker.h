@@ -8,6 +8,7 @@ struct Checker
 	GlobalTable* globalTable;
 	DeferredContainer deferred;
 	eastl::hash_set<SymbolTable*> checkedPackages;
+	eastl::hash_map<Stmnt*, eastl::hash_set<Stmnt*>> forwarded;
 
 	Checker(GlobalTable* globalTable)
 	{
@@ -243,6 +244,8 @@ struct Checker
 			{
 				Stmnt* nestedTo = deferredTempl.forwardTo;
 				eastl::vector<Expr*>* forwardedTemplates = deferredTempl.templatesToForward;
+				if (MapHas(forwarded[to], nestedTo)) continue;
+				forwarded[to].insert(nestedTo);
 				ForwardTemplates(to, nestedTo, forwardedTemplates, copyArgs);
 			}
 		}

@@ -243,6 +243,7 @@ string _SerializeType(value: *byte, type: *_Type)
 		}
 		case (_TypeKind.FunctionType)
 		{
+			value = (value as **byte)~
 			ptrInt := value as int;
 			return "func (@" + IntToString(ptrInt) + ")";
 		}
