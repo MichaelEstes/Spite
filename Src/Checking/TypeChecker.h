@@ -2,16 +2,23 @@
 
 #include <EASTL/deque.h>
 
-#include "CheckerUtils.h"
 #include "../Syntax/SymbolTable.h"
 #include "../Syntax/GlobalTable.h"
+#include "TypeInference.h"
+#include "CheckerContext.h"
 
 struct TypeChecker
 {
 	CheckerContext& context;
-	CheckerUtils utils;
+	TypeInferer inferer;
 
-	TypeChecker(CheckerContext& context) : context(context), utils(context) {}
+	TypeChecker(CheckerContext& context) : context(context), inferer(context)
+	{}
+
+	bool IsGenericOfCurrentContext(Type* type)
+	{
+		return context.globalTable->IsGenericOfStmnt(type, context.currentContext, context.symbolTable);
+	}
 
 	bool CheckImportedType(Type* type, Expr* templates, bool error = true)
 	{
@@ -54,7 +61,7 @@ struct TypeChecker
 				type->importedType.packageName = enumStmnt->package;
 				type->importedType.typeName = name;
 			}
-			else if (!utils.IsGenericOfCurrentContext(type))
+			else if (!IsGenericOfCurrentContext(type))
 			{
 				if (error)
 					AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
@@ -69,7 +76,7 @@ struct TypeChecker
 
 	void InferUnknownType(Type* type, Expr* assignment)
 	{
-		Type* inferredType = utils.InferType(assignment);
+		Type* inferredType = inferer.InferType(assignment);
 		if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 		{
 			AddError(assignment->start, "TypeChecker:CheckDefinition Unable to infer type of implicit definition for expression: "
@@ -85,12 +92,12 @@ struct TypeChecker
 		Type* type = definition.type;
 		if (definition.assignment)
 		{
-			Type* inferredType = utils.InferType(definition.assignment);
+			Type* inferredType = inferer.InferType(definition.assignment);
 			if (!inferredType || inferredType->typeID == TypeID::InvalidType)
 			{
 				AddError(definition.assignment->start, "TypeChecker:CheckDefinition Unable to infer type of definition for expression: " + ToString(definition.assignment));
 			}
-			else if (!utils.IsAssignable(definition.type, inferredType))
+			else if (!inferer.IsAssignable(definition.type, inferredType))
 			{
 				AddError(node->start, "TypeChecker: Expression evaluates to type:" + ToString(inferredType) + " which doesn't evaluate to type " + ToString(definition.type));
 			}
@@ -124,7 +131,7 @@ struct TypeChecker
 				Stmnt* decl = context.symbolTable->CreateStmnt(token, StmntID::Definition, node->package, node);
 				decl->definition.assignment = nullptr;
 				decl->definition.name = token;
-				decl->definition.type = utils.InferType(itemExpr);
+				decl->definition.type = inferer.InferType(itemExpr);
 				type->explicitType.declarations->push_back(decl);
 			}
 		}
@@ -142,8 +149,8 @@ struct TypeChecker
 				Expr* itemExpr = anonExpr.values->at(i);
 				Stmnt* decl = decls->at(i);
 
-				Type* inferredType = utils.InferType(itemExpr);
-				if (!utils.IsAssignable(decl->definition.type, inferredType))
+				Type* inferredType = inferer.InferType(itemExpr);
+				if (!inferer.IsAssignable(decl->definition.type, inferredType))
 				{
 					AddError(node->start, "Anonymous expression doesn't evaluate to type " + ToString(decl->definition.type));
 					return;
@@ -159,9 +166,9 @@ struct TypeChecker
 	inline void CheckAssignmentStmnt(Stmnt* node)
 	{
 		auto& assignment = node->assignmentStmnt;
-		Type* to = utils.InferType(assignment.assignTo);
-		Type* from = utils.InferType(assignment.assignment);
-		if (!utils.IsAssignable(to, from))
+		Type* to = inferer.InferType(assignment.assignTo);
+		Type* from = inferer.InferType(assignment.assignment);
+		if (!inferer.IsAssignable(to, from))
 		{
 			AddError(node->start, "Invalid type evaluation for assignment expression, expected type: " + ToString(to) +
 				", inferred assignment type: " + ToString(from));
@@ -171,7 +178,7 @@ struct TypeChecker
 	inline void CheckConditionalType(Stmnt* node)
 	{
 		auto& conditional = node->conditional;
-		Type* inferred = utils.InferType(conditional.condition);
+		Type* inferred = inferer.InferType(conditional.condition);
 		if (!IsComparableToZero(inferred))
 		{
 			AddError(node->start, "Conditional expression doesn't evaluate to a conditional value");
@@ -187,7 +194,7 @@ struct TypeChecker
 			Stmnt* decl = context.symbolTable->CreateStmnt(identifier, StmntID::Definition, node->package, node);
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
-			Type* type = utils.InferType(forStmnt.toIterate);
+			Type* type = inferer.InferType(forStmnt.toIterate);
 			if (forStmnt.rangeFor)
 			{
 				if (!IsIntLike(type))					
@@ -213,24 +220,45 @@ struct TypeChecker
 	inline void CheckSwitchType(Stmnt* node)
 	{
 		auto& switchStmnt = node->switchStmnt;
-		Type* switchOnType = utils.InferType(switchStmnt.switchOn);
+		Type* switchOnType = inferer.InferType(switchStmnt.switchOn);
 		if (!IsInt(switchOnType) && !context.globalTable->FindEnumForType(switchOnType, context.symbolTable))
 		{
 			AddError(switchStmnt.switchOn->start, "Switch expressions must evaluate to an int type");
 		}
 	}
 
+	inline bool IsOuterScope(Stmnt* node)
+	{
+		StmntID nodeID = node->nodeID;
+		return nodeID == StmntID::FunctionStmnt || nodeID == StmntID::Method ||
+			nodeID == StmntID::StateOperator || nodeID == StmntID::AnonFunction ||
+			nodeID == StmntID::CompileStmnt;
+	}
+
+	Stmnt* GetOuterScope(Stmnt* node)
+	{
+		while (node && !IsOuterScope(node)) node = node->scope;
+		return node;
+	}
+
+	inline Type* GetOuterReturnType(Stmnt* node)
+	{
+		Stmnt* outer = GetOuterScope(node);
+		if (outer) return GetReturnType(outer);
+		return nullptr;
+	}
+
 	inline void CheckReturnType(Stmnt* node)
 	{
-		Type* returnType = utils.GetOuterReturnType(node);
+		Type* returnType = GetOuterReturnType(node);
 		if (!returnType)
 		{
 			AddError(node->start, "TypeChecker:CheckReturnType Unable to get return type node");
 			return;
 		}
 
-		Type* inferred = utils.InferType(node->returnStmnt.expr);
-		if (!utils.IsAssignable(inferred, returnType))
+		Type* inferred = inferer.InferType(node->returnStmnt.expr);
+		if (!inferer.IsAssignable(inferred, returnType))
 		{
 			AddError(node->start, "TypeChecker:CheckReturnType Expected return type: " + ToString(returnType) +
 				", return expression evaluated to: " + ToString(inferred));

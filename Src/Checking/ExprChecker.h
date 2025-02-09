@@ -1,26 +1,32 @@
 #pragma once
 
-#include <EASTL/deque.h>
 #include "../Syntax/SymbolTable.h"
-#include "../Syntax/Syntax.h"
-#include "CheckerUtils.h"
+#include "../Syntax/GlobalTable.h"
+#include "TypeInference.h"
 #include "DeferredChecker.h"
+#include "CheckerContext.h"
 
 struct ExprChecker
 {
 	CheckerContext& context;
 
-	CheckerUtils utils;
+	TypeInferer inferer;
 	DeferredContainer& deferred;
 
 	ExprChecker(CheckerContext& context, DeferredContainer& deferred) :
-		context(context), utils(context), deferred(deferred) {}
+		context(context), deferred(deferred), inferer(context)
+	{}
+
+	bool IsGenericOfCurrentContext(Expr* expr)
+	{
+		return context.globalTable->IsGenericOfStmnt(expr, context.currentContext, context.symbolTable);
+	}
 
 	bool TemplatesContainForwardedGeneric(eastl::vector<Expr*>* templates)
 	{
 		for (Expr* expr : *templates)
 		{
-			if (utils.IsGenericOfCurrentContext(expr)) return true;
+			if (IsGenericOfCurrentContext(expr)) return true;
 		}
 
 		return false;
@@ -245,7 +251,7 @@ struct ExprChecker
 		return expr;
 	}
 
-	void InferDefaultTemplateArgs(Stmnt* generics, eastl::vector<Expr*>* templateArgs, 
+	void InferDefaultTemplateArgs(Stmnt* generics, eastl::vector<Expr*>* templateArgs,
 		intmax_t startIndex, Token* start)
 	{
 		for (size_t i = startIndex; i < templateArgs->size(); i++)
@@ -353,7 +359,7 @@ struct ExprChecker
 		eastl::vector<Expr*>* templateArgs = templateExpr.templateArgs;
 		Expr* ofExpr = templateExpr.expr;
 
-		Stmnt* stmnt = utils.GetDeclarationStmntForExpr(ofExpr);
+		Stmnt* stmnt = inferer.GetDeclarationStmntForExpr(ofExpr);
 		AddTemplatesToExpand(stmnt, templateArgs, expr->start, ofExpr);
 	}
 
@@ -376,13 +382,13 @@ struct ExprChecker
 		Expr* function = functionCall.function;
 		eastl::vector<Expr*>* params = functionCall.params;
 		size_t paramCount = params->size();
-		Stmnt* functionStmnt = utils.GetDeclarationStmntForExpr(function);
+		Stmnt* functionStmnt = inferer.GetDeclarationStmntForExpr(function);
 
 		if (functionStmnt)
 		{
 			switch (functionStmnt->nodeID)
 			{
-			// Constructor being called
+				// Constructor being called
 			case StmntID::StateStmnt:
 			{
 				functionCall.callKind = FunctionCallKind::ConstructorCall;
@@ -427,7 +433,7 @@ struct ExprChecker
 				for (Stmnt* con : stateSymbol->constructors)
 				{
 					Stmnt* conDecl = con->constructor.decl;
-					if (utils.CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &conParams))
+					if (CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &conParams))
 					{
 						functionCall.functionStmnt = con;
 						return;
@@ -441,7 +447,7 @@ struct ExprChecker
 			{
 				functionCall.callKind = FunctionCallKind::FunctionCall;
 				functionCall.functionStmnt = functionStmnt;
-				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
 					params))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
@@ -461,7 +467,7 @@ struct ExprChecker
 				}
 				else
 				{
-					Type* type = utils.InferType(caller);
+					Type* type = inferer.InferType(caller);
 					// Methods can be called from the . syntax for pointers since 'this' param is always a reference
 					if (type->typeID == TypeID::PointerType) type = type->pointerType.type;
 					thisIdent.typeExpr.type = type;
@@ -472,7 +478,7 @@ struct ExprChecker
 
 				for (Expr* param : *params) methodParams.push_back(param);
 
-				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters,
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->method.decl->functionDecl.parameters,
 					&methodParams))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for method");
@@ -484,7 +490,7 @@ struct ExprChecker
 				functionCall.callKind = FunctionCallKind::ExternalCall;
 				functionCall.functionStmnt = functionStmnt;
 
-				if (!utils.CheckValidFunctionCallParams(functionStmnt, functionStmnt->externFunction.parameters, params))
+				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->externFunction.parameters, params))
 				{
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for external function declaration");
 				}
@@ -497,7 +503,7 @@ struct ExprChecker
 		}
 		else
 		{
-			Type* functionType = utils.InferType(function);
+			Type* functionType = inferer.InferType(function);
 			while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
 			switch (functionType->typeID)
 			{
@@ -521,7 +527,7 @@ struct ExprChecker
 					for (Stmnt* con : context.globalTable->stringSymbol->constructors)
 					{
 						Stmnt* conDecl = con->constructor.decl;
-						if (utils.CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &strConParams))
+						if (CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &strConParams))
 						{
 							return;
 						}
@@ -533,7 +539,7 @@ struct ExprChecker
 
 				if (paramCount == 1)
 				{
-					if (!utils.IsAssignable(functionType, utils.InferType(params->at(0))))
+					if (!inferer.IsAssignable(functionType, inferer.InferType(params->at(0))))
 					{
 						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Non primitive parameter passed into primitive constructor");
 						return;
@@ -561,7 +567,7 @@ struct ExprChecker
 
 				for (size_t i = 0; i < paramCount; i++)
 				{
-					if (!utils.IsAssignable(func.paramTypes->at(i), utils.InferType(params->at(i))))
+					if (!inferer.IsAssignable(func.paramTypes->at(i), inferer.InferType(params->at(i))))
 					{
 						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameter passed into function type");
 						return;
@@ -577,6 +583,27 @@ struct ExprChecker
 				break;
 			}
 		}
+	}
+
+	bool CheckValidFunctionCallParams(Stmnt* calledFor, eastl::vector<Stmnt*>* funcParams,
+		eastl::vector<Expr*>* params)
+	{
+
+		size_t paramCount = params->size();
+		size_t requiredParamCount = RequiredFunctionParamCount(calledFor);
+		if (requiredParamCount > paramCount) return false;
+		if (paramCount > funcParams->size()) return false;
+
+		for (size_t i = 0; i < paramCount; i++)
+		{
+			Expr* exprParam = params->at(i);
+			Stmnt* funcParam = funcParams->at(i);
+			Type* defType = funcParam->definition.type;
+			if (!inferer.IsAssignable(defType, inferer.InferType(exprParam), calledFor))
+				return false;
+		}
+
+		return true;
 	}
 
 	bool IsUniformCall(Expr* caller, Stmnt* method)

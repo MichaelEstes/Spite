@@ -4,7 +4,6 @@
 #include "../IR/IR.h"
 #include "LowerUtils.h"
 #include "LowerContext.h"
-#include "../Syntax/TypeInference.h"
 
 extern Config config;
 extern SpiteIR::State* stringState;

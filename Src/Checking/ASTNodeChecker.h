@@ -1,57 +1,24 @@
 #pragma once
 #include "../Syntax/GlobalTable.h"
-#include "EASTL/deque.h"
 #include "TypeChecker.h"
 #include "ExprChecker.h"
-#include "DeferredChecker.h"
 #include "CheckerContext.h"
 
-struct PackageChecker
+struct ASTNodeChecker
 {
-	CheckerContext context;
+	CheckerContext& context;
 
 	TypeChecker typeChecker;
 	ExprChecker exprChecker;
 
-	PackageChecker(GlobalTable* globalTable, SymbolTable* symbolTable, DeferredContainer& deferred)
-		: context(globalTable, symbolTable), typeChecker(context), exprChecker(context, deferred) {}
+	ASTNodeChecker(CheckerContext& context, DeferredContainer& deferred)
+		: context(context), typeChecker(context), exprChecker(context, deferred) {}
 
-	void Check()
+	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)
 	{
-		AddScope();
-		for (Stmnt* value : context.symbolTable->globalVals)
-		{
-			CheckGlobalVal(value);
-		}
-
-		for (auto& [key, value] : context.symbolTable->stateMap)
-		{
-			// Keep in state in context for method checking
-			context.currentContext = value.state;
-			CheckState(key, value);
-			CheckConstructors(value.constructors);
-			CheckMethods(value.methods);
-			CheckOperators(value.operators);
-			CheckDestructor(value.destructor);
-		}
-
-		for (auto& [key, value] : context.symbolTable->functionMap)
-		{
-			CheckFunction(value);
-		}
-
-		for (auto& [key, value] : context.symbolTable->externFunctionMap)
-		{
-			CheckExternalFunctions(value);
-		}
-
-		for (Stmnt* node : context.symbolTable->onCompiles)
-		{
-
-		}
-
-		context.scopeUtils.scopeQueue.pop_back();
-		if (context.scopeUtils.scopeQueue.size() != 0) AddError("PackageChecker:Check Not all scopes popped, possible compiler error");
+		auto& params = functionDecl->functionDecl.parameters;
+		auto& body = functionDecl->functionDecl.body;
+		CheckFuncBody(body, params);
 	}
 
 	void AddScope()
@@ -66,103 +33,6 @@ struct PackageChecker
 		{
 			Logger::FatalError("PackageChecker::PopScope Global scope removed, possible compiler error");
 		}
-	}
-
-	void CheckGlobalVal(Stmnt* global)
-	{
-		CheckDefinition(global);
-	}
-
-	void CheckState(const StringView& name, StateSymbol& stateSymbol)
-	{
-		Stmnt* state = stateSymbol.state;
-		if (!state)
-		{
-			AddError("State was not defined for name: " + name);
-			return;
-		}
-
-		CheckGenericDeclarations(GetGenerics(stateSymbol.state));
-		AddScope();
-		auto& stateRef = state->state;
-		for (Stmnt* member : *stateRef.members)
-		{
-			CheckDefinition(member);
-		}
-		PopScope();
-	}
-
-	void CheckConstructors(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& constructors)
-	{
-		for (Stmnt* constructor : constructors)
-		{
-			context.currentContext = constructor;
-			auto& decl = constructor->constructor.decl;
-			CheckFunctionDecl(decl, constructor);
-		}
-	}
-
-	void CheckMethods(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& methods)
-	{
-		for (Stmnt* method : methods)
-		{
-			context.currentContext = method;
-			auto& decl = method->method.decl;
-			CheckGenericDeclarations(GetGenerics(method));
-			CheckType(method->method.returnType, method->start);
-			CheckFunctionDecl(decl, method);
-		}
-	}
-
-	void CheckOperators(eastl::hash_set<Stmnt*, MethodHash, MethodEqual>& operators)
-	{
-		for (Stmnt* op : operators)
-		{
-			context.currentContext = op;
-			auto& decl = op->stateOperator.decl;
-			CheckType(op->stateOperator.returnType, op->start);
-			CheckFunctionDecl(decl, op);
-		}
-	}
-
-	void CheckDestructor(Stmnt* destructor)
-	{
-		context.currentContext = destructor;
-		if (!destructor) return; // Destructor not required
-		CheckFunctionDecl(destructor->destructor.decl, destructor);
-	}
-
-	void CheckFunction(Stmnt* function)
-	{
-		context.currentContext = function;
-		auto& decl = function->function.decl;
-		CheckGenericDeclarations(GetGenerics(function));
-		CheckType(function->function.returnType, function->start);
-		CheckFunctionDecl(decl, function);
-	}
-
-	void CheckExternalFunctions(Stmnt* function)
-	{
-
-	}
-
-	void CheckGenericDeclarations(Stmnt* generics)
-	{
-		if (!generics) return;
-		for (Expr* defaultValue : *generics->generics.defaultValues)
-		{
-			if (defaultValue)
-			{
-				CheckExpr(defaultValue);
-			}
-		}
-	}
-
-	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)
-	{
-		auto& params = functionDecl->functionDecl.parameters;
-		auto& body = functionDecl->functionDecl.body;
-		CheckFuncBody(body, params);
 	}
 
 	inline void CheckBody(Body& body)
@@ -261,7 +131,7 @@ struct PackageChecker
 			typeChecker.CheckSwitchType(node);
 
 			auto& switchStmnt = node->switchStmnt;
-			for (Stmnt* caseStmnt : *switchStmnt.cases) 
+			for (Stmnt* caseStmnt : *switchStmnt.cases)
 			{
 				CheckStmnt(caseStmnt);
 			}
@@ -288,8 +158,8 @@ struct PackageChecker
 			break;
 		case ReturnStmnt:
 		{
-			typeChecker.CheckReturnType(node);
 			CheckExpr(node->returnStmnt.expr);
+			typeChecker.CheckReturnType(node);
 			break;
 		}
 		case Block:
@@ -384,11 +254,11 @@ struct PackageChecker
 			break;
 		case FunctionCallExpr:
 			CheckExpr(expr->functionCallExpr.function);
-			exprChecker.CheckFunctionCallExpr(expr);
 			for (Expr* param : *expr->functionCallExpr.params)
 			{
 				CheckExpr(param);
 			}
+			exprChecker.CheckFunctionCallExpr(expr);
 			break;
 		case NewExpr:
 			CheckExpr(expr->newExpr.primaryExpr);

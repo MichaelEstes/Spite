@@ -1,7 +1,8 @@
 #pragma once
-#include "Syntax.h"
-#include "GlobalTable.h"
-#include "ScopeUtils.h"
+#include "../Syntax/Syntax.h"
+#include "../Syntax/GlobalTable.h"
+#include "../Syntax/ScopeUtils.h"
+#include "CheckerContext.h"
 
 static Type boolType = Type(1, UniqueType::Bool, false);
 static Token runtimePackage = "_";
@@ -9,13 +10,14 @@ static Token runtimeType = "_Type";
 
 struct TypeInferer
 {
-	GlobalTable* globalTable;
-	SymbolTable* symbolTable;
-	ScopeUtils scopeUtils;
-	Stmnt* context;
+	GlobalTable*& globalTable;
+	SymbolTable*& symbolTable;
+	ScopeUtils& scopeUtils;
+	Stmnt*& context;
 
-	TypeInferer(GlobalTable* globalTable, SymbolTable* symbolTable, ScopeUtils& scopeUtils, Stmnt* context)
-		: globalTable(globalTable), symbolTable(symbolTable), scopeUtils(scopeUtils), context(context)
+	TypeInferer(CheckerContext& checkerContext)
+		: globalTable(checkerContext.globalTable), symbolTable(checkerContext.symbolTable), 
+			scopeUtils(checkerContext.scopeUtils), context(checkerContext.currentContext)
 	{
 	}
 
@@ -605,7 +607,7 @@ struct TypeInferer
 		if (!type)
 		{
 			AddError(expr->start, "TypeInferer:EvalType unable to create type for expression: " + ToString(expr));
-			return type;
+			return symbolTable->CreateTypePtr(TypeID::InvalidType);
 		}
 
 		if (type->typeID == TypeID::ValueType) type = type->valueType.type;
@@ -1109,6 +1111,8 @@ struct TypeInferer
 
 	bool IsAssignable(Type* left, Type* right, Stmnt* stmntContext = nullptr)
 	{
+		if (!left || !right) return false;
+
 		if (*left == *right) return true;
 
 		if (left->typeID == TypeID::ValueType)

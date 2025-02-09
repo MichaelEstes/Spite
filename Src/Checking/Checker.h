@@ -1,6 +1,7 @@
 #pragma once
 #include "../Syntax/GlobalTable.h"
-#include "PackageChecker.h"
+#include "DeclarationChecker.h"
+#include "DefinitionChecker.h"
 #include "DeferredChecker.h"
 
 struct Checker
@@ -17,35 +18,54 @@ struct Checker
 
 	void Check()
 	{
-		PackageChecker packageChecker = PackageChecker(globalTable, globalTable->runtimeTable, deferred);
-		packageChecker.Check();
+		DeclarationChecker declChecker = DeclarationChecker(globalTable, globalTable->runtimeTable, deferred);
+		declChecker.Check();
 
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
-			CheckPackage(value);
+			CheckPackageDeclarations(value);
+		}
+
+		checkedPackages.clear();
+
+		DefinitionChecker defChecker = DefinitionChecker(globalTable, globalTable->runtimeTable, deferred);
+		defChecker.Check();
+
+		for (auto& [key, value] : globalTable->packageToSymbolTable)
+		{
+			CheckPackageDefinitions(value);
 		}
 
 		CheckDeferred();
 	}
 
-	void CheckPackage(SymbolTable* symbolTable)
+	void CheckPackageDeclarations(SymbolTable* symbolTable)
 	{
 		if (MapHas(checkedPackages, symbolTable)) return;
 		checkedPackages.insert(symbolTable);
-		CheckImports(symbolTable);
-		PackageChecker packageChecker = PackageChecker(globalTable, symbolTable, deferred);
-		packageChecker.Check();
+		CheckImports(symbolTable, &Checker::CheckPackageDeclarations);
+		DeclarationChecker declChecker = DeclarationChecker(globalTable, symbolTable, deferred);
+		declChecker.Check();
 	}
 
-	void CheckImports(SymbolTable* symbolTable)
+	void CheckPackageDefinitions(SymbolTable* symbolTable)
+	{
+		if (MapHas(checkedPackages, symbolTable)) return;
+		checkedPackages.insert(symbolTable);
+		CheckImports(symbolTable, &Checker::CheckPackageDefinitions);
+		DefinitionChecker defChecker = DefinitionChecker(globalTable, symbolTable, deferred);
+		defChecker.Check();
+	}
+
+	void CheckImports(SymbolTable* symbolTable, void(Checker::*check)(SymbolTable*))
 	{
 		for (Stmnt* key : symbolTable->imports)
 		{
-			CheckImport(key);
+			CheckImport(key, check);
 		}
 	}
 
-	void CheckImport(Stmnt* imported)
+	void CheckImport(Stmnt* imported, void(Checker::*check)(SymbolTable*))
 	{
 		Token* packageName = imported->importStmnt.packageName;
 		SymbolTable* table = globalTable->FindSymbolTable(packageName->val);
@@ -55,7 +75,7 @@ struct Checker
 			return;
 		}
 
-		CheckPackage(table);
+		(this->*check)(table);
 	}
 
 	void CheckDeferred()
@@ -149,8 +169,8 @@ struct Checker
 		for (auto& [from, def] : deferred.deferredForwardedTemplates)
 		{
 			SymbolTable* symbolTable = globalTable->FindSymbolTable(from->package->val);
-			ScopeUtils scopeUtils = ScopeUtils(globalTable, symbolTable);
-			TypeInferer typeInferer = TypeInferer(globalTable, symbolTable, scopeUtils, from);
+			CheckerContext context = CheckerContext(globalTable, symbolTable);
+			TypeInferer typeInferer = TypeInferer(context);
 
 			for (auto& defInst : def)
 			{

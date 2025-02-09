@@ -72,15 +72,15 @@ add_executable (Spite_Lang
 "Src/Containers/Flags.h" "Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/StringView.h" 
 "Src/Containers/Arena.h" "Src/Syntax/Type.h" "Src/Syntax/Expr.h" "Src/Syntax/Stmnt.h" 
 "Src/Config/BuildConfig.h" "Src/Config/Config.h" "Src/Output/LLVM/LLVMBuilder.h" 
-"Src/Checking/PackageChecker.h"  "Src/Tokens/Token.h" "Src/Checking/TypeChecker.h" 
-"Src/Checking/ExprChecker.h" "Src/Checking/CheckerUtils.h" "Src/Syntax/GlobalTable.h" 
-"Src/Checking/Checker.h" "Src/Syntax/SyntaxUtils.h" "Src/Syntax/SyntaxUtils.cpp" "Src/IR/IR.h" 
-"Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" "Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h" 
-"Src/Checking/CheckerContext.h" "Src/Lower/LowerDefinitions.h" "Src/Lower/LowerContext.h" 
-"Src/IR/Interpreter/Interpreter.h" "Src/IR/Interpreter/Decompiler.h" "Src/Syntax/TypeInference.h"
-"Src/Syntax/ScopeUtils.h" "Src/IR/Interpreter/ExternCall.h" "Src/Output/LLVM/LLVMTypes.h" 
-"Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" 
-"Src/Output/LLVM/LLVMOptimize.h")
+"Src/Checking/DefinitionChecker.h" "Src/Checking/DeclarationChecker.h" "Src/Tokens/Token.h" 
+"Src/Checking/TypeChecker.h" "Src/Checking/ExprChecker.h"  
+"Src/Syntax/GlobalTable.h" "Src/Checking/Checker.h" "Src/Syntax/SyntaxUtils.h" 
+"Src/Syntax/SyntaxUtils.cpp" "Src/IR/IR.h" "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" 
+"Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h" "Src/Checking/CheckerContext.h" 
+"Src/Lower/LowerDefinitions.h" "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" 
+"Src/IR/Interpreter/Decompiler.h" "Src/Checking/TypeInference.h" "Src/Syntax/ScopeUtils.h" 
+"Src/IR/Interpreter/ExternCall.h" "Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" 
+"Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h" "Src/Checking/ASTNodeChecker.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
