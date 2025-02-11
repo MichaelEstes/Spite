@@ -280,9 +280,9 @@ struct TypeInferer
 	Expr* CreateExprFromTemplates(Expr* toExpand, eastl::vector<Token*>* genericNames,
 		eastl::vector<Expr*>* templateArgs)
 	{
-		if (toExpand->typeID == ExprID::IdentifierExpr)
+		Token* name = GetTokenForTemplate(toExpand);
+		if (name)
 		{
-			Token* name = toExpand->identifierExpr.identifier;
 			for (size_t i = 0; i < templateArgs->size(); i++)
 			{
 				Token* genericName = genericNames->at(i);
@@ -411,26 +411,26 @@ struct TypeInferer
 		return expanded;
 	}
 
-	Type* ExpandTypeTemplates(Type* toExpand, Stmnt* state, Type* expandFrom)
+	Type* ExpandTypeTemplates(Type* toExpand, Stmnt* stmnt, Type* expandFrom)
 	{
 		Type* derefExpandFrom = DereferenceType(expandFrom);
 		if (derefExpandFrom->typeID != TypeID::TemplatedType) return toExpand;
 
-		Stmnt* stateGenerics = GetGenerics(state);
-		if (!stateGenerics)
+		Stmnt* stmntGenerics = GetGenerics(stmnt);
+		if (!stmntGenerics)
 		{
 			AddError(derefExpandFrom->templatedType.templates->start,
-				"TypeInference:ExpandTypeTemplates Templated epression found for state without generics : " + state->state.name->val);
+				"TypeInference:ExpandTypeTemplates Templated epression found for statement without generics");
 			return toExpand;
 		}
 
-		eastl::vector<Token*>* genericNames = stateGenerics->generics.names;
+		eastl::vector<Token*>* genericNames = stmntGenerics->generics.names;
 		eastl::vector<Expr*>* templateArgs = derefExpandFrom->templatedType.templates->templateExpr.templateArgs;
 
 		if (templateArgs->size() > genericNames->size())
 		{
 			AddError(derefExpandFrom->templatedType.templates->start,
-				"TypeInference:ExpandTypeTemplates More template arguments provided than generic names for state: " + state->state.name->val);
+				"TypeInference:ExpandTypeTemplates More template arguments provided than generic names for statement");
 			return toExpand;
 		}
 		return CreateTypeFromTemplates(toExpand, genericNames, templateArgs);
@@ -1144,6 +1144,16 @@ struct TypeInferer
 			for (Stmnt* decl : *left->unionType.declarations)
 			{
 				if (IsAssignable(decl->definition.type, right, stmntContext)) return true;
+			}
+
+			return false;
+		}
+
+		if (right->typeID == TypeID::UnionType)
+		{
+			for (Stmnt* decl : *right->unionType.declarations)
+			{
+				if (IsAssignable(left, decl->definition.type, stmntContext)) return true;
 			}
 
 			return false;

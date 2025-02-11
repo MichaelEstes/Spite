@@ -93,9 +93,9 @@ struct ASTNodeChecker
 		}
 		case AssignmentStmnt:
 		{
-			typeChecker.CheckAssignmentStmnt(node);
 			CheckExpr(node->assignmentStmnt.assignTo);
 			CheckExpr(node->assignmentStmnt.assignment);
+			typeChecker.CheckAssignmentStmnt(node);
 			break;
 		}
 		case IfStmnt:
@@ -113,6 +113,7 @@ struct ASTNodeChecker
 		case ForStmnt:
 		{
 			auto& forStmnt = node->forStmnt;
+			CheckExpr(forStmnt.toIterate);
 			typeChecker.CheckForType(node);
 			// For loop index variable names can be redeclared
 			CheckDefinition(forStmnt.iterated.declaration, false);
@@ -128,9 +129,11 @@ struct ASTNodeChecker
 		}
 		case SwitchStmnt:
 		{
-			typeChecker.CheckSwitchType(node);
 
 			auto& switchStmnt = node->switchStmnt;
+			CheckExpr(switchStmnt.switchOn);
+			typeChecker.CheckSwitchType(node);
+
 			for (Stmnt* caseStmnt : *switchStmnt.cases)
 			{
 				CheckStmnt(caseStmnt);
@@ -304,11 +307,11 @@ struct ASTNodeChecker
 		case TemplateExpr:
 		{
 			if (expr->templateExpr.expr) CheckExpr(expr->templateExpr.expr);
-			exprChecker.CheckGenerics(expr);
 			for (Expr*& templArg : *expr->templateExpr.templateArgs)
 			{
 				CheckExpr(templArg);
 			}
+			exprChecker.CheckGenerics(expr);
 			break;
 		}
 		case TypeExpr:
@@ -388,11 +391,11 @@ struct ASTNodeChecker
 		{
 			Expr* templs = type->templatedType.templates;
 			CheckType(type->templatedType.type, start, templs);
-			exprChecker.AddTemplatesFromTemplatedType(type);
 			for (Expr* templ : *templs->templateExpr.templateArgs)
 			{
 				CheckExpr(templ);
 			}
+			exprChecker.AddTemplatesFromTemplatedType(type);
 			break;
 		}
 		case FunctionType:

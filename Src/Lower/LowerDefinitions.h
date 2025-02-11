@@ -151,7 +151,6 @@ struct LowerDefinitions
 
 	LowerDefinitions(LowerContext& context) : context(context)
 	{
-		context.interpreter->Initialize(context.ir);
 		castBool = CreateBoolType(context.ir);
 		castInt = CreateIntType(context.ir);
 		indexByte = CreateByteType(context.ir);
@@ -291,7 +290,7 @@ struct LowerDefinitions
 		{
 			while (deferredCompiles.size() > 0)
 			{
-				context.interpreter->Initialize(context.ir);
+				context.interpreter->Initialize(context.ir, package);
 				DeferredCompile comp = deferredCompiles.back();
 				SpiteIR::Function* func = comp.compileFunc;
 				SpiteIR::Instruction* store = comp.storeInst;

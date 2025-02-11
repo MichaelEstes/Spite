@@ -168,6 +168,8 @@ bool operator==(const Type& left, const Type& right)
 	case ImportedType:
 		return left.importedType.packageName->val == right.importedType.packageName->val &&
 			left.importedType.typeName->val == right.importedType.typeName->val;
+	case Any:
+		return true;
 	default:
 		break;
 	}

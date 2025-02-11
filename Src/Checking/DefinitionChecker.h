@@ -68,7 +68,6 @@ struct DefinitionChecker
 			return;
 		}
 
-		CheckGenericDeclarations(GetGenerics(stateSymbol.state));
 		nodeChecker.AddScope();
 		auto& stateRef = state->state;
 		for (Stmnt* member : *stateRef.members)
@@ -94,8 +93,6 @@ struct DefinitionChecker
 		{
 			context.currentContext = method;
 			auto& decl = method->method.decl;
-			CheckGenericDeclarations(GetGenerics(method));
-			nodeChecker.CheckType(method->method.returnType, method->start);
 			nodeChecker.CheckFunctionDecl(decl, method);
 		}
 	}
@@ -106,7 +103,6 @@ struct DefinitionChecker
 		{
 			context.currentContext = op;
 			auto& decl = op->stateOperator.decl;
-			nodeChecker.CheckType(op->stateOperator.returnType, op->start);
 			nodeChecker.CheckFunctionDecl(decl, op);
 		}
 	}
@@ -122,25 +118,11 @@ struct DefinitionChecker
 	{
 		context.currentContext = function;
 		auto& decl = function->function.decl;
-		CheckGenericDeclarations(GetGenerics(function));
-		nodeChecker.CheckType(function->function.returnType, function->start);
 		nodeChecker.CheckFunctionDecl(decl, function);
 	}
 
 	void CheckExternalFunctions(Stmnt* function)
 	{
 
-	}
-
-	void CheckGenericDeclarations(Stmnt* generics)
-	{
-		if (!generics) return;
-		for (Expr* defaultValue : *generics->generics.defaultValues)
-		{
-			if (defaultValue)
-			{
-				nodeChecker.CheckExpr(defaultValue);
-			}
-		}
 	}
 };

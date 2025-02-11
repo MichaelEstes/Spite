@@ -542,6 +542,28 @@ namespace SpiteIR
 
 		IR(size_t initialSize) : arena(initialSize * 256) {}
 
+		template<typename T>
+		void _IterateImports(Package* package, T arg, void(*func)(Package*, T), eastl::hash_set<Package*>& seen)
+		{
+			if (MapHas(seen, package)) return;
+			seen.insert(package);
+
+			for (Package* imported : package->imports)
+			{
+				if (MapHas(seen, imported)) continue;
+				_IterateImports<T>(imported, arg, func, seen);
+			}
+
+			(*func)(package, arg);
+		}
+
+		template<typename T>
+		void IterateImports(Package* package, T arg, void(*func)(Package*, T))
+		{
+			eastl::hash_set<Package*> seen = eastl::hash_set<Package*>();
+			_IterateImports<T>(package, arg, func, seen);
+		}
+
 		inline Package* AddPackage()
 		{
 			Package* package = AllocatePackage();

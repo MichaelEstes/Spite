@@ -16,6 +16,8 @@ const size_t arch = 0;
 
 extern std::filesystem::path execDir;
 extern Config config;
+struct Interpreter;
+void CallInitializer(SpiteIR::Package* package, Interpreter& interpreter);
 
 struct Interpreter
 {
@@ -80,21 +82,19 @@ struct Interpreter
 		SetGlobalString(runtime, "__exec_dir", new eastl::string(execDir.string().c_str()));
 	}
 
-	void Initialize(SpiteIR::IR* ir)
+	void Initialize(SpiteIR::IR* ir, SpiteIR::Package* package)
 	{
 		delete global;
 		global = new char[ir->globalSize];
 		InitializeRuntimeValues(ir);
-		for (SpiteIR::Package* package : ir->packages)
-		{
-			if (package->initializer) InterpretFunction(package->initializer, 0);
-		}
+		CallInitializer(ir->runtime, *this);
+		ir->IterateImports<Interpreter&>(package, *this, &CallInitializer);
 	}
 
 	void* Interpret(SpiteIR::IR* ir)
 	{
 		SpiteIR::Function* entry = ir->entry;
-		Initialize(ir);
+		Initialize(ir, entry->parent);
 		return InterpretFunction(entry, 0);
 	}
 
@@ -923,3 +923,11 @@ struct Interpreter
 		}
 	}
 };
+
+void CallInitializer(SpiteIR::Package* package, Interpreter& interpreter)
+{
+	if (package->initializer)
+	{
+		interpreter.InterpretFunction(package->initializer, 0);
+	}
+}

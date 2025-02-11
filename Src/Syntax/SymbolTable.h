@@ -345,7 +345,7 @@ inline bool IsBooleanOperator(Token* op)
 struct SymbolTable
 {
 	Token* package;
-	eastl::hash_set<Stmnt*, ImportHash, ImportEqual> imports;
+	eastl::vector<Stmnt*> imports;
 	eastl::hash_map<StringView, StateSymbol, StringViewHash> stateMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> enumMap;
 	eastl::hash_map<StringView, Stmnt*, StringViewHash> functionMap;
@@ -448,7 +448,7 @@ struct SymbolTable
 	{
 		for (Stmnt* import : toMerge->imports)
 		{
-			imports.insert(import);
+			imports.push_back(import);
 		}
 
 		for (auto& [key, value] : toMerge->stateMap)
@@ -583,7 +583,7 @@ struct SymbolTable
 
 	void AddImport(Stmnt* import)
 	{
-		imports.insert(import);
+		imports.push_back(import);
 	}
 
 	void AddState(Stmnt* state)

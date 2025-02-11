@@ -236,7 +236,6 @@ struct Checker
 	{
 		eastl::vector<Expr*>* copyArgs = CopyTemplateArgs(templatesToReplace, to->package);
 		eastl::vector<Token*>* names = from->generics.names;
-
 		bool replacedArgs = false;
 		for (size_t i = 0; i < names->size(); i++)
 		{
@@ -245,17 +244,22 @@ struct Checker
 			{
 				Expr* templ = copyArgs->at(j);
 				Token* arg = GetTokenForTemplate(templ);
+				Expr* replaceWith = templatesReplaceWith->at(i);
 				if (arg && arg->val == name->val)
 				{
-					copyArgs->at(j) = templatesReplaceWith->at(i);
+					copyArgs->at(j) = replaceWith;
 					replacedArgs = true;
+					break;
 				}
 			}
 		}
 		
 		// This check skips templates from inferred generic types that contain
-		// only their own generic types
-		if (replacedArgs) to->generics.templatesToExpand->insert(copyArgs);
+		// their own generic types
+		if (replacedArgs)
+		{
+			to->generics.templatesToExpand->insert(copyArgs);
+		}
 
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
 		{
