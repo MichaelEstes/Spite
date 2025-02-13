@@ -30,6 +30,30 @@ struct ImportEqual
 	}
 };
 
+inline size_t HashGenerics(Stmnt* generics, const StringViewHash& stringHasher)
+{
+	size_t hash = 0;
+	for (Token* gen : *generics->generics.names)
+	{
+		hash += stringHasher(gen->val);
+	}
+	return hash;
+}
+
+inline bool EqualGenerics(Stmnt* left, Stmnt* right)
+{
+	if (left->generics.names->size() != right->generics.names->size()) return false;
+	
+	for (size_t i = 0; i < left->generics.names->size(); i++)
+	{
+		Token* leftTok = left->generics.names->at(i);
+		Token* rightTok = right->generics.names->at(i);
+		if (leftTok->val != rightTok->val) return false;
+	}
+
+	return true;
+}
+
 struct MethodHash
 {
 	StringViewHash stringHasher;
@@ -44,11 +68,17 @@ struct MethodHash
 		switch (stmnt->nodeID)
 		{
 		case Method:
+		{
 			decl = stmnt->method.decl;
 			returnType = stmnt->method.returnType;
 			stateName = &stmnt->method.stateName->val;
 			name = &stmnt->method.name->val;
+			if (stmnt->method.generics)
+			{
+				hash += HashGenerics(stmnt->method.generics, stringHasher);
+			}
 			break;
+		}
 		case StateOperator:
 			decl = stmnt->stateOperator.decl;
 			returnType = stmnt->stateOperator.returnType;
@@ -105,6 +135,11 @@ struct MethodEqual
 			rReturnType = r->method.returnType;
 			rStateName = &r->method.stateName->val;
 			rName = &r->method.name->val;
+			if (!l->method.generics != !r->method.generics) return false;
+			if (l->method.generics && r->method.generics)
+			{
+				if (!EqualGenerics(l->method.generics, r->method.generics)) return false;
+			}
 			break;
 		case StateOperator:
 			lDecl = l->stateOperator.decl;

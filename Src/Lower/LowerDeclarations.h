@@ -138,8 +138,8 @@ struct LowerDeclarations
 	SpiteIR::Package* BuildPackageDeclarations(SymbolTable* symbolTable)
 	{
 		StringView& packageName = symbolTable->package->val;
-		Logger::Debug("LowerDeclarations:BuildPackageDeclarations Lowering declarations for package: " + packageName);
 		if (MapHas(context.packageMap, packageName)) return context.packageMap[packageName];
+		Logger::Debug("LowerDeclarations:BuildPackageDeclarations Lowering declarations for package: " + packageName);
 
 		SpiteIR::Package* package = context.ir->AddPackage();
 

@@ -3,7 +3,7 @@
 #include "EASTL/vector.h"
 #include "EASTL/tuple.h"
 
-const size_t defaultChunkSize = 1024;
+const size_t defaultChunkSize = 0x1000;
 
 template<class T>
 void DestroyItem(void* item) {

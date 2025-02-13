@@ -1,5 +1,8 @@
 #include "SyntaxUtils.h"
 
+size_t HashDefinition(Stmnt* stmnt);
+bool EqualDefinition(Stmnt* left, Stmnt* right);
+
 Expr* GetCallerExprMethodCall(Expr* expr)
 {
 	if (expr->typeID == ExprID::TemplateExpr)
@@ -110,8 +113,8 @@ bool operator==(const Type& left, const Type& right)
 		if (left.explicitType.declarations->size() != right.explicitType.declarations->size()) return false;
 		for (int i = 0; i < left.explicitType.declarations->size(); i++)
 		{
-			if (*left.explicitType.declarations->at(i)->definition.type !=
-				*right.explicitType.declarations->at(i)->definition.type) return false;
+			if (!EqualDefinition( left.explicitType.declarations->at(i),
+				right.explicitType.declarations->at(i))) return false;
 		}
 		return true;
 	}
@@ -120,8 +123,8 @@ bool operator==(const Type& left, const Type& right)
 		if (left.unionType.declarations->size() != right.unionType.declarations->size()) return false;
 		for (int i = 0; i < left.unionType.declarations->size(); i++)
 		{
-			if (*left.unionType.declarations->at(i)->definition.type !=
-				*right.unionType.declarations->at(i)->definition.type) return false;
+			if (!EqualDefinition(left.unionType.declarations->at(i),
+				right.unionType.declarations->at(i))) return false;
 		}
 		return true;
 	}
@@ -168,7 +171,7 @@ bool operator==(const Type& left, const Type& right)
 	case ImportedType:
 		return left.importedType.packageName->val == right.importedType.packageName->val &&
 			left.importedType.typeName->val == right.importedType.typeName->val;
-	case Any:
+	case AnyType:
 		return true;
 	default:
 		break;
@@ -227,7 +230,18 @@ bool operator==(const Expr& left, const Expr& right)
 		return true;
 	}
 	case ExplicitTypeExpr:
-		return left.explicitTypeExpr.values->size() == right.explicitTypeExpr.values->size();
+	{
+		if (left.explicitTypeExpr.values->size() != right.explicitTypeExpr.values->size()) return false;
+
+		for (size_t i = 0; i < left.explicitTypeExpr.values->size(); i++)
+		{
+
+			if (!EqualDefinition(left.explicitTypeExpr.values->at(i),
+				right.explicitTypeExpr.values->at(i))) return false;
+		}
+
+		return true;
+	}
 	case AsExpr:
 		return *left.asExpr.to == *right.asExpr.to &&
 			*left.asExpr.of == *right.asExpr.of;
@@ -249,8 +263,8 @@ bool operator==(const Expr& left, const Expr& right)
 	{
 		auto& lGenerics = left.templateExpr;
 		auto& rGenerics = right.templateExpr;
-		if (*lGenerics.expr != *rGenerics.expr) return false;
 		if (lGenerics.templateArgs->size() != rGenerics.templateArgs->size()) return false;
+		if (*lGenerics.expr != *rGenerics.expr) return false;
 
 		for (size_t i = 0; i < lGenerics.templateArgs->size(); i++)
 		{
@@ -269,7 +283,8 @@ bool operator==(const Expr& left, const Expr& right)
 	case AlignOfExpr:
 		return *left.alignOfExpr.expr == *right.alignOfExpr.expr;
 	case TypeOfExpr:
-		return *left.typeOfExpr.expr == *right.typeOfExpr.expr;
+		return *left.typeOfExpr.expr == *right.typeOfExpr.expr && 
+			left.typeOfExpr.exact == right.typeOfExpr.exact;
 	default:
 		break;
 	}
@@ -313,6 +328,7 @@ inline size_t HashType(const Type* type)
 		{
 			Type* defType = node->definition.type;
 			hash += HashType(defType);
+			hash += inplaceStrHasher(node->definition.name->val);
 		}
 		return hash;
 	}
@@ -388,8 +404,7 @@ inline size_t HashExpr(const Expr* expr)
 		return HashExpr(expr->indexExpr.of) + HashExpr(expr->indexExpr.index);
 	case FunctionCallExpr:
 	{
-		size_t hash = 0;
-		hash += HashExpr(expr->functionCallExpr.function);
+		size_t hash = HashExpr(expr->functionCallExpr.function);
 		for (Expr* param : *expr->functionCallExpr.params)
 		{
 			hash += HashExpr(param);
@@ -438,8 +453,7 @@ inline size_t HashExpr(const Expr* expr)
 		return HashExpr(expr->groupedExpr.expr) + UniqueType::Lparen + UniqueType::Rparen;
 	case TemplateExpr:
 	{
-		size_t hash = 0;
-		hash += HashExpr(expr->templateExpr.expr);
+		size_t hash = HashExpr(expr->templateExpr.expr);
 		for (Expr* templ : *expr->templateExpr.templateArgs) hash += HashExpr(templ);
 		return hash;
 	}
@@ -454,7 +468,11 @@ inline size_t HashExpr(const Expr* expr)
 	case AlignOfExpr:
 		return HashExpr(expr->alignOfExpr.expr) + AlignOfExpr;
 	case TypeOfExpr:
-		return HashExpr(expr->typeOfExpr.expr) + TypeOfExpr;
+	{
+		size_t hash = HashExpr(expr->typeOfExpr.expr) + TypeOfExpr;
+		if (expr->typeOfExpr.exact) hash *= 2;
+		return hash;
+	}
 	default:
 		break;
 	}
@@ -463,13 +481,36 @@ inline size_t HashExpr(const Expr* expr)
 	return 0;
 }
 
+size_t HashDefinition(Stmnt* stmnt)
+{
+	size_t hash = inplaceStrHasher(stmnt->definition.name->val);
+	hash += HashType(stmnt->definition.type);
+	if (stmnt->definition.assignment) hash += HashExpr(stmnt->definition.assignment);
+	return hash;
+}
+
+bool EqualDefinition(Stmnt* left, Stmnt* right)
+{
+	auto& leftDef = left->definition;
+	auto& rightDef = right->definition;
+
+	if (leftDef.name->val != rightDef.name->val) return false;
+	if (*leftDef.type != *rightDef.type) return false;
+	if (!leftDef.assignment != !rightDef.assignment) return false;
+	if (leftDef.assignment && rightDef.assignment)
+	{
+		if (*leftDef.assignment != *rightDef.assignment) return false;
+	}
+	return true;
+}
+
 size_t TypeArrHash::operator()(const eastl::vector<Type*>* types) const
 {
 	size_t hash = 0;
 	for (size_t i = 0; i < types->size(); i++)
 	{
 		Type* type = types->at(i);
-		hash += HashType(type) + i;
+		hash += (i * 0xDEAD) ^ HashType(type);
 	}
 	return hash;
 
@@ -481,7 +522,7 @@ size_t ExprArrHash::operator()(const eastl::vector<Expr*>* exprs) const
 	for (size_t i = 0; i < exprs->size(); i++)
 	{
 		Expr* expr = exprs->at(i);
-		hash += HashExpr(expr) + i;
+		hash += (i * 0xDEAD) ^ HashExpr(expr);
 	}
 	return hash;
 }

@@ -9,7 +9,6 @@ struct Checker
 	GlobalTable* globalTable;
 	DeferredContainer deferred;
 	eastl::hash_set<SymbolTable*> checkedPackages;
-	eastl::hash_map<Stmnt*, eastl::hash_set<Stmnt*>> forwarded;
 
 	Checker(GlobalTable* globalTable)
 	{
@@ -21,6 +20,7 @@ struct Checker
 		DeclarationChecker declChecker = DeclarationChecker(globalTable, globalTable->runtimeTable, deferred);
 		declChecker.Check();
 
+		CheckPackageDeclarations(globalTable->entryTable);
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			CheckPackageDeclarations(value);
@@ -31,6 +31,7 @@ struct Checker
 		DefinitionChecker defChecker = DefinitionChecker(globalTable, globalTable->runtimeTable, deferred);
 		defChecker.Check();
 
+		CheckPackageDefinitions(globalTable->entryTable);
 		for (auto& [key, value] : globalTable->packageToSymbolTable)
 		{
 			CheckPackageDefinitions(value);
@@ -103,7 +104,8 @@ struct Checker
 				eastl::vector<Expr*>* forwardedTemplates = defInst.templatesToForward;
 				for (eastl::vector<Expr*>* replaceWith : *toExpand)
 				{
-					ForwardTemplates(from, to, forwardedTemplates, replaceWith);
+					eastl::hash_set<Stmnt*> seen;
+					ForwardTemplates(from, to, forwardedTemplates, replaceWith, seen);
 				}
 			}
 		}
@@ -232,8 +234,9 @@ struct Checker
 	}
 
 	void ForwardTemplates(Stmnt* from, Stmnt* to, eastl::vector<Expr*>* templatesToReplace,
-		eastl::vector<Expr*>* templatesReplaceWith)
+		eastl::vector<Expr*>* templatesReplaceWith, eastl::hash_set<Stmnt*>& seen, bool cycle = false)
 	{
+		seen.insert(from);
 		eastl::vector<Expr*>* copyArgs = CopyTemplateArgs(templatesToReplace, to->package);
 		eastl::vector<Token*>* names = from->generics.names;
 		bool replacedArgs = false;
@@ -261,6 +264,7 @@ struct Checker
 			to->generics.templatesToExpand->insert(copyArgs);
 		}
 
+		if (cycle) return;
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
 		{
 			eastl::vector<DeferredTemplateInstantiation> deferredTemplates = deferred.deferredTemplates.at(to);
@@ -268,9 +272,7 @@ struct Checker
 			{
 				Stmnt* nestedTo = deferredTempl.forwardTo;
 				eastl::vector<Expr*>* forwardedTemplates = deferredTempl.templatesToForward;
-				if (MapHas(forwarded[to], nestedTo)) continue;
-				forwarded[to].insert(nestedTo);
-				ForwardTemplates(to, nestedTo, forwardedTemplates, copyArgs);
+				ForwardTemplates(to, nestedTo, forwardedTemplates, copyArgs, seen, MapHas(seen, nestedTo));
 			}
 		}
 	}
