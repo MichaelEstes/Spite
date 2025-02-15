@@ -195,15 +195,36 @@ struct TypeChecker
 			decl->definition.assignment = nullptr;
 			decl->definition.name = identifier;
 			Type* type = inferer.InferType(forStmnt.toIterate);
+
 			if (forStmnt.rangeFor)
 			{
 				if (!IsIntLike(type))					
-					AddError(forStmnt.toIterate->start, "Range based for loop expressions must evaluate to an integer type");
+					AddError(forStmnt.toIterate->start, "TypeChecker:CheckForType Range based for loop expressions must evaluate to an integer type");
 			}
 			else
 			{
 				if (type->typeID == TypeID::ArrayType)
+				{
 					type = type->arrayType.type;
+				}
+				else
+				{
+					Stmnt* state = context.globalTable->FindStateForType(type, context.symbolTable);
+					if (state)
+					{
+						StateSymbol* stateSymbol = context.globalTable->FindScopedStateSymbol(state->state.name, context.symbolTable);
+						Stmnt* currentMethod = FindStateMethod(stateSymbol, StringView("current"));
+						if (currentMethod)
+						{
+							Type* returnType = GetReturnType(currentMethod);
+							type = inferer.ExpandTypeTemplates(returnType, state, type);
+						}
+						else
+						{
+							AddError(forStmnt.toIterate->start, "TypeChecker:CheckForType For in type to iterate does not contain a 'current' method");
+						}
+					}
+				}
 			}
 
 			decl->definition.type = type;

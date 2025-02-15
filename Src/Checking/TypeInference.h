@@ -16,9 +16,19 @@ struct TypeInferer
 	Stmnt*& context;
 
 	TypeInferer(CheckerContext& checkerContext)
-		: globalTable(checkerContext.globalTable), symbolTable(checkerContext.symbolTable), 
-			scopeUtils(checkerContext.scopeUtils), context(checkerContext.currentContext)
+		: globalTable(checkerContext.globalTable), symbolTable(checkerContext.symbolTable),
+		scopeUtils(checkerContext.scopeUtils), context(checkerContext.currentContext)
 	{
+	}
+
+	eastl::vector<Stmnt*>* GetTypeDeclarations(Type* type)
+	{
+		if (type->typeID == TypeID::UnionType || type->typeID == TypeID::ExplicitType)
+		{
+			return type->explicitType.declarations;
+		}
+
+		return nullptr;
 	}
 
 	Stmnt* GetDeclarationStmntForExpr(Expr* expr, Token* package = nullptr)
@@ -42,7 +52,11 @@ struct TypeInferer
 			switch (stmnt->nodeID)
 			{
 			case Definition:
-				return globalTable->FindStateForType(stmnt->definition.type, symbolTable);
+			{
+				Stmnt* state = globalTable->FindStateForType(stmnt->definition.type, symbolTable);
+				if (state) return state;
+				return stmnt;
+			}
 			case FunctionStmnt:
 			case StateStmnt:
 			case ExternFunctionDecl:
@@ -67,21 +81,28 @@ struct TypeInferer
 				{
 					return globalTable->FindStateMemberOrMethodStmnt(stmnt, ident, symbolTable);
 				}
-				else
+				else 
 				{
-					Type* inferred = InferType(expr->selectorExpr.on);
-					if (inferred->typeID == TypeID::UnionType)
+					Type* type;
+					if (stmnt && stmnt->nodeID == StmntID::Definition) type = stmnt->definition.type;
+					else type = InferType(expr->selectorExpr.on);
+
+					eastl::vector<Stmnt*>* decls = GetTypeDeclarations(type);
+					if (decls)
 					{
-						for (Stmnt* decl : *inferred->unionType.declarations)
+						for (Stmnt* decl : *decls)
 						{
 							if (decl->definition.name->val == ident->val)
 							{
-								return globalTable->FindStateForType(decl->definition.type, symbolTable);
+								Stmnt* state = globalTable->FindStateForType(decl->definition.type, symbolTable);
+								if (state) return state;
+								return decl;
 							}
 						}
 					}
-					return nullptr;
 				}
+
+				return nullptr;
 			}
 		}
 		case TemplateExpr:
@@ -433,7 +454,7 @@ struct TypeInferer
 				"TypeInference:ExpandTypeTemplates More template arguments provided than generic names for statement");
 			return toExpand;
 		}
-		return CreateTypeFromTemplates(toExpand, genericNames, templateArgs);
+		return CreateTypeFromTemplates(symbolTable->CloneType(toExpand), genericNames, templateArgs);
 	}
 
 	inline Type* GetSelectorType(Expr* of, Type* type)
@@ -481,8 +502,8 @@ struct TypeInferer
 		Stmnt* member = FindStateMember(state, name);
 		if (member)
 		{
-			if (state->state.generics) 
-				return ExpandTypeTemplates(symbolTable->CloneType(member->definition.type), state, type);
+			if (state->state.generics)
+				return ExpandTypeTemplates(member->definition.type, state, type);
 			return member->definition.type;
 		}
 		else
@@ -539,7 +560,7 @@ struct TypeInferer
 			if (type->primitiveType.type == UniqueType::String)
 			{
 				Type* typeOfIndex = InferType(of->indexExpr.index);
-				Type* indexType = FindOperatorOverloadReturnType(globalTable->stringSymbol->state, 
+				Type* indexType = FindOperatorOverloadReturnType(globalTable->stringSymbol->state,
 					UniqueType::Array, typeOfIndex);
 				return indexType;
 			}
@@ -716,7 +737,7 @@ struct TypeInferer
 		{
 			Type* returnType = FindOperatorOverloadReturnType(node, op, rhs);
 			if (returnType) return returnType;
-			
+
 			AddError(token, "TypeInferer:GetStateOperatorType No operator found for named type: " + ToString(namedType));
 		}
 		else
@@ -801,7 +822,7 @@ struct TypeInferer
 			if (right->typeID == TypeID::PrimitiveType) return GetPrimitiveOperatorType(op, left, right);
 			else if (IsIntLike(right)) return right;
 			else AddError(op, "TypeInferer:GetOperatorType Expected right hand side to be a primitive for operator");
-		
+
 			break;
 		}
 		case ImportedType:
@@ -1263,7 +1284,7 @@ struct TypeInferer
 			return true;
 		}
 
-		if (IsAny(left)|| IsAny(right)) return true;
+		if (IsAny(left) || IsAny(right)) return true;
 
 		return false;
 	}

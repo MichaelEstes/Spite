@@ -112,6 +112,13 @@ Map::()
 	this.count = 0;
 }
 
+Map::delete
+{
+	this.keys.Dealloc(this.capacity);
+	this.values.Dealloc(this.capacity);
+	this.status.Dealloc(this.capacity);
+}
+
 []KeyValue<Key, Value> Map::log()
 {
 	values := []KeyValue<Key, Value>;

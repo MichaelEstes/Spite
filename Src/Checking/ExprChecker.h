@@ -388,7 +388,7 @@ struct ExprChecker
 		{
 			switch (functionStmnt->nodeID)
 			{
-				// Constructor being called
+			// Constructor being called
 			case StmntID::StateStmnt:
 			{
 				functionCall.callKind = FunctionCallKind::ConstructorCall;
@@ -496,6 +496,11 @@ struct ExprChecker
 				}
 				return;
 			}
+			case StmntID::Definition:
+			{
+				CheckFunctionTypeCall(functionStmnt->definition.type, expr);
+				return;
+			}
 			default:
 				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr No callable statement found");
 				return;
@@ -504,84 +509,95 @@ struct ExprChecker
 		else
 		{
 			Type* functionType = inferer.InferType(function);
-			while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
-			switch (functionType->typeID)
+			CheckFunctionTypeCall(functionType, expr);
+		}
+	}
+
+	void CheckFunctionTypeCall(Type* functionType, Expr* expr)
+	{
+		auto& functionCall = expr->functionCallExpr;
+		Expr* function = functionCall.function;
+		eastl::vector<Expr*>* params = functionCall.params;
+		size_t paramCount = params->size();
+
+		while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
+		switch (functionType->typeID)
+		{
+			// Primitive constrtuctor
+		case TypeID::PrimitiveType:
+		{
+			functionCall.callKind = FunctionCallKind::PrimitiveCall;
+			// Default primitive constructor
+			if (paramCount == 0) return;
+
+			if (functionType->primitiveType.type == UniqueType::String)
 			{
-				// Primitive constrtuctor
-			case TypeID::PrimitiveType:
-			{
-				functionCall.callKind = FunctionCallKind::PrimitiveCall;
-				// Default primitive constructor
-				if (paramCount == 0) return;
+				Type thisType = Type(TypeID::AnyType);
+				Expr thisIdent = Expr(ExprID::TypeExpr, function->start);
+				thisIdent.typeExpr.type = &thisType;
 
-				if (functionType->primitiveType.type == UniqueType::String)
+				eastl::vector<Expr*> strConParams = eastl::vector<Expr*>();
+				strConParams.push_back(&thisIdent);
+				for (Expr* param : *params) strConParams.push_back(param);
+
+				for (Stmnt* con : context.globalTable->stringSymbol->constructors)
 				{
-					Type thisType = Type(TypeID::AnyType);
-					Expr thisIdent = Expr(ExprID::TypeExpr, function->start);
-					thisIdent.typeExpr.type = &thisType;
-
-					eastl::vector<Expr*> strConParams = eastl::vector<Expr*>();
-					strConParams.push_back(&thisIdent);
-					for (Expr* param : *params) strConParams.push_back(param);
-
-					for (Stmnt* con : context.globalTable->stringSymbol->constructors)
+					Stmnt* conDecl = con->constructor.decl;
+					if (CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &strConParams))
 					{
-						Stmnt* conDecl = con->constructor.decl;
-						if (CheckValidFunctionCallParams(con, conDecl->functionDecl.parameters, &strConParams))
-						{
-							return;
-						}
-					}
-
-					AddError(function->start, "ExprChecker:CheckFunctionCallExpr No string constructor overload found");
-					return;
-				}
-
-				if (paramCount == 1)
-				{
-					if (!inferer.IsAssignable(functionType, inferer.InferType(params->at(0))))
-					{
-						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Non primitive parameter passed into primitive constructor");
 						return;
 					}
 				}
-				else
+
+				AddError(function->start, "ExprChecker:CheckFunctionCallExpr No string constructor overload found");
+				return;
+			}
+
+			if (paramCount == 1)
+			{
+				if (!inferer.IsAssignable(functionType, inferer.InferType(params->at(0))))
 				{
-					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Primitive constructors can have at most one parameter");
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Non primitive parameter passed into primitive constructor");
+					return;
+				}
+			}
+			else
+			{
+				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Primitive constructors can have at most one parameter");
+			}
+
+			break;
+		}
+		case TypeID::FunctionType:
+		{
+			functionCall.callKind = FunctionCallKind::FunctionTypeCall;
+			auto& func = functionType->functionType;
+			if (paramCount != func.paramTypes->size())
+			{
+				AddError(expr->start,
+					"ExprChecker:CheckFunctionCallExpr Expected " +
+					eastl::to_string(func.paramTypes->size()) +
+					" parameters, " + eastl::to_string(paramCount) +
+					" parameters found");
+				return;
+			}
+
+			for (size_t i = 0; i < paramCount; i++)
+			{
+				if (!inferer.IsAssignable(func.paramTypes->at(i), inferer.InferType(params->at(i))))
+				{
+					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameter passed into function type");
+					return;
 				}
 			}
 			break;
-			case TypeID::FunctionType:
-			{
-				functionCall.callKind = FunctionCallKind::FunctionTypeCall;
-				auto& func = functionType->functionType;
-				if (paramCount != func.paramTypes->size())
-				{
-					AddError(expr->start,
-						"ExprChecker:CheckFunctionCallExpr Expected " +
-						eastl::to_string(func.paramTypes->size()) +
-						" parameters, " + eastl::to_string(paramCount) +
-						" parameters found");
-					return;
-				}
-
-				for (size_t i = 0; i < paramCount; i++)
-				{
-					if (!inferer.IsAssignable(func.paramTypes->at(i), inferer.InferType(params->at(i))))
-					{
-						AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameter passed into function type");
-						return;
-					}
-				}
-				break;
-			}
-			case TypeID::AnyType:
-				functionCall.callKind = FunctionCallKind::UnresolvedGenericCall;
-				return;
-			default:
-				AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
-				break;
-			}
+		}
+		case TypeID::AnyType:
+			functionCall.callKind = FunctionCallKind::UnresolvedGenericCall;
+			return;
+		default:
+			AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Not a callable expression");
+			break;
 		}
 	}
 

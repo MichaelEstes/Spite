@@ -349,7 +349,7 @@ inline bool HasEnumMember(Stmnt* of, StringView& val)
 	return false;
 }
 
-inline Stmnt* FindStateMethod(StateSymbol* of, StringView& val)
+inline Stmnt* FindStateMethod(StateSymbol* of, const StringView& val)
 {
 	auto& methods = of->methods;
 	for (Stmnt* node : methods)
