@@ -123,7 +123,8 @@ struct DeclarationChecker
 
 	void CheckExternalFunctions(Stmnt* function)
 	{
-
+		nodeChecker.CheckType(function->externFunction.returnType, function->start);
+		CheckFunctionParams(function->externFunction.parameters);
 	}
 
 	void CheckGenericDeclarations(Stmnt* generics)
@@ -140,15 +141,20 @@ struct DeclarationChecker
 
 	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)
 	{
-		nodeChecker.AddScope();
 		eastl::vector<Stmnt*>* params = functionDecl->functionDecl.parameters;
+		CheckFunctionParams(params);
+	}
+
+	inline void CheckFunctionParams(eastl::vector<Stmnt*>* params)
+	{
 		if (params)
 		{
+			nodeChecker.AddScope();
 			for (Stmnt* param : *params)
 			{
 				nodeChecker.CheckDefinition(param);
 			}
+			nodeChecker.PopScope();
 		}
-		nodeChecker.PopScope();
 	}
 };

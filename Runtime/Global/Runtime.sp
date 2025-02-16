@@ -275,7 +275,7 @@ string _SerializeType(value: *byte, type: *_Type)
 			
 			arr := value as *array;
 			count := arr.count;
-			start := arr.start;
+			start := arr.memory.ptr;
 
 			if (!count) return "[]";
 
@@ -296,7 +296,6 @@ string _SerializeType(value: *byte, type: *_Type)
 			itemType := typeData.fixedArray.type;
 			itemSize := itemType.size;
 			count := typeData.fixedArray.count;
-			putchar(count);
 
 			out := "fixed [";
 			for (i .. count)

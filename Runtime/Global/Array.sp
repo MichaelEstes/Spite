@@ -1,10 +1,5 @@
 package _
 
-*byte alloc_array(count: uint, itemBytes: uint)
-{
-	return alloc(count * itemBytes);
-}
-
 array make_array(itemBytes: uint)
 {
 	arr: array = array();
@@ -14,17 +9,20 @@ array make_array(itemBytes: uint)
 
 size_array(arr: array, count: uint)
 {
-	arr.start = alloc_array(count, arr.itemBytes);
-	arr.capacity = count;
+	arr.SizeTo(count);
 }
 
 array make_array_from(itemBytes: uint, count: uint, start: *byte)
 {
 	arr: array = array();
+	alloc := Allocator<byte>();
+	alloc.Alloc(itemBytes * count);
+	copy_bytes(alloc.ptr, start, count * itemBytes);
+
+	arr.memory = alloc;
 	arr.itemBytes = itemBytes;
-	arr.start = start;
-	arr.count = count;
 	arr.capacity = count;
+	arr.count = count;
 	return arr;
 }
 
@@ -43,19 +41,19 @@ Iterator::(begin: *void, index: int)
 state array
 {
 	count: uint,
-	start: *byte,
 	capacity: uint,
+	memory: Allocator<byte>,
 	itemBytes: uint,
 }
 
 array::delete 
 {
-	delete this.start;
+	this.memory.Dealloc(this.count);
 }
 
 any array::operator::[](index: uint)
 {
-	return this.start[index * this.itemBytes];	
+	return this.memory[index * this.itemBytes];	
 }
 
 Iterator array::operator::in()
@@ -71,7 +69,7 @@ bool array::next(it: Iterator)
 
 any array::current(it: Iterator)
 {
-	return this.start[it.index * this.itemBytes];	
+	return this.memory[it.index * this.itemBytes];	
 }
 
 array::Clear()
@@ -95,26 +93,26 @@ array::AddAll(items: []any)
 	newCount := this.count + items.count;
 	if(newCount >= this.capacity) this.ExpandAtLeastTo(newCount);
 	
-	copy_bytes(this[this.count], items.start, items.count * this.itemBytes);
+	copy_bytes(this[this.count], items[0], items.count * this.itemBytes);
 	this.count = newCount;
 }
 
 array::Expand()
 {
-	this.capacity = (this.capacity + 1) * 2;
-	newStart := alloc_array(this.capacity, this.itemBytes);
-	copy_bytes(newStart, this.start, this.count * this.itemBytes);
-	//delete this.start;
-	this.start = newStart;
+	this.SizeTo((this.capacity + 1) * 2);
 }
 
 array::ExpandAtLeastTo(size: uint)
 {
-	while (this.capacity < size) this.capacity = (this.capacity + 1) * 2;
-	newStart := alloc_array(this.capacity, this.itemBytes);
-	copy_bytes(newStart, this.start, this.count * this.itemBytes);
-	//delete this.start;
-	this.start = newStart;
+	capacity := this.capacity;
+	while (capacity < size) capacity = (capacity + 1) * 2;
+	this.SizeTo(capacity);
+}
+
+array::SizeTo(capacity: uint)
+{
+	this.memory.Resize(capacity * this.itemBytes, this.capacity)
+	this.capacity = capacity;
 }
 
 []T array::Map<T>(func: ::T(any))
@@ -122,7 +120,7 @@ array::ExpandAtLeastTo(size: uint)
 	mapped := [this.count]T;
 	for(i .. this.count)
 	{
-		mapped.Add(func(this.start[i]));
+		mapped.Add(func(this[i]));
 	}
 	return mapped;
 }
@@ -132,31 +130,21 @@ array::ExpandAtLeastTo(size: uint)
 	filtered := make_array(#sizeof *void);
 	for(i .. this.count)
 	{
-		item := this.start[i];
+		item := this[i];
 		if (pred(item)) filtered.Add(item);
 	}
 
 	return filtered;
 }
 
-array::SizeTo(count: uint)
-{
-	newStart := alloc_array(count, this.itemBytes);
-	// delete this.start;
-
-	this.start = newStart;
-	this.count = count;
-	this.capacity = count;
-}
-
 // Fills an array with a value from the start to the current count of the array
 array::Fill(with: any)
 {
-	fill_memory(this.start, with, this.itemBytes, this.count * this.itemBytes);
+	fill_memory(this.memory.ptr, with, this.itemBytes, this.count * this.itemBytes);
 }
 
 // Fills an array with a value from the start to the current capacity of the array
 array::FillAll(with: any)
 {
-	fill_memory(this.start, with, this.itemBytes, this.capacity * this.itemBytes);
+	fill_memory(this.memory.ptr, with, this.itemBytes, this.capacity * this.itemBytes);
 }

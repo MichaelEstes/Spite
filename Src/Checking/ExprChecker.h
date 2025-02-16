@@ -523,7 +523,7 @@ struct ExprChecker
 		while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
 		switch (functionType->typeID)
 		{
-			// Primitive constrtuctor
+		// Primitive constrtuctor
 		case TypeID::PrimitiveType:
 		{
 			functionCall.callKind = FunctionCallKind::PrimitiveCall;
@@ -604,7 +604,6 @@ struct ExprChecker
 	bool CheckValidFunctionCallParams(Stmnt* calledFor, eastl::vector<Stmnt*>* funcParams,
 		eastl::vector<Expr*>* params)
 	{
-
 		size_t paramCount = params->size();
 		size_t requiredParamCount = RequiredFunctionParamCount(calledFor);
 		if (requiredParamCount > paramCount) return false;

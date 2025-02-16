@@ -2,6 +2,7 @@ package _
 
 state Allocator<Type> 
 {
+	[value]
 	ptr: *Type
 }
 
@@ -26,6 +27,7 @@ Allocator::Dealloc(count: uint)
 
 state InitAllocator<Type>
 {
+	[value]
 	ptr: *Type,
 }
 
@@ -66,6 +68,7 @@ InitAllocator::Dealloc(count: uint)
 
 state ZeroedAllocator<Type>
 {
+	[value]
 	ptr: *Type,
 }
 

@@ -603,6 +603,11 @@ struct SymbolTable
 		return arena->Emplace<Expr>(exprID, start);
 	}
 
+	inline eastl::string* CreateString()
+	{
+		return arena->EmplaceContainer<eastl::string>();
+	}
+
 	StateSymbol& FindOrCreateState(const StringView& name)
 	{
 		if (stateMap.find(name) != stateMap.end())
