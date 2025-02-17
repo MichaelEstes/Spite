@@ -1112,7 +1112,7 @@ struct LowerDefinitions
 		SpiteIR::Allocate currentAlloc = BuildAllocate(currReturnType);
 		BuildCall(currFunc, currentAlloc.result, params, GetCurrentLabel());
 
-		ScopeValue currValue = HandleAutoCast({ currentAlloc.result, currentAlloc.type }, defType);
+		ScopeValue currValue = HandleAutoCast({ currentAlloc.result, currentAlloc.type }, defType, true);
 		AddValueToCurrentScope(def.name->val, currValue, defStmnt);
 
 		BuildBody(for_.body);

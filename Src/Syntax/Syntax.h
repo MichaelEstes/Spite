@@ -1,4 +1,6 @@
 #pragma once
+#include <filesystem>
+
 #include "EASTL/string.h"
 #include "EASTL/vector.h"
 #include "EASTL/stack.h"
@@ -345,8 +347,21 @@ struct Syntax
 		{
 			node->linkDecl.platform = curr;
 			Advance();
-			if (Expect(UniqueType::StringLiteral, "Expected link library  string"))
+			if (Expect(UniqueType::StringLiteral, "Expected link library string"))
 			{
+				eastl::string* lib = symbolTable->CreateString();
+				*lib = curr->val.ToString();
+				std::filesystem::path path(lib->c_str());
+				if (path.is_relative() && (path.has_root_directory() || path.parent_path() != ""))
+				{
+					std::filesystem::path filePath(curr->pos.file->c_str());
+					path = std::filesystem::weakly_canonical(filePath.parent_path() / path);
+					if (std::filesystem::exists(path.parent_path()))
+					{
+						lib->assign(path.string().c_str());
+					}
+				}
+				curr->val = StringView(lib->c_str());
 				node->linkDecl.lib = curr;
 				Advance();
 
