@@ -3124,6 +3124,7 @@ struct LowerDefinitions
 
 		SpiteIR::Type* castTo = context.ir->AllocateType();
 		castTo->kind = SpiteIR::TypeKind::PrimitiveType;
+		castTo->byValue = true;
 		// Int to int 
 		if (IsIntLikeType(left.type) && IsIntLikeType(right.type))
 		{
