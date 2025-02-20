@@ -765,6 +765,7 @@ struct LowerDefinitions
 						eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 						params->push_back(BuildRegisterOperand(MakeThisParameterReference(logValue)));
 						BuildCall(logFunc, alloc.result, params, GetCurrentLabel());
+						if (IsVoidType(alloc.type)) break;
 						logValue = { alloc.result, alloc.type };
 					}
 				}

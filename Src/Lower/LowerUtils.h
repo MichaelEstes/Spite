@@ -966,7 +966,7 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	{
 		lower->context.toResolveStateType.push_back({ val, type });
 	}
-	else if (!state->size && type) lower->context.toResolveStateSize.push_back(type);
+	else if (!state->size && type) lower->context.toResolveSizeAndAlignment.insert(type);
 	else if (type)
 	{
 		type->size = state->size;
@@ -1033,7 +1033,7 @@ void SetStructuredTypeSizeAndAlign(SpiteIR::Type* type, Low* lower)
 	if (type->kind == SpiteIR::TypeKind::StructureType)
 	{
 		SizeAndAlignment sa = CalculateSizeAndAlignForMembers(type->structureType.members);
-		if (!sa.alignment) lower->context.toResolveSizeAndAlignment.push_back(type);
+		if (!sa.alignment) lower->context.toResolveSizeAndAlignment.insert(type);
 
 		type->size = sa.size;
 		type->alignment = sa.alignment;
@@ -1119,7 +1119,7 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 		}
 		else if (expr->literalExpr.val->uniqueType == UniqueType::HexLiteral)
 		{
-			return std::stoi(str.ToString().c_str());
+			return std::stoll(str.ToString().c_str(), nullptr, 0);
 		}
 
 		break;
@@ -1395,7 +1395,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::UnionType;
 		irType->size = 0;
-		irType->alignment = 1;
+		irType->alignment = 0;
 		irType->structureType.members = ir->AllocateArray<SpiteIR::Member*>();
 		for (size_t i = 0; i < type->unionType.declarations->size(); i++)
 		{
@@ -1404,7 +1404,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			SpiteIR::Type* memberType = TypeToIRType(ir, def.type, lower, generics, templates);
 			if (!memberType->alignment)
 			{
-				lower->context.toResolveSizeAndAlignment.push_back(irType);
+				lower->context.toResolveSizeAndAlignment.insert(irType);
 			}
 			if (memberType->size > irType->size) irType->size = memberType->size;
 			if (memberType->alignment > irType->alignment) irType->alignment = memberType->alignment;

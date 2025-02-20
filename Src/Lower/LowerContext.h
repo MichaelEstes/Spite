@@ -24,8 +24,7 @@ struct LowerContext
 	eastl::hash_map<Stmnt*, eastl::hash_map<StringView, intmax_t, StringViewHash>> enumMap;
 
 	eastl::vector<eastl::tuple<eastl::string, SpiteIR::Type*>> toResolveStateType;
-	eastl::vector<SpiteIR::Type*> toResolveStateSize;
-	eastl::vector<SpiteIR::Type*> toResolveSizeAndAlignment;
+	eastl::hash_set<SpiteIR::Type*> toResolveSizeAndAlignment;
 
 	Interpreter* interpreter = nullptr;
 

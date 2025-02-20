@@ -80,6 +80,45 @@ struct LowerDeclarations
 		}
 	}
 
+	void ResolveStructuredTypeAndAlign(SpiteIR::Type* type)
+	{
+
+		for (SpiteIR::Member* member : *type->structureType.members)
+		{
+			SpiteIR::Type* memberType = member->value.type;
+			if (!memberType->alignment) ResolveTypeSizeAndAlign(memberType);
+		}
+
+		if (type->kind == SpiteIR::TypeKind::UnionType)
+		{
+			for (SpiteIR::Member* member : *type->structureType.members)
+			{
+				SpiteIR::Type* memberType = member->value.type;
+				if (memberType->size > type->size) type->size = memberType->size;
+				if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
+			}
+		}
+		else
+		{
+			SetStructuredTypeSizeAndAlign(type, this);
+		}
+	}
+
+	void ResolveTypeSizeAndAlign(SpiteIR::Type* type)
+	{
+		if (type->kind == SpiteIR::TypeKind::StructureType || type->kind == SpiteIR::TypeKind::UnionType)
+		{
+			ResolveStructuredTypeAndAlign(type);
+		}
+		else if (type->kind == SpiteIR::TypeKind::StateType)
+		{
+			BuildStateSize(type->stateType.state);
+			type->size = type->stateType.state->size;
+			type->alignment = type->stateType.state->alignment;
+			type->byValue = type->stateType.state->IsValueType();
+		}
+	}
+
 	void Resolve()
 	{
 		while (context.toResolveStateType.size() > 0)
@@ -91,37 +130,16 @@ struct LowerDeclarations
 			context.toResolveStateType.pop_back();
 		}
 
+		for (SpiteIR::Type* type : context.toResolveSizeAndAlignment)
+		{
+			ResolveTypeSizeAndAlign(type);
+		}
+
 		for (SpiteIR::Package* package : context.ir->packages)
 		{
 			for (auto& [key, state] : package->states)
 			{
 				BuildStateSize(state);
-			}
-		}
-
-		while (context.toResolveStateSize.size() > 0)
-		{
-			SpiteIR::Type* val = context.toResolveStateSize.back();
-			val->size = val->stateType.state->size;
-			val->alignment = val->stateType.state->alignment;
-			val->byValue = val->stateType.state->IsValueType();
-			context.toResolveStateSize.pop_back();
-		}
-
-		for (SpiteIR::Type* type : context.toResolveSizeAndAlignment)
-		{
-			if (type->kind == SpiteIR::TypeKind::UnionType)
-			{
-				for (SpiteIR::Member* member : *type->structureType.members)
-				{
-					SpiteIR::Type* memberType = member->value.type;
-					if (memberType->size > type->size) type->size = memberType->size;
-					if (memberType->alignment > type->alignment) type->alignment = memberType->alignment;
-				}
-			}
-			else
-			{
-				SetStructuredTypeSizeAndAlign(type, this);
 			}
 		}
 
@@ -238,6 +256,7 @@ struct LowerDeclarations
 		for (SpiteIR::Member* member : state->members)
 		{
 			SpiteIR::Type* memberType = member->value.type;
+			if (!memberType->alignment) ResolveTypeSizeAndAlign(memberType);
 			if (memberType->kind == SpiteIR::TypeKind::StateType)
 			{
 				BuildStateSize(memberType->stateType.state, outer);
@@ -369,7 +388,7 @@ struct LowerDeclarations
 			thisType->size = state->size;
 			thisType->alignment = state->alignment;
 		}
-		else context.toResolveStateSize.push_back(thisType);
+		else context.toResolveSizeAndAlignment.insert(thisType);
 		arg->value.type = MakeReferenceType(thisType, context.ir);
 
 		method->arguments.push_back(arg);
