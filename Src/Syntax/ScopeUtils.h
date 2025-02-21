@@ -42,6 +42,17 @@ struct ScopeUtils
 			globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val);
 	}
 
+	inline Token* GetPackageFromExpr(Expr* expr)
+	{
+		if (expr->typeID == ExprID::SelectorExpr && expr->selectorExpr.on->typeID == ExprID::IdentifierExpr &&
+			globalTable->IsPackage(expr->selectorExpr.on->identifierExpr.identifier->val))
+		{
+			return expr->selectorExpr.on->identifierExpr.identifier;
+		}
+
+		return nullptr;
+	}
+
 	inline Stmnt* FindInScope(StringView& val)
 	{
 		for (auto it = scopeQueue.rbegin(); it != scopeQueue.rend(); it++)

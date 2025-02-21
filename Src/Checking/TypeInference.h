@@ -469,11 +469,21 @@ struct TypeInferer
 		else if (type->typeID == TypeID::ExplicitType)
 		{
 			Stmnt* explicitMember = FindTypeMember(type->explicitType.declarations, name);
+			if (!explicitMember)
+			{
+				AddError(of->start, "TypeInferer:GetSelectorType No member found for explicit type");
+				return nullptr;
+			}
 			return explicitMember->definition.type;
 		}
 		else if (type->typeID == TypeID::UnionType)
 		{
 			Stmnt* unionMember = FindTypeMember(type->unionType.declarations, name);
+			if (!unionMember)
+			{
+				AddError(of->start, "TypeInferer:GetSelectorType No member found for union type");
+				return nullptr;
+			}
 			return unionMember->definition.type;
 		}
 		else if (IsAny(type))
@@ -514,6 +524,13 @@ struct TypeInferer
 			{
 				if (scopeUtils.IsPackageExpr(of) && type->typeID == TypeID::ImportedType)
 				{
+					Token* package = scopeUtils.GetPackageFromExpr(of);
+					if (package->val != type->importedType.packageName->val)
+					{
+						type->importedType.packageName = package;
+						type->importedType.typeName = nullptr;
+						return GetSelectorType(of, type);
+					}
 					return GetImportedTypeForSelector(of, type);
 				}
 				AddError(of->start, "Unable to find member or method for type: " + ToString(type));

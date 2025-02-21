@@ -77,6 +77,15 @@ array::Clear()
 	this.count = 0;
 }
 
+bool array::Remove(index: int)
+{
+	if (index >= this.count) return false;
+
+	copy_bytes(this[index], this[index + 1], (this.count - index) * this.itemBytes);
+	this.count -= 1;
+	return true;
+}
+
 // Returns the index of the item added
 int array::Add(item: any)
 {
