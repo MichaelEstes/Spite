@@ -126,7 +126,7 @@ struct LowerDeclarations
 			eastl::tuple<eastl::string, SpiteIR::Type*> val = context.toResolveStateType.back();
 			eastl::string& typeName = eastl::get<0>(val);
 			SpiteIR::Type* type = eastl::get<1>(val);
-			type->stateType.state = FindState(this, typeName, type);
+			type->stateType.state = FindState(this, typeName, type, false);
 			context.toResolveStateType.pop_back();
 		}
 
@@ -157,7 +157,6 @@ struct LowerDeclarations
 	{
 		StringView& packageName = symbolTable->package->val;
 		if (MapHas(context.packageMap, packageName)) return context.packageMap[packageName];
-		Logger::Debug("LowerDeclarations:BuildPackageDeclarations Lowering declarations for package: " + packageName);
 
 		SpiteIR::Package* package = context.ir->AddPackage();
 
@@ -175,6 +174,7 @@ struct LowerDeclarations
 			package->imports.push_back(imported);
 		}
 
+		Logger::Debug("LowerDeclarations:BuildPackageDeclarations Lowering declarations for package: " + packageName);
 		this->symbolTable = symbolTable;
 		scopeUtils.symbolTable = symbolTable;
 

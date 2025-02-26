@@ -93,8 +93,7 @@ void Print(str: string)
 
 void PrintLine(str: string)
 {
-	Print(str);
-	putchar('\n');
+	puts(str[0]);
 }
 
 string IntToString(i: int)
@@ -125,7 +124,7 @@ string IntToString(i: int)
 
 	count = maxCount - count;
 	start := (fixed buf)[maxCount - count];
-	heapBuf := alloc(count);
+	heapBuf := ZeroedAllocator<byte>().Alloc(count + 1);
 	copy_bytes(heapBuf, start, count);
 	return {count, heapBuf} as string;
 }
@@ -140,9 +139,9 @@ floatFormatStr := "%f";
 
 string FloatToString(f: float, precision := 4)
 {
-	format := floatFormatStr.str;
+	format := floatFormatStr[0];
 	len := PrintFloat(null, 0, format, f);
-	buffer := alloc(len + 1);
+	buffer := ZeroedAllocator<byte>().Alloc(len + 1);
 	PrintFloat(buffer, len + 1, format, f);
 	
 	return {len as int, buffer} as string;

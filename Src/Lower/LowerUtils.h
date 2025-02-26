@@ -959,12 +959,12 @@ inline bool IsVoidType(SpiteIR::Type* type)
 }
 
 template<typename Low>
-SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type)
+SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* type, bool allowResolve = true)
 {
 	SpiteIR::State* state = lower->context.FindState(val);
 	if (!state)
 	{
-		lower->context.toResolveStateType.push_back({ val, type });
+		if (allowResolve) lower->context.toResolveStateType.push_back({ val, type });
 	}
 	else if (!state->size && type) lower->context.toResolveSizeAndAlignment.insert(type);
 	else if (type)
@@ -1049,7 +1049,8 @@ bool IsConstantIntExpr(Expr* expr, ScopeUtils& scopeUtils,
 	{
 	case LiteralExpr:
 		return expr->literalExpr.val->uniqueType == UniqueType::IntLiteral ||
-			expr->literalExpr.val->uniqueType == UniqueType::HexLiteral;
+			expr->literalExpr.val->uniqueType == UniqueType::HexLiteral ||
+			expr->literalExpr.val->uniqueType == UniqueType::ByteLiteral;
 	case IdentifierExpr:
 	{
 		//Only allow one degree of seperation to be considered a constant
@@ -1120,6 +1121,10 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 		else if (expr->literalExpr.val->uniqueType == UniqueType::HexLiteral)
 		{
 			return std::stoll(str.ToString().c_str(), nullptr, 0);
+		}
+		else if (expr->literalExpr.val->uniqueType == UniqueType::ByteLiteral)
+		{
+			return str[0];
 		}
 
 		break;

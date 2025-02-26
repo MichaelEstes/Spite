@@ -4,28 +4,28 @@ state _string
 {
 	[value]
 	count: uint,
-	str: *byte
+	mem: *byte
 }
 
 _string::delete {
-	delete this.str;
+	delete this.mem;
 }
 
 _string::(str: string)
 {
 	this.count = str.count;
-	this.str = str.str;
+	this.mem = str.mem;
 }
 
-_string::(count: uint, str: *byte)
+_string::(count: uint, mem: *byte)
 {
 	this.count = count;
-	this.str = str;
+	this.mem = mem;
 }
 
 *byte _string::operator::[](index: uint)
 {
-	return this.str[index];
+	return this.mem[index];
 }
 
 string _string::operator::+(toAppend: string)
@@ -66,7 +66,7 @@ bool _string::operator::!()
 string _string::Append(toAppend: string)
 {
 	totalCount := this.count + toAppend.count;
-	buffer := alloc(totalCount);
+	buffer := ZeroedAllocator<byte>().Alloc(totalCount + 1);
 	
 	for (i .. this.count)
 		buffer[i]~ = this[i]~;

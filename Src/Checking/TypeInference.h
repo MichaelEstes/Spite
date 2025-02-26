@@ -100,6 +100,14 @@ struct TypeInferer
 							}
 						}
 					}
+					else if (type->typeID == TypeID::TemplatedType)
+					{
+						Stmnt* state = globalTable->FindStateForType(type->templatedType.type, symbolTable);
+						if (state)
+						{
+							return globalTable->FindStateMemberOrMethodStmnt(state, ident, symbolTable);
+						}
+					}
 				}
 
 				return nullptr;

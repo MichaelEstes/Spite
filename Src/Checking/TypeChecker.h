@@ -67,7 +67,7 @@ struct TypeChecker
 					AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");
 				return false;
 			}
-			
+
 			return true;
 		}
 
@@ -163,15 +163,63 @@ struct TypeChecker
 		}
 	}
 
+	UniqueType AssignOpToBinOp(UniqueType assign)
+	{
+		switch (assign)
+		{
+		case UniqueType::AddAssign:
+			return UniqueType::Add;
+		case UniqueType::SubtractAssign:
+			return UniqueType::Subtract;
+		case UniqueType::MultiplyAssign:
+			return UniqueType::Multiply;
+		case UniqueType::DivideAssign:
+			return UniqueType::Divide;
+		case UniqueType::ModuloAssign:
+			return UniqueType::Modulo;
+		case UniqueType::AndAssign:
+			return UniqueType::And;
+		case UniqueType::OrAssign:
+			return UniqueType::Or;
+		case UniqueType::XorAssign:
+			return UniqueType::Xor;
+		case UniqueType::ShiftlAssign:
+			return UniqueType::Shiftl;
+		case UniqueType::ShiftrAssign:
+			return UniqueType::Shiftr;
+		case UniqueType::AndNotAssign:
+			return UniqueType::AndNot;
+		default: break;
+		}
+
+		return UniqueUnknown;
+	}
+
 	inline void CheckAssignmentStmnt(Stmnt* node)
 	{
 		auto& assignment = node->assignmentStmnt;
 		Type* to = inferer.InferType(assignment.assignTo);
 		Type* from = inferer.InferType(assignment.assignment);
-		if (!inferer.IsAssignable(to, from))
+		if (assignment.op->uniqueType == UniqueType::Assign)
 		{
-			AddError(node->start, "Invalid type evaluation for assignment expression, expected type: " + ToString(to) +
-				", inferred assignment type: " + ToString(from));
+			if (!inferer.IsAssignable(to, from))
+			{
+				AddError(node->start, "Invalid type evaluation for assignment expression, expected type: " + ToString(to) +
+					", inferred assignment type: " + ToString(from));
+			}
+		}
+		else
+		{
+			UniqueType opType = AssignOpToBinOp(assignment.op->uniqueType);
+			Token opTok = Token();
+			opTok.uniqueType = opType;
+			opTok.pos = assignment.op->pos;
+			Type* type = inferer.GetOperatorType(&opTok, to, from);
+			if (!inferer.IsAssignable(type, to))
+			{
+				AddError(node->start, "Invalid type evaluation for assignment operation expression, expected type: " + ToString(to) +
+					", inferred assignment type: " + ToString(from));
+			}
 		}
 	}
 
@@ -198,7 +246,7 @@ struct TypeChecker
 
 			if (forStmnt.rangeFor)
 			{
-				if (!IsIntLike(type))					
+				if (!IsIntLike(type))
 					AddError(forStmnt.toIterate->start, "TypeChecker:CheckForType Range based for loop expressions must evaluate to an integer type");
 			}
 			else
