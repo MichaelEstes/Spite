@@ -1,11 +1,14 @@
 #pragma once
+
 #include "EASTL/vector.h"
 #include "EASTL/string.h"
 #include "EASTL/hash_map.h"
+#include "EASTL/hash_set.h"
 #include "EASTL/bonus/tuple_vector.h"
 
 #include "../Containers/Arena.h"
 #include "../Utils/Utils.h"
+#include "../Parsing/Position.h"
 
 // Any changes to this namespace need to be reflected in Runtime/Compile/Meta.sp
 namespace SpiteIR
@@ -118,7 +121,8 @@ namespace SpiteIR
 		Int,
 		F32,
 		Float,
-		String
+		String,
+		Pointer
 	};
 
 	enum class OperandKind
@@ -212,6 +216,7 @@ namespace SpiteIR
 			float f32Literal;
 			double floatLiteral;
 			string* stringLiteral;
+			void* pointerLiteral;
 		};
 	};
 

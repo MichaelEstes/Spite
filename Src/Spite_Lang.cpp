@@ -3,7 +3,7 @@
 #include "Spite_Lang.h"
 #include "IR/IR.h"
 #include "Lower/Lower.h"
-#include "./IR/Interpreter/Interpreter.h"
+#include "IR/Interpreter/Interpreter.h"
 #include "IR/Interpreter/Decompiler.h"
 
 typedef eastl::string string;

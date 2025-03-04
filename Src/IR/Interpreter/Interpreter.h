@@ -1,42 +1,36 @@
 #pragma once
-#include "EASTL/deque.h"
-#include "../IR.h"
-#include "../../Utils/Utils.h"
-#include "../../Log/Logger.h"
-#include "ExternCall.h"
 
-#ifdef WIN32
-const size_t os = 0;
-const size_t arch = 0;
-#elif __unix__
-const size_t os = 1;
-const size_t arch = 0;
-#else
-#endif 
+#include <filesystem>
+#include "EASTL/deque.h"
+#include "../../Utils/Utils.h"
+#include "InterpreterUtils.h"
+#include "../IR.h"
+#include "ExternCall.h"
+#include "../../Config/Config.h"
 
 extern std::filesystem::path execDir;
 extern Config config;
-struct Interpreter;
-void CallInitializer(SpiteIR::Package* package, Interpreter& interpreter);
+
+inline char* global = nullptr;
 
 struct Interpreter
 {
 	char* stack;
 	char* stackFrameStart;
-
-	char* global = nullptr;
+	char* stackFrameEnd;
+	int threadID;
 
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
 		stackFrameStart = stack;
+		stackFrameEnd = stack;
 		CreateDynCallVM();
 	}
 
 	~Interpreter()
 	{
 		delete stack;
-		delete global;
 	}
 
 	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
@@ -86,9 +80,24 @@ struct Interpreter
 	{
 		delete global;
 		global = new char[ir->globalSize];
+		SetCurrentThreadID();
 		InitializeRuntimeValues(ir);
-		CallInitializer(ir->runtime, *this);
-		ir->IterateImports<Interpreter&>(package, *this, &CallInitializer);
+
+		auto callInitializer = [](SpiteIR::Package* package, Interpreter& interpreter)
+		{
+			if (package->initializer)
+			{
+				interpreter.InterpretFunction(package->initializer, 0);
+			}
+		};
+
+		callInitializer(ir->runtime, *this);
+		ir->IterateImports<Interpreter&>(package, *this, callInitializer);
+	}
+
+	void SetCurrentThreadID()
+	{
+		threadID = CurrentThreadID();
 	}
 
 	void* Interpret(SpiteIR::IR* ir)
@@ -114,7 +123,6 @@ struct Interpreter
 	inline void InterpretBlock(SpiteIR::Block* block)
 	{
 		SpiteIR::Label*& entry = block->labels.front();
-		//InterpretAllocations(block->allocations);
 		InterpretLabel(entry);
 	}
 
@@ -122,6 +130,7 @@ struct Interpreter
 	{
 		size_t amount = 0;
 		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
+		stackFrameEnd = stackFrameStart + amount;
 	}
 
 	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params,
@@ -140,12 +149,37 @@ struct Interpreter
 	void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
 	{
 		char* prevStackStart = stackFrameStart;
+		char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
+		InterpretAllocations(func->block->allocations);
 
 		if (params) MoveParams(params, func->arguments, prevStackStart);
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
+		stackFrameEnd = prevStackEnd;
+		return stackFrameStart;
+	}
+
+	void* InterpretCallbackFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>& params)
+	{
+		char* prevStackStart = stackFrameStart;
+		char* prevStackEnd = stackFrameEnd;
+		stackFrameStart = stackFrameEnd;
+		InterpretAllocations(func->block->allocations);
+
+		size_t offset = 0;
+		for (size_t i = 0; i < params.size(); i++)
+		{
+			SpiteIR::Operand& param = params.at(i);
+			SpiteIR::Argument* arg = func->arguments.at(i);
+			StoreOperand(param, stackFrameStart + offset);
+			offset += param.type->size;
+		}
+
+		InterpretBlock(func->block);
+		stackFrameStart = prevStackStart;
+		stackFrameEnd = prevStackEnd;
 		return stackFrameStart;
 	}
 
@@ -344,8 +378,11 @@ struct Interpreter
 				*sizeDst = src.literal.stringLiteral->size();
 				char** strDst = (char**)(sizeDst + 1);
 				*strDst = (char*)src.literal.stringLiteral->c_str();
+				break;
 			}
-			break;
+			case SpiteIR::PrimitiveKind::Pointer:
+				*(void**)dst = src.literal.pointerLiteral;
+				break;
 			default:
 				break;
 			}
@@ -638,7 +675,7 @@ struct Interpreter
 			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		CallExternalFunction(func, paramPtrs, stackFrameStart + dst);
+		CallExternalFunction(func, paramPtrs, stackFrameStart + dst, this);
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)
@@ -923,11 +960,3 @@ struct Interpreter
 		}
 	}
 };
-
-void CallInitializer(SpiteIR::Package* package, Interpreter& interpreter)
-{
-	if (package->initializer)
-	{
-		interpreter.InterpretFunction(package->initializer, 0);
-	}
-}
