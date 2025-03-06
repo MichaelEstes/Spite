@@ -10,8 +10,10 @@ func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 		if (!dlLib)
 		{
 			eastl::string libName = *lib + libExt;
+			libCacheMutex.lock();
 			dlLib = dlLoadLibrary(libName.c_str());
 			libCache[*lib] = dlLib;
+			libCacheMutex.unlock();
 		}
 	}
 
@@ -19,24 +21,20 @@ func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 	return func;
 }
 
-void CreateDynCallVM()
+DCCallVM* CreateDynCallVM()
 {
-	if (!dynCallVM)
-	{
-		dynCallVM = dcNewCallVM(4096);
-		dcMode(dynCallVM, DC_CALL_C_DEFAULT);
-	}
+	DCCallVM* dynCallVM = dcNewCallVM(4096);
+	dcMode(dynCallVM, DC_CALL_C_DEFAULT);
+	return dynCallVM;
 }
 
-void DestroyDynCallVM()
+void DestroyDynCallVM(DCCallVM* dynCallVM)
 {
-	for (auto& [name, lib] : libCache)
-	{
-		dlFreeLibrary(lib);
-	}
-	libCache.clear();
+	//for (auto& [name, lib] : libCache)
+	//{
+	//	dlFreeLibrary(lib);
+	//}
 	dcFree(dynCallVM);
-	dynCallVM = nullptr;
 }
 
 char TypeToDCSigChar(SpiteIR::Type* type)
@@ -332,7 +330,7 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 	return TypeToDCSigChar(returnType);
 }
 
-void BuildDCArg(SpiteIR::Type* type, void* value, Interpreter* interpreter)
+void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpreter* interpreter)
 {
 	switch (type->kind)
 	{
@@ -435,7 +433,7 @@ inline void CopyDCReturnValue(size_t size, const void* ptr, char* dst)
 	memcpy(dst, ptr, size);
 }
 
-void CallDCFunc(SpiteIR::Type* type, void* func, char* dst)
+void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DCCallVM* dynCallVM)
 {
 	switch (type->kind)
 	{
@@ -536,7 +534,7 @@ void CallDCFunc(SpiteIR::Type* type, void* func, char* dst)
 }
 
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst,
-	Interpreter* interpreter)
+	DCCallVM* dynCallVM, Interpreter* interpreter)
 {
 	dcReset(dynCallVM);
 
@@ -544,7 +542,7 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 	{
 		SpiteIR::Type* type = function->arguments.at(i)->value.type;
 		void* value = params.at(i);
-		BuildDCArg(type, value, interpreter);
+		BuildDCArg(type, value, dynCallVM, interpreter);
 	}
 
 	func_ptr func = funcCache[function];
@@ -563,8 +561,10 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 					name + "' for platform '" + platform + "'");
 		}
 
+		funcCacheMutex.lock();
 		funcCache[function] = func;
+		funcCacheMutex.unlock();
 	}
 
-	CallDCFunc(function->returnType, (void*)func, dst);
+	CallDCFunc(function->returnType, (void*)func, dst, dynCallVM);
 }

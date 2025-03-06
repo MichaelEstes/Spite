@@ -19,18 +19,20 @@ struct Interpreter
 	char* stackFrameStart;
 	char* stackFrameEnd;
 	int threadID;
+	DCCallVM* dcCallVM;
 
 	Interpreter(size_t stackSize)
 	{
 		stack = new char[stackSize];
 		stackFrameStart = stack;
 		stackFrameEnd = stack;
-		CreateDynCallVM();
+		dcCallVM = CreateDynCallVM();
 	}
 
 	~Interpreter()
 	{
 		delete stack;
+		DestroyDynCallVM(dcCallVM);
 	}
 
 	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
@@ -675,7 +677,7 @@ struct Interpreter
 			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		CallExternalFunction(func, paramPtrs, stackFrameStart + dst, this);
+		CallExternalFunction(func, paramPtrs, stackFrameStart + dst, dcCallVM, this);
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)
