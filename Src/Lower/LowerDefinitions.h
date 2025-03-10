@@ -2663,8 +2663,8 @@ struct LowerDefinitions
 
 		AddLabel(lhsTrueLabel);
 		ScopeValue rhResult = HandleAutoCast(BuildExpr(right, stmnt), castBool);
-		BuildStore(lhsTrueLabel, BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
-		BuildJump(lhsTrueLabel, andEndLabel);
+		BuildStore(GetCurrentLabel(), BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
+		BuildJump(GetCurrentLabel(), andEndLabel);
 
 		AddLabel(andEndLabel);
 
@@ -2688,8 +2688,8 @@ struct LowerDefinitions
 
 		AddLabel(lhsFalseLabel);
 		ScopeValue rhResult = HandleAutoCast(BuildExpr(right, stmnt), castBool);
-		BuildStore(lhsFalseLabel, BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
-		BuildJump(lhsFalseLabel, orEndLabel);
+		BuildStore(GetCurrentLabel(), BuildRegisterOperand(result), BuildRegisterOperand(rhResult));
+		BuildJump(GetCurrentLabel(), orEndLabel);
 
 		AddLabel(orEndLabel);
 
@@ -3337,13 +3337,7 @@ struct LowerDefinitions
 		eastl::vector<SpiteIR::Operand>* paramOps = context.ir->AllocateArray<SpiteIR::Operand>();
 		if (!conFunc)
 		{
-			if (!params->size())
-			{
-				paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
-				SpiteIR::Function* defaultConstructor = state->defaultConstructor;
-				BuildCall(defaultConstructor, funcContext.curr, paramOps, GetCurrentLabel());
-				return retValue;
-			}
+			if (!params->size()) return retValue;
 			else Logger::FatalError("LowerDefinitions:FindAndCallStateConstructor Unable to find state constructor with compatible overload");
 		}
 
@@ -3674,6 +3668,7 @@ struct LowerDefinitions
 			Assert(stateValue.reg == StateRegister);
 
 			SpiteIR::State* irState = stateValue.state;
+			if (irFunction == irState->defaultConstructor) return BuildStateDefaultValue(irState);
 			SpiteIR::Operand ref = BuildRegisterOperand(BuildStateDefaultValue(irState));
 			params->push_back(ref);
 			ret = { ref.reg, ref.type };

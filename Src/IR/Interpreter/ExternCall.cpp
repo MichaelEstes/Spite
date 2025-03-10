@@ -3,20 +3,8 @@
 
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 {
-	DLLib* dlLib = nullptr;
-	if (lib)
-	{
-		dlLib = libCache[*lib];
-		if (!dlLib)
-		{
-			eastl::string libName = *lib + libExt;
-			libCacheMutex.lock();
-			dlLib = dlLoadLibrary(libName.c_str());
-			libCache[*lib] = dlLib;
-			libCacheMutex.unlock();
-		}
-	}
-
+	eastl::string libName = *lib + libExt;
+	DLLib* dlLib = dlLoadLibrary(libName.c_str());
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
 	return func;
 }
@@ -545,25 +533,17 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 		BuildDCArg(type, value, dynCallVM, interpreter);
 	}
 
-	func_ptr func = funcCache[function];
+	eastl::string& name = function->metadata.externFunc->externName;
+	eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
+	func_ptr func = FindDCFunction(name, lib);
 	if (!func)
 	{
-		eastl::string& name = function->metadata.externFunc->externName;
-		eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
-		func = FindDCFunction(name, lib);
-		if (!func)
-		{
-			if (lib)
-				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-					name + "' for platform '" + platform + "' in lib '" + *lib + libExt + "'");
-			else
-				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-					name + "' for platform '" + platform + "'");
-		}
-
-		funcCacheMutex.lock();
-		funcCache[function] = func;
-		funcCacheMutex.unlock();
+		if (lib)
+			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+				name + "' for platform '" + platform + "' in lib '" + *lib + libExt + "'");
+		else
+			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+				name + "' for platform '" + platform + "'");
 	}
 
 	CallDCFunc(function->returnType, (void*)func, dst, dynCallVM);

@@ -18,11 +18,6 @@ struct DCCallbackData
 	SpiteIR::Function* func;
 };
 
-inline eastl::hash_map<SpiteIR::Function*, func_ptr> funcCache;
-inline std::mutex funcCacheMutex;
-inline eastl::hash_map<eastl::string, DLLib*> libCache;
-inline std::mutex libCacheMutex;
-
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib);
 DCCallVM* CreateDynCallVM();
 void DestroyDynCallVM(DCCallVM* dynCallVM);
