@@ -93,3 +93,15 @@ string _string::PrecedingLast(char: byte)
 	view.count -= 1;
 	return view;
 }
+
+bool _string::StartsWith(str: string)
+{
+	if (str.count > this.count) return false;
+
+	for (i .. str.count)
+	{
+		if (this[i]~ != str[i]~) return false;
+	}
+
+	return true;
+}

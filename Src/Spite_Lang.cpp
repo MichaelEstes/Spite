@@ -211,6 +211,8 @@ int main(int argc, char** argv)
 		}
 		case Run:
 		{
+			Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to build program");
+
 			Profiler interpretProfiler = Profiler();
 			Decompiler decompiler = Decompiler();
 			decompiler.Decompile(ir);

@@ -567,13 +567,12 @@ struct TypeInferer
 		{
 		case ImportedType:
 		case NamedType:
+		case TemplatedType:
 		{
 			Type* typeOfIndex = InferType(of->indexExpr.index);
 			Type* indexType = GetStateOperatorType(of->start, UniqueType::Array, type, typeOfIndex);
 			return indexType;
 		}
-		case TemplatedType:
-			return GetIndexTypeAccessArray(of, type->templatedType.type);
 		case PointerType:
 			return type;
 		case ValueType:
@@ -741,7 +740,7 @@ struct TypeInferer
 					if (!rhs) return stateOp.returnType;
 					else if (stateOp.decl->functionDecl.parameters->size() > 1 &&
 						IsAssignable(stateOp.decl->functionDecl.parameters->at(1)->definition.type, rhs, stateStmnt))
-						return ConvertGenericsToAny(stateOp.returnType, stateStmnt);
+						return stateOp.returnType;
 				}
 			}
 		}
@@ -749,25 +748,25 @@ struct TypeInferer
 		return nullptr;
 	}
 
-	Type* GetStateOperatorType(Token* token, UniqueType op, Type* namedType, Type* rhs = nullptr)
+	Type* GetStateOperatorType(Token* token, UniqueType op, Type* type, Type* rhs = nullptr)
 	{
-		if (globalTable->IsGenericOfStmnt(namedType, context, symbolTable) ||
-			globalTable->IsGenericOfStmnt(rhs, context, symbolTable))
-		{
-			return symbolTable->CreateTypePtr(TypeID::AnyType);
-		}
 
-		Stmnt* node = globalTable->FindStateForType(namedType, symbolTable);
+		Stmnt* node = globalTable->FindStateForType(type, symbolTable);
 		if (node)
 		{
 			Type* returnType = FindOperatorOverloadReturnType(node, op, rhs);
-			if (returnType) return returnType;
+			if (returnType) return ConvertGenericsToAny(ExpandTypeTemplates(returnType, node, type), node);
 
-			AddError(token, "TypeInferer:GetStateOperatorType No operator found for named type: " + ToString(namedType));
+			AddError(token, "TypeInferer:GetStateOperatorType No operator found for named type: " + ToString(type));
 		}
 		else
 		{
-			AddError(token, "TypeInferer:GetStateOperatorType State not found for named type: " + ToString(namedType));
+			if (globalTable->IsGenericOfStmnt(type, context, symbolTable) ||
+				globalTable->IsGenericOfStmnt(rhs, context, symbolTable))
+			{
+				return symbolTable->CreateTypePtr(TypeID::AnyType);
+			}
+			AddError(token, "TypeInferer:GetStateOperatorType State not found for named type: " + ToString(type));
 		}
 
 		return symbolTable->CreateTypePtr(TypeID::InvalidType);

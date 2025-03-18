@@ -1445,6 +1445,10 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 				intmax_t constantSize = EvaluateConstantIntExpr(type->arrayType.size, lower, generics, templates);
 				SpiteIR::Type* irType = BuildFixedArray(ir, constantSize,
 					TypeToIRType(ir, type->arrayType.type, lower, generics, templates));
+				if (!irType->alignment)
+				{
+					lower->context.toResolveSizeAndAlignment.insert(irType);
+				}
 				return irType;
 			}
 		}
@@ -1468,6 +1472,10 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		for (Type* param : *type->functionType.paramTypes)
 		{
 			SpiteIR::Type* paramType = TypeToIRType(ir, param, lower, generics, templates);
+			if (!paramType->alignment)
+			{
+				lower->context.toResolveSizeAndAlignment.insert(paramType);
+			}
 			if (!paramType->byValue)
 				paramType = MakeReferenceType(paramType, ir);
 			irType->function.params->push_back(paramType);

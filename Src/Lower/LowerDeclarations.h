@@ -117,6 +117,13 @@ struct LowerDeclarations
 			type->alignment = type->stateType.state->alignment;
 			type->byValue = type->stateType.state->IsValueType();
 		}
+		else if (type->kind == SpiteIR::TypeKind::FixedArrayType)
+		{
+			SpiteIR::Type* innerType = type->fixedArray.type;
+			ResolveTypeSizeAndAlign(innerType);
+			type->size = (innerType->size * type->fixedArray.count);
+			type->alignment = innerType->alignment;
+		}
 	}
 
 	void Resolve()
@@ -269,6 +276,7 @@ struct LowerDeclarations
 
 		if (!sa.alignment)
 		{
+			CalculateSizeAndAlignForMembers(&state->members);
 			Logger::FatalError("Unable to resolve state size and alignment: " + state->name);
 		}
 

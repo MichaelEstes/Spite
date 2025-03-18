@@ -96,6 +96,31 @@ void PrintLine(str: string)
 	puts(str[0]);
 }
 
+int StringToInt(str: string)
+{
+	count := str.count;
+	start := str[0];
+	i := 0;
+	negative := false;
+
+	if (start~ == '-')
+	{
+		negative = true;
+		start += 1;
+	}
+
+	while (count)
+	{
+		i = i * 10 + (start~ - '0');
+		start += 1;
+		count -= 1;
+	}
+
+	if (negative) i *= -1;
+
+	return i;
+}
+
 string IntToString(i: int)
 {
 	if (i == 0) return "0";
