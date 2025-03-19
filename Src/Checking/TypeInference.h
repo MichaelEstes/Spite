@@ -845,7 +845,15 @@ struct TypeInferer
 		{
 			if (right->typeID == TypeID::PrimitiveType) return GetPrimitiveOperatorType(op, left, right);
 			else if (IsIntLike(right)) return right;
-			else AddError(op, "TypeInferer:GetOperatorType Expected right hand side to be a primitive for operator");
+			else
+			{
+				Stmnt* enumStmnt = globalTable->FindEnumForType(right, symbolTable);
+				if (enumStmnt)
+				{
+					return GetPrimitiveOperatorType(op, left, enumStmnt->enumStmnt.type);
+				}
+				AddError(op, "TypeInferer:GetOperatorType Expected right hand side to be a primitive for operator");
+			}
 
 			break;
 		}
