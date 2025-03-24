@@ -119,6 +119,8 @@ struct TypeInferer
 			return GetDeclarationStmntForExpr(expr->groupedExpr.expr);
 		case TypeExpr:
 			return globalTable->FindStateForType(expr->typeExpr.type, symbolTable);
+		case TypeOfExpr:
+			return globalTable->FindStateForType(CreateTypeOfType(), symbolTable);
 		case FunctionCallExpr:
 		case IndexExpr:
 		case BinaryExpr:
@@ -924,6 +926,17 @@ struct TypeInferer
 		}
 	}
 
+	Type* CreateTypeOfType()
+	{
+		Type* typeOfType = symbolTable->CreateTypePtr(TypeID::ImportedType);
+		typeOfType->importedType.packageName = &runtimePackage;
+		typeOfType->importedType.typeName = &runtimeType;
+
+		Type* typeOfTypePtr = symbolTable->CreateTypePtr(TypeID::PointerType);
+		typeOfTypePtr->pointerType.type = typeOfType;
+		return typeOfTypePtr;
+	}
+
 	Type* InferType(Expr* of)
 	{
 		switch (of->typeID)
@@ -1086,15 +1099,7 @@ struct TypeInferer
 		case AlignOfExpr:
 			return symbolTable->CreatePrimitive(UniqueType::Int);
 		case TypeOfExpr:
-		{
-			Type* typeOfType = symbolTable->CreateTypePtr(TypeID::ImportedType);
-			typeOfType->importedType.packageName = &runtimePackage;
-			typeOfType->importedType.typeName = &runtimeType;
-
-			Type* typeOfTypePtr = symbolTable->CreateTypePtr(TypeID::PointerType);
-			typeOfTypePtr->pointerType.type = typeOfType;
-			return typeOfTypePtr;
-		}
+			return CreateTypeOfType();
 		default:
 			break;
 		}

@@ -19,3 +19,5 @@ bool _Type::IsState() => this.kind == _TypeKind.StateType;
 bool _Type::IsStructure() => this.kind == _TypeKind.StructureType;
 
 bool _Type::IsPointer() => this.kind == _TypeKind.PointerType;
+
+uint _Type::FixedArrayCount() => this.type.fixedArray.count;
