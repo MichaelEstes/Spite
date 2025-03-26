@@ -31,3 +31,5 @@ int Max(l: int, r: int) =>
 
 	return r;
 }
+
+int Clamp(value: int, min: int, max: int) => Min(Max(value, min), max);

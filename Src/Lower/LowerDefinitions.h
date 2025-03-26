@@ -627,6 +627,12 @@ struct LowerDefinitions
 		{
 			if (!label->terminator)
 			{
+				if (!label->values.size())
+				{
+					Logger::FatalError("LowerDefinition:CheckFunctionBlock Non-terminated label found in empty block");
+					return;
+				}
+
 				Position pos = label->values.back()->metadata->expressionPosition;
 				Logger::FatalErrorAt("LowerDefinition:CheckFunctionBlock Non-terminated label found",
 					pos);
