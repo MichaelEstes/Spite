@@ -1465,9 +1465,11 @@ struct LowerDefinitions
 		SpiteIR::Label* startLabel = GetCurrentLabel();
 		eastl::string blockName = "block" + eastl::to_string(funcContext.blockCount);
 		eastl::string blockEndName = "block_end" + eastl::to_string(funcContext.blockCount);
+		funcContext.blockCount += 1;
 
 		SpiteIR::Instruction* toBlock = BuildJump(startLabel);
 		SpiteIR::Label* blockLabel = BuildLabel(blockName);
+		AddLabel(blockLabel);
 		toBlock->jump.label = blockLabel;
 
 		for (Stmnt* stmnt : *stmnt->block.inner)
@@ -1480,6 +1482,7 @@ struct LowerDefinitions
 		{
 			SpiteIR::Instruction* toBlockEnd = BuildJump(currLabel);
 			SpiteIR::Label* blockEndLabel = BuildLabel(blockEndName);
+			AddLabel(blockEndLabel);
 			toBlockEnd->jump.label = blockEndLabel;
 		}
 	}
