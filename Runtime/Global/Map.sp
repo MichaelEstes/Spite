@@ -208,6 +208,12 @@ bool Map::Insert(key: Key, value: Value)
 	);
 }
 
+*Value Map::Emplace(key: Key)
+{
+	if (!this.Insert(key, Value())) return null;
+	return this.Find(key);
+}
+
 bool Map::Remove(key: Key)
 {
 	index := this.FindIndex(key);

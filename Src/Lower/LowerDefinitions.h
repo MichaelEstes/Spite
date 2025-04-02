@@ -3923,6 +3923,11 @@ struct LowerDefinitions
 				{
 					return FindAndCallStateConstructor(state, funcParams, stmnt);
 				}
+				else
+				{
+					SpiteIR::Allocate defaultAlloc = BuildAllocate(type);
+					return BuildDefaultValue(type, defaultAlloc.result, GetCurrentLabel());
+				}
 			}
 		}
 

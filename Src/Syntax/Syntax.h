@@ -797,13 +797,6 @@ struct Syntax
 		node->generics.whereStmnt = nullptr;
 		Advance();
 
-		if (Expect(UniqueType::Greater))
-		{
-			AddError(curr, "Expected generic types not '<>'");
-			node->nodeID = StmntID::InvalidStmnt;
-			return node;
-		}
-
 		bool defaultsStarted = false;
 		while (!Expect(UniqueType::Greater) && !Expect(UniqueType::Colon) && !IsEOF())
 		{
@@ -2277,13 +2270,6 @@ struct Syntax
 		generics->templateExpr.templateArgs = genericTemplates;
 
 		Advance();
-
-		if (Expect(UniqueType::Greater))
-		{
-			Advance();
-			AddError(curr, "Expected generic types not '<>'");
-			return generics;
-		}
 
 		while (!Expect(UniqueType::Greater) && !IsEOF())
 		{
