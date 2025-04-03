@@ -1506,6 +1506,8 @@ struct LowerDefinitions
 
 	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
 	{
+		SymbolTable* contextTable = symbolTable;
+		symbolTable = context.globalTable->FindSymbolTable(stmnt->package->val);
 		funcContext.currExpr = expr;
 		expr = ExpandTemplate(expr);
 
@@ -1591,6 +1593,7 @@ struct LowerDefinitions
 			Logger::FatalErrorAt("LowerDefinitions:BuildExpr Unable to create valid value for expression", expr->start->pos);
 		}
 
+		symbolTable = contextTable;
 		return ret;
 	}
 
@@ -3674,13 +3677,18 @@ struct LowerDefinitions
 		if (funcCall.callKind == ConstructorCall)
 		{
 			ScopeValue stateValue = BuildExpr(funcCall.function, stmnt);
-			Assert(stateValue.reg == StateRegister);
-
-			SpiteIR::State* irState = stateValue.state;
-			if (irFunction == irState->defaultConstructor) return BuildStateDefaultValue(irState);
-			SpiteIR::Operand ref = BuildRegisterOperand(BuildStateDefaultValue(irState));
-			params->push_back(ref);
-			ret = { ref.reg, ref.type };
+			if (stateValue.reg == StateRegister)
+			{
+				SpiteIR::State* irState = stateValue.state;
+				if (irFunction == irState->defaultConstructor) return BuildStateDefaultValue(irState);
+				SpiteIR::Operand ref = BuildRegisterOperand(BuildStateDefaultValue(irState));
+				params->push_back(ref);
+				ret = { ref.reg, ref.type };
+			}
+			else
+			{
+				return InvalidScopeValue;
+			}
 		}
 		
 		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
