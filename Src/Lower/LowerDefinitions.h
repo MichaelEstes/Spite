@@ -1580,6 +1580,9 @@ struct LowerDefinitions
 		case AlignOfExpr:
 			ret = BuildAlignOf(expr, stmnt);
 			break;
+		case OffsetOfExpr:
+			ret = BuildOffsetOf(expr, stmnt);
+			break;
 		case TypeOfExpr:
 			ret = BuildTypeOf(expr, stmnt);
 			break;
@@ -1746,7 +1749,6 @@ struct LowerDefinitions
 
 	SpiteIR::Member* FindStructureTypeMember(SpiteIR::Type* type, StringView& ident)
 	{
-		size_t offset = 0;
 		eastl::vector<SpiteIR::Member*>* members = type->structureType.members;
 		return FindMember(*members, ident);
 	}
@@ -3020,6 +3022,31 @@ struct LowerDefinitions
 	ScopeValue BuildAlignOf(Expr* expr, Stmnt* stmnt)
 	{
 		return BuildStoredLiteralInt(GetAlignOf(expr, nullptr, nullptr, stmnt));
+	}
+
+	size_t GetOffsetOf(Expr* expr, eastl::vector<Token*>* generics = nullptr,
+		eastl::vector<Expr*>* templates = nullptr, Stmnt* stmnt = nullptr)
+	{
+		SpiteIR::Type* type = ToIRType(expr->offsetOfExpr.type->typeExpr.type);
+		Expr* offset = expr->offsetOfExpr.expr;
+
+		if (type->kind == SpiteIR::TypeKind::StructureType)
+		{
+			SpiteIR::Member* member = FindStructureTypeMember(type, offset->identifierExpr.identifier->val);
+			return member->offset;
+		}
+		else if (type->kind == SpiteIR::TypeKind::StateType)
+		{
+			SpiteIR::Member* member = FindStateMember(type->stateType.state, offset->identifierExpr.identifier->val);
+			return member->offset;
+		}
+
+		return 0;
+	}
+
+	ScopeValue BuildOffsetOf(Expr* expr, Stmnt* stmnt)
+	{
+		return BuildStoredLiteralInt(GetOffsetOf(expr, nullptr, nullptr, stmnt));
 	}
 
 	SpiteIR::Type* CreateTypeMetaType()

@@ -1938,6 +1938,9 @@ struct Syntax
 		case UniqueType::AlignOfTok:
 			return ParseAlignOfExpr();
 
+		case UniqueType::OffsetOfTok:
+			return ParseOffsetOfExpr();
+
 		case UniqueType::TypeOfTok:
 		case UniqueType::TypeOfExactTok:
 			return ParseTypeOfExpr();
@@ -2002,6 +2005,23 @@ struct Syntax
 		alignOfExpr->alignOfExpr.expr = expr;
 		if (Expect(UniqueType::Semicolon)) Advance();
 		return alignOfExpr;
+	}
+
+	Expr* ParseOffsetOfExpr()
+	{
+		Expr* offsetOfExpr = CreateExpr(curr, ExprID::OffsetOfExpr);
+		Advance();
+		if (Expect(UniqueType::Lparen)) Advance();
+		Expr* typeExpr = ParseTypeExpr();
+		if (typeExpr->typeID == ExprID::InvalidExpr) AddError(offsetOfExpr->start, "Syntax:ParseOffsetOfExpr first expression following #offsetof must be a type");
+		offsetOfExpr->offsetOfExpr.type = typeExpr;
+		if (Expect(UniqueType::Comma, "Syntax:ParseOffsetOfExpr #offsetof must start with a type and be followed with a comma")) Advance();
+		Expr* expr = ParsePrimaryExpr();
+		if (expr->typeID == ExprID::InvalidExpr) AddError(offsetOfExpr->start, "Syntax:ParseOffsetOfExpr #offsetof type must be followed by a primary expression");
+		offsetOfExpr->offsetOfExpr.expr = expr;
+		if (Expect(UniqueType::Rparen)) Advance();
+		if (Expect(UniqueType::Semicolon)) Advance();
+		return offsetOfExpr;
 	}
 
 	Expr* ParseTypeOfExpr()

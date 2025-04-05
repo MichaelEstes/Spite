@@ -1171,6 +1171,10 @@ struct SymbolTable
 		case AlignOfExpr:
 			cloned->alignOfExpr.expr = CloneExpr(expr->alignOfExpr.expr);
 			break;
+		case OffsetOfExpr:
+			cloned->offsetOfExpr.type = CloneExpr(expr->offsetOfExpr.type);
+			cloned->offsetOfExpr.expr = CloneExpr(expr->offsetOfExpr.expr);
+			break;
 		case TypeOfExpr:
 			cloned->typeOfExpr.expr = CloneExpr(expr->typeOfExpr.expr);
 			break;

@@ -27,6 +27,7 @@ static TokenTree tokenTypeLookup = {
 	{ "#alignof", TokenType::Keyword, UniqueType::AlignOfTok },
 	{ "#typeof", TokenType::Keyword, UniqueType::TypeOfTok },
 	{ "#typeofexact", TokenType::Keyword, UniqueType::TypeOfExactTok },
+	{ "#offsetof", TokenType::Keyword, UniqueType::OffsetOfTok },
 	{ "where", TokenType::Keyword, UniqueType::Where },
 	{ "operator", TokenType::Keyword, UniqueType::OperatorOverload },
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },

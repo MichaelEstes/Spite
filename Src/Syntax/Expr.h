@@ -33,6 +33,7 @@ enum ExprID
 	CompileExpr,
 	SizeOfExpr,
 	AlignOfExpr,
+	OffsetOfExpr,
 	TypeOfExpr,
 };
 
@@ -181,6 +182,12 @@ struct Expr
 
 		struct
 		{
+			Expr* type;
+			Expr* expr;
+		} offsetOfExpr;
+
+		struct
+		{
 			Expr* expr;
 			bool exact;
 		} typeOfExpr;
@@ -283,6 +290,9 @@ struct Expr
 			break;
 		case AlignOfExpr:
 			alignOfExpr = copy.alignOfExpr;
+			break;
+		case OffsetOfExpr:
+			offsetOfExpr = copy.offsetOfExpr;
 			break;
 		case TypeOfExpr:
 			typeOfExpr = copy.typeOfExpr;

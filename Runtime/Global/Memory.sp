@@ -11,6 +11,8 @@ extern
 	*byte realloc(ptr: *void, size: uint);
 	*byte calloc(count: uint, size: uint);
 	void free(ptr: *void);
+
+	*void memcpy(dest: *void, src: *void, count: uint);
 }
 
 *byte alloc(size: uint)
@@ -37,13 +39,7 @@ void zero_out_bytes(dst: *void, byteCount: uint)
 	}
 }
 
-void copy_bytes(dst: *byte, src: *byte, toCopy: uint)
-{
-	for (i .. toCopy)
-	{
-		dst[i]~ = src[i]~;
-	}
-}
+*void copy_bytes(dst: *void, src: *void, count: uint) => memcpy(dst, src, count);
 
 void fill_memory(dst: *byte, item: *byte, itemSize: uint, dstSize: uint)
 {

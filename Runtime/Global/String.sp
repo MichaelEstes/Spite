@@ -66,7 +66,7 @@ bool _string::operator::!()
 string _string::Append(toAppend: string)
 {
 	totalCount := this.count + toAppend.count;
-	buffer := ZeroedAllocator<byte>().Alloc(totalCount + 1);
+	buffer := ZeroedAllocator<byte>().Alloc(totalCount + 1)[0];
 	
 	for (i .. this.count)
 		buffer[i]~ = this[i]~;

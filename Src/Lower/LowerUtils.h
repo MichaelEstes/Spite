@@ -843,6 +843,8 @@ eastl::string BuildExprString(Expr* expr)
 		return "sizeof_" + BuildExprString(expr->sizeOfExpr.expr);
 	case AlignOfExpr:
 		return "alignof_" + BuildExprString(expr->alignOfExpr.expr);
+	case OffsetOfExpr:
+		return "offsetof_" + BuildExprString(expr->offsetOfExpr.type) + BuildExprString(expr->offsetOfExpr.expr);
 	case TypeOfExpr:
 		return "typeof_" + BuildExprString(expr->typeOfExpr.expr);
 	default:

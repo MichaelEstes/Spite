@@ -17,7 +17,7 @@ array make_array_from(itemBytes: uint, count: uint, start: *byte)
 	arr: array = array();
 	alloc := Allocator<byte>();
 	alloc.Alloc(itemBytes * count);
-	copy_bytes(alloc.ptr, start, count * itemBytes);
+	copy_bytes(alloc[0], start, count * itemBytes);
 
 	arr.memory = alloc;
 	arr.itemBytes = itemBytes;

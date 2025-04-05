@@ -335,6 +335,10 @@ struct ASTNodeChecker
 		case AlignOfExpr:
 			CheckExpr(expr->alignOfExpr.expr);
 			break;
+		case OffsetOfExpr:
+			CheckExpr(expr->offsetOfExpr.type);
+			CheckExpr(expr->offsetOfExpr.expr);
+			break;
 		case TypeOfExpr:
 			CheckExpr(expr->typeOfExpr.expr);
 			break;

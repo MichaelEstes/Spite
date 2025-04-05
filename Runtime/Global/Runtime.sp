@@ -149,7 +149,7 @@ string IntToString(i: int)
 
 	count = maxCount - count;
 	start := (fixed buf)[maxCount - count];
-	heapBuf := ZeroedAllocator<byte>().Alloc(count + 1);
+	heapBuf := ZeroedAllocator<byte>().Alloc(count + 1)[0];
 	copy_bytes(heapBuf, start, count);
 	return {count, heapBuf} as string;
 }
@@ -166,7 +166,7 @@ string FloatToString(f: float, precision := 4)
 {
 	format := floatFormatStr[0];
 	len := PrintFloat(null, 0, format, f);
-	buffer := ZeroedAllocator<byte>().Alloc(len + 1);
+	buffer := ZeroedAllocator<byte>().Alloc(len + 1)[0];
 	PrintFloat(buffer, len + 1, format, f);
 	
 	return {len as int, buffer} as string;

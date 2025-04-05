@@ -21,10 +21,6 @@ struct Checker
 		declChecker.Check();
 
 		CheckPackageDeclarations(globalTable->entryTable);
-		for (auto& [key, value] : globalTable->packageToSymbolTable)
-		{
-			CheckPackageDeclarations(value);
-		}
 
 		checkedPackages.clear();
 
@@ -32,11 +28,7 @@ struct Checker
 		defChecker.Check();
 
 		CheckPackageDefinitions(globalTable->entryTable);
-		for (auto& [key, value] : globalTable->packageToSymbolTable)
-		{
-			CheckPackageDefinitions(value);
-		}
-
+	
 		CheckDeferred();
 	}
 

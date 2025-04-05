@@ -1095,8 +1095,8 @@ struct TypeInferer
 		case CompileExpr:
 			return of->compileExpr.compile->compileStmnt.returnType;
 		case SizeOfExpr:
-			return symbolTable->CreatePrimitive(UniqueType::Int);
 		case AlignOfExpr:
+		case OffsetOfExpr:
 			return symbolTable->CreatePrimitive(UniqueType::Int);
 		case TypeOfExpr:
 			return CreateTypeOfType();
@@ -1172,6 +1172,8 @@ struct TypeInferer
 		if (!left || !right) return false;
 
 		if (*left == *right) return true;
+
+		if (IsAny(left) || IsAny(right)) return true;
 
 		if (left->typeID == TypeID::ValueType)
 			return IsAssignable(left->valueType.type, right, stmntContext);
@@ -1320,8 +1322,6 @@ struct TypeInferer
 			}
 			return true;
 		}
-
-		if (IsAny(left) || IsAny(right)) return true;
 
 		return false;
 	}

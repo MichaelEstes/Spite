@@ -241,6 +241,10 @@ struct ExprChecker
 		case AlignOfExpr:
 			expr->alignOfExpr.expr = InferGenericExpr(generics, expr->alignOfExpr.expr, templateArgs);
 			break;
+		case OffsetOfExpr:
+			expr->offsetOfExpr.type = InferGenericExpr(generics, expr->offsetOfExpr.type, templateArgs);
+			expr->offsetOfExpr.expr = InferGenericExpr(generics, expr->offsetOfExpr.expr, templateArgs);
+			break;
 		case TypeOfExpr:
 			expr->typeOfExpr.expr = InferGenericExpr(generics, expr->typeOfExpr.expr, templateArgs);
 			break;
@@ -450,6 +454,8 @@ struct ExprChecker
 				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
 					params))
 				{
+					CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
+						params);
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
 				}
 				return;

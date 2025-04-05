@@ -51,6 +51,7 @@ enum UniqueType
 	AlignOfTok,
 	TypeOfTok,
 	TypeOfExactTok,
+	OffsetOfTok,
 	Extern,
 	Enum,
 	Where,

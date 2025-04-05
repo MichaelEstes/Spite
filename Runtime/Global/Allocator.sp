@@ -8,16 +8,16 @@ state Allocator<Type>
 
 *Type Allocator::operator::[](index: uint) => this.ptr[index];
 
-*Type Allocator::Alloc(count: uint)
+Allocator<Type> Allocator::Alloc(count: uint)
 {
 	this.ptr = alloc(count * #sizeof Type) as *Type;
-	return this.ptr;
+	return this;
 }
 
-*Type Allocator::Resize(count: uint, prevCount: uint)
+Allocator<Type> Allocator::Resize(count: uint, prevCount: uint)
 {
 	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
-	return this.ptr;
+	return this;
 }
 
 Allocator::Dealloc(count: uint)
@@ -33,7 +33,7 @@ state InitAllocator<Type>
 
 *Type InitAllocator::operator::[](index: uint) => this.ptr[index];
 
-*Type InitAllocator::Alloc(count: uint)
+InitAllocator<Type> InitAllocator::Alloc(count: uint)
 {
 	this.ptr = alloc(count * #sizeof Type) as *Type;
 	if (this.ptr) 
@@ -41,10 +41,10 @@ state InitAllocator<Type>
 		for (i .. count) this.ptr[i]~ = Type();
 	}
 
-	return this.ptr;
+	return this;
 }
 
-*Type InitAllocator::Resize(count: uint, prevCount: uint)
+InitAllocator<Type> InitAllocator::Resize(count: uint, prevCount: uint)
 {
 	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
 	if (this.ptr)
@@ -57,7 +57,7 @@ state InitAllocator<Type>
 		}
 	}
 
-	return this.ptr;
+	return this;
 }
 
 InitAllocator::Dealloc(count: uint)
@@ -74,13 +74,13 @@ state ZeroedAllocator<Type>
 
 *Type ZeroedAllocator::operator::[](index: uint) => this.ptr[index];
 
-*Type ZeroedAllocator::Alloc(count: uint)
+ZeroedAllocator<Type> ZeroedAllocator::Alloc(count: uint)
 {
 	this.ptr = alloc_zeroed(count, #sizeof Type) as *Type;
-	return this.ptr;
+	return this;
 }
 
-*Type ZeroedAllocator::Resize(count: uint, prevCount: uint)
+ZeroedAllocator<Type> ZeroedAllocator::Resize(count: uint, prevCount: uint)
 {
 	this.ptr = realloc(this.ptr, count * #sizeof Type) as *Type;
 	if (this.ptr)
@@ -88,7 +88,7 @@ state ZeroedAllocator<Type>
 		zero_out_bytes(this.ptr[prevCount], (count - prevCount) * #sizeof Type);
 	}
 
-	return this.ptr;
+	return this;
 }
 
 ZeroedAllocator::Dealloc(count: uint)
