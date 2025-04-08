@@ -273,6 +273,11 @@ struct ASTNodeChecker
 			break;
 		case TypeLiteralExpr:
 		{
+			if (expr->typeLiteralExpr.typed)
+			{
+				CheckTypeExprIsType(expr->typeLiteralExpr.typed);
+				CheckExpr(expr->typeLiteralExpr.typed);
+			}
 			for (Expr* e : *expr->typeLiteralExpr.values) CheckExpr(e);
 			break;
 		}

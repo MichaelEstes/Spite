@@ -1869,10 +1869,20 @@ struct Syntax
 			case UniqueType::Lbrack:
 				expr = ParseIndex(expr);
 				break;
-
+		
 			case UniqueType::Lparen:
 				expr = ParseFunctionCall(expr);
 				break;
+
+			case UniqueType::Colon:
+			{
+				if (Peek()->uniqueType == UniqueType::Where)
+					return expr;
+
+				Advance();
+				expr = ParseTypedLiteral(expr);
+				break;
+			}
 
 			case UniqueType::Less:
 			{
@@ -2062,6 +2072,7 @@ struct Syntax
 	Expr* ParseTypeLiteralExpr(UniqueType closure = UniqueType::Rbrace, bool array = false)
 	{
 		Expr* anon = CreateExpr(curr, ExprID::TypeLiteralExpr);
+		anon->typeLiteralExpr.typed = nullptr;
 		Advance();
 
 		if (Expect(closure))
@@ -2165,6 +2176,28 @@ struct Syntax
 			index->typeID = ExprID::InvalidExpr;
 			return index;
 		}
+	}
+
+	Expr* ParseTypedLiteral(Expr* of)
+	{
+		Expr* typeLiteral = nullptr;
+		if (Expect(UniqueType::Lbrack))
+		{
+			typeLiteral = ParseTypeLiteralExpr(UniqueType::Rbrack, true);
+			typeLiteral->typeLiteralExpr.typed = of;
+		}
+		else if (Expect(UniqueType::Lbrace))
+		{
+			typeLiteral = ParseTypeLiteralExpr();
+			typeLiteral->typeLiteralExpr.typed = of;
+		}
+		else
+		{
+			AddError(curr, "Syntax:ParseTypedLiteral Expected literal type expression");
+			return CreateExpr(curr, ExprID::InvalidExpr);
+		}
+
+		return typeLiteral;
 	}
 
 	Expr* ParseIndex(Expr* of)

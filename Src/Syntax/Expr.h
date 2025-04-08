@@ -124,6 +124,7 @@ struct Expr
 		{
 			bool array;
 			eastl::vector<Expr*>* values;
+			Expr* typed;
 		} typeLiteralExpr;
 
 		struct

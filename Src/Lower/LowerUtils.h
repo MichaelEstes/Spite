@@ -520,6 +520,17 @@ SpiteIR::Type* CreateVoidPtrType(SpiteIR::IR* ir)
 	return type;
 }
 
+SpiteIR::Type* CreateStateType(SpiteIR::IR* ir, SpiteIR::State* state)
+{
+	SpiteIR::Type* type = ir->AllocateType();
+	type->size = state->size;
+	type->alignment = state->alignment;
+	type->kind = SpiteIR::TypeKind::StateType;
+	type->byValue = state->IsValueType();
+	type->stateType.state = state;
+	return type;
+}
+
 SpiteIR::Type* MakeReferenceType(SpiteIR::Type* type, SpiteIR::IR* ir)
 {
 	if (type->kind == SpiteIR::TypeKind::ReferenceType) return type;
@@ -781,6 +792,11 @@ eastl::string BuildExprString(Expr* expr)
 	case TypeLiteralExpr:
 	{
 		eastl::string anonTypeStr = "anon_";
+
+		if (expr->typeLiteralExpr.typed)
+		{
+			anonTypeStr += BuildExprString(expr->typeLiteralExpr.typed) + "_";
+		}
 
 		size_t size = expr->typeLiteralExpr.values->size();
 		for (size_t i = 0; i < size; i++)

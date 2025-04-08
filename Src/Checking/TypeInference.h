@@ -1006,6 +1006,11 @@ struct TypeInferer
 		{
 			if (!of->typeLiteralExpr.array)
 			{
+				if (of->typeLiteralExpr.typed)
+				{
+					return InferType(of->typeLiteralExpr.typed);
+				}
+
 				Type* anonType = symbolTable->CreateTypePtr(TypeID::AnonymousType);
 				anonType->anonType.types = symbolTable->CreateVectorPtr<Type>();
 
@@ -1022,7 +1027,15 @@ struct TypeInferer
 				if (size > 0)
 				{
 					Type* arrType = symbolTable->CreateTypePtr(TypeID::ArrayType);
-					arrType->arrayType.type = InferType(of->typeLiteralExpr.values->at(0));
+					if (of->typeLiteralExpr.typed)
+					{
+						arrType->arrayType.type = InferType(of->typeLiteralExpr.typed);
+					}
+					else
+					{
+						arrType->arrayType.type = InferType(of->typeLiteralExpr.values->at(0));
+					}
+
 					arrType->arrayType.size = symbolTable->CreateIntLiteralExpr(size, of->start);
 					return arrType;
 				}

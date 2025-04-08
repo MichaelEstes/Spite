@@ -177,6 +177,11 @@ struct ExprChecker
 			break;
 		case TypeLiteralExpr:
 		{
+			if (expr->typeLiteralExpr.typed)
+			{
+				expr->typeLiteralExpr.typed = InferGenericExpr(generics, expr->typeLiteralExpr.typed, templateArgs);
+			}
+
 			for (Expr*& value : *expr->typeLiteralExpr.values)
 			{
 				value = InferGenericExpr(generics, value, templateArgs);

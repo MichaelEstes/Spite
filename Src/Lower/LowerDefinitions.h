@@ -15,6 +15,7 @@ const size_t PackageRegister = (size_t)-2;
 const size_t StateRegister = (size_t)-3;
 const size_t FunctionRegister = (size_t)-4;
 const size_t StmntRegister = (size_t)-5;
+const size_t TypeRegister = (size_t)-6;
 
 struct ScopeValue
 {
@@ -1725,7 +1726,7 @@ struct LowerDefinitions
 	{
 		UniqueType primEnum = expr->primitiveExpr.primitive->uniqueType;
 		SpiteIR::Type* primType = ToIRType(symbolTable->CreatePrimitive(primEnum));
-		return { InvalidRegister, primType };
+		return { TypeRegister, primType };
 	}
 
 	SpiteIR::Member* FindMember(eastl::vector<SpiteIR::Member*>& members, StringView& ident)
@@ -2314,16 +2315,40 @@ struct LowerDefinitions
 	{
 		Assert(expr->typeLiteralExpr.values->size());
 		eastl::vector<ScopeValue> values;
+
+		SpiteIR::Type* type = nullptr;
+		if (expr->typeLiteralExpr.typed)
+		{
+			ScopeValue typeValue = BuildExpr(expr->typeLiteralExpr.typed, stmnt);
+			if (typeValue.reg == StateRegister)
+			{
+				type = CreateStateType(context.ir, typeValue.state);
+			}
+			else
+			{
+				type = typeValue.type;
+			}
+		}
+
 		for (Expr* val : *expr->typeLiteralExpr.values)
 		{
 			ScopeValue typeValue = BuildExpr(val, stmnt);
-			values.push_back(BuildTypeDereference(GetCurrentLabel(), typeValue));
+			typeValue = BuildTypeDereference(GetCurrentLabel(), typeValue);
+			if (expr->typeLiteralExpr.array && type)
+			{
+				typeValue = HandleAutoCast(typeValue, type);
+			}
+			values.push_back(typeValue);
 		}
 
 		SpiteIR::Type* derivedType = nullptr;
 		if (expr->typeLiteralExpr.array)
 		{
-			derivedType = BuildFixedArray(context.ir, values.size(), values.at(0).type);
+			SpiteIR::Type* itemType;
+			if (type) itemType = type;
+			else itemType = values.at(0).type;
+
+			derivedType = BuildFixedArray(context.ir, values.size(), itemType);
 		}
 		else
 		{
