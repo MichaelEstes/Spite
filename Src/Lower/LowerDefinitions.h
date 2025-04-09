@@ -1439,7 +1439,10 @@ struct LowerDefinitions
 		{
 
 			ScopeValue value = BuildExpr(ret.expr, stmnt);
-			value = BuildTypeDereference(GetCurrentLabel(), value);
+			if (funcContext.function->returnType->kind != SpiteIR::TypeKind::ReferenceType)
+			{
+				value = BuildTypeDereference(GetCurrentLabel(), value);
+			}
 			BuildReturnOp(GetCurrentLabel(), BuildRegisterOperand(HandleAutoCast(value, funcContext.function->returnType)));
 		}
 	}

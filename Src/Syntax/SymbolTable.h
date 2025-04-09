@@ -851,6 +851,9 @@ struct SymbolTable
 		case ValueType:
 			cloned->valueType.type = CloneType(type->valueType.type);
 			break;
+		case RefType:
+			cloned->refType.type = CloneType(type->refType.type);
+			break;
 		case ArrayType:
 			cloned->arrayType.type = CloneType(type->arrayType.type);
 			cloned->arrayType.size = CloneExpr(type->arrayType.size);

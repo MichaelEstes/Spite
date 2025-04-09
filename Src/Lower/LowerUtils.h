@@ -719,7 +719,9 @@ eastl::string BuildTypeString(Type* type)
 	case PointerType:
 		return "ptr_" + BuildTypeString(type->pointerType.type);
 	case ValueType:
-		return BuildTypeString(type->valueType.type);
+		return "val_" + BuildTypeString(type->valueType.type);
+	case RefType:
+		return "ref_" + BuildTypeString(type->refType.type);
 	case ArrayType:
 	{
 		if (type->arrayType.size)
@@ -1454,6 +1456,11 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		irType->byValue = true;
 		return irType;
 	}
+	case RefType:
+	{
+		SpiteIR::Type* irType = TypeToIRType(ir, type->refType.type, lower, generics, templates);
+		return MakeReferenceType(irType, ir);
+	}
 	case ArrayType:
 	{
 		if (type->arrayType.size)
@@ -1502,13 +1509,7 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 	}
 	case AnyType:
 	{
-		SpiteIR::Type* irType = ir->AllocateType();
-		irType->kind = SpiteIR::TypeKind::ReferenceType;
-		irType->size = config.targetArchByteWidth;
-		irType->alignment = config.targetArchByteWidth;
-		irType->byValue = true;
-		irType->reference.type = CreateVoidType(ir);
-		return irType;
+		return MakeReferenceType(CreateVoidType(ir), ir);
 	}
 	default:
 		break;

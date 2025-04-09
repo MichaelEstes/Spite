@@ -90,6 +90,9 @@ struct ExprChecker
 		case ValueType:
 			type->valueType.type = InferGenericType(generics, type->valueType.type, templateArgs);
 			break;
+		case RefType:
+			type->refType.type = InferGenericType(generics, type->refType.type, templateArgs);
+			break;
 		case ArrayType:
 			type->arrayType.type = InferGenericType(generics, type->arrayType.type, templateArgs);
 			type->arrayType.size = InferGenericExpr(generics, type->arrayType.size, templateArgs);

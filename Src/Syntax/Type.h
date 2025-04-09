@@ -17,6 +17,7 @@ enum TypeID
 	ImplicitType,
 	PointerType,
 	ValueType,
+	RefType,
 	ArrayType,
 	TemplatedType,
 	FunctionType,
@@ -70,6 +71,11 @@ struct Type
 		{
 			Type* type;
 		} valueType;
+
+		struct
+		{
+			Type* type;
+		} refType;
 
 		struct
 		{
@@ -160,7 +166,8 @@ inline bool IsAny(Type* type)
 {
 	return type->typeID == TypeID::AnyType ||
 		(type->typeID == TypeID::TemplatedType && IsAny(type->templatedType.type)) ||
-		(type->typeID == TypeID::ValueType && IsAny(type->valueType.type));
+		(type->typeID == TypeID::ValueType && IsAny(type->valueType.type)) ||
+		(type->typeID == TypeID::RefType && IsAny(type->refType.type));
 }
 
 inline bool IsIntLike(Type* type)
@@ -168,6 +175,7 @@ inline bool IsIntLike(Type* type)
 	if (type->typeID == TypeID::PrimitiveType) return IsInt(type);
 	else if (type->typeID == TypeID::PointerType) return true;
 	else if (type->typeID == TypeID::ValueType) return IsIntLike(type->valueType.type);
+	else if (type->typeID == TypeID::RefType) return IsIntLike(type->refType.type);
 
 	return IsAny(type);
 }

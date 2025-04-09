@@ -391,6 +391,9 @@ struct ASTNodeChecker
 		case ValueType:
 			CheckType(type->valueType.type, start, templates);
 			break;
+		case RefType:
+			CheckType(type->refType.type, start, templates);
+			break;
 		case ArrayType:
 		{
 			CheckType(type->arrayType.type, start, templates);

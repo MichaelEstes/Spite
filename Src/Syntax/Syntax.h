@@ -254,7 +254,7 @@ struct Syntax
 		{
 			Token* start = curr;
 			Logger::SetErrorRollback();
-			Type* type = ParseType(false);
+			Type* type = ParseType(false, true);
 			if (type->typeID == TypeID::InvalidType ||
 				Expect(UniqueType::DoubleColon) ||
 				Expect(UniqueType::Lparen))
@@ -1467,7 +1467,7 @@ struct Syntax
 		return InvalidStmnt();
 	}
 
-	Type* ParseType(bool allowImplicitType = true)
+	Type* ParseType(bool allowImplicitType = true, bool allowRefType = false)
 	{
 		Type* type = CreateTypePtr(TypeID::InvalidType);
 
@@ -1514,6 +1514,10 @@ struct Syntax
 
 			case UniqueType::Tilde:
 				type = ParseValueType();
+				break;
+
+			case UniqueType::Ref:
+				type = ParseRefType(allowRefType);
 				break;
 
 			case UniqueType::Array:
@@ -1568,6 +1572,22 @@ struct Syntax
 			AddError(curr, "Cannot have a value type of a value type (ie. ~~MyType)");
 		valueType->valueType.type = type;
 		return valueType;
+	}
+
+	Type* ParseRefType(bool allowed)
+	{
+		if (!allowed)
+		{
+			AddError(curr, "Syntax::ParseRefType reference types may only be used a function return type");
+		}
+
+		Type* refType = CreateTypePtr(TypeID::RefType);
+		Advance();
+		Type* type = ParseType();
+		if (type->typeID == TypeID::ValueType)
+			AddError(curr, "Cannot have a reference of a value type");
+		refType->refType.type = type;
+		return refType;
 	}
 
 	Type* ParseArrayType()

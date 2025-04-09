@@ -301,6 +301,8 @@ struct TypeInferer
 			return DereferenceType(type->pointerType.type);
 		case ValueType:
 			return DereferenceType(type->valueType.type);
+		case RefType:
+			return DereferenceType(type->refType.type);
 		default:
 			break;
 		}
@@ -393,6 +395,10 @@ struct TypeInferer
 			break;
 		case ValueType:
 			expanded->valueType.type = CreateTypeFromTemplates(expanded->valueType.type,
+				genericNames, templateArgs);
+			break;
+		case RefType:
+			expanded->refType.type = CreateTypeFromTemplates(expanded->refType.type,
 				genericNames, templateArgs);
 			break;
 		case ArrayType:
@@ -579,6 +585,8 @@ struct TypeInferer
 			return type;
 		case ValueType:
 			return GetIndexTypeAccessArray(of, type->valueType.type);
+		case RefType:
+			return GetIndexTypeAccessArray(of, type->refType.type);
 		case ArrayType:
 			return type->arrayType.type;
 		case PrimitiveType:
@@ -658,6 +666,7 @@ struct TypeInferer
 		}
 
 		if (type->typeID == TypeID::ValueType) type = type->valueType.type;
+		if (type->typeID == TypeID::RefType) type = type->refType.type;
 		return type;
 	}
 
@@ -691,6 +700,9 @@ struct TypeInferer
 			break;
 		case ValueType:
 			converted->valueType.type = ConvertGenericsToAny(converted->valueType.type, stmnt);
+			break;
+		case RefType:
+			converted->refType.type = ConvertGenericsToAny(converted->refType.type, stmnt);
 			break;
 		case ArrayType:
 			converted->arrayType.type = ConvertGenericsToAny(converted->arrayType.type, stmnt);
@@ -834,9 +846,13 @@ struct TypeInferer
 	{
 		if (left->typeID == TypeID::ValueType)
 			return GetOperatorType(op, left->valueType.type, right);
-
 		if (right->typeID == TypeID::ValueType)
 			return GetOperatorType(op, left, right->valueType.type);
+
+		if (left->typeID == TypeID::RefType)
+			return GetOperatorType(op, left->refType.type, right);
+		if (right->typeID == TypeID::RefType)
+			return GetOperatorType(op, left, right->refType.type);
 
 		if (IsAny(left)) return left;
 		if (IsAny(right)) return right;
@@ -885,8 +901,6 @@ struct TypeInferer
 			break;
 		}
 		break;
-		case ValueType:
-			return GetOperatorType(op, left->valueType.type, right);
 		case ArrayType:
 			break;
 		case TemplatedType:
@@ -917,6 +931,8 @@ struct TypeInferer
 			return type;
 		case ValueType:
 			return GetUnaryType(op, type->valueType.type);
+		case RefType:
+			return GetUnaryType(op, type->refType.type);
 		case TemplatedType:
 			return GetUnaryType(op, type->templatedType.type);
 		case AnyType:
@@ -1190,9 +1206,13 @@ struct TypeInferer
 
 		if (left->typeID == TypeID::ValueType)
 			return IsAssignable(left->valueType.type, right, stmntContext);
-
 		if (right->typeID == TypeID::ValueType)
 			return IsAssignable(left, right->valueType.type, stmntContext);
+
+		if (left->typeID == TypeID::RefType)
+			return IsAssignable(left->refType.type, right, stmntContext);
+		if (right->typeID == TypeID::RefType)
+			return IsAssignable(left, right->refType.type, stmntContext);
 
 		if (left->typeID == TypeID::NamedType || left->typeID == TypeID::ImportedType)
 		{

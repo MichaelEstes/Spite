@@ -135,6 +135,8 @@ struct GlobalTable
 			return FindStateForType(type->pointerType.type, symbolTable);
 		case ValueType:
 			return FindStateForType(type->valueType.type, symbolTable);
+		case RefType:
+			return FindStateForType(type->refType.type, symbolTable);
 		case TemplatedType:
 			return FindStateForType(type->templatedType.type, symbolTable);
 		case ArrayType:

@@ -95,6 +95,9 @@ bool operator==(const Type& left, const Type& right)
 {
 	if (left.typeID == TypeID::ValueType) return *left.valueType.type == right;
 	if (right.typeID == TypeID::ValueType) return *right.valueType.type == left;
+	
+	if (left.typeID == TypeID::RefType) return *left.refType.type == right;
+	if (right.typeID == TypeID::RefType) return *right.refType.type == left;
 
 	if (left.typeID != right.typeID) return false;
 
@@ -344,6 +347,11 @@ inline size_t HashType(const Type* type)
 	{
 		size_t hash = '~';
 		return hash + HashType(type->valueType.type);
+	}
+	case RefType:
+	{
+		size_t hash = 'r' + 'e' + 'f';
+		return hash + HashType(type->refType.type);
 	}
 	case ArrayType:
 	{
@@ -960,6 +968,8 @@ eastl::string ToString(Type* type)
 		return "*" + ToString(type->pointerType.type);
 	case ValueType:
 		return "~" + ToString(type->valueType.type);
+	case RefType:
+		return "ref " + ToString(type->refType.type);
 	case ArrayType:
 		return "[]" + ToString(type->arrayType.type);
 	case TemplatedType:
