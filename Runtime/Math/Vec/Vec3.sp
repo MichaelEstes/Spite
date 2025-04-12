@@ -41,3 +41,15 @@ Vec3 Vec3::Cross(right: Vec3) =>
 	    -(this.x * right.z - right.x * this.z),
 	    this.x * right.y - right.x * this.y);
 
+ref Norm<Vec3> Vec3::Normalize()
+{
+	len := this.Length();
+
+	this.x /= len;
+	this.y /= len;
+	this.z /= len;
+
+	return this as Norm<Vec3>;
+}
+
+Vec3 Vec3::operator::-(r: Vec3) => Vec3(this.x - r.x, this.y - r.y, this.z - r.z)
