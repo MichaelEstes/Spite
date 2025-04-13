@@ -50,7 +50,7 @@ enum FileMode: byte
 }
 
 modesArr := [ 
-	"r", "w", "a", "r+", 
+	"r",  "w",  "a",  "r+", 
 	"rb", "wb", "ab", "rb+",
 	"rt", "wt", "at", "rt+"
 ];

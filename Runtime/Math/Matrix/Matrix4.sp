@@ -35,7 +35,7 @@ Vec3 Matrix4::Position()
 	return Vec3(this.m[3] as [3]float32);
 }
 
-[4]float32 Matrix4::operator::[](index: uint32) => this.m[index];
+ref [4]float32 Matrix4::operator::[](index: uint32) => this.m[index];
 
 Matrix4 Matrix4::operator::*(r: Matrix4)
 {
@@ -83,7 +83,7 @@ Matrix4 Matrix4::operator::*(r: Matrix4)
 	return result;
 }
 
-ref Matrix4 Matrix4::MakeRotation(angle: float, axis: Norm<Vec3>)
+ref Matrix4 Matrix4::MakeRotation(angle: float32, axis: Norm<Vec3>)
 {
 	vec := axis.vec;
 
@@ -111,40 +111,40 @@ ref Matrix4 Matrix4::MakeRotation(angle: float, axis: Norm<Vec3>)
 	return this;
 }
 
-ref Matrix4 Matrix4::Rotate(angle: float, axis: Norm<Vec3>)
+ref Matrix4 Matrix4::Rotate(angle: float32, axis: Norm<Vec3>)
 {
 	this = this * Matrix4().MakeRotation(angle, axis);
 	return this;
 }
 
-ref Matrix4 Matrix4::LookAt(eye: Vec3, target: Vec3, up: Vec3)
+ref Matrix4 Matrix4::LookAt(camera: Vec3, center: Vec3, up: Vec3)
 {
-	forward := (eye - target).Normalize().vec;
-	right := up.Cross(forward).Normalize().vec;
-	newUp := forward.Cross(right);
+	forward := (center - camera).Normalize().vec;
+	right := forward.Cross(up).Normalize().vec;
+	trueUp := right.Cross(forward);
 
-	this.m[0] = float32:[right.x,   right.y,   right.z,   0];
-	this.m[1] = float32:[newUp.x,   newUp.y,   newUp.z,   0];
-	this.m[2] = float32:[forward.x, forward.y, forward.z, 0];
+	this.m[0] = float32:[right.x, trueUp.x, -forward.x, 0];
+	this.m[1] = float32:[right.y, trueUp.y, -forward.y, 0];
+	this.m[2] = float32:[right.z, trueUp.y, -forward.z, 0];
 	this.m[3] = float32:[
-		-(right.Dot(eye)),
-		-(newUp.Dot(eye)),
-		-(forward.Dot(eye)),
+		-right.Dot(camera),
+		-trueUp.Dot(camera),
+		forward.Dot(camera),
 		1
 	];
 
 	return this;
 }
 
-ref Matrix4 Matrix4::Perspective(fovY: float, aspect: float, near: float, far: float)
+ref Matrix4 Matrix4::Perspective(fovY: float32, aspect: float32, near: float32, far: float32)
 {
 	f: float32 = 1.0 / Math.Tan(fovY * 0.5);
-	nf: float32 = 1.0 / (near - far);
+	rangeInv: float32 = 1.0 / (near - far);
 
-	this.m[0] = float32:[f / aspect, 0, 0,                          0];
-	this.m[1] = float32:[0,          f, 0,                          0];
-	this.m[2] = float32:[0,          0, (far + near) * nf,         -1];
-	this.m[3] = float32:[0,          0, (2 * far * near) * nf,      0];
+	this.m[0] = float32:[f / aspect, 0, 0,							 0];
+	this.m[1] = float32:[0,			 f, 0,							 0];
+	this.m[2] = float32:[0,			 0, (far + near) * rangeInv,    -1];
+	this.m[3] = float32:[0,			 0, (2 * far * near) * rangeInv, 0];
 
 	return this;
 }
