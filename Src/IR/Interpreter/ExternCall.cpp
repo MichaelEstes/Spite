@@ -3,7 +3,8 @@
 
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 {
-	eastl::string libName = *lib + libExt;
+	eastl::string libName = *lib;
+	if (libName.find(libExt) == eastl::string::npos) libName += libExt;
 	DLLib* dlLib = dlLoadLibrary(libName.c_str());
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
 	return func;

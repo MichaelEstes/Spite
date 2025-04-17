@@ -83,8 +83,7 @@ struct Interpreter
 		delete global;
 		global = new char[ir->globalSize];
 		SetCurrentThreadID();
-		InitializeRuntimeValues(ir);
-
+		
 		auto callInitializer = [](SpiteIR::Package* package, Interpreter& interpreter)
 		{
 			if (package->initializer)
@@ -92,9 +91,10 @@ struct Interpreter
 				interpreter.InterpretFunction(package->initializer, 0);
 			}
 		};
-
+		
 		callInitializer(ir->runtime, *this);
 		ir->IterateImports<Interpreter&>(package, *this, callInitializer);
+		InitializeRuntimeValues(ir);
 	}
 
 	void SetCurrentThreadID()
