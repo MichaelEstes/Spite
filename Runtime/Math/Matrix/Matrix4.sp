@@ -136,15 +136,14 @@ ref Matrix4 Matrix4::LookAt(camera: Vec3, center: Vec3, up: Vec3)
 	return this;
 }
 
-ref Matrix4 Matrix4::Perspective(fovY: float32, aspect: float32, near: float32, far: float32)
+ref Matrix4 Matrix4::Perspective(fov: float32, aspect: float32, near: float32, far: float32)
 {
-	f: float32 = 1.0 / Math.Tan(fovY * 0.5);
-	rangeInv: float32 = 1.0 / (near - far);
+	f: float32 = Math.Tan(fov * 0.5);
 
-	this.m[0] = float32:[f / aspect, 0, 0,							 0];
-	this.m[1] = float32:[0,			 f, 0,							 0];
-	this.m[2] = float32:[0,			 0, (far + near) * rangeInv,    -1];
-	this.m[3] = float32:[0,			 0, (2 * far * near) * rangeInv, 0];
+	this.m[0] = float32:[1.0 / (aspect * f), 0.0, 0.0, 0.0];
+	this.m[1] = float32:[0.0, 1.0 / f, 0.0, 0.0];
+	this.m[2] = float32:[0.0, 0.0, far / (near - far), -1.0];
+	this.m[3] = float32:[0.0, 0.0, -(far * near) / (far - near), 0.0];
 
 	return this;
 }
