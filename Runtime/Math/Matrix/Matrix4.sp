@@ -125,10 +125,10 @@ ref Matrix4 Matrix4::LookAt(camera: Vec3, center: Vec3, up: Vec3)
 
 	this.m[0] = float32:[right.x, trueUp.x, -forward.x, 0];
 	this.m[1] = float32:[right.y, trueUp.y, -forward.y, 0];
-	this.m[2] = float32:[right.z, trueUp.y, -forward.z, 0];
+	this.m[2] = float32:[right.z, trueUp.z, -forward.z, 0];
 	this.m[3] = float32:[
-		-right.Dot(camera),
-		-trueUp.Dot(camera),
+		-(right.Dot(camera)),
+		-(trueUp.Dot(camera)),
 		forward.Dot(camera),
 		1
 	];
