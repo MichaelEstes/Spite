@@ -62,7 +62,10 @@ modesArr := [
 
 string ReadFile(path: string)
 {
-	file := fopen(path[0], GetFileMode(FileMode.ReadBinary))
+	absPath := GetAbsolutePath(path);
+    defer delete absPath;
+
+	file := fopen(absPath[0], GetFileMode(FileMode.ReadBinary))
 	if (!file) return "";
 	defer fclose(file);
 

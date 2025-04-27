@@ -8,7 +8,7 @@
 #include "ExternCall.h"
 #include "../../Config/Config.h"
 
-extern std::filesystem::path execDir;
+extern std::filesystem::path workingDir;
 extern Config config;
 
 inline char* global = nullptr;
@@ -75,7 +75,7 @@ struct Interpreter
 
 		SetGlobalBool(runtime, "__interpreted", true);
 
-		SetGlobalString(runtime, "__exec_dir", new eastl::string(execDir.string().c_str()));
+		SetGlobalString(runtime, "__workingDir", new eastl::string(workingDir.string().c_str()));
 	}
 
 	void Initialize(SpiteIR::IR* ir, SpiteIR::Package* package)

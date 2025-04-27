@@ -39,6 +39,7 @@ namespace EA::StdC
 
 Config config;
 std::filesystem::path execDir;
+std::filesystem::path workingDir;
 
 Stmnt* CheckEntryFunction(SymbolTable* symbolTable)
 {
@@ -101,14 +102,17 @@ int main(int argc, char** argv)
 	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (!config.dir.empty())
 	{
-		std::filesystem::path dir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
-		FindAllSourceFilesInDir(files, dir);
+		workingDir = std::filesystem::canonical(std::filesystem::path{ config.dir.c_str() });
 	}
-	else if (config.file.empty())
+	else if (!config.file.empty())
 	{
-		std::filesystem::path dir = std::filesystem::current_path();
-		FindAllSourceFilesInDir(files, dir);
+		workingDir = std::filesystem::canonical(std::filesystem::path{ config.file.c_str() }).parent_path();
 	}
+	else
+	{
+		workingDir = std::filesystem::current_path();
+	}
+	FindAllSourceFilesInDir(files, workingDir);
 
 	execDir = GetExecutableDir();
 	std::filesystem::path runTimeDir = execDir / "Runtime";

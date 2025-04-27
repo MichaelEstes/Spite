@@ -67,7 +67,7 @@ string _string::Append(toAppend: string)
 {
 	totalCount := this.count + toAppend.count;
 	buffer := ZeroedAllocator<byte>().Alloc(totalCount + 1)[0];
-	
+
 	for (i .. this.count)
 		buffer[i]~ = this[i]~;
 	
@@ -104,4 +104,14 @@ bool _string::StartsWith(str: string)
 	}
 
 	return true;
+}
+
+string _string::Copy()
+{
+	buffer := ZeroedAllocator<byte>().Alloc(this.count + 1)[0];
+
+	for (i .. this.count)
+		buffer[i]~ = this[i]~;
+
+	return string(this.count, buffer);
 }

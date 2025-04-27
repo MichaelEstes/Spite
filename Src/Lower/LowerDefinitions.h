@@ -630,7 +630,7 @@ struct LowerDefinitions
 			{
 				if (!label->values.size())
 				{
-					Logger::FatalError("LowerDefinition:CheckFunctionBlock Non-terminated label found in empty block");
+					Logger::FatalError("LowerDefinition:CheckFunctionBlock Non-terminated label found in empty block: " + function->name);
 					return;
 				}
 
@@ -884,8 +884,7 @@ struct LowerDefinitions
 			{
 				assignment = BuildStateOperatorCall(state, assignTo, opType, &assignment);
 			}
-
-			if (IsBinaryOperator(opType))
+			else if (IsBinaryOperator(opType))
 			{
 				assignment = BuildBinaryOpValue(assignTo, assignment, BinaryOpToIR(opType));
 			}
@@ -2070,7 +2069,9 @@ struct LowerDefinitions
 				ScopeValue memberValue = LoadStructureMember({ dst, type }, member);
 				if (memberDecl->definition.assignment)
 				{
+
 					ScopeValue value = BuildExpr(memberDecl->definition.assignment, stateStmnt);
+					value = HandleAutoCast(value, member->value.type);
 					AssignValues(memberValue, value);
 				}
 				else BuildDefaultValue(memberValue.type, memberValue.reg, label);
@@ -3392,9 +3393,8 @@ struct LowerDefinitions
 		ScopeValue retValue;
 		if (thisValue) retValue = *thisValue;
 		else retValue = BuildStateDefaultValue(state);
+
 		paramValues.push_back(retValue);
-
-
 		for (Expr* param : *params)
 		{
 			paramValues.push_back(BuildExpr(param, stmnt));
@@ -3404,8 +3404,9 @@ struct LowerDefinitions
 		eastl::vector<SpiteIR::Operand>* paramOps = context.ir->AllocateArray<SpiteIR::Operand>();
 		if (!conFunc)
 		{
+			// Check for overloaded default constructor, but if none exists return the default value
 			if (!params->size()) return retValue;
-			else Logger::FatalError("LowerDefinitions:FindAndCallStateConstructor Unable to find state constructor with compatible overload");
+			Logger::FatalError("LowerDefinitions:FindAndCallStateConstructor Unable to find state constructor with compatible overload");
 		}
 
 		paramOps->push_back(BuildRegisterOperand(BuildTypeReference(GetCurrentLabel(), paramValues.at(0))));
