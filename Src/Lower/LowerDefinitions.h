@@ -1038,7 +1038,7 @@ struct LowerDefinitions
 			SpiteIR::Instruction* load = BuildLoad(GetCurrentLabel(), AllocateToOperand(alloc),
 				BuildRegisterOperand(toIterate), BuildRegisterOperand(index), itemType);
 		}
-		ScopeValue currValue = HandleAutoCast({ alloc.result, alloc.type }, defType);
+		ScopeValue currValue = HandleAutoCast({ alloc.result, alloc.type }, defType, true);
 		AddValueToCurrentScope(def.name->val, currValue, defStmnt);
 
 		BuildBody(body);
