@@ -8,7 +8,7 @@ state _string
 }
 
 _string::delete {
-	delete this.mem;
+	if (this.count) dealloc(this.mem);
 }
 
 _string::(str: string)

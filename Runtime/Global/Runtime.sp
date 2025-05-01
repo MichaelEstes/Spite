@@ -153,10 +153,10 @@ string FloatToString(f: float, precision := 4)
 	//buf := alloc(precision);
 	//for (i .. precision) 
 	//{
-    //    decimals *= 10;
+    //  decimals *= 10;
 	//	digit := decimals as byte;
 	//	buf[i]~ = '0' + digit;
-    //    decimals -= digit;
+    //  decimals -= digit;
     //}
 	//decimalsStr := {precision, buf} as string;
 	//defer delete decimalsStr;

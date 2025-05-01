@@ -492,6 +492,7 @@ struct SymbolTable
 			for (Stmnt* cons : value.constructors) AddConstructor(cons);
 			for (Stmnt* method : value.methods) AddMethod(method);
 			for (Stmnt* op : value.operators) AddOperator(op);
+			if (value.destructor) SetDestructor(value.destructor);
 		}
 
 		for (auto& [key, value] : toMerge->enumMap)

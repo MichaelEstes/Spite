@@ -7,31 +7,35 @@ pathSeparator := #compile byte {
 
 string NormalizePath(path: string)
 {
+    result := path.Copy();
     if (targetOs == OS_Kind.Windows)
     {
-        for (i .. path.count)
+        for (i .. result.count)
         {
-            if (path[i]~ == '/') path[i]~ = '\\';
+            if (result[i]~ == '/') result[i]~ = '\\';
         }
     }
     else 
     {
-        for (i .. path.count)
+        for (i .. result.count)
         {
-            if (path[i]~ == '\\') path[i]~ = '/';
+            if (result[i]~ == '\\') result[i]~ = '/';
         }
     }
 
-    return path;
+    return result;
 }
 
 string GetAbsolutePath(path: string)
 {
     if (IsAbsolute(path)) return NormalizePath(path);
     
-    cwd := OS.GetWorkingDir();
+    cwd := GetWorkingDir();
 
-    return NormalizePath(JoinPaths([cwd, path]));
+    joined := JoinPaths([cwd, path]);
+    normalized := NormalizePath(joined);
+    delete joined;
+    return normalized;
 }
 
 bool IsAbsolute(path: string) 
@@ -59,7 +63,7 @@ string JoinPaths(paths: []string)
     {
         if (result.count > 0 && result[result.count - 1] != pathSeparator)
         {
-            result += string(1, pathSeparator@);
+            result.AppendIn(string(1, pathSeparator@));
         }
         
         path := paths[i];
@@ -70,10 +74,10 @@ string JoinPaths(paths: []string)
         }
         
         append := string(path.count - start, path[start]);
-        result = result + append;
+        result.AppendIn(append);
     }
     
-    return NormalizePath(result);
+    return result;
 }
 
 string GetDirectoryName(path: string)

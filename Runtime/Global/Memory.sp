@@ -51,4 +51,7 @@ void fill_memory(dst: *byte, item: *byte, itemSize: uint, dstSize: uint)
 	}
 }
 
+uint align_up(value: uint, alignment: uint) => 
+		(value + alignment - 1) & ^(alignment - 1);
+
 

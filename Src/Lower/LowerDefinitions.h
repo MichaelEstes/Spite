@@ -1332,16 +1332,11 @@ struct LowerDefinitions
 
 	SpiteIR::Function* GetDeleteOperator(SpiteIR::Type* type)
 	{
-		if (type->kind == SpiteIR::TypeKind::PointerType &&
-			type->pointer.type->kind == SpiteIR::TypeKind::StateType)
+		while (type->kind == SpiteIR::TypeKind::PointerType) type = type->pointer.type;
+		SpiteIR::State* state = GetStateForType(type);
+		if (state)
 		{
-			SpiteIR::State* state = type->pointer.type->stateType.state;
-			eastl::string destructorName = BuildDestructorName(state);
-			SpiteIR::Package* package = state->parent;
-			if (MapHas(package->functions, destructorName))
-			{
-				return package->functions[destructorName];
-			}
+			return state->destructor;
 		}
 
 		return nullptr;
@@ -1359,7 +1354,11 @@ struct LowerDefinitions
 		SpiteIR::Function* deleteOp = GetDeleteOperator(value.type);
 		if (deleteOp)
 		{
-			BuildCall(deleteOp, funcContext.curr, params, label);
+			eastl::vector<SpiteIR::Operand>* deleteParams = context.ir->AllocateArray<SpiteIR::Operand>();
+			ScopeValue param = MakeThisParameterReference(value);
+			deleteParams->push_back(BuildRegisterOperand(param));
+
+			BuildCall(deleteOp, funcContext.curr, deleteParams, label);
 		}
 
 		if (value.type->kind == SpiteIR::TypeKind::PointerType)
