@@ -316,6 +316,8 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 		SetResultValue(returnType, returnValue, result);
 	}
 	
+	dcbFreeCallback(callback);
+	delete callbackData;
 	return TypeToDCSigChar(returnType);
 }
 
@@ -385,7 +387,6 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpret
 		}
 		sig += ')';
 		sig += TypeToDCSigChar(type->function.returnType);
-
 
 		DCCallbackData* data = new DCCallbackData();
 		data->interpreter = interpreter;

@@ -2,6 +2,7 @@
 /out
 /Spite
 /.vs
+/.vscode
 /CMakeFiles
 
 cmake_install.cmake
@@ -9,3 +10,4 @@ CMakeCache.txt
 MakeFile
 *Test.sp
 Spite_Lang
+**.spir
