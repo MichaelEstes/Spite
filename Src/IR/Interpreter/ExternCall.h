@@ -2,6 +2,8 @@
 
 #include <mutex>
 
+#include <mutex>
+
 #include "dyncall.h"
 #include "dynload.h"
 #include "dyncall_callback.h"
@@ -25,7 +27,6 @@ char TypeToDCSigChar(SpiteIR::Type* type);
 char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* userdata);
 void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpreter* interpreter);
 eastl::string* FindLibForPlatform(eastl::vector<SpiteIR::PlatformLib>* platformToLib);
-inline void CopyDCReturnValue(size_t size, const void* ptr, char* dst, DCCallVM* dynCallVM);
 void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DCCallVM* dynCallVM);
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst, 
 	DCCallVM* dynCallVM, Interpreter* interpreter);
