@@ -6,20 +6,24 @@ eastl::hash_map<eastl::string, DLLib*> libCache;
 
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 {
-	libMutex.lock();
 	DLLib* dlLib = nullptr;
-	if (MapHas(libCache, *lib))
+
+	if (lib)
 	{
-		dlLib = libCache.at(*lib);
+		libMutex.lock();
+		if (MapHas(libCache, *lib))
+		{
+			dlLib = libCache.at(*lib);
+		}
+		else
+		{
+			eastl::string libName = *lib;
+			if (libName.find(libExt) == eastl::string::npos) libName += libExt;
+			dlLib = dlLoadLibrary(libName.c_str());
+			libCache.insert({ *lib, dlLib });
+		}
+		libMutex.unlock();
 	}
-	else
-	{
-		eastl::string libName = *lib;
-		if (libName.find(libExt) == eastl::string::npos) libName += libExt;
-		dlLib = dlLoadLibrary(libName.c_str());
-		libCache.insert({ *lib, dlLib });
-	}
-	libMutex.unlock();
 
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
 	return func;
@@ -34,10 +38,10 @@ DCCallVM* CreateDynCallVM()
 
 void DestroyDynCallVM(DCCallVM* dynCallVM)
 {
-	for (auto& [name, lib] : libCache)
-	{
-		dlFreeLibrary(lib);
-	}
+	//for (auto& [name, lib] : libCache)
+	//{
+	//	dlFreeLibrary(lib);
+	//}
 	dcFree(dynCallVM);
 }
 
