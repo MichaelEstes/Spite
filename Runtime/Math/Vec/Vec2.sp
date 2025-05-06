@@ -32,3 +32,15 @@ float32 Vec2::Length() => Math.Sqrt(this.SqrLength());
 
 float32 Vec2::Dot(right: Vec2) => this.x * right.x + this.y * right.y;
 
+ref Norm<Vec2> Vec2::Normalize()
+{
+	len := this.Length();
+
+	this.x /= len;
+	this.y /= len;
+
+	return this as Norm<Vec2>;
+}
+
+Vec2 Vec2::operator::-(r: Vec2) => Vec2(this.x - r.x, this.y - r.y);
+

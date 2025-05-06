@@ -52,4 +52,4 @@ ref Norm<Vec3> Vec3::Normalize()
 	return this as Norm<Vec3>;
 }
 
-Vec3 Vec3::operator::-(r: Vec3) => Vec3(this.x - r.x, this.y - r.y, this.z - r.z)
+Vec3 Vec3::operator::-(r: Vec3) => Vec3(this.x - r.x, this.y - r.y, this.z - r.z);
