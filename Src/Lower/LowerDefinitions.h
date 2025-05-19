@@ -1427,6 +1427,14 @@ struct LowerDefinitions
 		Assert(stmnt->returnStmnt.expr);
 		auto& ret = stmnt->returnStmnt;
 
+		eastl::deque<FunctionScope>& scopeQueue = funcContext.scopeQueue;
+		size_t queueCount = scopeQueue.size();
+		for (size_t i = queueCount - 2; i > 0; i--)
+		{
+			FunctionScope& scope = scopeQueue[i];
+			for (DeferredBody& deferred : scope.deferred) BuildDeferred(deferred);
+		}
+
 		if (ret.expr->typeID == ExprID::TypeExpr &&
 			ret.expr->typeExpr.type->typeID == TypeID::PrimitiveType &&
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)

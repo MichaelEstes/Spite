@@ -218,10 +218,10 @@ int main(int argc, char** argv)
 			Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to build program");
 
 			Profiler interpretProfiler = Profiler();
-			Decompiler decompiler = Decompiler();
-			decompiler.Decompile(ir);
+			//Decompiler decompiler = Decompiler();
+			//decompiler.Decompile(ir);
 			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
-			interpretProfiler.Reset();
+			//interpretProfiler.Reset();
 			int value = *(int*)(void*)interpreter.Interpret(ir);
 			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;

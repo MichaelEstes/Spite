@@ -462,8 +462,6 @@ struct ExprChecker
 				if (!CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
 					params))
 				{
-					CheckValidFunctionCallParams(functionStmnt, functionStmnt->function.decl->functionDecl.parameters,
-						params);
 					AddError(expr->start, "ExprChecker:CheckFunctionCallExpr Invalid parameters passed for call signature for function");
 				}
 				return;
