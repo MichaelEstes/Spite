@@ -134,6 +134,10 @@ struct LowerDeclarations
 			eastl::string& typeName = eastl::get<0>(val);
 			SpiteIR::Type* type = eastl::get<1>(val);
 			type->stateType.state = FindState(this, typeName, type, false);
+			if (!type->stateType.state)
+			{
+				Logger::FatalError("LowerDeclarations:Resolve Unable to resolve state type: " + typeName);
+			}
 			context.toResolveStateType.pop_back();
 		}
 

@@ -73,8 +73,8 @@ struct Checker
 
 	void CheckDeferred()
 	{
-		ExpandDeferredTemplates();
 		ExpandForwardedTemplates();
+		ExpandDeferredTemplates();
 	}
 
 	eastl::vector<Expr*>* CopyTemplateArgs(eastl::vector<Expr*>* args, Token* package)

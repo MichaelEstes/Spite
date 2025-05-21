@@ -17,16 +17,152 @@ struct ExprChecker
 		context(context), deferred(deferred), inferer(context)
 	{}
 
+	bool IsGenericOfCurrentContext(Type* type)
+	{
+		return context.globalTable->IsGenericOfStmnt(type, context.currentContext, context.symbolTable);
+	}
+
 	bool IsGenericOfCurrentContext(Expr* expr)
 	{
 		return context.globalTable->IsGenericOfStmnt(expr, context.currentContext, context.symbolTable);
+	}
+
+	bool TypeContainsGeneric(Type* type)
+	{
+		switch (type->typeID)
+		{
+		case NamedType:
+		{
+			return IsGenericOfCurrentContext(type);
+			break;
+		}
+		case ExplicitType:
+		{
+			for (Stmnt*& decl : *type->explicitType.declarations)
+			{
+				if(TypeContainsGeneric(decl->definition.type)) return true;
+			}
+			break;
+		}
+		case PointerType:
+			if (TypeContainsGeneric(type->pointerType.type)) return true;
+			break;
+		case ValueType:
+			if (TypeContainsGeneric(type->valueType.type)) return true;
+			break;
+		case RefType:
+			if (TypeContainsGeneric(type->refType.type)) return true;
+			break;
+		case ArrayType:
+		{
+			if (TypeContainsGeneric(type->arrayType.type)) return true;
+			if (type->arrayType.size && ExprContainsGeneric(type->arrayType.size)) return true;
+			break;
+		}
+		case TemplatedType:
+		{
+			if (TypeContainsGeneric(type->templatedType.type)) return true;
+			if (ExprContainsGeneric(type->templatedType.templates)) return true;
+			break;
+		}
+		case FunctionType:
+		{
+			if (TypeContainsGeneric(type->functionType.returnType)) return true;
+			for (Type*& param : *type->functionType.paramTypes)
+			{
+				if(TypeContainsGeneric(param)) return true;
+			}
+			break;
+		}
+		case UnionType:
+		{
+			for (Stmnt*& decl : *type->unionType.declarations)
+			{
+				if(TypeContainsGeneric(decl->definition.type)) return true;
+			}
+			break;
+		}
+		case AnonymousType:
+		{
+			for (Type*& param : *type->anonType.types)
+			{
+				if (TypeContainsGeneric(param)) return true;
+			}
+			break;
+		}
+		default:
+			break;
+		}
+
+		return false;
+	}
+
+	bool ExprContainsGeneric(Expr* expr)
+	{
+		switch (expr->typeID)
+		{
+		case IdentifierExpr:
+			return IsGenericOfCurrentContext(expr);
+		case IndexExpr:
+			return ExprContainsGeneric(expr->indexExpr.of) || ExprContainsGeneric(expr->indexExpr.index);
+		case FunctionCallExpr:
+		{
+			return ExprContainsGeneric(expr->functionCallExpr.function) || TemplatesContainForwardedGeneric(expr->functionCallExpr.params);
+			break;
+		}
+		case NewExpr:
+			return ExprContainsGeneric(expr->newExpr.primaryExpr) || ExprContainsGeneric(expr->newExpr.atExpr);
+		case FixedExpr:
+			return ExprContainsGeneric(expr->fixedExpr.atExpr);
+		case TypeLiteralExpr:
+		{
+			if (expr->typeLiteralExpr.typed)
+			{
+				if (ExprContainsGeneric(expr->typeLiteralExpr.typed)) return true;
+			}
+
+			for (Expr* value : *expr->typeLiteralExpr.values)
+			{
+				if (ExprContainsGeneric(value)) return true;
+			}
+
+			break;
+		}
+		case ExplicitTypeExpr:
+		{
+			for (Stmnt* decl : *expr->explicitTypeExpr.values)
+			{
+				if (TypeContainsGeneric(decl->definition.type)) return true;
+			}
+
+			break;
+		}
+		case TypeExpr:
+			return TypeContainsGeneric(expr->typeExpr.type);
+		case FunctionTypeDeclExpr:
+		{
+			Stmnt* anonFunction = expr->functionTypeDeclExpr.anonFunction;
+			Stmnt* funcDecl = anonFunction->anonFunction.decl;
+			if (TypeContainsGeneric(anonFunction->anonFunction.returnType)) return true;
+			for (Stmnt* param : *funcDecl->functionDecl.parameters)
+			{
+				if (TypeContainsGeneric(param->definition.type)) return true;
+			}
+
+			break;
+		}
+		default:
+			break;
+		}
+
+		return false;
 	}
 
 	bool TemplatesContainForwardedGeneric(eastl::vector<Expr*>* templates)
 	{
 		for (Expr* expr : *templates)
 		{
-			if (IsGenericOfCurrentContext(expr)) return true;
+			if (ExprContainsGeneric(expr)) return true;
 		}
 
 		return false;
@@ -296,7 +432,10 @@ struct ExprChecker
 				deferred.deferredForwardedTemplates[context.currentContext].push_back(toDefer);
 				return;
 			}
-			else if (ofType && IsAny(ofType)) return;
+			else if (ofType && IsAny(ofType)) 
+			{
+				return;
+			}
 
 			AddError(start, "ExprChecker:CheckGenerics Unable to find statement for generics expression");
 			return;
