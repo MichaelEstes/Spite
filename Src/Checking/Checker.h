@@ -3,6 +3,7 @@
 #include "DeclarationChecker.h"
 #include "DefinitionChecker.h"
 #include "DeferredChecker.h"
+#include "GenericInference.h"
 
 struct Checker
 {
@@ -73,14 +74,17 @@ struct Checker
 
 	void CheckDeferred()
 	{
-		ExpandForwardedTemplates();
 		ExpandDeferredTemplates();
+		ExpandForwardedTemplates();
 	}
 
-	eastl::vector<Expr*>* CopyTemplateArgs(eastl::vector<Expr*>* args, Token* package)
+	eastl::vector<Expr*>* CloneTemplateArgs(eastl::vector<Expr*>* args, Token* package)
 	{
 		eastl::vector<Expr*>* copy = globalTable->FindSymbolTable(package->val)->CreateVectorPtr<Expr>();
-		*copy = *args;
+		for (Expr* expr : *args)
+		{
+			copy->push_back(globalTable->runtimeTable->CloneExpr(expr));
+		}
 		return copy;
 	}
 
@@ -229,32 +233,21 @@ struct Checker
 		eastl::vector<Expr*>* templatesReplaceWith, eastl::hash_set<Stmnt*>& seen, bool cycle = false)
 	{
 		seen.insert(from);
-		eastl::vector<Expr*>* copyArgs = CopyTemplateArgs(templatesToReplace, to->package);
+		eastl::vector<Expr*>* copyArgs = CloneTemplateArgs(templatesToReplace, to->package);
 		eastl::vector<Token*>* names = from->generics.names;
-		bool replacedArgs = false;
-		for (size_t i = 0; i < names->size(); i++)
+
+		for (size_t i = 0; i < copyArgs->size(); i++)
 		{
-			Token* name = names->at(i);
-			for (size_t j = 0; j < copyArgs->size(); j++)
+			Expr* templ = copyArgs->at(i);
+			bool wasInferred = false;
+			Expr* inferred = InferGenericExpr(from, templ, templatesReplaceWith, &wasInferred);
+			if (wasInferred)
 			{
-				Expr* templ = copyArgs->at(j);
-				Token* arg = GetTokenForTemplate(templ);
-				Expr* replaceWith = templatesReplaceWith->at(i);
-				if (arg && arg->val == name->val)
-				{
-					copyArgs->at(j) = replaceWith;
-					replacedArgs = true;
-					break;
-				}
+				copyArgs->at(i) = inferred;
 			}
 		}
-		
-		// This check skips templates from inferred generic types that contain
-		// their own generic types
-		if (replacedArgs)
-		{
-			to->generics.templatesToExpand->insert(copyArgs);
-		}
+
+		to->generics.templatesToExpand->insert(copyArgs);
 
 		if (cycle) return;
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
