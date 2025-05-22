@@ -109,6 +109,7 @@ Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templa
 Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
 {
 	if (!expr) return expr;
+
 	switch (expr->typeID)
 	{
 	case IdentifierExpr:

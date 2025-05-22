@@ -235,19 +235,16 @@ struct Checker
 		seen.insert(from);
 		eastl::vector<Expr*>* copyArgs = CloneTemplateArgs(templatesToReplace, to->package);
 		eastl::vector<Token*>* names = from->generics.names;
+		bool replaced = false;
 
 		for (size_t i = 0; i < copyArgs->size(); i++)
 		{
 			Expr* templ = copyArgs->at(i);
-			bool wasInferred = false;
-			Expr* inferred = InferGenericExpr(from, templ, templatesReplaceWith, &wasInferred);
-			if (wasInferred)
-			{
-				copyArgs->at(i) = inferred;
-			}
+			Expr* inferred = InferGenericExpr(from, templ, templatesReplaceWith, &replaced);
+			copyArgs->at(i) = inferred;
 		}
 
-		to->generics.templatesToExpand->insert(copyArgs);
+		if (replaced) to->generics.templatesToExpand->insert(copyArgs);
 
 		if (cycle) return;
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
