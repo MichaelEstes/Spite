@@ -2,6 +2,7 @@
 #include "../Syntax/GlobalTable.h"
 #include "../Syntax/SyntaxUtils.h"
 #include "../IR/IR.h"
+#include "../Checking/GenericInference.h"
 
 extern Config config;
 
@@ -639,35 +640,22 @@ Expr* _ExpandTemplate(Expr* expr, eastl::vector<Token*>* generics, eastl::vector
 }
 
 Type* _ExpandTypeTemplates(Type* type, eastl::vector<Token*>* generics,
-	eastl::vector<Expr*>* templates)
+	eastl::vector<Expr*>* templates, SymbolTable* symbolTable)
 {
-	if (type->typeID != TypeID::NamedType || !generics || !generics->size()) return type;
+	if (!generics || !generics->size()) return type;
 
-	size_t genericsCount = generics->size();
-	Token* genericToken = type->namedType.typeName;
-	for (int i = 0; i < genericsCount; i++)
-	{
-		Token* token = generics->at(i);
-		if (token->val == genericToken->val)
-		{
-			Expr* templ = _ExpandTemplate(templates->at(i), generics, templates);
-			if (templ->typeID == ExprID::TypeExpr)
-			{
-				return templ->typeExpr.type;
-			}
-		}
-	}
-
-	return type;
+	return InferGenericType(generics, symbolTable->CloneType(type), templates);
 }
 
 eastl::vector<Expr*> _ExpandTemplates(eastl::vector<Expr*>* exprs, eastl::vector<Token*>* generics, 
-	eastl::vector<Expr*>* templates)
+	eastl::vector<Expr*>* templates, SymbolTable* symbolTable)
 {
+	if (!generics || !generics->size()) return *exprs;
+
 	eastl::vector<Expr*> expanded;
 	for (Expr* expr : *exprs)
 	{
-		expanded.push_back(_ExpandTemplate(expr, generics, templates));
+		expanded.push_back(InferGenericExpr(generics, symbolTable->CloneExpr(expr), templates));
 	}
 
 	return expanded;
@@ -1376,8 +1364,8 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 		SpiteIR::Type* irType = ir->AllocateType();
 		irType->kind = SpiteIR::TypeKind::StateType;
 		eastl::vector<Expr*>* templateArgs = type->templatedType.templates->templateExpr.templateArgs;
-		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates);
-		eastl::string typeName = BuildTypeString(_ExpandTypeTemplates(type->templatedType.type, generics, templates)) + 
+		eastl::vector<Expr*> expandedArgs = _ExpandTemplates(templateArgs, generics, templates, lower->symbolTable);
+		eastl::string typeName = BuildTypeString(_ExpandTypeTemplates(type->templatedType.type, generics, templates, lower->symbolTable)) + 
 			BuildTemplatedString(&expandedArgs);
 		irType->stateType.state = FindState(lower, typeName, irType);
 		return irType;

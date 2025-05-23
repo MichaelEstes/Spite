@@ -3,10 +3,10 @@
 #include "../Syntax/Syntax.h"
 
 
-Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templateArgs, bool* wasInferred = nullptr);
-Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templateArgs, bool* wasInferred = nullptr);
+Expr* InferGenericExpr(eastl::vector<Token*>* generics, Expr* expr, eastl::vector<Expr*>* templateArgs, bool* wasInferred = nullptr);
+Type* InferGenericType(eastl::vector<Token*>* generics, Type* type, eastl::vector<Expr*>* templateArgs, bool* wasInferred = nullptr);
 
-Stmnt* InferGenericForDefinition(Stmnt* generics, Stmnt* def, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
+Stmnt* InferGenericForDefinition(eastl::vector<Token*>* generics, Stmnt* def, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
 {
 	if (def->nodeID != StmntID::Definition)
 	{
@@ -23,7 +23,7 @@ Stmnt* InferGenericForDefinition(Stmnt* generics, Stmnt* def, eastl::vector<Expr
 	return def;
 }
 
-Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
+Type* InferGenericType(eastl::vector<Token*>* generics, Type* type, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
 {
 	if (!type) return type;
 	switch (type->typeID)
@@ -31,9 +31,9 @@ Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templa
 	case NamedType:
 	{
 		StringView& ident = type->namedType.typeName->val;
-		for (size_t i = 0; i < generics->generics.names->size(); i++)
+		for (size_t i = 0; i < generics->size(); i++)
 		{
-			StringView& genericName = generics->generics.names->at(i)->val;
+			StringView& genericName = generics->at(i)->val;
 			if (genericName == ident)
 			{
 				Expr* arg = templateArgs->at(i);
@@ -106,7 +106,7 @@ Type* InferGenericType(Stmnt* generics, Type* type, eastl::vector<Expr*>* templa
 	return type;
 }
 
-Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
+Expr* InferGenericExpr(eastl::vector<Token*>* generics, Expr* expr, eastl::vector<Expr*>* templateArgs, bool* wasInferred)
 {
 	if (!expr) return expr;
 
@@ -115,9 +115,9 @@ Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templa
 	case IdentifierExpr:
 	{
 		StringView& ident = expr->identifierExpr.identifier->val;
-		for (size_t i = 0; i < generics->generics.names->size(); i++)
+		for (size_t i = 0; i < generics->size(); i++)
 		{
-			StringView& genericName = generics->generics.names->at(i)->val;
+			StringView& genericName = generics->at(i)->val;
 			if (genericName == ident)
 			{
 				if (wasInferred) *wasInferred = true;
@@ -233,7 +233,7 @@ Expr* InferGenericExpr(Stmnt* generics, Expr* expr, eastl::vector<Expr*>* templa
 	return expr;
 }
 
-void InferDefaultTemplateArgs(Stmnt* generics, eastl::vector<Expr*>* templateArgs,
+void InferDefaultTemplateArgs(eastl::vector<Token*>* generics, eastl::vector<Expr*>* templateArgs,
 	intmax_t startIndex, Token* start)
 {
 	for (size_t i = startIndex; i < templateArgs->size(); i++)

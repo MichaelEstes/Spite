@@ -49,6 +49,17 @@ enum FunctionContextFlag
 	ReturnFunctionScopeValue
 };
 
+struct TemplateContainer
+{
+	eastl::vector<Expr*>* prevTemplates;
+	eastl::vector<Token*> prevGenerics;
+
+	TemplateContainer(eastl::vector<Expr*>* prevTemplates, eastl::vector<Token*> prevGenerics)
+		: prevTemplates(prevTemplates), prevGenerics(prevGenerics)
+	{
+	}
+};
+
 struct FunctionContext
 {
 	SpiteIR::Function* function;
@@ -234,6 +245,23 @@ struct LowerDefinitions
 		AddGenericsToCurrent(stmnt);
 	}
 
+	TemplateContainer SetTempTemplateContext(ASTContainer& container)
+	{
+		eastl::vector<Expr*>* prevTemplates = currTemplates;
+		eastl::vector<Token*> prevGenerics = currGenerics;
+
+		currTemplates = container.templates;
+		SetCurrentGenerics(container.node);
+
+		return TemplateContainer(prevTemplates, prevGenerics);
+	}
+
+	void RestoreTemplateContext(TemplateContainer& container)
+	{
+		currTemplates = container.prevTemplates;
+		currGenerics = container.prevGenerics;
+	}
+
 	Expr* ExpandTemplate(Expr* expr)
 	{
 		return _ExpandTemplate(expr, &currGenerics, currTemplates);
@@ -241,7 +269,7 @@ struct LowerDefinitions
 
 	eastl::vector<Expr*> ExpandTemplates(eastl::vector<Expr*>* exprs)
 	{
-		return _ExpandTemplates(exprs, &currGenerics, currTemplates);
+		return _ExpandTemplates(exprs, &currGenerics, currTemplates, symbolTable);
 	}
 
 	void BuildDefinitions()
@@ -2069,6 +2097,9 @@ struct LowerDefinitions
 		{
 			ASTContainer stateAST = context.stateASTMap[type->stateType.state];
 			Stmnt* stateStmnt = stateAST.node;
+
+			TemplateContainer container = SetTempTemplateContext(stateAST);
+
 			for (size_t i = 0; i < type->stateType.state->members.size(); i++)
 			{
 				SpiteIR::Member* member = type->stateType.state->members.at(i);
@@ -2083,6 +2114,8 @@ struct LowerDefinitions
 				}
 				else BuildDefaultValue(memberValue.type, memberValue.reg, label);
 			}
+
+			RestoreTemplateContext(container);
 			break;
 		}
 		case SpiteIR::TypeKind::StructureType:
@@ -3771,11 +3804,7 @@ struct LowerDefinitions
 			Stmnt* funcStmnt = funcContainer.node;
 			eastl::vector<Stmnt*>* funcStmntParams = GetFunctionParams(funcStmnt);
 
-			eastl::vector<Expr*>* prevTemplates = currTemplates;
-			eastl::vector<Token*> prevGenerics = currGenerics;
-
-			currTemplates = funcContainer.templates;
-			SetCurrentGenerics(funcStmnt);
+			TemplateContainer container = SetTempTemplateContext(funcContainer);
 
 			for (size_t i = params->size(); i < irFunction->arguments.size(); i++)
 			{
@@ -3787,8 +3816,7 @@ struct LowerDefinitions
 				params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 			}
 
-			currTemplates = prevTemplates;
-			currGenerics = prevGenerics;
+			RestoreTemplateContext(container);
 		}
 
 		SpiteIR::Label* label = GetCurrentLabel();

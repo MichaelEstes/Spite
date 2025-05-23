@@ -236,7 +236,7 @@ struct ExprChecker
 				templateArgs->push_back(context.symbolTable->CloneExpr(defaultValue));
 			}
 
-			InferDefaultTemplateArgs(genericsNode, templateArgs, argSize, start);
+			InferDefaultTemplateArgs(genericsNode->generics.names, templateArgs, argSize, start);
 		}
 
 		if (TemplatesContainForwardedGeneric(templateArgs))

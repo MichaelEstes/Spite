@@ -240,7 +240,7 @@ struct Checker
 		for (size_t i = 0; i < copyArgs->size(); i++)
 		{
 			Expr* templ = copyArgs->at(i);
-			Expr* inferred = InferGenericExpr(from, templ, templatesReplaceWith, &replaced);
+			Expr* inferred = InferGenericExpr(from->generics.names, templ, templatesReplaceWith, &replaced);
 			copyArgs->at(i) = inferred;
 		}
 
