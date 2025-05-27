@@ -13,6 +13,7 @@ extern
 	void free(ptr: *void);
 
 	*void memcpy(dest: *void, src: *void, count: uint);
+	int memcmp(lhs: *void, rhs: *void, count: uint);
 }
 
 *byte alloc(size: uint)

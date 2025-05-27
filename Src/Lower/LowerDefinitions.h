@@ -720,7 +720,7 @@ struct LowerDefinitions
 		{
 			for (Stmnt* stmnt : *body.body->block.inner)
 			{
-				BuildStmntForBlock(stmnt);
+				if (!BuildStmntForBlock(stmnt)) break;
 			}
 		}
 		else
@@ -730,7 +730,7 @@ struct LowerDefinitions
 		PopScope();
 	}
 
-	void BuildStmntForBlock(Stmnt* stmnt)
+	bool BuildStmntForBlock(Stmnt* stmnt)
 	{
 		funcContext.currStmnt = stmnt;
 		switch (stmnt->nodeID)
@@ -773,7 +773,7 @@ struct LowerDefinitions
 			break;
 		case ReturnStmnt:
 			BuildReturn(stmnt);
-			break;
+			return false;
 		case CompileStmnt:
 			break;
 		case CompileDebugStmnt:
@@ -820,6 +820,8 @@ struct LowerDefinitions
 			Logger::ErrorAt("LowerDefinitions:BuildStmnt Invalid Statement", stmnt->start->pos);
 			break;
 		}
+
+		return true;
 	}
 
 	ScopeValue BuildVarAssignment(Stmnt* stmnt)
