@@ -189,6 +189,15 @@ struct LowerDeclarations
 		this->symbolTable = symbolTable;
 		scopeUtils.symbolTable = symbolTable;
 
+		scopeUtils.AddScope();
+
+		for (Stmnt* globalVal : symbolTable->globalVals)
+		{
+			auto& definition = globalVal->definition;
+			StringView& name = definition.name->val;
+			scopeUtils.AddToTopScope(name, globalVal);
+		}
+
 		for (auto& [key, enumStmnt] : symbolTable->enumMap)
 		{
 			BuildEnumDeclaration(enumStmnt);
@@ -218,6 +227,8 @@ struct LowerDeclarations
 		{
 			BuildExternalFunctionDeclarations(package, value);
 		}
+
+		scopeUtils.PopScope();
 
 		return package;
 	}

@@ -397,6 +397,7 @@ struct ASTNodeChecker
 		case ArrayType:
 		{
 			CheckType(type->arrayType.type, start, templates);
+			if (type->arrayType.size) CheckExpr(type->arrayType.size);
 			break;
 		}
 		case TemplatedType:
