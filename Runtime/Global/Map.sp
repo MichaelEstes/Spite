@@ -79,6 +79,24 @@ KeyValue<Key, Value> Map::current(it: Iterator)
 	return {this.keys[index], this.values[index]} as KeyValue<Key, Value>;
 }
 
+MapValueIterator<Key, KeyAllocator> Map::Keys()
+{
+	return {
+		this.keys,
+		this.status,
+		this.capacity
+	} as MapValueIterator<Key, KeyAllocator>;
+}
+
+MapValueIterator<Value, ValueAllocator> Map::Values()
+{
+	return {
+		this.values,
+		this.status,
+		this.capacity
+	} as MapValueIterator<Value, ValueAllocator>;
+}
+
 *Value Map::Find(key: Key)
 {
 	index := this.FindIndex(key);
@@ -224,4 +242,32 @@ Map::InsertAllInternal(keys: KeyAllocator<Key>, values: ValueAllocator<Value>,
 			);
 		}
 	}
+}
+
+state MapValueIterator<Value, ValueAllocator>
+{
+	values: ValueAllocator<Value>,
+	status: ZeroedAllocator<byte>,
+	capacity: uint
+}
+
+Iterator MapValueIterator::operator::in()
+{
+	return {null, -1};
+}
+
+bool MapValueIterator::next(it: Iterator)
+{
+	it.index += 1;
+	while(it.index < this.capacity && this.status[it.index]~ != Full)
+	{
+		it.index += 1;
+	}
+	return it.index < this.capacity;
+}
+
+ref Value MapValueIterator::current(it: Iterator)
+{
+	index := it.index;
+	return this.values[index]~;
 }
