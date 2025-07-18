@@ -1,4 +1,4 @@
-package Vec;
+package Vec
 
 import Math
 
