@@ -534,8 +534,15 @@ struct ExprChecker
 			Expr* exprParam = params->at(i);
 			Stmnt* funcParam = funcParams->at(i);
 			Type* defType = funcParam->definition.type;
-			if (!inferer.IsAssignable(defType, inferer.InferType(exprParam), calledFor))
+			Type* paramType = inferer.InferType(exprParam);
+
+			// This may not be the right thing to do here
+			if (context.globalTable->IsGenericOfStmnt(paramType, context.currentContext, context.symbolTable)) continue;
+
+			if (!inferer.IsAssignable(defType, paramType, calledFor))
+			{
 				return false;
+			}
 		}
 
 		return true;
