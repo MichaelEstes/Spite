@@ -15,4 +15,8 @@
 #include "Utils/Utils.h"
 #include "Config/BuildConfig.h"
 #include "Checking/Checker.h"
-#include "Output/LLVM/LLVMBuilder.h"
+
+#ifdef _INCLUDE_LLVM
+	#include "Output/LLVM/LLVMBuilder.h"
+#endif // _INCLUDE_LLVM
+

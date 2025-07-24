@@ -209,9 +209,12 @@ int main(int argc, char** argv)
 		case Llvm:
 		case Ir:
 		{
+			#ifdef _INCLUDE_LLVM
 			LLVMBuilder builder = LLVMBuilder(ir);
 			builder.Build();
 			break;
+			#endif
+			// Intentional fallthrough to Run here
 		}
 		case Run:
 		{

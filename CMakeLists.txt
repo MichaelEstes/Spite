@@ -5,6 +5,11 @@ cmake_minimum_required (VERSION 3.8)
 project ("Spite_Lang")
 include(ExternalProject)
 
+set(INCLUDE_LLVM ON)
+if (INCLUDE_LLVM)
+	add_compile_definitions(_INCLUDE_LLVM)
+endif()
+
 set(CPACK_PACKAGE_NAME "Spite")
 set(CPACK_PACKAGE_VERSION "0.0.1")
 set(CPACK_PACKAGE_VENDOR "Spite Lang")
@@ -37,14 +42,16 @@ ExternalProject_Add(dyncall
 include_directories(${DYNCALL_INCLUDE_DIR})
 link_directories(${DYNCALL_LIB_DIR})
 
-find_package(LLVM 17 REQUIRED CONFIG)
-include_directories(${LLVM_INCLUDE_DIRS})
-separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
-add_definitions(${LLVM_DEFINITIONS_LIST})
-
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-message(STATUS "Including LLVM Dirs: ${LLVM_INCLUDE_DIRS}")
+if (INCLUDE_LLVM)
+	find_package(LLVM 17 REQUIRED CONFIG)
+	include_directories(${LLVM_INCLUDE_DIRS})
+	separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+	add_definitions(${LLVM_DEFINITIONS_LIST})
+	
+	message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+	message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+	message(STATUS "Including LLVM Dirs: ${LLVM_INCLUDE_DIRS}")
+endif()
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -64,24 +71,29 @@ else()
 	file(COPY "${PROJECT_SOURCE_DIR}/Compile/Release" DESTINATION "${CMAKE_BINARY_DIR}/Runtime/Compile")
 endif()
 
-# Add source to this project's executable.
-add_executable (Spite_Lang 
-"Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "Src/Parsing/Parser.cpp"
+set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "Src/Parsing/Parser.cpp"
 "Src/Log/Logger.h" "Src/Log/Logger.cpp" "Src/Parsing/Scanner.h" "Src/Parsing/Position.h" 
 "Src/Syntax/Syntax.h" "Src/Syntax/SymbolTable.h" "Src/Utils/Profiler.h" "Src/Tokens/TokenTree.h" 
 "Src/Containers/Flags.h" "Src/Tokens/TokenTree.h" "Src/Utils/Utils.h" "Src/Containers/StringView.h" 
 "Src/Containers/Arena.h" "Src/Syntax/Type.h" "Src/Syntax/Expr.h" "Src/Syntax/Stmnt.h" 
-"Src/Config/BuildConfig.h" "Src/Config/Config.h" "Src/Output/LLVM/LLVMBuilder.h" 
-"Src/Checking/DefinitionChecker.h" "Src/Checking/DeclarationChecker.h" "Src/Tokens/Token.h" 
-"Src/Checking/TypeChecker.h" "Src/Checking/ExprChecker.h"  
-"Src/Syntax/GlobalTable.h" "Src/Checking/Checker.h" "Src/Syntax/SyntaxUtils.h" 
+"Src/Config/BuildConfig.h" "Src/Config/Config.h" "Src/Checking/DefinitionChecker.h" 
+"Src/Checking/DeclarationChecker.h" "Src/Tokens/Token.h" "Src/Checking/TypeChecker.h" 
+"Src/Checking/ExprChecker.h" "Src/Syntax/GlobalTable.h" "Src/Checking/Checker.h" "Src/Syntax/SyntaxUtils.h" 
 "Src/Syntax/SyntaxUtils.cpp" "Src/IR/IR.h" "Src/Lower/Lower.h" "Src/Lower/LowerDeclarations.h" 
 "Src/Lower/LowerUtils.h" "Src/Checking/DeferredChecker.h" "Src/Checking/CheckerContext.h" 
 "Src/Lower/LowerDefinitions.h" "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" 
 "Src/IR/Interpreter/Decompiler.h" "Src/Checking/TypeInference.h" "Src/Syntax/ScopeUtils.h" 
-"Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" "Src/Output/LLVM/LLVMTypes.h" 
-"Src/Output/LLVM/LLVMEntry.h" "Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" 
-"Src/Output/LLVM/LLVMOptimize.h" "Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h")
+"Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
+"Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h")
+
+if (INCLUDE_LLVM)
+	set(FILESOURCES ${FILESOURCES} 
+	"Src/Output/LLVM/LLVMBuilder.h" "Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" 
+	"Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h")
+endif()
+
+# Add source to this project's executable.
+add_executable (Spite_Lang ${FILESOURCES})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET Spite_Lang PROPERTY CXX_STANDARD 20)
@@ -102,7 +114,9 @@ else()
 	set(CPACK_GENERATOR "DEB;RPM")
 endif()
 
-llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)
+if (INCLUDE_LLVM)
+	llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)
+endif()
 
 target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload_s dyncallback_s)
 set_target_properties(Spite_Lang PROPERTIES OUTPUT_NAME "spite")

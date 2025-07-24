@@ -2,7 +2,7 @@
 #include "Interpreter.h"
 
 std::mutex libMutex;
-eastl::hash_map<eastl::string, DLLib*> libCache;
+eastl::hash_map<eastl::string, DLLib*> libCache = eastl::hash_map<eastl::string, DLLib*>();
 
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 {
@@ -10,19 +10,24 @@ func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 
 	if (lib)
 	{
-		libMutex.lock();
-		if (MapHas(libCache, *lib))
+		eastl::string libName = *lib;
+		if (libName.find(libExt) == eastl::string::npos) libName += libExt;
+		dlLib = dlLoadLibrary(libName.c_str());
+
+		/*libMutex.lock();
+		eastl::string libName = eastl::string(*lib);
+		if (MapHas(libCache, libName))
 		{
-			dlLib = libCache.at(*lib);
+			dlLib = libCache.at(libName);
 		}
 		else
 		{
-			eastl::string libName = *lib;
-			if (libName.find(libExt) == eastl::string::npos) libName += libExt;
-			dlLib = dlLoadLibrary(libName.c_str());
-			libCache.insert({ *lib, dlLib });
+			eastl::string fullName = libName;
+			if (libName.find(libExt) == eastl::string::npos) fullName += libExt;
+			dlLib = dlLoadLibrary(fullName.c_str());
+			libCache.emplace(libName, dlLib);
 		}
-		libMutex.unlock();
+		libMutex.unlock();*/
 	}
 
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());

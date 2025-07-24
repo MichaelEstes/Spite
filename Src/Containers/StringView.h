@@ -1,6 +1,5 @@
 #pragma once
 #include "EASTL/string.h"
-#include "llvm/ADT/StringRef.h"
 
 struct StringView
 {
