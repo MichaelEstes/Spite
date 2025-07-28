@@ -183,6 +183,12 @@ Map::ResizeTo(capacity: int)
 	this.capacity = capacity;
 }
 
+Map::Clear()
+{
+	this.count = 0;
+	zero_out_bytes(this.status[0], this.capacity);
+}
+
 bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>, 
 						 values: ValueAllocator<Value>, status: ZeroedAllocator<byte>,
 						 capacity: uint)
