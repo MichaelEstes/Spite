@@ -23,14 +23,22 @@ struct LLVMBuilder
 		LLVMCompile compiler = LLVMCompile(llvmContext);
 		if (!compiler.Initialize()) return;
 
-		for (SpiteIR::Package* package : llvmContext.ir->packages)
-			BuildPackageDeclarations(package);
+		auto initDeclaration = [](SpiteIR::Package* package, LLVMBuilder& builder)
+		{
+			builder.BuildPackageDeclarations(package);
+		};
 
+		auto initPackage = [](SpiteIR::Package* package, LLVMBuilder& builder)
+		{
+			builder.BuildPackage(package);
+		};
+
+		initDeclaration(llvmContext.ir->runtime, *this);
+		llvmContext.ir->IterateImports<LLVMBuilder&>(llvmContext.ir->entry->parent, *this, initDeclaration);
 		Logger::Debug("LLVMBuilder: Built LLVM Declarations");
 
-		for (SpiteIR::Package* package : llvmContext.ir->packages)
-			BuildPackage(package);
-
+		initPackage(llvmContext.ir->runtime, *this);
+		llvmContext.ir->IterateImports<LLVMBuilder&>(llvmContext.ir->entry->parent, *this, initPackage);
 		Logger::Debug("LLVMBuilder: Built LLVM Definitions");
 
 		LLVMEntry(llvmContext).BuildMain();
