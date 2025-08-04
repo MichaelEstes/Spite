@@ -326,7 +326,7 @@ struct GlobalTable
 		return FindScopedState(stateName, symbolTable);
 	}
 
-	Type* GetBaseType(Type* type)
+	Type* GetBaseType(Type* type, bool includePointerTypes = false)
 	{
 		if (!type) return type;
 
@@ -334,6 +334,9 @@ struct GlobalTable
 		{
 		case TemplatedType:
 			return GetBaseType(type->templatedType.type);
+		case PointerType:
+			if (includePointerTypes) return GetBaseType(type->pointerType.type);
+			break;
 		default:
 			break;
 		}
@@ -341,9 +344,9 @@ struct GlobalTable
 		return type;
 	}
 
-	bool IsGenericOfStmnt(Type* type, Stmnt* stmnt, SymbolTable* symbolTable)
+	bool IsGenericOfStmnt(Type* type, Stmnt* stmnt, SymbolTable* symbolTable, bool includePointersOfGenerics = false)
 	{
-		type = GetBaseType(type);
+		type = GetBaseType(type, includePointersOfGenerics);
 		if (!type || !stmnt || type->typeID != TypeID::NamedType) return false;
 
 		Token* ident = type->namedType.typeName;

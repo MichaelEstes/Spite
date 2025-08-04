@@ -516,7 +516,7 @@ struct TypeInferer
 				return enumStmnt->enumStmnt.type;
 			}
 
-			if (globalTable->IsGenericOfStmnt(type, context, symbolTable))
+			if (globalTable->IsGenericOfStmnt(type, context, symbolTable, true))
 			{
 				return symbolTable->CreateTypePtr(TypeID::AnyType);
 			}
