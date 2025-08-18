@@ -1758,6 +1758,17 @@ struct LowerDefinitions
 			return packageValue;
 		}
 
+		Token* package = context.globalTable->fileToPackage[expr->start->pos.file];
+		SymbolTable* exprSymbolTable = context.globalTable->FindSymbolTable(package->val);
+		if (exprSymbolTable != symbolTable)
+		{
+			SymbolTable* contextTable = symbolTable;
+			symbolTable = exprSymbolTable;
+			ScopeValue value = FindValueForIdent(expr);
+			symbolTable = contextTable;
+			return value;
+		}
+
 		return InvalidScopeValue;
 	}
 

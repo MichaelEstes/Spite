@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 				Logger::PrintErrors();
 				return 1;
 			}
-			globalTable.InsertTable(symbolTable);
+			globalTable.InsertTable(symbolTable, &file);
 		}
 
 		SymbolTable* entryTable = nullptr;
@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 				Logger::PrintErrors();
 				return 1;
 			}
-			globalTable.InsertTable(entryTable);
+			globalTable.InsertTable(entryTable, &entry);
 		}
 		else
 		{

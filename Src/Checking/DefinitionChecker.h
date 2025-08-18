@@ -26,7 +26,7 @@ struct DefinitionChecker
 
 		for (auto& [key, value] : context.symbolTable->stateMap)
 		{
-			// Keep in state in context for method checking
+			// Keep state in context for method checking
 			context.currentContext = value.state;
 			CheckState(key, value);
 			CheckConstructors(value.constructors);

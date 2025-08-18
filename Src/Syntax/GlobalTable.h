@@ -4,6 +4,7 @@
 struct GlobalTable
 {
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
+	eastl::hash_map<const eastl::string*, Token*> fileToPackage;
 	SymbolTable* runtimeTable;
 	SymbolTable* entryTable;
 	StateSymbol* arraySymbol;
@@ -61,7 +62,7 @@ struct GlobalTable
 		return size;
 	}
 
-	void InsertTable(SymbolTable* symbolTable)
+	void InsertTable(SymbolTable* symbolTable, const eastl::string* file)
 	{
 		StringView& package = symbolTable->package->val;
 		if (packageToSymbolTable.find(package) == packageToSymbolTable.end())
@@ -73,6 +74,8 @@ struct GlobalTable
 			packageToSymbolTable[package]->Merge(symbolTable);
 			merged.push_back(symbolTable);
 		}
+
+		fileToPackage[file] = symbolTable->package;
 	}
 
 	void SetRuntimeTable()
