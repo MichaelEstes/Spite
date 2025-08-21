@@ -1,8 +1,11 @@
 package _
 
-Empty := byte(0);
-Full := byte(1);
-Deleted := byte(2);
+enum _Status: byte
+{
+	Empty,
+	Full,
+	Deleted
+}
 
 InvalidIndex := -1 as uint
 
@@ -44,7 +47,7 @@ Map::delete
 	values := []KeyValue<Key, Value>;
 	for(i .. this.capacity)
 	{
-		if (this.status[i]~ == Full)
+		if (this.status[i]~ == _Status.Full)
 		{
 			values.Add({this.keys[i], this.values[i]} as KeyValue<Key, Value>);
 		}
@@ -66,7 +69,7 @@ Iterator Map::operator::in()
 bool Map::next(it: Iterator)
 {
 	it.index += 1;
-	while(it.index < this.capacity && this.status[it.index]~ != Full)
+	while(it.index < this.capacity && this.status[it.index]~ != _Status.Full)
 	{
 		it.index += 1;
 	}
@@ -111,9 +114,9 @@ uint Map::FindIndex(key: Key)
 	index := hash % this.capacity;
 	start := index;
 
-	while (this.status[index]~ != Empty)
+	while (this.status[index]~ != _Status.Empty)
 	{
-		if (this.status[index]~ == Full && Equals(this.keys[index]~, key))
+		if (this.status[index]~ == _Status.Full && Equals(this.keys[index]~, key))
 			return index;
 
 		index = (index + 1) % this.capacity;
@@ -156,7 +159,7 @@ bool Map::Remove(key: Key)
 {
 	index := this.FindIndex(key);
 	if(index == InvalidIndex) return false;
-	this.status[index]~ = Deleted;
+	this.status[index]~ = _Status.Deleted;
 	this.count -= 1;
 	return true;
 }
@@ -199,15 +202,15 @@ bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>,
 	deletedIndex := InvalidIndex;
 
 	currStatus := status[index]~;
-	while (currStatus != Empty)
+	while (currStatus != _Status.Empty)
 	{
-		if (currStatus == Full && Equals(keys[index]~, key))
+		if (currStatus == _Status.Full && Equals(keys[index]~, key))
 		{
 			values[index]~ = value;
 			return false;
 		}
 
-		if (currStatus == Deleted)
+		if (currStatus == _Status.Deleted)
 		{
 			deletedIndex = index;
 		}
@@ -225,7 +228,7 @@ bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>,
 
 	keys[index]~ = key;
 	values[index]~ = value;
-	status[index]~ = Full;
+	status[index]~ = _Status.Full;
 	return true;
 }
 
@@ -234,7 +237,7 @@ Map::InsertAllInternal(keys: KeyAllocator<Key>, values: ValueAllocator<Value>,
 {
 	for (i .. this.capacity)
 	{
-		if(this.status[i]~ == Full)
+		if(this.status[i]~ == _Status.Full)
 		{
 			key := this.keys[i]~;
 			value := this.values[i]~;
@@ -265,7 +268,7 @@ Iterator MapValueIterator::operator::in()
 bool MapValueIterator::next(it: Iterator)
 {
 	it.index += 1;
-	while(it.index < this.capacity && this.status[it.index]~ != Full)
+	while(it.index < this.capacity && this.status[it.index]~ != _Status.Full)
 	{
 		it.index += 1;
 	}

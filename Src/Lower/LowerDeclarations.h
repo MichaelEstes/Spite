@@ -154,6 +154,17 @@ struct LowerDeclarations
 			}
 		}
 
+		for (SpiteIR::Type* type : context.toResolveFunctionType)
+		{
+			for (SpiteIR::Type*& paramType : *type->function.params)
+			{
+				if (paramType->kind == SpiteIR::TypeKind::StateType && !paramType->byValue)
+				{
+					paramType = MakeReferenceType(paramType, context.ir);
+				}
+			}
+		}
+
 		for (SpiteIR::Package* package : context.ir->packages)
 		{
 			SymbolTable* symbolTable = context.packageToSymbolTableMap[package];

@@ -36,6 +36,7 @@ string _string::operator::+(toAppend: string)
 bool _string::operator::==(str: string)
 {
 	if (this.count != str.count) return false;
+	if (this.mem == str.mem) return true;
 
 	for (i .. this.count)
 		if (this[i]~ != str[i]~) return false;

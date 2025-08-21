@@ -1489,8 +1489,16 @@ SpiteIR::Type* TypeToIRType(SpiteIR::IR* ir, Type* type, Low* lower,
 			{
 				lower->context.toResolveSizeAndAlignment.insert(paramType);
 			}
-			if (!paramType->byValue)
+
+			if (paramType->kind == SpiteIR::TypeKind::StateType && !paramType->stateType.state)
+			{
+				lower->context.toResolveFunctionType.insert(irType);
+			}
+			else if (!paramType->byValue)
+			{
 				paramType = MakeReferenceType(paramType, ir);
+			}
+
 			irType->function.params->push_back(paramType);
 		}
 		return irType;
