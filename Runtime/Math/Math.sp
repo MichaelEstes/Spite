@@ -45,4 +45,24 @@ int Max(l: int, r: int) =>
 	return r;
 }
 
+uint UMin(l: uint, r: uint) => 
+{
+	if (l < r)
+	{
+		return l;
+	}
+
+	return r;
+}
+
+uint UMax(l: uint, r: uint) => 
+{
+	if (l > r)
+	{
+		return l;
+	}
+
+	return r;
+}
+
 int Clamp(value: int, min: int, max: int) => Min(Max(value, min), max);
