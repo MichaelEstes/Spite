@@ -1543,7 +1543,6 @@ struct LowerDefinitions
 		BuildAssert(GetCurrentLabel(), BuildRegisterOperand(assertValue), message);
 	}
 
-
 	ScopeValue BuildExpr(Expr* expr, Stmnt* stmnt)
 	{
 		SymbolTable* contextTable = symbolTable;
@@ -3751,6 +3750,10 @@ struct LowerDefinitions
 			break;
 		case ConstructorCall:
 			irFunction = FindFunctionForConstructor(expr);
+			if (!irFunction)
+			{
+				return BuiltInConstructorValue(expr);
+			}
 			break;
 		case MemberMethodCall:
 			irFunction = FindFunctionForMemberCall(expr, stmnt, params);
@@ -3960,6 +3963,7 @@ struct LowerDefinitions
 	SpiteIR::Function* FindFunctionForConstructor(Expr* expr)
 	{
 		Expr* caller = expr->functionCallExpr.function;
+		if (caller->typeID == ExprID::TypeExpr) return nullptr;
 		Stmnt* constructorStmnt = expr->functionCallExpr.functionStmnt;
 		Stmnt* stateStmnt = constructorStmnt->nodeID == StmntID::StateStmnt ? constructorStmnt :
 			context.globalTable->FindScopedState(constructorStmnt->constructor.stateName, symbolTable);
@@ -3978,6 +3982,22 @@ struct LowerDefinitions
 			BuildConstructorName(constructorStmnt, generics, &templates);
 
 		return FindFunction(packageName, constructorName);
+	}
+
+	ScopeValue BuiltInConstructorValue(Expr* expr)
+	{
+		Expr* caller = expr->functionCallExpr.function;
+		Stmnt* constructorStmnt = expr->functionCallExpr.functionStmnt;
+
+		if (caller->typeID == ExprID::TypeExpr)
+		{
+			SpiteIR::Type* type = ToIRType(caller->typeExpr.type);
+			SpiteIR::Allocate alloc = BuildAllocate(type);
+
+			return BuildDefaultValue(type, alloc.result, GetCurrentLabel());
+		}
+
+		return InvalidScopeValue;
 	}
 
 	SpiteIR::Function* FindExternalFunctionForFunctionCall(Expr* expr)
