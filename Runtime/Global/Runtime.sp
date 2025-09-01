@@ -121,6 +121,31 @@ string IntToString(i: int)
 	return {count, heapBuf} as string;
 }
 
+string UIntToString(i: uint)
+{
+	if (i == 0) return "0";
+	
+	maxCount := 22;
+	buf := [maxCount]byte;
+	for (index .. maxCount) buf[index] = byte(0);
+
+	count := maxCount;
+
+	while (i > 0)
+	{
+		count -= 1;
+		digit: byte = '0' + (i % 10);
+		buf[count] = digit;
+		i /= 10;
+	}
+
+	count = maxCount - count;
+	start := (fixed buf)[maxCount - count];
+	heapBuf := ZeroedAllocator<byte>().Alloc(count + 1)[0];
+	copy_bytes(heapBuf, start, count);
+	return {count, heapBuf} as string;
+}
+
 PrintFloat := #compile ::int32(*byte, uint, *byte, float) 
 {
 	if(targetOs == OS_Kind.Windows) return _snprintf;
@@ -173,27 +198,56 @@ string _SerializeType(value: *byte, type: *_Type)
 	{
 		case (_TypeKind.PrimitiveType)
 		{
-			switch (typeData.primitive.primitiveKind)
+			if (typeData.primitive.isSigned)
 			{
-				case (_PrimitiveKind.Void) return "void";
-				case (_PrimitiveKind.Bool)
+				switch (typeData.primitive.primitiveKind)
 				{
-					bPtr := value as *bool;
-					if(bPtr~) return "true";
-					else return "false";
+					case (_PrimitiveKind.Void) return "void";
+					case (_PrimitiveKind.Bool)
+					{
+						bPtr := value as *bool;
+						if(bPtr~) return "true";
+						else return "false";
+					}
+					case (_PrimitiveKind.Byte) return IntToString(value~);
+					case (_PrimitiveKind.I16) return IntToString((value as *int16)~);
+					case (_PrimitiveKind.I32) return IntToString((value as *int32)~);
+					case (_PrimitiveKind.I64) return IntToString((value as *int64)~);
+					case (_PrimitiveKind.Int) return IntToString((value as *int)~);
+					case (_PrimitiveKind.F32) return FloatToString((value as *float32)~);
+					case (_PrimitiveKind.Float) return FloatToString((value as *float64)~);
+					case (_PrimitiveKind.String)
+					{
+						str := (value as *string)~;
+						if(str.count) return str;
+						return '""';
+					}
 				}
-				case (_PrimitiveKind.Byte) return IntToString(value~);
-				case (_PrimitiveKind.I16) return IntToString((value as *int16)~);
-				case (_PrimitiveKind.I32) return IntToString((value as *int32)~);
-				case (_PrimitiveKind.I64) return IntToString((value as *int64)~);
-				case (_PrimitiveKind.Int) return IntToString((value as *int)~);
-				case (_PrimitiveKind.F32) return FloatToString((value as *float32)~);
-				case (_PrimitiveKind.Float) return FloatToString((value as *float64)~);
-				case (_PrimitiveKind.String)
+			}
+			else
+			{
+				switch (typeData.primitive.primitiveKind)
 				{
-					str := (value as *string)~;
-					if(str.count) return str;
-					return '""';
+					case (_PrimitiveKind.Void) return "void";
+					case (_PrimitiveKind.Bool)
+					{
+						bPtr := value as *bool;
+						if(bPtr~) return "true";
+						else return "false";
+					}
+					case (_PrimitiveKind.Byte) return IntToString((value as *ubyte)~);
+					case (_PrimitiveKind.I16) return IntToString((value as *uint16)~);
+					case (_PrimitiveKind.I32) return IntToString((value as *uint32)~);
+					case (_PrimitiveKind.I64) return IntToString((value as *uint64)~);
+					case (_PrimitiveKind.Int) return IntToString((value as *uint)~);
+					case (_PrimitiveKind.F32) return FloatToString((value as *float32)~);
+					case (_PrimitiveKind.Float) return FloatToString((value as *float64)~);
+					case (_PrimitiveKind.String)
+					{
+						str := (value as *string)~;
+						if(str.count) return str;
+						return '""';
+					}
 				}
 			}
 		}
