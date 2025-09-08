@@ -110,6 +110,8 @@ MapValueIterator<Value, ValueAllocator> Map::Values()
 
 uint Map::FindIndex(key: Key)
 {
+	if (!this.capacity) return InvalidIndex;
+
 	hash: int = Hash(key);
 	index := hash % this.capacity;
 	start := index;

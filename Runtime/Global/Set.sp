@@ -74,6 +74,8 @@ bool Set::next(it: Iterator)
 
 uint Set::FindIndex(key: Key)
 {
+	if (!this.capacity) return InvalidIndex;
+
 	hash: int = Hash(key);
 	index := hash % this.capacity;
 	start := index;
