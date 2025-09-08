@@ -1072,8 +1072,8 @@ bool IsConstantIntExpr(Expr* expr, ScopeUtils& scopeUtils,
 
 		Stmnt* def = scopeUtils.FindInScope(expr->identifierExpr.identifier->val);
 		if (!def || !def->definition.assignment) return false;
-		return IsConstantIntExpr(def->definition.assignment, scopeUtils,
-			generics, templates, false);
+
+		return IsConstantIntExpr(def->definition.assignment, scopeUtils, generics, templates, false);
 	}
 	case BinaryExpr:
 		return IsConstantIntExpr(expr->binaryExpr.left, scopeUtils, generics, templates)
@@ -1088,7 +1088,20 @@ bool IsConstantIntExpr(Expr* expr, ScopeUtils& scopeUtils,
 		if (expr->selectorExpr.on->typeID == IdentifierExpr)
 		{
 			Token* name = expr->selectorExpr.on->identifierExpr.identifier;
-			return scopeUtils.globalTable->FindScopedEnum(name, scopeUtils.symbolTable);
+			bool isEnum = scopeUtils.globalTable->FindScopedEnum(name, scopeUtils.symbolTable);
+			if (isEnum) return true;
+
+			if (scopeUtils.IsPackageExpr(expr))
+			{
+				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
+				Token* name = expr->selectorExpr.select->identifierExpr.identifier;
+				SymbolTable* symbolTable = scopeUtils.globalTable->FindSymbolTable(package->val);
+
+				Stmnt* def = scopeUtils.globalTable->FindScopedGlobalVar(name, symbolTable);
+				if (!def || !def->definition.assignment) return false;
+
+				return IsConstantIntExpr(def->definition.assignment, scopeUtils, generics, templates);
+			}
 		}
 		else if (expr->selectorExpr.on->typeID == SelectorExpr)
 		{
@@ -1100,6 +1113,8 @@ bool IsConstantIntExpr(Expr* expr, ScopeUtils& scopeUtils,
 				return symbolTable->FindEnum(name->val);
 			}
 		}
+
+		break;
 	}
 	case SizeOfExpr:
 	case AlignOfExpr:
@@ -1224,7 +1239,22 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 			Token* member = expr->selectorExpr.select->identifierExpr.identifier;
 			Token* name = expr->selectorExpr.on->identifierExpr.identifier;
 			Stmnt* enumStmnt = scopeUtils.globalTable->FindScopedEnum(name, scopeUtils.symbolTable);
-			return lower->context.FindEnumValue(enumStmnt, member->val);
+			if (enumStmnt)
+			{
+				return lower->context.FindEnumValue(enumStmnt, member->val);
+			}
+
+			if (scopeUtils.IsPackageExpr(expr))
+			{
+				Token* package = expr->selectorExpr.on->identifierExpr.identifier;
+				Token* name = expr->selectorExpr.select->identifierExpr.identifier;
+				SymbolTable* symbolTable = scopeUtils.globalTable->FindSymbolTable(package->val);
+
+				Stmnt* def = scopeUtils.globalTable->FindScopedGlobalVar(name, symbolTable);
+				if (!def || !def->definition.assignment) return false;
+
+				return EvaluateConstantIntExpr(def->definition.assignment, lower, generics, templates);
+			}
 		}
 		else if (expr->selectorExpr.on->typeID == SelectorExpr)
 		{

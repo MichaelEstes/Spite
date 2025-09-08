@@ -63,7 +63,7 @@ struct ScopeUtils
 			}
 		}
 
-		return nullptr;
+		return globalTable->FindScopedNamedGlobalVar(val, symbolTable);
 	}
 
 	inline Stmnt* FindForName(Token* name)

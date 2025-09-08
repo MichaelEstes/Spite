@@ -276,6 +276,11 @@ struct GlobalTable
 	{
 		StringView& globalVarName = name->val;
 
+		return FindScopedNamedGlobalVar(globalVarName, symbolTable);
+	}
+
+	inline Stmnt* FindScopedNamedGlobalVar(StringView& globalVarName, SymbolTable* symbolTable)
+	{
 		Stmnt* stmnt = symbolTable->FindGlobalVariable(globalVarName);
 		if (stmnt) return stmnt;
 
