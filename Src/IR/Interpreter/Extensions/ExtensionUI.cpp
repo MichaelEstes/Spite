@@ -495,6 +495,8 @@ void RenderEnd()
         FrameRender(wd, draw_data);
         FramePresent(wd);
     }
+
+    ImGui::EndFrame();
 }
 
 void UIShutdown()

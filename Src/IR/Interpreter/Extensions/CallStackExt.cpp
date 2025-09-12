@@ -1,49 +1,52 @@
 #include "CallStackExt.h"
 #include "../Interpreter.h"
+#include "../../../Containers/FixedRingBuffer.h"
 #include <imgui.h>
 
-eastl::hash_map<int, eastl::string> lastFunction = eastl::hash_map<int, eastl::string>();
+eastl::hash_map<int, FixedRingBuffer<eastl::string>> callStackMap = eastl::hash_map<int, FixedRingBuffer<eastl::string>>();
 
 void OnFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params, Interpreter* interpreter)
 {
-	lastFunction.emplace(interpreter->threadID, func->name);
+    int threadID = interpreter->threadID;
+    if (!MapHas(callStackMap, threadID)) callStackMap.emplace(threadID, FixedRingBuffer<eastl::string>());
+	
+    auto& buf = callStackMap[threadID];
+    buf.Add(func->name);
 }
 
 void OnRender(Interpreter* interpreter)
 {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    bool show_demo_window = true;
-    bool show_another_window = false;
 
-    static float f = 0.0f;
-    static int counter = 0;
+    ImGui::Begin("Callstacks", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
-    ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-    ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-    ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-    ImGui::Checkbox("Another Window", &show_another_window);
-
-    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-    ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-    if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-        counter++;
-    ImGui::SameLine();
-    ImGui::Text("counter = %d", counter);
-
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-    ImGui::End();
-
-    if (show_another_window)
+    if (ImGui::BeginTable("GridTable", 3, ImGuiTableFlags_SizingStretchSame)) // 3 columns
     {
-        ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        ImGui::Text("Hello from another window!");
-        if (ImGui::Button("Close Me"))
-            show_another_window = false;
-        ImGui::End();
+        for (auto& [threadID, buf] : callStackMap)
+        {
+            ImGui::TableNextColumn();
+
+            ImGui::BeginGroup();
+
+            ImGui::TextColored(ImVec4(1, 1, 0, 1), "Thread %d", threadID);
+
+            for (size_t i = 0; i < buf.count; i++)
+            {
+                auto& string = buf.mem[i];
+                ImGui::Text(string.c_str());
+            }
+
+            ImGui::Dummy(ImVec2(0, 5));
+            ImGui::Separator();
+
+            ImGui::EndGroup();
+        }
+
+        ImGui::EndTable();
     }
+
+    ImGui::End();
 }
 
 bool registered = RegisterInterpreterExtension(nullptr, &OnFunction, nullptr, nullptr, nullptr, &OnRender);

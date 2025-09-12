@@ -8,7 +8,7 @@
 #endif
 
 bool initialized = false;
-float framerate = 12.0f;
+float framerate = 2.0f;
 uint64_t ticks = 0;
 
 bool RegisterInterpreterExtension(

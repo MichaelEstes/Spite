@@ -112,6 +112,7 @@ set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "
 "Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
 "Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h"
 "Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/InterpreterExtension.cpp"
+"Src/Containers/FixedRingBuffer.h"
 )
 
 if (INTERPRETER_EXTS)
