@@ -6,7 +6,7 @@ project ("Spite_Lang")
 include(ExternalProject)
 include(FetchContent)
 
-set(INTERPRETER_EXTS ON)
+set(INTERPRETER_EXTS OFF)
 if (INTERPRETER_EXTS)
 	add_compile_definitions(_INTERPRETER_EXTS)
 endif()
