@@ -7,6 +7,7 @@
 #include "../IR.h"
 #include "ExternCall.h"
 #include "../../Config/Config.h"
+#include "InterpreterExtension.h"
 
 extern std::filesystem::path workingDir;
 extern Config config;
@@ -31,8 +32,26 @@ struct Interpreter
 
 	~Interpreter()
 	{
+		#ifdef _INTERPRETER_EXTS
+		RunExitExtensions(this);
+		#endif
+
 		delete stack;
 		DestroyDynCallVM(dcCallVM);
+	}
+
+	void InitMain()
+	{
+		#ifdef _INTERPRETER_EXTS
+		InitExtensions();
+		#endif
+	}
+
+	void ShutdownMain()
+	{
+		#ifdef _INTERPRETER_EXTS
+		ShutdownExtensions();
+		#endif
 	}
 
 	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
@@ -111,6 +130,10 @@ struct Interpreter
 
 	inline void InterpretLabel(SpiteIR::Label* label)
 	{
+		#ifdef _INTERPRETER_EXTS
+		RunLabelExtensions(label, this);
+		#endif
+
 		SpiteIR::Label* currentLabel = label;
 		while (currentLabel)
 		{
@@ -124,6 +147,9 @@ struct Interpreter
 
 	inline void InterpretBlock(SpiteIR::Block* block)
 	{
+		#ifdef _INTERPRETER_EXTS
+		RunBlockExtensions(block, this);
+		#endif
 		SpiteIR::Label*& entry = block->labels.front();
 		InterpretLabel(entry);
 	}
@@ -150,6 +176,10 @@ struct Interpreter
 
 	void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
 	{
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExtensions(func, params, this);
+		#endif
+
 		char* prevStackStart = stackFrameStart;
 		char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
@@ -160,11 +190,20 @@ struct Interpreter
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
 		stackFrameEnd = prevStackEnd;
+
+		#ifdef _INTERPRETER_EXTS
+		RunUIExtensions(this);
+		#endif
+
 		return stackFrameStart;
 	}
 
 	void* InterpretCallbackFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>& params)
 	{
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExtensions(func, &params, this);
+		#endif
+
 		char* prevStackStart = stackFrameStart;
 		char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameEnd;
@@ -198,6 +237,13 @@ struct Interpreter
 
 	inline void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
 	{
+		#ifdef _INTERPRETER_EXTS
+		for (auto& instExt : instExts)
+		{
+			instExt(inst, label, this);
+		}
+		#endif
+
 		switch (inst.kind)
 		{
 		case SpiteIR::InstructionKind::Return:

@@ -1,11 +1,16 @@
 ﻿# CMakeList.txt : CMake project for Spite_Lang, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.11)
 project ("Spite_Lang")
 include(ExternalProject)
+include(FetchContent)
 
-set(INCLUDE_LLVM ON)
+set(INTERPRETER_EXTS ON)
+if (INTERPRETER_EXTS)
+	add_compile_definitions(_INTERPRETER_EXTS)
+endif()
+set(INCLUDE_LLVM OFF)
 if (INCLUDE_LLVM)
 	add_compile_definitions(_INCLUDE_LLVM)
 endif()
@@ -20,7 +25,8 @@ set(EASTL_ROOT_DIR ${CMAKE_BINARY_DIR}/EASTL)
 set(EASTL_BUILD_DIR ${EASTL_ROOT_DIR}/build)
 set(EASTL_LIB_DIR ${EASTL_BUILD_DIR}/lib)
 set(EASTL_INCLUDE_DIR ${EASTL_BUILD_DIR}/include)
-ExternalProject_Add(EASTL
+ExternalProject_Add(
+	EASTL
     PREFIX ${CMAKE_BINARY_DIR}/EASTL
     GIT_REPOSITORY https://github.com/electronicarts/EASTL.git
     GIT_TAG master
@@ -34,13 +40,33 @@ set(DYNCALL_ROOT_DIR ${CMAKE_BINARY_DIR}/dyncall)
 set(DYNCALL_BUILD_DIR ${DYNCALL_ROOT_DIR}/build)
 set(DYNCALL_LIB_DIR ${DYNCALL_BUILD_DIR}/lib)
 set(DYNCALL_INCLUDE_DIR ${DYNCALL_BUILD_DIR}/include)
-ExternalProject_Add(dyncall
+ExternalProject_Add(
+	dyncall
     PREFIX ${CMAKE_BINARY_DIR}/dyncall
     URL https://dyncall.org/r1.4/dyncall-1.4.zip
 	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/dyncall/build -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
 )
 include_directories(${DYNCALL_INCLUDE_DIR})
 link_directories(${DYNCALL_LIB_DIR})
+
+if (INTERPRETER_EXTS)
+	find_package(Vulkan REQUIRED)
+
+	set(IMGUI_ROOT_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
+	FetchContent_Declare(
+	  IMGUI
+	  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+	  GIT_TAG master
+	)
+	FetchContent_MakeAvailable(IMGUI)
+	file(GLOB IMGUI_SOURCES 
+		${IMGUI_ROOT_DIR}/*.cpp 
+		${IMGUI_ROOT_DIR}/backends/imgui_impl_vulkan.cpp 
+		${IMGUI_ROOT_DIR}/backends/imgui_impl_win32.cpp
+	)
+	add_library(ImGui STATIC ${IMGUI_SOURCES})
+	target_include_directories(ImGui PUBLIC ${IMGUI_ROOT_DIR} ${IMGUI_ROOT_DIR}/backends)
+endif()
 
 if (INCLUDE_LLVM)
 	find_package(LLVM 17 REQUIRED CONFIG)
@@ -84,7 +110,12 @@ set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "
 "Src/Lower/LowerDefinitions.h" "Src/Lower/LowerContext.h" "Src/IR/Interpreter/Interpreter.h" 
 "Src/IR/Interpreter/Decompiler.h" "Src/Checking/TypeInference.h" "Src/Syntax/ScopeUtils.h" 
 "Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
-"Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h")
+"Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h"
+"Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/Extensions/CallStackExt.h" 
+"Src/IR/Interpreter/Extensions/Extensions.h" "Src/IR/Interpreter/InterpreterExtension.cpp" 
+"Src/IR/Interpreter/Extensions/CallStackExt.cpp" "Src/IR/Interpreter/Extensions/ExtensionUI.h"
+"Src/IR/Interpreter/Extensions/ExtensionUI.cpp"
+)
 
 if (INCLUDE_LLVM)
 	set(FILESOURCES ${FILESOURCES} 
@@ -122,6 +153,10 @@ target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload
 set_target_properties(Spite_Lang PROPERTIES OUTPUT_NAME "spite")
 add_dependencies(Spite_Lang dyncall)
 add_dependencies(Spite_Lang EASTL)
+if (INTERPRETER_EXTS)
+	target_link_libraries(ImGui Vulkan::Vulkan)
+	target_link_libraries(Spite_Lang ImGui Vulkan::Vulkan)
+endif()
 
 install(DIRECTORY ${RUNTIME_DST_PATH} DESTINATION ./bin/Runtime)
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/Examples" DESTINATION ./)

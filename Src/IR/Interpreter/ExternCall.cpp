@@ -31,6 +31,7 @@ func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 	}
 
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
+	//dlFreeLibrary(dlLib);
 	return func;
 }
 
