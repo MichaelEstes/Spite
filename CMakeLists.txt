@@ -111,16 +111,23 @@ set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "
 "Src/IR/Interpreter/Decompiler.h" "Src/Checking/TypeInference.h" "Src/Syntax/ScopeUtils.h" 
 "Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
 "Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h"
-"Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/Extensions/CallStackExt.h" 
-"Src/IR/Interpreter/Extensions/Extensions.h" "Src/IR/Interpreter/InterpreterExtension.cpp" 
-"Src/IR/Interpreter/Extensions/CallStackExt.cpp" "Src/IR/Interpreter/Extensions/ExtensionUI.h"
-"Src/IR/Interpreter/Extensions/ExtensionUI.cpp"
+"Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/InterpreterExtension.cpp"
 )
 
+if (INTERPRETER_EXTS)
+	file(GLOB EXT_SOURCES 
+		${PROJECT_SOURCE_DIR}/Src/IR/Interpreter/Extensions/*.cpp 
+		${PROJECT_SOURCE_DIR}/Src/IR/Interpreter/Extensions/*.h 
+	)
+	set(FILESOURCES ${FILESOURCES} ${EXT_SOURCES})
+endif()
+
 if (INCLUDE_LLVM)
-	set(FILESOURCES ${FILESOURCES} 
-	"Src/Output/LLVM/LLVMBuilder.h" "Src/Output/LLVM/LLVMTypes.h" "Src/Output/LLVM/LLVMEntry.h" 
-	"Src/Output/LLVM/LLVMContext.h" "Src/Output/LLVM/LLVMCompile.h" "Src/Output/LLVM/LLVMOptimize.h")
+	file(GLOB LLVM_SOURCES 
+		${PROJECT_SOURCE_DIR}/Src/Output/LLVM/*.cpp 
+		${PROJECT_SOURCE_DIR}/Src/Output/LLVM/*.h 
+	)
+	set(FILESOURCES ${FILESOURCES} ${LLVM_SOURCES})
 endif()
 
 # Add source to this project's executable.
