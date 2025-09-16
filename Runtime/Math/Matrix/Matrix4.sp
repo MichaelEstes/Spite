@@ -1,6 +1,7 @@
 package Matrix
 
 import Vec
+import Quaternion
 
 state Matrix4
 {
@@ -10,6 +11,11 @@ state Matrix4
 		float32:[0.0, 0.0, 1.0, 0.0],
 		float32:[0.0, 0.0, 0.0, 1.0],
 	]
+}
+
+Matrix4::(m: [4][4]float32)
+{
+	this.m = m;
 }
 
 Matrix4::(val: float32)
@@ -30,9 +36,94 @@ Matrix4::SetIdentity() =>
 	];
 }
 
-Vec3 Matrix4::Position()
+float32 Matrix4::Determinant()
 {
-	return Vec3(this.m[3] as [3]float32);
+	det := 0.0;
+
+	subMat1 := Matrix3([
+		float32:[this.m[1][1], this.m[1][2], this.m[1][3]],
+		float32:[this.m[2][1], this.m[2][2], this.m[2][3]],
+		float32:[this.m[3][1], this.m[3][2], this.m[3][3]],
+	]);
+	det += this.m[0][0] * subMat1.Determinant();
+
+	subMat2 := Matrix3([
+		float32:[this.m[1][0], this.m[1][2], this.m[1][3]],
+		float32:[this.m[2][0], this.m[2][2], this.m[2][3]],
+		float32:[this.m[3][0], this.m[3][2], this.m[3][3]],
+	]);
+	det -= this.m[0][1] * subMat2.Determinant();
+
+	subMat3 := Matrix3([
+		float32:[this.m[1][0], this.m[1][1], this.m[1][3]],
+		float32:[this.m[2][0], this.m[2][1], this.m[2][3]],
+		float32:[this.m[3][0], this.m[3][1], this.m[3][3]],
+	]);
+	det += this.m[0][2] * subMat3.Determinant();
+
+	subMat4 := Matrix3([
+		float32:[this.m[1][0], this.m[1][1], this.m[1][2]],
+		float32:[this.m[2][0], this.m[2][1], this.m[2][2]],
+		float32:[this.m[3][0], this.m[3][1], this.m[3][2]],
+	]);
+	det -= this.m[0][3] * subMat4.Determinant();
+
+	return det;
+}
+
+ref Matrix4 Matrix4::Compose(pos: Vec3, rot: Norm<Quaternion>, scale: Vec3)
+{
+	rotQuat := rot.vec;
+	x := rotQuat.x;
+	y := rotQuat.y;
+	z := rotQuat.z;
+	w := rotQuat.w;
+
+	x2 := x + x;  y2 := y + y;  z2 := z + z;
+	xx := x * x2; xy := x * y2; xz := x * z2;
+	yy := y * y2; yz := y * z2; zz := z * z2;
+	wx := w * x2; wy := w * y2; wz := w * z2;
+
+	sx := scale.x; sy := scale.y; sz := scale.z;
+
+	this.m[0] = float32:[(1.0 - yy - zz) * sx, (xy + wz) * sx, (xz - wy) * sx, 0.0];
+	this.m[1] = float32:[(xy - wz) * sy, (1.0 - xx - zz) * sy, (yz + wx) * sy, 0.0];
+	this.m[2] = float32:[(xz + wy) * sz, (yz - wx) * sz, (1.0 - xx - yy) * sz, 0.0];
+	this.m[3] = float32:[pos.x, pos.y, pos.z, 1.0];
+
+	return this;
+}
+
+Matrix4::Decompose(outPos: *Vec3, outRot: *Quaternion, outScale: *Vec3)
+{
+	// Position
+	outPos~ = Vec3(this.m[3][0], this.m[3][1], this.m[3][2]);
+
+	// Scale
+	sx := Vec3(this.m[0][0], this.m[0][1], this.m[0][2]).Length();
+	sy := Vec3(this.m[1][0], this.m[1][1], this.m[1][2]).Length();
+	sz := Vec3(this.m[2][0], this.m[2][1], this.m[2][2]).Length();
+
+	det := this.Determinant();
+	if (det < 0.0) sx = -sx;
+
+	outScale~ = Vec3(sx, sy, sz);
+
+	// Rotation
+
+	invSx := 1.0 / sx;
+	invSy := 1.0 / sy;
+	invSz := 1.0 / sz;
+
+	mat3 := Matrix3(
+		[
+			float32:[this.m[0][0] * invSx, this.m[0][1] * invSx, this.m[0][2] * invSx],
+			float32:[this.m[1][0] * invSy, this.m[1][1] * invSy, this.m[1][2] * invSy],
+			float32:[this.m[2][0] * invSz, this.m[2][1] * invSz, this.m[2][2] * invSz],
+		]
+	);
+
+	outRot.FromRotationMatrix(mat3);
 }
 
 ref [4]float32 Matrix4::operator::[](index: uint32) => this.m[index];
