@@ -6,10 +6,10 @@ import Matrix
 
 state Quaternion
 {
-	x: float32 = 1.0,
+	x: float32,
 	y: float32,
 	z: float32,
-	w: float32
+	w: float32 = 1.0
 }
 
 Quaternion::(x: float32, y: float32, z: float32, w: float32) 
@@ -34,6 +34,14 @@ Quaternion::(vec: [4]float32)
 	this.y = vec[1];
 	this.z = vec[2];
 	this.w = vec[3];
+}
+
+Quaternion::SetIdentity() =>
+{
+	this.x = 0.0;
+	this.y = 0.0;
+	this.z = 0.0;
+	this.w = 1.0;
 }
 
 ref Norm<Quaternion> Quaternion::Normalize()

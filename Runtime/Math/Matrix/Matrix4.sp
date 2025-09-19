@@ -110,7 +110,6 @@ Matrix4::Decompose(outPos: *Vec3, outRot: *Quaternion, outScale: *Vec3)
 	outScale~ = Vec3(sx, sy, sz);
 
 	// Rotation
-
 	invSx := 1.0 / sx;
 	invSy := 1.0 / sy;
 	invSz := 1.0 / sz;
