@@ -1,8 +1,8 @@
 #include "ExternCall.h"
 #include "Interpreter.h"
 
-std::mutex libMutex;
-eastl::hash_map<eastl::string, DLLib*> libCache = eastl::hash_map<eastl::string, DLLib*>();
+static std::mutex libMutex;
+static eastl::hash_map<eastl::string, DLLib*> libCache = eastl::hash_map<eastl::string, DLLib*>();
 
 func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
 {

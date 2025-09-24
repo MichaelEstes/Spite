@@ -53,3 +53,6 @@ ref Norm<Vec3> Vec3::Normalize()
 }
 
 Vec3 Vec3::operator::-(r: Vec3) => Vec3(this.x - r.x, this.y - r.y, this.z - r.z);
+Vec3 Vec3::operator::+(r: Vec3) => Vec3(this.x + r.x, this.y + r.y, this.z + r.z);
+
+Vec3 Vec3::operator::*(r: float32) => Vec3(this.x * r, this.y * r, this.z * r);
