@@ -172,7 +172,7 @@ ref Matrix4 Matrix4::Rotate(angle: float32, axis: Norm<Vec3>)
 
 ref Matrix4 Matrix4::MakeTranslation(vec: Vec3)
 {
-	this.m[3] := float32:[vec.x, vec.y, vec.z, 1.0];
+	this.m[3] = float32:[vec.x, vec.y, vec.z, 1.0];
 	
 	return this;
 }

@@ -18,6 +18,11 @@ StringView::(count: uint, view: *byte)
 	this.view = view;
 }
 
+string StringView::log()
+{
+	return string(this.count, this.view);
+}
+
 *byte StringView::operator::[](index: uint)
 {
 	return this.view[index];
@@ -53,19 +58,21 @@ bool StringView::operator::!()
 	return this[this.count - 1];
 }
 
-StringView::Increment()
+bool StringView::Increment()
 {
-	if (!this.count) return;
+	if (!this.count) return false;
 
 	this.count -= 1;
 	this.view += 1;
+	return true;
 }
 
-StringView::Decrement()
+bool StringView::Decrement()
 {
-	if (!this.count) return;
+	if (!this.count) return false;
 
 	this.count -= 1;
+	return true;
 }
 
 StringView::Advance(count: uint)

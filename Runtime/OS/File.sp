@@ -9,6 +9,7 @@ extern
 	int32 fseek(stream: *CFile, offset: int32, origin: int32);
 	int32 ftell(stream: *CFile);
 	uint fread(buf: *byte, size: uint, count: uint, stream: *CFile);
+	uint fwrite(data: *void, size: uint, count: uint, stream: *CFile);
 	int32 fclose(stream: *CFile);
 }
 
@@ -78,5 +79,17 @@ string ReadFile(path: string)
 	buf[size]~ = byte(0);
 
 	return string(size, buf);
+}
+
+WriteFile(path: string, contents: string)
+{
+	absPath := GetAbsolutePath(path);
+    defer delete absPath;
+
+	file := fopen(absPath[0], GetFileMode(FileMode.WriteBinary))
+	if (!file) return;
+	defer fclose(file);
+
+	fwrite(contents[0], 1, contents.count, file);
 }
 
