@@ -55,7 +55,7 @@ Main()
 	}
 
 	// Defer statements
-	defer { log "Forth"; }
+	defer { if (true) log "Forth"; }
 	if (true)
 	{
 		defer log "Second";

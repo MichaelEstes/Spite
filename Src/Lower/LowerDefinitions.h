@@ -1416,20 +1416,29 @@ struct LowerDefinitions
 
 	void BuildDeferred(DeferredBody& deferred)
 	{
+		SpiteIR::Label* currentLabel = GetCurrentLabel();
+		//Move label terminator to defer end label
+		SpiteIR::Instruction* term = currentLabel->terminator;
+		currentLabel->terminator = nullptr;
+
+		funcContext.deferCount += 1;
+		eastl::string deferStartName = "defer_" + eastl::to_string(funcContext.deferCount);
+		SpiteIR::Label* deferStartLabel = BuildLabel(deferStartName);
+
+		SpiteIR::Instruction* currToDeferStart = BuildJump(currentLabel);
+		currToDeferStart->jump.label = deferStartLabel;
+		AddLabel(deferStartLabel);
+
 		if (deferred.runTest.reg != InvalidRegister)
 		{
-			SpiteIR::Label* currentLabel = GetCurrentLabel();
-			//Move label terminator to defer end label
-			SpiteIR::Instruction* term = currentLabel->terminator;
-			currentLabel->terminator = nullptr;
-
-			eastl::string deferStartName = "defer_" + eastl::to_string(funcContext.deferCount);
-			eastl::string deferEndName = "defer_end_" + eastl::to_string(funcContext.deferCount);
-			SpiteIR::Label* deferEndLabel = BuildLabel(deferEndName);
 			SpiteIR::Operand cmpOp = BuildRegisterOperand(HandleAutoCast(deferred.runTest, castBool));
 			SpiteIR::Instruction* branch = BuildBranch(GetCurrentLabel(), cmpOp);
 
-			SpiteIR::Label* deferBodyLabel = BuildLabelBody(deferStartName, deferred.body);
+			eastl::string deferTrueName = "defer_true_" + eastl::to_string(funcContext.deferCount);
+			eastl::string deferEndName = "defer_end_" + eastl::to_string(funcContext.deferCount);
+			SpiteIR::Label* deferEndLabel = BuildLabel(deferEndName);
+
+			SpiteIR::Label* deferBodyLabel = BuildLabelBody(deferTrueName, deferred.body);
 			SpiteIR::Label* currentDeferBodyLabel = GetCurrentLabel();
 			SpiteIR::Instruction* bodyToEnd = BuildJump(currentDeferBodyLabel);
 			bodyToEnd->jump.label = deferEndLabel;
@@ -1442,6 +1451,8 @@ struct LowerDefinitions
 		else
 		{
 			BuildBody(deferred.body);
+			SpiteIR::Label* currentDeferBodyLabel = GetCurrentLabel();
+			currentDeferBodyLabel->terminator = term;
 		}
 	}
 
