@@ -20,13 +20,17 @@ Iterator _Interop_Vector::operator::in()
 bool _Interop_Vector::next(it: Iterator)
 {
 	it.index += 1;
-	count := (this.end - this.begin) as int / #sizeof T;
-	return it.index < count;
+	return it.index < this.Count();
 }
 
 *T _Interop_Vector::current(it: Iterator)
 {
 	return this[it.index];
+}
+
+uint _Interop_Vector::Count()
+{
+	return (this.end - this.begin) as int / #sizeof T;
 }
 
 string _Interop_Vector::log() => "Interop Vector";

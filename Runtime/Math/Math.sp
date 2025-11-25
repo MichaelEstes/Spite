@@ -96,7 +96,7 @@ int Clamp(value: int, min: int, max: int) => Min(Max(value, min), max);
 
 float FClamp(value: float, min: float, max: float) => FMin(FMax(value, min), max);
 
-int Abs(val: int) => llabs(val);
+int Abs(val: int) => abs(val);
 
 float FAbs(val: float) => fabs(val);
 

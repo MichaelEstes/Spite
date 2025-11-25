@@ -43,4 +43,14 @@ ref Norm<Vec2> Vec2::Normalize()
 }
 
 Vec2 Vec2::operator::-(r: Vec2) => Vec2(this.x - r.x, this.y - r.y);
+Vec2 Vec2::operator::-(r: float32) => Vec2(this.x - r, this.y - r);
+
+Vec2 Vec2::operator::+(r: Vec2) => Vec2(this.x + r.x, this.y + r.y);
+Vec2 Vec2::operator::+(r: float32) => Vec2(this.x + r, this.y + r);
+
+Vec2 Vec2::operator::*(r: Vec2) => Vec2(this.x * r.x, this.y * r.y);
+Vec2 Vec2::operator::*(r: float32) => Vec2(this.x * r, this.y * r);
+
+Vec2 Vec2::operator::/(r: Vec2) => Vec2(this.x / r.x, this.y / r.y);
+Vec2 Vec2::operator::/(r: float32) => Vec2(this.x / r, this.y / r);
 

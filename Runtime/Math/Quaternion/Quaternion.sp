@@ -144,6 +144,33 @@ Matrix3 Quaternion::ToRotationMatrix()
 	return mat;
 }
 
+Vec3 Quaternion::Forward()
+{
+	f := Vec3();
+	f.x = 2.0 * (this.x * this.z + this.w * this.y);
+	f.y = 2.0 * (this.y * this.z - this.w * this.x);
+	f.z = 1.0 - 2.0 * (this.x * this.x + this.y * this.y);
+	return f;
+}
+
+Vec3 Quaternion::Up()
+{
+	u := Vec3();
+	u.x = 2.0 * (this.x * this.y - this.w * this.z);
+	u.y = 1.0 - 2.0 * (this.x * this.x + this.z * this.z);
+	u.z = 2.0 * (this.y * this.z + this.w * this.x);
+	return u;
+}
+
+Vec3 Quaternion::Left()
+{
+	l := Vec3();
+	l.x = 1.0 - 2.0 * (this.y * this.y + this.z * this.z);
+	l.y = 2.0 * (this.x * this.y + this.w * this.z);
+	l.z = 2.0 * (this.x * this.z - this.w * this.y);
+	return l;
+}
+
 Quaternion Quaternion::PowerOf(n: float32)
 {
 	halfCosAngle := Math.FClamp(this.w, -1.0, 1.0);

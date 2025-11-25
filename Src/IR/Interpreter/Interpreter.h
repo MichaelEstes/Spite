@@ -16,15 +16,15 @@ inline char* global = nullptr;
 
 struct Interpreter
 {
-	char* stack;
-	char* stackFrameStart;
-	char* stackFrameEnd;
+	volatile char* stack;
+	volatile char* stackFrameStart;
+	volatile char* stackFrameEnd;
 	int threadID;
 	DCCallVM* dcCallVM;
 
 	Interpreter(size_t stackSize)
 	{
-		stack = new char[stackSize];
+		stack = new volatile char[stackSize];
 		stackFrameStart = stack;
 		stackFrameEnd = stack;
 		dcCallVM = CreateDynCallVM();
@@ -121,7 +121,7 @@ struct Interpreter
 		threadID = CurrentThreadID();
 	}
 
-	void* Interpret(SpiteIR::IR* ir)
+	volatile void* Interpret(SpiteIR::IR* ir)
 	{
 		SpiteIR::Function* entry = ir->entry;
 		Initialize(ir, entry->parent);
@@ -169,23 +169,23 @@ struct Interpreter
 		{
 			SpiteIR::Operand& param = params->at(i);
 			SpiteIR::Argument* arg = args.at(i);
-			CopyValue(param.reg, arg->value.type, stackFrameStart + offset, frame);
+			CopyValue(param.reg, arg->value.type, (void*)(stackFrameStart + offset), frame);
 			offset += param.type->size;
 		}
 	}
 
-	void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
+	volatile void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
 	{
 		#ifdef _INTERPRETER_EXTS
 		RunFunctionExtensions(func, params, this);
 		#endif
 
-		char* prevStackStart = stackFrameStart;
-		char* prevStackEnd = stackFrameEnd;
+		volatile char* prevStackStart = stackFrameStart;
+		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
 		InterpretAllocations(func->block->allocations);
 
-		if (params) MoveParams(params, func->arguments, prevStackStart);
+		if (params) MoveParams(params, func->arguments, (char*)prevStackStart);
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
@@ -204,8 +204,8 @@ struct Interpreter
 		RunFunctionExtensions(func, &params, this);
 		#endif
 
-		char* prevStackStart = stackFrameStart;
-		char* prevStackEnd = stackFrameEnd;
+		volatile char* prevStackStart = stackFrameStart;
+		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameEnd;
 		InterpretAllocations(func->block->allocations);
 
@@ -221,18 +221,18 @@ struct Interpreter
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
 		stackFrameEnd = prevStackEnd;
-		return stackFrameStart;
+		return (void*)stackFrameStart;
 	}
 
-	inline void CopyValue(size_t src, SpiteIR::Type* type, void* dst, char* frame)
+	inline void CopyValue(size_t src, SpiteIR::Type* type, volatile void* dst, volatile char* frame)
 	{
-		memcpy(dst, frame + src, type->size);
+		memcpy((void*)dst, (void*)(frame + src), type->size);
 	}
 
-	inline void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, char* frame)
+	inline void CopyRegValue(SpiteIR::Operand& src, SpiteIR::Operand& dst, volatile char* frame)
 	{
-		void* dstPtr = stackFrameStart + dst.reg;
-		memcpy(dstPtr, frame + src.reg, dst.type->size);
+		void* dstPtr = (void*)(stackFrameStart + dst.reg);
+		memcpy(dstPtr, (void*)(frame + src.reg), dst.type->size);
 	}
 
 	inline void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
@@ -385,7 +385,7 @@ struct Interpreter
 		StoreOperand(src, stackFrameStart + storeInst.store.dst.reg);
 	}
 
-	inline void StoreOperand(SpiteIR::Operand& src, void* dst)
+	inline void StoreOperand(SpiteIR::Operand& src, volatile void* dst)
 	{
 		switch (src.kind)
 		{
@@ -477,7 +477,7 @@ struct Interpreter
 	inline void InterpretStorePtr(SpiteIR::Instruction& storeInst)
 	{
 		char* ptr = *(char**)(void*)(stackFrameStart + storeInst.store.dst.reg);
-		char* src = stackFrameStart + storeInst.store.src.reg;
+		char* src = (char*)(stackFrameStart + storeInst.store.src.reg);
 		memcpy(ptr, src, storeInst.store.src.type->size);
 	}
 
@@ -490,14 +490,14 @@ struct Interpreter
 
 	inline void InterpretReference(SpiteIR::Instruction& storeInst)
 	{
-		void* ref = (stackFrameStart + storeInst.store.src.reg);
+		volatile void* ref = stackFrameStart + storeInst.store.src.reg;
 		*(size_t*)(stackFrameStart + storeInst.store.dst.reg) = (size_t)ref;
 	}
 
 	inline void InterpretDereference(SpiteIR::Instruction& storeInst)
 	{
 		char* ptr = *(char**)(void*)(stackFrameStart + storeInst.store.src.reg);
-		char* dst = stackFrameStart + storeInst.store.dst.reg;
+		char* dst = (char*)(stackFrameStart + storeInst.store.dst.reg);
 		memcpy(dst, ptr, storeInst.store.dst.type->size);
 	}
 
@@ -723,7 +723,7 @@ struct Interpreter
 			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		CallExternalFunction(func, paramPtrs, stackFrameStart + dst, dcCallVM, this);
+		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dcCallVM, this);
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)

@@ -53,3 +53,13 @@ ref Norm<Vec4> Vec4::Normalize()
 }
 
 Vec4 Vec4::operator::-(r: Vec4) => Vec4(this.x - r.x, this.y - r.y, this.z - r.z, this.w - r.w);
+Vec4 Vec4::operator::-(r: float32) => Vec4(this.x - r, this.y - r, this.z - r, this.w - r);
+
+Vec4 Vec4::operator::+(r: Vec4) => Vec4(this.x + r.x, this.y + r.y, this.z + r.z, this.w + r.w);
+Vec4 Vec4::operator::+(r: float32) => Vec4(this.x + r, this.y + r, this.z + r, this.w + r);
+
+Vec4 Vec4::operator::*(r: Vec4) => Vec4(this.x * r.x, this.y * r.y, this.z * r.z, this.w * r.w);
+Vec4 Vec4::operator::*(r: float32) => Vec4(this.x * r, this.y * r, this.z * r, this.w * r);
+
+Vec4 Vec4::operator::/(r: Vec4) => Vec4(this.x / r.x, this.y / r.y, this.z / r.z, this.w / r.w);
+Vec4 Vec4::operator::/(r: float32) => Vec4(this.x / r, this.y / r, this.z / r, this.w / r);

@@ -324,10 +324,10 @@ struct LowerDefinitions
 				SpiteIR::Function* func = comp.compileFunc;
 				SpiteIR::Instruction* store = comp.storeInst;
 
-				void* ret = context.interpreter->InterpretFunction(func, 0);
+				volatile void* ret = context.interpreter->InterpretFunction(func, 0);
 				if (store)
 				{
-					SpiteIR::Operand src = CreateValueOperand(ret, func->returnType);
+					SpiteIR::Operand src = CreateValueOperand((void*)ret, func->returnType);
 					store->store.src = src;
 				}
 				deferredCompiles.pop_back();
@@ -2102,7 +2102,7 @@ struct LowerDefinitions
 				literal.f32Literal = 0.0f;
 				break;
 			case SpiteIR::PrimitiveKind::Float:
-				literal.floatLiteral = 0.0f;
+				literal.floatLiteral = 0.0;
 				break;
 			case SpiteIR::PrimitiveKind::String:
 				literal.stringLiteral = context.ir->AllocateString();
