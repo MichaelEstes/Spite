@@ -235,11 +235,11 @@ string _SerializeType(value: *byte, type: *_Type)
 						if(bPtr~) return "true";
 						else return "false";
 					}
-					case (_PrimitiveKind.Byte) return IntToString((value as *ubyte)~);
-					case (_PrimitiveKind.I16) return IntToString((value as *uint16)~);
-					case (_PrimitiveKind.I32) return IntToString((value as *uint32)~);
-					case (_PrimitiveKind.I64) return IntToString((value as *uint64)~);
-					case (_PrimitiveKind.Int) return IntToString((value as *uint)~);
+					case (_PrimitiveKind.Byte) return UIntToString((value as *ubyte)~);
+					case (_PrimitiveKind.I16) return UIntToString((value as *uint16)~);
+					case (_PrimitiveKind.I32) return UIntToString((value as *uint32)~);
+					case (_PrimitiveKind.I64) return UIntToString((value as *uint64)~);
+					case (_PrimitiveKind.Int) return UIntToString((value as *uint)~);
 					case (_PrimitiveKind.F32) return FloatToString((value as *float32)~);
 					case (_PrimitiveKind.Float) return FloatToString((value as *float64)~);
 					case (_PrimitiveKind.String)
@@ -362,4 +362,9 @@ _log(value: any, type: *_Type)
 {
 	str := _SerializeType(value, type);
 	PrintLine(str);
+}
+
+string ToString<Type>(value: Type)
+{
+	return _SerializeType(value@ as *byte, #typeof Type);
 }

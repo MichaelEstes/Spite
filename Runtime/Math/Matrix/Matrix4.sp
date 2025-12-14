@@ -196,10 +196,39 @@ ref Matrix4 Matrix4::LookAt(camera: Vec3, center: Vec3, up: Vec3)
 	return this;
 }
 
-ref Matrix4 Matrix4::Perspective(fov: float32, aspect: float32, near: float32, far: float32)
+ref Matrix4 Matrix4::Frustrum(left: float32, right: float32, bottom: float32, top: float32, 
+							  near: float32, far: float32)
 {
-	f: float32 = Math.Tan(fov * 0.5);
+	this.m[0] = float32:[(2.0 * near) / (right - left), 0.0, 0.0, 0.0];
+	this.m[1] = float32:[0.0, (2.0 * near) / (top - bottom), 0.0, 0.0];
+	this.m[2] = float32:[(right + left) / (right - left), (top + bottom) / (top - bottom), 
+						 -(far + near) / (far - near), -1.0];
+	this.m[3] = float32:[0.0, 0.0, -(2.0 * far * near) / (far - near), 0.0];
 
+	return this;
+}
+
+ref Matrix4 Matrix4::Perspective(fov: float32, aspect: float32, near: float32, far: float32
+								 horizontal: bool = true)
+{
+	//height := float32(0.0);
+	//width := float32(0.0);
+	//
+	//if (horizontal)
+	//{
+	//	height = Math.Tan(fov * Math.Pi / 360.0) * near;
+	//	width = height * aspect;
+	//}
+	//else
+	//{
+	//	width = Math.Tan(fov * Math.Pi / 360.0) * near;
+	//	height = height / aspect;
+	//}
+	//
+	//return this.Frustrum(-width, width, -height, height, near, far);
+
+	f: float32 = Math.Tan(fov * 0.5);
+	
 	this.m[0] = float32:[1.0 / (aspect * f), 0.0, 0.0, 0.0];
 	this.m[1] = float32:[0.0, 1.0 / f, 0.0, 0.0];
 	this.m[2] = float32:[0.0, 0.0, far / (near - far), -1.0];

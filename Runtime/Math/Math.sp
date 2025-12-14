@@ -14,11 +14,14 @@ extern
 	int32 abs(val: int32);
 	int64 llabs(val: int64);
 	float64 fabs(val: float64);
+
+	int32 rand();
+	void srand(seed: int32);
 }
 
 E: float = 2.718281828459045;
 
-pi: float = 3.14159265359;
+Pi: float = 3.14159265359;
 
 float Sqrt(val: float) => sqrt(val);
 
@@ -30,7 +33,7 @@ float Tan(val: float) => tan(val);
 
 float Acos(val: float) => acos(val);
 
-float Deg2Rad(deg: float) => deg * pi / 180.0;
+float Deg2Rad(deg: float) => deg * Pi / 180.0;
 
 int Min(l: int, r: int) => 
 {
@@ -117,3 +120,7 @@ uint NextPowerOfTwo(value: uint)
 
     return value;
 }
+
+int32 Rand() => rand();
+SetRandomSeed(seed: int32) => srand(seed);
+int32 RandBetween(min: int32, max: int32) => rand() % (max + 1 - min) + min;
