@@ -49,25 +49,6 @@ ExternalProject_Add(
 include_directories(${DYNCALL_INCLUDE_DIR})
 link_directories(${DYNCALL_LIB_DIR})
 
-if (INTERPRETER_EXTS)
-	find_package(Vulkan REQUIRED)
-
-	set(IMGUI_ROOT_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
-	FetchContent_Declare(
-	  IMGUI
-	  GIT_REPOSITORY https://github.com/ocornut/imgui.git
-	  GIT_TAG master
-	)
-	FetchContent_MakeAvailable(IMGUI)
-	file(GLOB IMGUI_SOURCES 
-		${IMGUI_ROOT_DIR}/*.cpp 
-		${IMGUI_ROOT_DIR}/backends/imgui_impl_vulkan.cpp 
-		${IMGUI_ROOT_DIR}/backends/imgui_impl_win32.cpp
-	)
-	add_library(ImGui STATIC ${IMGUI_SOURCES})
-	target_include_directories(ImGui PUBLIC ${IMGUI_ROOT_DIR} ${IMGUI_ROOT_DIR}/backends)
-endif()
-
 if (INCLUDE_LLVM)
 	find_package(LLVM 17 REQUIRED CONFIG)
 	include_directories(${LLVM_INCLUDE_DIRS})
@@ -112,16 +93,8 @@ set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "
 "Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
 "Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h"
 "Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/InterpreterExtension.cpp"
-"Src/Containers/FixedRingBuffer.h"
+"Src/Containers/FixedRingBuffer.h" "Src/Containers/Array.h"
 )
-
-if (INTERPRETER_EXTS)
-	file(GLOB EXT_SOURCES 
-		${PROJECT_SOURCE_DIR}/Src/IR/Interpreter/Extensions/*.cpp 
-		${PROJECT_SOURCE_DIR}/Src/IR/Interpreter/Extensions/*.h 
-	)
-	set(FILESOURCES ${FILESOURCES} ${EXT_SOURCES})
-endif()
 
 if (INCLUDE_LLVM)
 	file(GLOB LLVM_SOURCES 
@@ -161,10 +134,6 @@ target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload
 set_target_properties(Spite_Lang PROPERTIES OUTPUT_NAME "spite")
 add_dependencies(Spite_Lang dyncall)
 add_dependencies(Spite_Lang EASTL)
-if (INTERPRETER_EXTS)
-	target_link_libraries(ImGui Vulkan::Vulkan)
-	target_link_libraries(Spite_Lang ImGui Vulkan::Vulkan)
-endif()
 
 install(DIRECTORY ${RUNTIME_DST_PATH} DESTINATION ./bin/Runtime)
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/Examples" DESTINATION ./)

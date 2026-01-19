@@ -230,7 +230,7 @@ state _InstructionMetadata
 	expressionPosition: _Position
 }
 
-enum _InstructionKind: int
+enum _InstructionKind: int32
 {
 	None,
 	Return,
@@ -358,8 +358,7 @@ state _PlatformLib
 state _ExternFunction
 {
 	libs: *_Interop_Vector<_PlatformLib>,
-	externName: _Interop_String,
-	callName: _Interop_String
+	externName: _Interop_String
 }
 
 state _Function

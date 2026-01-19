@@ -19,8 +19,9 @@ struct Interpreter
 	volatile char* stack;
 	volatile char* stackFrameStart;
 	volatile char* stackFrameEnd;
-	int threadID;
 	DCCallVM* dcCallVM;
+	int threadID;
+	bool runningExtension = false;
 
 	Interpreter(size_t stackSize)
 	{
@@ -32,26 +33,8 @@ struct Interpreter
 
 	~Interpreter()
 	{
-		#ifdef _INTERPRETER_EXTS
-		RunExitExtensions(this);
-		#endif
-
 		delete stack;
 		DestroyDynCallVM(dcCallVM);
-	}
-
-	void InitMain()
-	{
-		#ifdef _INTERPRETER_EXTS
-		InitExtensions();
-		#endif
-	}
-
-	void ShutdownMain()
-	{
-		#ifdef _INTERPRETER_EXTS
-		ShutdownExtensions();
-		#endif
 	}
 
 	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
@@ -67,6 +50,14 @@ struct Interpreter
 		size_t index = package->globalVariableLookup[name];
 		SpiteIR::GlobalVariable* var = package->globalVariables[index];
 		intmax_t* val = (intmax_t*)(void*)(global + var->index);
+		*val = value;
+	}
+
+	inline void SetGlobalPtr(SpiteIR::Package* package, const eastl::string& name, void* value)
+	{
+		size_t index = package->globalVariableLookup[name];
+		SpiteIR::GlobalVariable* var = package->globalVariables[index];
+		void** val = (void**)(void*)(global + var->index);
 		*val = value;
 	}
 
@@ -95,6 +86,13 @@ struct Interpreter
 		SetGlobalBool(runtime, "__interpreted", true);
 
 		SetGlobalString(runtime, "__workingDir", new eastl::string(workingDir.string().c_str()));
+
+		#ifdef _INTERPRETER_EXTS
+		SetGlobalPtr(runtime, "___funcExts", &funcExts);
+		SetGlobalPtr(runtime, "___blockExts", &blockExts);
+		SetGlobalPtr(runtime, "___labelExts", &labelExts);
+		SetGlobalPtr(runtime, "___instExts", &instExts);
+		#endif
 	}
 
 	void Initialize(SpiteIR::IR* ir, SpiteIR::Package* package)
@@ -191,10 +189,6 @@ struct Interpreter
 		stackFrameStart = prevStackStart;
 		stackFrameEnd = prevStackEnd;
 
-		#ifdef _INTERPRETER_EXTS
-		RunUIExtensions(this);
-		#endif
-
 		return stackFrameStart;
 	}
 
@@ -238,10 +232,7 @@ struct Interpreter
 	inline void InterpretInstruction(SpiteIR::Instruction& inst, SpiteIR::Label*& label)
 	{
 		#ifdef _INTERPRETER_EXTS
-		for (auto& instExt : instExts)
-		{
-			instExt(inst, label, this);
-		}
+		RunInstructionExtensions(inst, label, this);
 		#endif
 
 		switch (inst.kind)

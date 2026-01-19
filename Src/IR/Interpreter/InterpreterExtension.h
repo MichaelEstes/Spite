@@ -2,6 +2,7 @@
 
 #include "../IR.h"
 #include "../../Log/Logger.h"
+#include "../../Containers/Array.h"
 
 struct Interpreter;
 
@@ -12,26 +13,12 @@ typedef void (*LabelCallback)(SpiteIR::Label*, Interpreter*);
 typedef void (*ExitCallback)(Interpreter*);
 typedef void (*RenderCallback)(Interpreter*);
 
-inline eastl::vector<InstructionCallback> instExts = eastl::vector<InstructionCallback>();
-inline eastl::vector<FunctionCallback> funcExts = eastl::vector<FunctionCallback>();
-inline eastl::vector<BlockCallback> blockExts = eastl::vector<BlockCallback>();
-inline eastl::vector<LabelCallback> labelExts = eastl::vector<LabelCallback>();
-inline eastl::vector<ExitCallback> exitExts = eastl::vector<ExitCallback>();
-inline eastl::vector<RenderCallback> renderExts = eastl::vector<RenderCallback>();
-
-bool RegisterInterpreterExtension(
-	InstructionCallback onInst, FunctionCallback onFunc = nullptr,
-	BlockCallback onBlock = nullptr, LabelCallback onLabel = nullptr,
-	ExitCallback onExit = nullptr, RenderCallback onRender = nullptr
-);
-
-void InitExtensions();
-void ShutdownExtensions();
+inline InteropArray funcExts = CreateInteropArray<SpiteIR::Function*>();
+inline InteropArray blockExts = CreateInteropArray<SpiteIR::Function*>();
+inline InteropArray labelExts = CreateInteropArray<SpiteIR::Function*>();
+inline InteropArray instExts = CreateInteropArray<SpiteIR::Function*>();
 
 void RunInstructionExtensions(SpiteIR::Instruction& inst, SpiteIR::Label*& label, Interpreter* interpreter);
 void RunFunctionExtensions(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params, Interpreter* interpreter);
 void RunBlockExtensions(SpiteIR::Block* block, Interpreter* interpreter);
 void RunLabelExtensions(SpiteIR::Label* label, Interpreter* interpreter);
-void RunExitExtensions(Interpreter* interpreter);
-
-void RunUIExtensions(Interpreter* interpreter);

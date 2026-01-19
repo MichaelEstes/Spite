@@ -1264,7 +1264,8 @@ intmax_t EvaluateConstantIntExpr(Expr* expr, Low* lower,
 				Token* package = expr->selectorExpr.on->selectorExpr.on->identifierExpr.identifier;
 				Token* name = expr->selectorExpr.on->selectorExpr.select->identifierExpr.identifier;
 				SymbolTable* symbolTable = scopeUtils.globalTable->FindSymbolTable(package->val);
-				Stmnt* enumStmnt = scopeUtils.symbolTable->FindEnum(name->val);
+				Stmnt* enumStmnt = symbolTable->FindEnum(name->val);
+
 				return lower->context.FindEnumValue(enumStmnt, member->val);
 			}
 		}

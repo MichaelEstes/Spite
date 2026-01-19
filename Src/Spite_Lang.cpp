@@ -225,9 +225,7 @@ int main(int argc, char** argv)
 			//decompiler.Decompile(ir);
 			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 			//interpretProfiler.Reset();
-			interpreter.InitMain();
 			int value = *(int*)(void*)interpreter.Interpret(ir);
-			interpreter.ShutdownMain();
 			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;
 		}
