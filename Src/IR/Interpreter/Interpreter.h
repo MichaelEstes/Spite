@@ -12,7 +12,7 @@
 extern std::filesystem::path workingDir;
 extern Config config;
 
-inline char* global = nullptr;
+inline volatile char* global = nullptr;
 
 struct Interpreter
 {
@@ -29,6 +29,10 @@ struct Interpreter
 		stackFrameStart = stack;
 		stackFrameEnd = stack;
 		dcCallVM = CreateDynCallVM();
+
+		#ifdef _INTERPRETER_EXTS
+		RunInitExtensions(this);
+		#endif
 	}
 
 	~Interpreter()
@@ -37,7 +41,7 @@ struct Interpreter
 		DestroyDynCallVM(dcCallVM);
 	}
 
-	inline void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
+	void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
 	{
 		size_t index = package->globalVariableLookup[name];
 		SpiteIR::GlobalVariable* var = package->globalVariables[index];
@@ -45,7 +49,7 @@ struct Interpreter
 		*val = value;
 	}
 
-	inline void SetGlobalInt(SpiteIR::Package* package, const eastl::string& name, intmax_t value)
+	void SetGlobalInt(SpiteIR::Package* package, const eastl::string& name, intmax_t value)
 	{
 		size_t index = package->globalVariableLookup[name];
 		SpiteIR::GlobalVariable* var = package->globalVariables[index];
@@ -53,7 +57,7 @@ struct Interpreter
 		*val = value;
 	}
 
-	inline void SetGlobalPtr(SpiteIR::Package* package, const eastl::string& name, void* value)
+	void SetGlobalPtr(SpiteIR::Package* package, const eastl::string& name, void* value)
 	{
 		size_t index = package->globalVariableLookup[name];
 		SpiteIR::GlobalVariable* var = package->globalVariables[index];
@@ -61,7 +65,7 @@ struct Interpreter
 		*val = value;
 	}
 
-	inline void SetGlobalString(SpiteIR::Package* package, const eastl::string& name,
+	void SetGlobalString(SpiteIR::Package* package, const eastl::string& name,
 		const eastl::string* value)
 	{
 		size_t index = package->globalVariableLookup[name];
@@ -92,6 +96,7 @@ struct Interpreter
 		SetGlobalPtr(runtime, "___blockExts", &blockExts);
 		SetGlobalPtr(runtime, "___labelExts", &labelExts);
 		SetGlobalPtr(runtime, "___instExts", &instExts);
+		SetGlobalPtr(runtime, "___initExts", &initExts);
 		#endif
 	}
 

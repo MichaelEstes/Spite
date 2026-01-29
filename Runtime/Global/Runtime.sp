@@ -283,20 +283,20 @@ string _SerializeType(value: *byte, type: *_Type)
 		}
 		case (_TypeKind.UnionType)
 		{
-			out := "union { " + IntToString(type.size) + " bytes }";
+			out := "union { " + UIntToString(type.size) + " bytes }";
 			return out;
 		}
 		case (_TypeKind.FunctionType)
 		{
 			value = (value as **byte)~
 			ptrInt := value as int;
-			return "func (@" + IntToString(ptrInt) + ")";
+			return "func (@" + UIntToString(ptrInt) + ")";
 		}
 		case (_TypeKind.PointerType)
 		{
 			value = (value as **byte)~
 			ptrInt := value as int;
-			out := "Ptr @" + IntToString(ptrInt) + " ";
+			out := "Ptr @" + UIntToString(ptrInt) + " ";
 
 			if (ptrInt) out = out + _SerializeType(value, typeData.pointer);
 			else out = out + "null";
@@ -306,7 +306,7 @@ string _SerializeType(value: *byte, type: *_Type)
 		case (_TypeKind.ReferenceType)
 		{
 			ptrInt := value as int;
-			out := "Ref @" + IntToString(ptrInt) + " ";
+			out := "Ref @" + UIntToString(ptrInt) + " ";
 
 			if (ptrInt) out = out + _SerializeType(value, typeData.reference);
 			else out = out + "nullref (error)";

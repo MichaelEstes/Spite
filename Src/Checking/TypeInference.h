@@ -1204,6 +1204,8 @@ struct TypeInferer
 
 		if (IsAny(left) || IsAny(right)) return true;
 
+		if (IsTypeGenericOf(stmntContext, left) || IsTypeGenericOf(stmntContext, right)) return true;
+
 		if (left->typeID == TypeID::ValueType)
 			return IsAssignable(left->valueType.type, right, stmntContext);
 		if (right->typeID == TypeID::ValueType)
@@ -1265,12 +1267,14 @@ struct TypeInferer
 
 		if (IsVoidPtr(left))
 		{
-			return right->typeID == TypeID::PointerType || right->typeID == TypeID::FunctionType;
+			return right->typeID == TypeID::PointerType || 
+				   right->typeID == TypeID::FunctionType;
 		}
 
 		if (IsVoidPtr(right))
 		{
-			return left->typeID == TypeID::PointerType || left->typeID == TypeID::FunctionType;
+			return left->typeID == TypeID::PointerType ||
+				left->typeID == TypeID::FunctionType;
 		}
 
 		if (left->typeID == TypeID::PointerType && right->typeID == TypeID::PointerType)
@@ -1321,8 +1325,6 @@ struct TypeInferer
 
 			return true;
 		}
-
-		if (IsTypeGenericOf(stmntContext, left) || IsTypeGenericOf(stmntContext, right)) return true;
 
 		if (IsComplexType(left) && IsComplexType(right))
 		{

@@ -974,9 +974,9 @@ SpiteIR::State* FindState(Low* lower, const eastl::string& val, SpiteIR::Type* t
 	{
 		if (allowResolve) lower->context.toResolveStateType.push_back({ val, type });
 	}
-	else if (!state->size && type) lower->context.toResolveSizeAndAlignment.insert(type);
 	else if (type)
 	{
+		if (!state->size) lower->context.toResolveSizeAndAlignment.insert(type);
 		type->size = state->size;
 		type->alignment = state->alignment;
 		type->byValue = state->IsValueType();

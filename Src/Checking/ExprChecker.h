@@ -440,6 +440,7 @@ struct ExprChecker
 		eastl::vector<Expr*>* params = functionCall.params;
 		size_t paramCount = params->size();
 
+		if (functionType->typeID == TypeID::RefType) functionType = functionType->refType.type;
 		while (functionType->typeID == TypeID::TemplatedType) functionType = functionType->templatedType.type;
 		switch (functionType->typeID)
 		{

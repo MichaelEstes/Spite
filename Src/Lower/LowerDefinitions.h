@@ -3589,11 +3589,14 @@ struct LowerDefinitions
 		eastl::vector<SpiteIR::Operand>* params = context.ir->AllocateArray<SpiteIR::Operand>();
 		SpiteIR::Type* funcType = funcValue.type;
 
-		for (size_t i = 0; i < funcType->function.params->size(); i++)
+
+
+		eastl::vector<Expr*>* exprParams = expr->functionCallExpr.params;
+		for (size_t i = 0; i < exprParams->size(); i++)
 		{
-			SpiteIR::Type* argType = funcType->function.params->at(i);
-			Expr* param = expr->functionCallExpr.params->at(i);
+			Expr* param = exprParams->at(i);
 			ScopeValue value = BuildExpr(param, stmnt);
+			SpiteIR::Type* argType = funcType->function.params->at(i);
 			params->push_back(BuildRegisterOperand(HandleAutoCast(value, argType)));
 		}
 

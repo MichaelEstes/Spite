@@ -219,10 +219,10 @@ struct LowerDeclarations
 			BuildStateDeclarations(package, value);
 		}
 
-		for (auto& [key, value] : symbolTable->functionMap)
-		{
-			BuildFunctionDeclaration(package, value);
-		}
+		//for (auto& [key, value] : symbolTable->functionMap)
+		//{
+		//	BuildFunctionDeclaration(package, value);
+		//}
 
 		for (auto& [key, value] : symbolTable->externFunctionMap)
 		{
@@ -610,7 +610,6 @@ struct LowerDeclarations
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-
 		SpiteIR::Type* argType = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
 		if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
 
