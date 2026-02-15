@@ -10,6 +10,9 @@ extern
 	float64 cos(val: float64);
 	float64 tan(val: float64);
 	float64 acos(val: float64);
+	float64 atan(val: float64);
+	float64 atan2(y: float64, x: float64);
+	float64 asin(val: float64);
 
 	int32 abs(val: int32);
 	int64 llabs(val: int64);
@@ -32,6 +35,12 @@ float Cos(val: float) => cos(val);
 float Tan(val: float) => tan(val);
 
 float Acos(val: float) => acos(val);
+
+float Atan(val: float) => atan(val);
+
+float Atan2(y: float, x: float) => atan2(y, x);
+
+float Asin(val: float) => asin(val);
 
 float Deg2Rad(deg: float) => deg * Pi / 180.0;
 

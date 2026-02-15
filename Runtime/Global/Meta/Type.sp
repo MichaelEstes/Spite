@@ -35,3 +35,10 @@ uint _Type::FixedArrayCount() => this.type.fixedArray.count;
 
 []*_Type _Type::GetFunctionParams() => InteropToArray(this.type.function.params);
 
+string _Type::StateName() => 
+{
+	if (!this.IsState()) return "Non State Type";
+
+	return this.type.stateType.name.ToString();
+}
+
