@@ -49,56 +49,49 @@ public:
 
 	static void Error(const eastl::string& msg)
 	{
-		std::cout << "ERROR: " << msg << '\n';
+		std::cout << "ERROR: " << msg << '\n' << std::flush;
 	}
 
 	static void ErrorAt(const eastl::string& msg, Position pos)
 	{
-		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n';
+		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n' << std::flush;
 	}
 
 	static void FatalAssert(const eastl::string& msg, int errorCode = 1)
 	{
-		std::cout << "Assert failed: " << msg << '\n';
+		std::cout << "Assert failed: " << msg << '\n' << std::flush;
 		std::exit(errorCode);
 	}
 
 	static void FatalError(const eastl::string& msg, int errorCode = 1)
 	{
-		std::cout << "ERROR: " << msg << '\n';
+		std::cout << "ERROR: " << msg << '\n' << std::flush;
 		std::exit(errorCode);
 	}
 
 	static void FatalErrorAt(const eastl::string& msg, Position& pos, int errorCode = 1)
 	{
 		PrintErrors();
-		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n';
+		std::cout << "ERROR: " << msg << " \n found at position " + pos.ToString() << '\n' << std::flush;
 		std::exit(errorCode);
 	}
 
 	static void Warning(const eastl::string& msg)
 	{
-		std::cout << "WARNING: " << msg << '\n';
+		std::cout << "WARNING: " << msg << '\n' << std::flush;
 	}
 
 	static void Info(const eastl::string& msg)
 	{
-		std::cout << "INFO: " << msg << '\n';
+		std::cout << "INFO: " << msg << '\n' << std::flush;
 	}
 
 	static void Debug(const eastl::string& msg)
 	{
 #ifdef NDEBUG
 #else
-		std::cout << "DEBUG: " << msg << '\n';
+		std::cout << "DEBUG: " << msg << '\n' << std::flush;
 #endif
-	}
-
-	static void Log(const eastl::string& msg, bool newLine = true, int depth = 0)
-	{
-		for (int i = 0; i < depth; i++) std::cout << '\t';
-		std::cout << msg;
-		if (newLine) std::cout << '\n';
 	}
 
 	static void AddMessage(LogLevel logLevel, Position pos, size_t tokenIndex, const eastl::string& msg)

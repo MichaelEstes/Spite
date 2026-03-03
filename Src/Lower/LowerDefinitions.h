@@ -39,9 +39,11 @@ struct DeferredBody
 
 struct FunctionScope
 {
-	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeMap;
+	eastl::hash_map<StringView, ScopeValue, StringViewHash> scopeNameToValue;
+	eastl::hash_map<size_t, StringView> scopeRegToName;
 	eastl::vector<DeferredBody> deferred;
 	eastl::vector<size_t> toDestroy;
+	size_t debugScopeId = SpiteIR::InvalidDebugIndex;
 };
 
 enum FunctionContextFlag
@@ -443,6 +445,32 @@ struct LowerDefinitions
 	{
 		funcContext.scopeQueue.emplace_back();
 		funcContext.scopeUtils.AddScope();
+
+		if (config.debug)
+		{
+			SpiteIR::Function* function = funcContext.function;
+			if (!MapHas(*context.ir->debugSymbolLookup, function))
+			{
+				context.ir->debugSymbolLookup->emplace(function, context.ir->AllocateDebugSymbolGraph());
+			}
+
+			SpiteIR::DebugSymbolGraph* debugSymbols = context.ir->debugSymbolLookup->at(function);
+			SpiteIR::DebugScope* debugScope = context.ir->AllocateDebugScope();
+			debugScope->id = debugSymbols->scopes.size();
+			if (funcContext.scopeQueue.size() > 1)
+			{
+				size_t parentId = funcContext.scopeQueue[funcContext.scopeQueue.size() - 2].debugScopeId;
+				debugScope->parentId = parentId;
+			}
+
+			if (funcContext.currStmnt && funcContext.currStmnt->start)
+			{
+				debugScope->startPosition = funcContext.currStmnt->start->pos;
+			}
+
+			debugSymbols->scopes.push_back(debugScope);
+			funcContext.scopeQueue.back().debugScopeId = debugScope->id;
+		}
 	}
 
 	void PopScope()
@@ -450,27 +478,100 @@ struct LowerDefinitions
 		FunctionScope scope = funcContext.scopeQueue.back();
 		for (DeferredBody& deferred : scope.deferred) BuildDeferred(deferred);
 
+		if (config.debug)
+		{
+			SpiteIR::Function* function = funcContext.function;
+			SpiteIR::DebugSymbolGraph* debugSymbols = context.ir->debugSymbolLookup->at(function);
+			if (debugSymbols && 
+				scope.debugScopeId != SpiteIR::InvalidDebugIndex && 
+				scope.debugScopeId < debugSymbols->scopes.size())
+			{
+				SpiteIR::DebugScope* debugScope = debugSymbols->scopes[scope.debugScopeId];
+				if (funcContext.currStmnt && funcContext.currStmnt->end)
+				{
+					debugScope->endPosition = funcContext.currStmnt->end->pos;
+				}
+			}
+		}
+
 		funcContext.scopeQueue.pop_back();
 		funcContext.scopeUtils.PopScope();
 	}
 
-	void AddValueToCurrentScope(const StringView& name, const ScopeValue& value, Stmnt* stmnt)
+	bool IsDebuggableRegister(size_t reg)
 	{
-		funcContext.scopeQueue.back().scopeMap[name] = value;
+		if (reg >= TypeRegister)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	void AddDebugSymbolToCurrentScope(StringView& name, const ScopeValue& value, Stmnt* stmnt)
+	{
+		if (!config.debug || !value.type || !IsDebuggableRegister(value.reg) || !funcContext.scopeQueue.size())
+		{
+			return;
+		}
+
+		SpiteIR::Function* function = funcContext.function;
+		SpiteIR::DebugSymbolGraph* debugSymbols = context.ir->debugSymbolLookup->at(function);
+
+		size_t scopeId = funcContext.scopeQueue.back().debugScopeId;
+		if (scopeId == SpiteIR::InvalidDebugIndex)
+		{
+			return;
+		}
+
+		SpiteIR::DebugLocalSymbol* symbol = context.ir->AllocateDebugLocalSymbol();
+		symbol->id = debugSymbols->symbols.size();
+		symbol->name = name.ToString();
+		symbol->type = value.type;
+		symbol->reg = value.reg;
+		symbol->scopeId = scopeId;
+		if (stmnt && stmnt->start)
+		{
+			symbol->declarationPosition = stmnt->start->pos;
+		}
+
+		debugSymbols->symbols.push_back(symbol);
+		debugSymbols->regToSymbol[value.reg] = symbol->id;
+	}
+
+	void AddValueToCurrentScope(StringView& name, const ScopeValue& value, Stmnt* stmnt)
+	{
+		funcContext.scopeQueue.back().scopeNameToValue[name] = value;
+		funcContext.scopeQueue.back().scopeRegToName[value.reg] = name;
+		AddDebugSymbolToCurrentScope(name, value, stmnt);
 		funcContext.scopeUtils.AddToTopScope(name, stmnt);
 	}
 
-	ScopeValue FindScopeValue(StringView& name)
+	ScopeValue FindScopeValue(const StringView& name)
 	{
 		for (auto it = funcContext.scopeQueue.rbegin(); it != funcContext.scopeQueue.rend(); it++)
 		{
-			if (MapHas(it->scopeMap, name))
+			if (MapHas(it->scopeNameToValue, name))
 			{
-				return it->scopeMap[name];
+				return it->scopeNameToValue[name];
 			}
 		}
 
 		return InvalidScopeValue;
+	}
+
+	StringView FindScopeName(const ScopeValue& value)
+	{
+		size_t reg = value.reg;
+		for (auto it = funcContext.scopeQueue.rbegin(); it != funcContext.scopeQueue.rend(); it++)
+		{
+			if (MapHas(it->scopeRegToName, reg))
+			{
+				return it->scopeRegToName[reg];
+			}
+		}
+
+		return "";
 	}
 
 	SpiteIR::Block* GetCurrentBlock()
@@ -783,6 +884,9 @@ struct LowerDefinitions
 			break;
 		case AssertStmnt:
 			BuildAssertStmnt(stmnt);
+			break;
+		case BreakpointStmnt:
+			BuildBreakpoint(GetCurrentLabel());
 			break;
 		case LogStmnt:
 		{
@@ -4229,6 +4333,7 @@ struct LowerDefinitions
 		operand.type = value.type;
 		operand.kind = SpiteIR::OperandKind::Register;
 		operand.reg = value.reg;
+
 		return operand;
 	}
 
@@ -4311,5 +4416,12 @@ struct LowerDefinitions
 		assert->assert.test = test;
 		assert->assert.message = message;
 		return assert;
+	}
+
+	SpiteIR::Instruction* BuildBreakpoint(SpiteIR::Label* label)
+	{
+		SpiteIR::Instruction* breakpoint = CreateInstruction(label);
+		breakpoint->kind = SpiteIR::InstructionKind::Breakpoint;
+		return breakpoint;
 	}
 };

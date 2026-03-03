@@ -684,9 +684,9 @@ struct Syntax
 		return InvalidStmnt();
 	}
 
-	void AddUniformCallParam(eastl::vector<Stmnt*>* params, Token* stateName)
+	void AddUniformCallParam(Token* start, eastl::vector<Stmnt*>* params, Token* stateName)
 	{
-		Token* thisName = &thisToken;
+		Token* thisName = symbolTable->arena->Emplace<Token>(CreateThisToken(start->pos));
 		Stmnt* param = CreateStmnt(thisName, StmntID::Definition);
 		param->definition.assignment = nullptr;
 		param->definition.name = thisName;
@@ -710,11 +710,16 @@ struct Syntax
 			node->method.name = curr;
 			Advance();
 			node->method.generics = ParseGenerics();
+			Token* methodStart = curr;
 			if (Expect(UniqueType::Lparen, "Syntax:ParseStateFunction Expected function starting with ('(')"))
 			{
 				node->method.decl = ParseFunctionDecl(node);
 				node->end = node->method.decl->end;
-				AddUniformCallParam(node->method.decl->functionDecl.parameters, node->method.stateName);
+				AddUniformCallParam(
+					methodStart,
+					node->method.decl->functionDecl.parameters, 
+					node->method.stateName
+				);
 				symbolTable->AddMethod(node);
 				return node;
 			}
@@ -733,11 +738,16 @@ struct Syntax
 				{
 					op->stateOperator.op = curr;
 					Advance();
+					Token* methodStart = curr;
 					if (Expect(UniqueType::Lparen, "Syntax:ParseStateFunction Expected function starting with ('(') for operator"))
 					{
 						op->stateOperator.decl = ParseFunctionDecl(op);
 						op->end = op->stateOperator.decl->end;
-						AddUniformCallParam(op->stateOperator.decl->functionDecl.parameters, op->stateOperator.stateName);
+						AddUniformCallParam(
+							methodStart,
+							op->stateOperator.decl->functionDecl.parameters, 
+							op->stateOperator.stateName
+						);
 						symbolTable->AddOperator(op);
 						return op;
 					}
@@ -753,7 +763,11 @@ struct Syntax
 			del->destructor.del = curr;
 			del->destructor.decl = CreateStmnt(start, StmntID::FunctionDecl);
 			del->destructor.decl->functionDecl.parameters = CreateVectorPtr<Stmnt>();
-			AddUniformCallParam(del->destructor.decl->functionDecl.parameters, del->destructor.stateName);
+			AddUniformCallParam(
+				start,
+				del->destructor.decl->functionDecl.parameters, 
+				del->destructor.stateName
+			);
 			Advance();
 			if (Expect(UniqueType::FatArrow)) Advance();
 			del->destructor.decl->functionDecl.body = ParseBody(del);
@@ -765,7 +779,11 @@ struct Syntax
 			Stmnt* con = CreateStmnt(start, StmntID::Constructor);
 			con->constructor.stateName = name;
 			con->constructor.decl = ParseFunctionDecl(con);
-			AddUniformCallParam(con->constructor.decl->functionDecl.parameters, con->constructor.stateName);
+			AddUniformCallParam(
+				start,
+				con->constructor.decl->functionDecl.parameters, 
+				con->constructor.stateName
+			);
 			symbolTable->AddConstructor(con);
 			return con;
 		}
@@ -946,10 +964,20 @@ struct Syntax
 			return ParseLogStmnt();
 		case UniqueType::AssertTok:
 			return ParseAssertStmnt();
+		case UniqueType::Breakpoint:
+			return ParseBreakPointStmnt();
 
 		default:
 			return ParseExprStmnt();
 		}
+	}
+
+	Stmnt* ParseBreakPointStmnt()
+	{
+		Stmnt* node = CreateStmnt(curr, StmntID::BreakpointStmnt);
+		Advance();
+		if (Expect(UniqueType::Semicolon)) Advance();
+		return node;
 	}
 
 	Stmnt* ParseLogStmnt()

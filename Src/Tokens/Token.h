@@ -6,28 +6,6 @@
 #include "../Parsing/Position.h"
 #include "../Utils/Utils.h"
 
-enum TokenType : int
-{
-	//Known predefined values
-	Keyword = ToBit(1),
-	AccessModifier = ToBit(2),
-	Primitive = ToBit(3),
-	Flow = ToBit(4),
-	Decorator = ToBit(5),
-	Operator = ToBit(6),
-	Seperator = ToBit(7),
-	Comment = ToBit(8),
-
-	//Unknown programmer defined values
-	Identifier = ToBit(9),
-	Literal = ToBit(10),
-	Invalid = ToBit(11),
-
-	EndOfFile = ToBit(12),
-
-	None = ToBit(13),
-};
-
 enum UniqueType
 {
 	UniqueUnknown,
@@ -58,6 +36,7 @@ enum UniqueType
 	OnCompile,
 	OnCompileDebug,
 	Link,
+	Breakpoint,
 	OperatorOverload,
 
 	// AccessModifierKeywords 
@@ -170,37 +149,52 @@ enum UniqueType
 	QuestionMark,
 };
 
+enum TokenType
+{
+	//Known predefined values
+	Keyword = ToBit(1),
+	AccessModifier = ToBit(2),
+	Primitive = ToBit(3),
+	Flow = ToBit(4),
+	Decorator = ToBit(5),
+	Operator = ToBit(6),
+	Seperator = ToBit(7),
+	Comment = ToBit(8),
+
+	//Unknown programmer defined values
+	Identifier = ToBit(9),
+	Literal = ToBit(10),
+	Invalid = ToBit(11),
+
+	EndOfFile = ToBit(12),
+
+	None = ToBit(13),
+};
+
 struct Token
 {
 	StringView val;
 	Position pos;
+	size_t index;
 	TokenType type;
 	UniqueType uniqueType;
-	size_t index;
 
-	Token()
-	{
-		type = TokenType::None;
-		uniqueType = UniqueType::UniqueUnknown;
-		index = 0;
-	}
-
-	Token(StringView& val, Position& pos, TokenType type, UniqueType uniqueType, size_t index)
+	Token(const StringView& val, const Position& pos, TokenType type, UniqueType uniqueType, size_t index)
 	{
 		this->val = val;
 		this->pos = pos;
+		this->index = index;
 		this->type = type;
 		this->uniqueType = uniqueType;
-		this->index = index;
 	}
 
-	Token(const char* val)
+	Token(const Token& copy)
 	{
-		this->val = StringView(val);
-		this->pos = Position();
-		this->type = TokenType::Identifier;
-		this->uniqueType = UniqueType::Name;
-		this->index = 0;
+		this->val = copy.val;
+		this->pos = copy.pos;
+		this->index = copy.index;
+		this->type = copy.type;
+		this->uniqueType = copy.uniqueType;
 	}
 
 	inline bool IsCompleted()
@@ -219,5 +213,22 @@ struct Token
 	}
 };
 
-static Token emptyToken = "";
-static Token thisToken = "this";
+inline Token CreateThisToken(Position& pos)
+{
+	StringView thisTok = StringView("this");
+	return Token(
+		thisTok,
+		pos,
+		TokenType::Identifier,
+		UniqueType::Name,
+		0
+	);
+}
+
+static Token emptyToken = Token(
+	StringView(""),
+	Position(),
+	TokenType::Identifier,
+	UniqueType::Name,
+	0
+);

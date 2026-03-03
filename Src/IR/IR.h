@@ -6,9 +6,12 @@
 #include "EASTL/hash_set.h"
 #include "EASTL/bonus/tuple_vector.h"
 
+#include "../Config/Config.h"
 #include "../Containers/Arena.h"
 #include "../Utils/Utils.h"
 #include "../Parsing/Position.h"
+
+extern Config config;
 
 // Any changes to this namespace need to be reflected in Runtime/Compile/Meta.sp
 namespace SpiteIR
@@ -29,6 +32,33 @@ namespace SpiteIR
 	using HashMap = eastl::hash_map<Key, Value>;
 	template <typename Value>
 	using Array = eastl::vector<Value>;
+
+	static constexpr size_t InvalidDebugIndex = (size_t)-1;
+
+	struct DebugScope
+	{
+		size_t id = InvalidDebugIndex;
+		size_t parentId = InvalidDebugIndex;
+		Position startPosition;
+		Position endPosition;
+	};
+
+	struct DebugLocalSymbol
+	{
+		size_t id = InvalidDebugIndex;
+		string name;
+		Type* type = nullptr;
+		size_t reg = InvalidDebugIndex;
+		size_t scopeId = InvalidDebugIndex;
+		Position declarationPosition;
+	};
+
+	struct DebugSymbolGraph
+	{
+		Array<DebugScope*> scopes;
+		Array<DebugLocalSymbol*> symbols;
+		HashMap<size_t, size_t> regToSymbol;
+	};
 
 	enum class ParentKind
 	{
@@ -156,7 +186,8 @@ namespace SpiteIR
 		Switch,
 		BinOp,
 		UnOp,
-		Assert
+		Assert,
+		Breakpoint
 	};
 
 	enum class CompareKind
@@ -545,7 +576,15 @@ namespace SpiteIR
 		Arena instructions;
 		size_t globalSize = 0;
 
-		IR(size_t initialSize) : arena(initialSize * 256) {}
+		HashMap<Function*, DebugSymbolGraph*>* debugSymbolLookup = nullptr;
+
+		IR(size_t initialSize) : arena(initialSize * 256) 
+		{
+			if (config.debug)
+			{
+				debugSymbolLookup = this->arena.EmplaceContainer<HashMap<Function*, DebugSymbolGraph*>>();
+			}
+		}
 
 		template<typename T>
 		void _IterateImports(Package* package, T arg, void(*func)(Package*, T), eastl::hash_set<Package*>& seen)
@@ -663,6 +702,21 @@ namespace SpiteIR
 		inline InstructionMetadata* AllocateInstructionMetadata()
 		{
 			return arena.Emplace<InstructionMetadata>();
+		}
+
+		inline DebugScope* AllocateDebugScope()
+		{
+			return arena.Emplace<DebugScope>();
+		}
+
+		inline DebugLocalSymbol* AllocateDebugLocalSymbol()
+		{
+			return arena.Emplace<DebugLocalSymbol>();
+		}
+
+		inline DebugSymbolGraph* AllocateDebugSymbolGraph()
+		{
+			return arena.Emplace<DebugSymbolGraph>();
 		}
 
 		template<typename T>

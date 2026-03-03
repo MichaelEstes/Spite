@@ -1,6 +1,14 @@
 #pragma once
 
 #ifdef WIN32
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 inline const size_t os = 0;
 inline const size_t arch = 0;
 inline const char* platform = "windows";

@@ -47,6 +47,7 @@ enum StmntID
 	Block,
 	LogStmnt,
 	AssertStmnt,
+	BreakpointStmnt
 };
 
 enum InsetID

@@ -33,6 +33,7 @@ static TokenTree tokenTypeLookup = {
 	{ "#compile", TokenType::Keyword, UniqueType::OnCompile },
 	{ "#debug", TokenType::Keyword, UniqueType::OnCompileDebug },
 	{ "#link", TokenType::Keyword, UniqueType::Link },
+	{ "#breakpoint", TokenType::Keyword, UniqueType::Breakpoint },
 
 	{ "new", TokenType::Keyword, UniqueType::New },
 	{ "delete", TokenType::Keyword, UniqueType::Delete },
@@ -144,8 +145,8 @@ static TokenTree tokenTypeLookup = {
 struct Tokens
 {
 	eastl::vector<Token> tokens;
-	size_t count;
 	eastl::vector<eastl::string*> escapedStrings;
+	size_t count;
 
 	Tokens()
 	{
@@ -230,11 +231,6 @@ struct Tokens
 	inline Token* Next(Token* token)
 	{
 		return &tokens[token->index + 1];
-	}
-
-	inline Token* Prev(Token* token)
-	{
-		return &tokens[token->index - 1];
 	}
 
 	inline Token* At(size_t index)

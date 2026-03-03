@@ -5,8 +5,20 @@
 #include "CheckerContext.h"
 
 static Type boolType = Type(1, UniqueType::Bool, false);
-static Token runtimePackage = "_";
-static Token runtimeType = "_Type";
+static Token runtimePackage = Token(
+	StringView("_"),
+	Position(nullptr),
+	TokenType::Identifier,
+	UniqueType::Name,
+	0
+);
+static Token runtimeType = Token(
+	StringView("_Type"),
+	Position(nullptr),
+	TokenType::Identifier,
+	UniqueType::Name,
+	0
+);
 
 struct TypeInferer
 {

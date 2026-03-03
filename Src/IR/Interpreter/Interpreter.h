@@ -2,11 +2,12 @@
 
 #include <filesystem>
 #include "EASTL/deque.h"
+#include "Debugger.h"
+#include "ExternCall.h"
+#include "../IR.h"
+#include "../../Config/Config.h"
 #include "../../Utils/Utils.h"
 #include "InterpreterUtils.h"
-#include "../IR.h"
-#include "ExternCall.h"
-#include "../../Config/Config.h"
 #include "InterpreterExtension.h"
 
 extern std::filesystem::path workingDir;
@@ -20,8 +21,10 @@ struct Interpreter
 	volatile char* stackFrameStart;
 	volatile char* stackFrameEnd;
 	DCCallVM* dcCallVM;
+	DebugInterface debug;
+
 	int threadID;
-	bool runningExtension = false;
+	bool runningExtension;
 
 	Interpreter(size_t stackSize)
 	{
@@ -29,6 +32,17 @@ struct Interpreter
 		stackFrameStart = stack;
 		stackFrameEnd = stack;
 		dcCallVM = CreateDynCallVM();
+		threadID = CurrentThreadID();
+
+		if (config.debug)
+		{
+			EnsureGlobalDebugger(threadID);
+			debug = ActiveDebugInterface();
+		}
+		else
+		{
+			debug = InactiveDebugInterface();
+		}
 
 		#ifdef _INTERPRETER_EXTS
 		RunInitExtensions(this);
@@ -104,7 +118,6 @@ struct Interpreter
 	{
 		delete global;
 		global = new char[ir->globalSize];
-		SetCurrentThreadID();
 		
 		auto callInitializer = [](SpiteIR::Package* package, Interpreter& interpreter)
 		{
@@ -117,11 +130,6 @@ struct Interpreter
 		callInitializer(ir->runtime, *this);
 		ir->IterateImports<Interpreter&>(package, *this, callInitializer);
 		InitializeRuntimeValues(ir);
-	}
-
-	void SetCurrentThreadID()
-	{
-		threadID = CurrentThreadID();
 	}
 
 	volatile void* Interpret(SpiteIR::IR* ir)
@@ -240,6 +248,8 @@ struct Interpreter
 		RunInstructionExtensions(inst, label, this);
 		#endif
 
+		debug.SafePoint(threadID, inst);
+
 		switch (inst.kind)
 		{
 		case SpiteIR::InstructionKind::Return:
@@ -298,6 +308,9 @@ struct Interpreter
 			break;
 		case SpiteIR::InstructionKind::Assert:
 			InterpretAssert(inst);
+			break;
+		case SpiteIR::InstructionKind::Breakpoint:
+			InterpretBreakpoint(inst);
 			break;
 		default:
 			break;
@@ -1002,5 +1015,11 @@ struct Interpreter
 			eastl::string posString = assertInst.metadata->expressionPosition.ToString();
 			Logger::FatalAssert(posString);
 		}
+	}
+
+	inline void InterpretBreakpoint(SpiteIR::Instruction& breakpointInst)
+	{
+		Position& pos = breakpointInst.metadata->expressionPosition;
+		debug.Breakpoint(threadID, &pos);
 	}
 };

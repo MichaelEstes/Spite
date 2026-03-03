@@ -211,9 +211,13 @@ struct TypeChecker
 		else
 		{
 			UniqueType opType = AssignOpToBinOp(assignment.op->uniqueType);
-			Token opTok = Token();
-			opTok.uniqueType = opType;
-			opTok.pos = assignment.op->pos;
+			Token opTok = Token(
+				assignment.op->val,
+				assignment.op->pos,
+				assignment.op->type,
+				opType,
+				0
+			);
 			Type* type = inferer.GetOperatorType(&opTok, to, from);
 			if (!inferer.IsAssignable(type, to))
 			{

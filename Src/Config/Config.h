@@ -74,12 +74,13 @@ struct Config
 	eastl::string file;
 	eastl::string entry = "Main";
 	eastl::string name = "a";
+	size_t interpreterStackSize = 2000000;
 	Output output = Output::Llvm;
 	Arch arch = Arch::X64;
 	Os os = Os::OsInvalid;
-	bool comments = false;
 	int targetArchByteWidth = 8;
-	size_t interpreterStackSize = 2000000;
+	bool comments = false;
+	bool debug = true;
 };
 
 inline eastl::string GetNextArg(int& index, int argc, char** argv)

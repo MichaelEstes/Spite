@@ -39,6 +39,12 @@ struct Position
 		return *this;
 	}
 
+	bool operator==(const Position& r) const
+	{
+		return file == r.file && fileOffset == r.fileOffset &&
+			line == r.line && columnOffset == r.columnOffset;
+	}
+
 	eastl::string ToString()
 	{
 		if (!file) return "";

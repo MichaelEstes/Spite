@@ -1193,11 +1193,13 @@ struct SymbolTable
 	{
 		Expr* expr = CreateExpr(start, ExprID::LiteralExpr);
 		eastl::string* val = arena->Emplace<eastl::string>(eastl::to_string(i));
-		Token* token = arena->Emplace<Token>();
-		token->pos = start->pos;
-		token->uniqueType = UniqueType::IntLiteral;
-		token->type = TokenType::Literal;
-		token->val = StringView(val->c_str());
+		Token* token = arena->Emplace<Token>(
+			StringView(val->c_str()),
+			start->pos,
+			TokenType::Literal,
+			UniqueType::IntLiteral,
+			0
+		);
 		expr->literalExpr.val = token;
 		return expr;
 	}

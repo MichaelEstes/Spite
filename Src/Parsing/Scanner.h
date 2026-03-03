@@ -8,17 +8,19 @@
 #include "../Tokens/Tokens.h"
 #include "../Utils/Profiler.h"
 
-class Scanner
+struct Scanner
 {
-public:
+	eastl::string contents;
+	size_t contentCount;
+	size_t index;
+	Position pos;
 
-	Scanner()
+	Scanner(): pos(nullptr)
 	{
 		index = 0;
 	}
 
 	~Scanner() = default;
-
 
 	size_t Init(const eastl::string& fileLoc)
 	{
@@ -71,12 +73,6 @@ public:
 	{
 		contents.clear();
 	}
-
-private:
-	eastl::string contents;
-	size_t contentCount;
-	size_t index;
-	Position pos;
 
 	inline void UpdatePosition(char last)
 	{
