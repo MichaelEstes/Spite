@@ -8,15 +8,17 @@
 
 std::ostream& operator << (std::ostream& os, const eastl::string& str);
 
+
+struct Logger
+{
+
 enum LogLevel
 {
 	INFO,
 	WARNING,
-	ERROR
+	ERR
 };
 
-struct Logger
-{
 public:
 	struct LogMessage
 	{
@@ -40,7 +42,7 @@ public:
 			return "INFO: ";
 		case WARNING:
 			return "WARNING: ";
-		case ERROR:
+		case ERR:
 			return "ERROR: ";
 		default:
 			break;
@@ -102,7 +104,7 @@ public:
 			break;
 		case WARNING:
 			break;
-		case ERROR:
+		case ERR:
 			errors.emplace_back(pos, tokenIndex, msg);
 			break;
 		default:
@@ -113,7 +115,7 @@ public:
 	static void LogError(Position pos, size_t tokenIndex, const eastl::string& msg)
 	{
 		if (errors.size() > 0 && errors.back().tokenIndex == tokenIndex) FatalErrorAt(msg, pos);
-		AddMessage(LogLevel::ERROR, pos, tokenIndex, msg);
+		AddMessage(LogLevel::ERR, pos, tokenIndex, msg);
 	}
 
 	static bool HasErrors()

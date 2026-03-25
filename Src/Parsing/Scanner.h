@@ -60,6 +60,7 @@ struct Scanner
 			char* next = &contents[index + 1];
 			tokens.Tokenize(out, curr, next, start);
 			UpdatePosition(*curr);
+			if (tokens.context == Tokens::Context::None) start = pos;
 			index += 1;
 		}
 	}

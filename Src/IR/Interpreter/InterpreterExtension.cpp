@@ -1,7 +1,5 @@
 #include "InterpreterExtension.h"
-
 #include "Interpreter.h"
-
 
 void CallExtensionFunction(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>& params,
 						   Interpreter* interpreter)

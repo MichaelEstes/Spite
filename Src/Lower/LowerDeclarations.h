@@ -431,7 +431,7 @@ struct LowerDeclarations
 	void BuildDefaultConstructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* stateStmnt,
 		eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* con = context.ir->AllocateFunction(package);
+		SpiteIR::Function* con = context.ir->AllocateFunction(package, stateStmnt->start->pos);
 		con->name = BuildDefaultConstructorName(stateStmnt, templates);
 		con->returnType = CreateVoidType(context.ir);
 		SetConstructorFlag(con);
@@ -446,7 +446,7 @@ struct LowerDeclarations
 	void BuildConstructorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* conStmnt,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* con = context.ir->AllocateFunction(package);
+		SpiteIR::Function* con = context.ir->AllocateFunction(package, conStmnt->start->pos);
 		con->name = BuildConstructorName(conStmnt, generics, templates);
 		con->returnType = CreateVoidType(context.ir);
 		SetConstructorFlag(con);
@@ -469,7 +469,7 @@ struct LowerDeclarations
 	void BuildOperatorDeclaration(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* opStmnt,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* op = context.ir->AllocateFunction(package);
+		SpiteIR::Function* op = context.ir->AllocateFunction(package, opStmnt->start->pos);
 		op->name = BuildOperatorMethodName(opStmnt, state->name, generics, templates);
 		op->returnType = TypeToIRType(context.ir, opStmnt->stateOperator.returnType, this,
 			generics, templates);
@@ -529,7 +529,7 @@ struct LowerDeclarations
 		Stmnt* methodStmnt, Stmnt* methodDeclStmnt, const eastl::string& name,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* method = context.ir->AllocateFunction(package);
+		SpiteIR::Function* method = context.ir->AllocateFunction(package, methodStmnt->start->pos);
 		method->name = name;
 		method->returnType = TypeToIRType(context.ir, methodStmnt->method.returnType, this, generics, templates);
 		SetMethodFlag(method);
@@ -552,7 +552,7 @@ struct LowerDeclarations
 	void BuildDestructor(SpiteIR::Package* package, SpiteIR::State* state, Stmnt* destructorStmnt,
 		eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* destructor = context.ir->AllocateFunction(package);
+		SpiteIR::Function* destructor = context.ir->AllocateFunction(package, destructorStmnt->start->pos);
 		destructor->name = BuildDestructorName(state);
 		destructor->returnType = CreateVoidType(context.ir);
 		SetMethodFlag(destructor);
@@ -591,7 +591,7 @@ struct LowerDeclarations
 	void BuildFunction(SpiteIR::Package* package, Stmnt* funcStmnt, const eastl::string& name,
 		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
 	{
-		SpiteIR::Function* function = context.ir->AllocateFunction(package);
+		SpiteIR::Function* function = context.ir->AllocateFunction(package, funcStmnt->start->pos);
 		function->name = name;
 		function->returnType = TypeToIRType(context.ir, funcStmnt->function.returnType, this, generics, templates);
 		SetInlineFlag(function, funcStmnt);
@@ -652,7 +652,7 @@ struct LowerDeclarations
 
 	void BuildExternalFunctionDeclarations(SpiteIR::Package* package, Stmnt* externFunc)
 	{
-		SpiteIR::Function* function = context.ir->AllocateFunction(package);
+		SpiteIR::Function* function = context.ir->AllocateFunction(package, externFunc->start->pos);
 		function->name = externFunc->externFunction.callName->val.ToString();
 		function->returnType = TypeToIRType(context.ir, externFunc->externFunction.returnType, this);
 

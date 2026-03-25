@@ -134,8 +134,7 @@ int main(int argc, char** argv)
 	}
 
 	SpiteIR::IR* ir = nullptr;
-	Interpreter interpreter = Interpreter(config.interpreterStackSize);
-
+	Interpreter* interpreter = nullptr;
 	{
 		GlobalTable globalTable = GlobalTable();
 		Arena parserArena = Arena((files.size() + 1) * sizeof(Parser));
@@ -200,8 +199,16 @@ int main(int argc, char** argv)
 		}
 
 		Profiler lowerProfiler = Profiler();
-		Lower lower = Lower(&globalTable, &interpreter);
-		ir = lower.BuildIR(entryTable);
+		ir = new SpiteIR::IR(globalTable.GetSize());
+		#ifndef _NO_DEBUG
+		if (config.debug)
+		{
+			EnsureGlobalDebugger(ir);
+		}
+		#endif
+		interpreter = new Interpreter(config.interpreterStackSize);
+		Lower lower = Lower(&globalTable, ir, interpreter);
+		lower.BuildIR(entryTable);
 		if (Logger::HasErrors())
 		{
 			Logger::PrintErrors();
@@ -233,7 +240,7 @@ int main(int argc, char** argv)
 			//decompiler.Decompile(ir);
 			//Logger::Debug("Took " + eastl::to_string(interpretProfiler.End()) + "/s to decompile program");
 			//interpretProfiler.Reset();
-			int value = *(int*)(void*)interpreter.Interpret(ir);
+			int value = *(int*)(void*)interpreter->Interpret(ir);
 			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
 			return value;
 		}

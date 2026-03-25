@@ -446,6 +446,7 @@ struct LowerDefinitions
 		funcContext.scopeQueue.emplace_back();
 		funcContext.scopeUtils.AddScope();
 
+		#ifndef _NO_DEBUG		
 		if (config.debug)
 		{
 			SpiteIR::Function* function = funcContext.function;
@@ -471,6 +472,7 @@ struct LowerDefinitions
 			debugSymbols->scopes.push_back(debugScope);
 			funcContext.scopeQueue.back().debugScopeId = debugScope->id;
 		}
+		#endif
 	}
 
 	void PopScope()
@@ -478,6 +480,7 @@ struct LowerDefinitions
 		FunctionScope scope = funcContext.scopeQueue.back();
 		for (DeferredBody& deferred : scope.deferred) BuildDeferred(deferred);
 
+		#ifndef _NO_DEBUG
 		if (config.debug)
 		{
 			SpiteIR::Function* function = funcContext.function;
@@ -493,6 +496,7 @@ struct LowerDefinitions
 				}
 			}
 		}
+		#endif
 
 		funcContext.scopeQueue.pop_back();
 		funcContext.scopeUtils.PopScope();
@@ -510,6 +514,7 @@ struct LowerDefinitions
 
 	void AddDebugSymbolToCurrentScope(StringView& name, const ScopeValue& value, Stmnt* stmnt)
 	{
+		#ifndef _NO_DEBUG
 		if (!config.debug || !value.type || !IsDebuggableRegister(value.reg) || !funcContext.scopeQueue.size())
 		{
 			return;
@@ -537,13 +542,16 @@ struct LowerDefinitions
 
 		debugSymbols->symbols.push_back(symbol);
 		debugSymbols->regToSymbol[value.reg] = symbol->id;
+		#endif
 	}
 
 	void AddValueToCurrentScope(StringView& name, const ScopeValue& value, Stmnt* stmnt)
 	{
 		funcContext.scopeQueue.back().scopeNameToValue[name] = value;
 		funcContext.scopeQueue.back().scopeRegToName[value.reg] = name;
+		#ifndef _NO_DEBUG
 		AddDebugSymbolToCurrentScope(name, value, stmnt);
+		#endif
 		funcContext.scopeUtils.AddToTopScope(name, stmnt);
 	}
 
@@ -592,7 +600,7 @@ struct LowerDefinitions
 	void BuildGlobalVariables(SpiteIR::Package* package)
 	{
 		if (!package->globalVariables.size()) return;
-		SpiteIR::Function* func = context.ir->AllocateFunction(package);
+		SpiteIR::Function* func = context.ir->AllocateFunction(package, Position());
 		BuildPackageInitializerName(func->name, package);
 		func->parent = package;
 		func->returnType = CreateVoidType(context.ir);
@@ -3092,7 +3100,7 @@ struct LowerDefinitions
 		SpiteIR::Type* returnType = ToIRType(funcStmnt->anonFunction.returnType);
 		auto& funcDecl = funcStmnt->anonFunction.decl->functionDecl;
 
-		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent);
+		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent, stmnt->start->pos);
 		BuildAnonFunctionName(func->name);
 		func->returnType = returnType;
 		func->block = context.ir->AllocateBlock(func);
@@ -3130,9 +3138,9 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
-	SpiteIR::Function* BuildAnonBlockFunction(SpiteIR::Type* returnType, Body& body)
+	SpiteIR::Function* BuildAnonBlockFunction(SpiteIR::Type* returnType, Body& body, Position& pos)
 	{
-		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent);
+		SpiteIR::Function* func = context.ir->AllocateFunction(funcContext.function->parent, pos);
 		BuildAnonFunctionName(func->name);
 		func->returnType = returnType;
 		func->block = context.ir->AllocateBlock(func);
@@ -3174,7 +3182,7 @@ struct LowerDefinitions
 	SpiteIR::Function* BuildCompileStmnt(Stmnt* stmnt)
 	{
 		SpiteIR::Function* compileFunc = BuildAnonBlockFunction(ToIRType(stmnt->compileStmnt.returnType),
-			stmnt->compileStmnt.body);
+			stmnt->compileStmnt.body, stmnt->start->pos);
 
 		return compileFunc;
 	}

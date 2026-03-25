@@ -6,13 +6,17 @@ project ("Spite_Lang")
 include(ExternalProject)
 include(FetchContent)
 
-set(INTERPRETER_EXTS OFF)
+set(INTERPRETER_EXTS ON)
 if (INTERPRETER_EXTS)
 	add_compile_definitions(_INTERPRETER_EXTS)
 endif()
 set(INCLUDE_LLVM OFF)
 if (INCLUDE_LLVM)
 	add_compile_definitions(_INCLUDE_LLVM)
+endif()
+set(NO_DEBUG OFF)
+if (NO_DEBUG)
+	add_compile_definitions(_NO_DEBUG)
 endif()
 
 set(CPACK_PACKAGE_NAME "Spite")
@@ -92,8 +96,7 @@ set(FILESOURCES "Src/Spite_Lang.cpp" "Src/Spite_Lang.h" "Src/Parsing/Parser.h" "
 "Src/IR/Interpreter/Decompiler.h" "Src/Checking/TypeInference.h" "Src/Syntax/ScopeUtils.h" 
 "Src/IR/Interpreter/ExternCall.h" "Src/IR/Interpreter/ExternCall.cpp" 
 "Src/Checking/ASTNodeChecker.h" "Src/IR/Interpreter/InterpreterUtils.h"
-"Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/InterpreterExtension.cpp"
-"Src/Containers/FixedRingBuffer.h" "Src/Containers/Array.h" "Src/IR/Interpreter/Debugger.h"
+"Src/Containers/FixedRingBuffer.h" "Src/Containers/Array.h"
 )
 
 if (INCLUDE_LLVM)
@@ -102,6 +105,16 @@ if (INCLUDE_LLVM)
 		${PROJECT_SOURCE_DIR}/Src/Output/LLVM/*.h 
 	)
 	set(FILESOURCES ${FILESOURCES} ${LLVM_SOURCES})
+endif()
+
+if (INTERPRETER_EXTS)
+	set(FILESOURCES ${FILESOURCES} 
+		"Src/IR/Interpreter/InterpreterExtension.h" "Src/IR/Interpreter/InterpreterExtension.cpp")
+endif()
+
+if (NOT NO_DEBUG)
+	set(FILESOURCES ${FILESOURCES} 
+		"Src/IR/Interpreter/Debugger.h" "Src/IR/Interpreter/Debugger.cpp")
 endif()
 
 # Add source to this project's executable.

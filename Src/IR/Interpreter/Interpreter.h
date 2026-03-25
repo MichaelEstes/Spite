@@ -2,13 +2,20 @@
 
 #include <filesystem>
 #include "EASTL/deque.h"
+
+#ifndef _NO_DEBUG
 #include "Debugger.h"
+#endif
+
 #include "ExternCall.h"
 #include "../IR.h"
 #include "../../Config/Config.h"
-#include "../../Utils/Utils.h"
 #include "InterpreterUtils.h"
+#include "../../Log/Logger.h"
+
+#ifdef _INTERPRETER_EXTS
 #include "InterpreterExtension.h"
+#endif
 
 extern std::filesystem::path workingDir;
 extern Config config;
@@ -17,14 +24,26 @@ inline volatile char* global = nullptr;
 
 struct Interpreter
 {
+	using PushCallStack = void(*)(SpiteIR::Function*, Interpreter*);
+	using PopCallStack = void(*)(Interpreter*);
+
 	volatile char* stack;
 	volatile char* stackFrameStart;
 	volatile char* stackFrameEnd;
 	DCCallVM* dcCallVM;
+
+#ifndef _NO_DEBUG
 	DebugInterface debug;
+	eastl::deque<SpiteIR::Function*> callStack;
+	PushCallStack PushCall;
+	PopCallStack PopCall;
+#endif
 
 	int threadID;
+
+#ifdef _INTERPRETER_EXTS
 	bool runningExtension;
+#endif
 
 	Interpreter(size_t stackSize)
 	{
@@ -34,15 +53,28 @@ struct Interpreter
 		dcCallVM = CreateDynCallVM();
 		threadID = CurrentThreadID();
 
+#ifndef _NO_DEBUG
 		if (config.debug)
 		{
-			EnsureGlobalDebugger(threadID);
 			debug = ActiveDebugInterface();
+			PushCall = [](SpiteIR::Function* function, Interpreter* interpreter) 
+			{
+				interpreter->callStack.push_front(function);
+			};
+			PopCall = [](Interpreter* interpreter)
+			{
+				interpreter->callStack.pop_front();
+			};
 		}
 		else
 		{
 			debug = InactiveDebugInterface();
+			PushCall = [](SpiteIR::Function* function, Interpreter* interpreter) {};
+			PopCall = [](Interpreter* interpreter) {};
 		}
+
+		debug.Enter(threadID, this);
+#endif
 
 		#ifdef _INTERPRETER_EXTS
 		RunInitExtensions(this);
@@ -51,6 +83,10 @@ struct Interpreter
 
 	~Interpreter()
 	{
+		#ifndef _NO_DEBUG
+		debug.Exit(threadID);
+		#endif
+
 		delete stack;
 		DestroyDynCallVM(dcCallVM);
 	}
@@ -116,7 +152,7 @@ struct Interpreter
 
 	void Initialize(SpiteIR::IR* ir, SpiteIR::Package* package)
 	{
-		delete global;
+		delete[] global;
 		global = new char[ir->globalSize];
 		
 		auto callInitializer = [](SpiteIR::Package* package, Interpreter& interpreter)
@@ -191,6 +227,10 @@ struct Interpreter
 		RunFunctionExtensions(func, params, this);
 		#endif
 
+		#ifndef _NO_DEBUG
+		PushCall(func, this);
+		#endif
+
 		volatile char* prevStackStart = stackFrameStart;
 		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
@@ -202,6 +242,10 @@ struct Interpreter
 		stackFrameStart = prevStackStart;
 		stackFrameEnd = prevStackEnd;
 
+		#ifndef _NO_DEBUG
+		PopCall(this);
+		#endif
+
 		return stackFrameStart;
 	}
 
@@ -209,6 +253,10 @@ struct Interpreter
 	{
 		#ifdef _INTERPRETER_EXTS
 		RunFunctionExtensions(func, &params, this);
+		#endif
+
+		#ifndef _NO_DEBUG
+		PushCall(func, this);
 		#endif
 
 		volatile char* prevStackStart = stackFrameStart;
@@ -228,7 +276,41 @@ struct Interpreter
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
 		stackFrameEnd = prevStackEnd;
+
+		#ifndef _NO_DEBUG
+		PopCall(this);
+		#endif
+
 		return (void*)stackFrameStart;
+	}
+
+	inline void InterpretExternCall(SpiteIR::Instruction& callInst)
+	{
+		InterpretExternFunction(callInst.call.function, callInst.call.result, callInst.call.params);
+	}
+
+	inline void InterpretExternFunction(SpiteIR::Function* func, size_t dst,
+		eastl::vector<SpiteIR::Operand>* params)
+	{
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExtensions(func, params, this);
+		#endif
+
+		#ifndef _NO_DEBUG
+		PushCall(func, this);
+		#endif
+
+		eastl::vector<void*> paramPtrs;
+		for (SpiteIR::Operand& param : *params)
+		{
+			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
+		}
+
+		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dcCallVM, this);
+
+		#ifndef _NO_DEBUG
+		PopCall(this);
+		#endif
 	}
 
 	inline void CopyValue(size_t src, SpiteIR::Type* type, volatile void* dst, volatile char* frame)
@@ -248,7 +330,9 @@ struct Interpreter
 		RunInstructionExtensions(inst, label, this);
 		#endif
 
+		#ifndef _NO_DEBUG
 		debug.SafePoint(threadID, inst);
+		#endif
 
 		switch (inst.kind)
 		{
@@ -633,9 +717,6 @@ struct Interpreter
 	template<typename Left = int>
 	inline void CastPrimitive(SpiteIR::Operand& from, SpiteIR::Operand& to)
 	{
-		Assert(from.kind == SpiteIR::OperandKind::Register);
-		Assert(to.kind == SpiteIR::OperandKind::Register);
-
 		switch (to.type->primitive.kind)
 		{
 		case SpiteIR::PrimitiveKind::Bool:
@@ -715,24 +796,6 @@ struct Interpreter
 		default:
 			break;
 		}
-	}
-
-	inline void InterpretExternCall(SpiteIR::Instruction& callInst)
-	{
-		InterpretExternFunction(callInst.call.function, callInst.call.result, callInst.call.params);
-	}
-
-	inline void InterpretExternFunction(SpiteIR::Function* func, size_t dst,
-		eastl::vector<SpiteIR::Operand>* params)
-	{
-		eastl::vector<void*> paramPtrs;
-		for (SpiteIR::Operand& param : *params)
-		{
-			Assert(param.kind == SpiteIR::OperandKind::Register);
-			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
-		}
-
-		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dcCallVM, this);
 	}
 
 	inline void InterpretCall(SpiteIR::Instruction& callInst)
@@ -1019,7 +1082,9 @@ struct Interpreter
 
 	inline void InterpretBreakpoint(SpiteIR::Instruction& breakpointInst)
 	{
+#ifndef _NO_DEBUG
 		Position& pos = breakpointInst.metadata->expressionPosition;
 		debug.Breakpoint(threadID, &pos);
+#endif
 	}
 };

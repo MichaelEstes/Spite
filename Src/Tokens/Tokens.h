@@ -205,7 +205,6 @@ struct Tokens
 		if (count == (size_t)-1) return false;
 		StringView val = StringView();
 		CreateToken(val, tokens[count].pos, TokenType::EndOfFile, UniqueType::UniqueUnknown);
-		//PrintTokens();
 		return true;
 	}
 

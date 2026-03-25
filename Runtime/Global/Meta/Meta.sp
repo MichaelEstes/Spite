@@ -364,7 +364,11 @@ state _ExternFunction
 state _Function
 {
 	parent: *_Package,
-	metadata: {externFunc: *_ExternFunction, flags: uint},
+	metadata: {
+		externFunc: *_ExternFunction, 
+		flags: uint,
+		position: *_Position
+	},
 
 	name: _Interop_String,
 	returnType: *_Type,

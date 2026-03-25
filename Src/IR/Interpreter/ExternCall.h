@@ -2,13 +2,10 @@
 
 #include <mutex>
 
-#include <mutex>
-
 #include "dyncall.h"
 #include "dynload.h"
 #include "dyncall_callback.h"
 #include "../IR.h"
-#include "../../Log/Logger.h"
 #include "InterpreterUtils.h"
 
 typedef void (*func_ptr)();

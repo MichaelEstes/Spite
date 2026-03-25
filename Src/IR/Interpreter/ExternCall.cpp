@@ -1,5 +1,6 @@
 #include "ExternCall.h"
 #include "Interpreter.h"
+#include "../../Log/Logger.h"
 
 static std::mutex libMutex;
 static eastl::hash_map<eastl::string, DLLib*> libCache = eastl::hash_map<eastl::string, DLLib*>();
@@ -346,7 +347,84 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 	return TypeToDCSigChar(returnType);
 }
 
-void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpreter* interpreter)
+void BuildDCAggrArgs(SpiteIR::Type* type, eastl::vector<DCaggr*>& createdAggrs, 
+					 size_t offset = 0, DCaggr* aggr = nullptr, size_t arrayLen = 1)
+{
+	switch (type->kind)
+	{
+	case SpiteIR::TypeKind::PrimitiveType:
+	{
+		switch (type->primitive.kind)
+		{
+		case SpiteIR::PrimitiveKind::Void:
+		case SpiteIR::PrimitiveKind::Bool:
+		case SpiteIR::PrimitiveKind::Byte:
+		case SpiteIR::PrimitiveKind::I16:
+		case SpiteIR::PrimitiveKind::I32:
+		case SpiteIR::PrimitiveKind::I64:
+		case SpiteIR::PrimitiveKind::Int:
+		case SpiteIR::PrimitiveKind::F32:
+		case SpiteIR::PrimitiveKind::Float:
+			dcAggrField(aggr, TypeToDCSigChar(type), offset, arrayLen);
+			return;
+		case SpiteIR::PrimitiveKind::String:
+			break;
+		}
+
+		break;
+	}
+	case SpiteIR::TypeKind::PointerType:
+		dcAggrField(aggr, TypeToDCSigChar(type), offset, arrayLen);
+		return;
+	case SpiteIR::TypeKind::FunctionType:
+	{
+		break;
+	}
+	case SpiteIR::TypeKind::StateType:
+	case SpiteIR::TypeKind::StructureType:
+	{
+		eastl::vector<SpiteIR::Member*>* members;
+		if (type->kind == SpiteIR::TypeKind::StateType)
+		{
+			members = &type->stateType.state->members;
+		}
+		else
+		{
+			members = type->structureType.members;
+		}
+													
+		size_t memberCount = members->size();
+		size_t valueSize = type->size;
+
+		DCaggr* aggr = dcNewAggr(memberCount, valueSize);
+		createdAggrs.push_back(aggr);
+
+		for (SpiteIR::Member* member : *members)
+		{
+			BuildDCAggrArgs(member->value.type, createdAggrs, member->offset, aggr);
+		}
+
+		dcCloseAggr(aggr);
+
+		return;
+	}
+	case SpiteIR::TypeKind::FixedArrayType:
+	{
+		BuildDCAggrArgs(type->fixedArray.type, createdAggrs, offset, aggr, 
+						arrayLen * type->fixedArray.count);
+		return;
+	}
+	case SpiteIR::TypeKind::DynamicArrayType:
+		break;
+	default:
+		break;
+	}
+
+	Logger::FatalError("ExternCall:BuildDCAggrArgs Unable to create aggregate arg for type");
+}
+
+void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, 
+				Interpreter* interpreter, eastl::vector<DCaggr*>& toFree)
 {
 	switch (type->kind)
 	{
@@ -403,6 +481,9 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpret
 	case SpiteIR::TypeKind::PointerType:
 		dcArgPointer(dynCallVM, *(void**)value);
 		return;
+	case SpiteIR::TypeKind::ReferenceType:
+		BuildDCArg(type->reference.type, *(void**)value, dynCallVM, interpreter, toFree);
+		return;
 	case SpiteIR::TypeKind::FunctionType:
 	{
 		eastl::string sig = "";
@@ -423,8 +504,13 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, Interpret
 	}
 	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::StructureType:
-	case SpiteIR::TypeKind::DynamicArrayType:
+	{
+		BuildDCAggrArgs(type, toFree);
+		dcArgAggr(dynCallVM, toFree[0], value);
+		return;
+	}
 	case SpiteIR::TypeKind::FixedArrayType:
+	case SpiteIR::TypeKind::DynamicArrayType:
 		break;
 	default:
 		break;
@@ -545,7 +631,7 @@ void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DCCallVM* dynCallVM)
 		break;
 	}
 
-	Logger::FatalError("ExternCall:CallDCFunc Invalid agument type passed in to external call");
+	Logger::FatalError("ExternCall:CallDCFunc Invalid argument or return type for external call");
 }
 
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst,
@@ -553,11 +639,12 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 {
 	dcReset(dynCallVM);
 
+	eastl::vector<DCaggr*> toFree;
 	for (size_t i = 0; i < params.size(); i++)
 	{
 		SpiteIR::Type* type = function->arguments.at(i)->value.type;
 		void* value = params.at(i);
-		BuildDCArg(type, value, dynCallVM, interpreter);
+		BuildDCArg(type, value, dynCallVM, interpreter, toFree);
 	}
 
 	eastl::string& name = function->metadata.externFunc->externName;
@@ -574,4 +661,8 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 	}
 
 	CallDCFunc(function->returnType, (void*)func, dst, dynCallVM);
+	for (DCaggr* aggr : toFree)
+	{
+		dcFreeAggr(aggr);
+	}
 }

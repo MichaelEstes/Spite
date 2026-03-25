@@ -14,6 +14,7 @@
 #endif
 
 #include "../IR.h"
+#include "../../Log/Logger.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -22,8 +23,8 @@
 #include <functional>
 #include <mutex>
 #include <thread>
-#include <vector>
 
+struct Interpreter;
 
 enum class DebugStopReason
 {
@@ -48,11 +49,15 @@ struct DebugBreakpoint
 
 struct DebugInterface
 {
+	using EnterFn = void(*)(int, Interpreter*);
 	using SafePointFn = void(*)(int, SpiteIR::Instruction& inst);
 	using BreakpointFn = void(*)(int, Position*);
+	using ExitFn = void(*)(int);
 
+	EnterFn Enter = nullptr;
 	SafePointFn SafePoint = nullptr;
 	BreakpointFn Breakpoint = nullptr;
+	ExitFn Exit = nullptr;
 };
 
 
@@ -186,6 +191,8 @@ struct DebugTcpServer
 {
 	std::thread serverThread;
 	Debugger* controller = nullptr;
+	SpiteIR::IR* ir = nullptr;
+	eastl::hash_map<int, Interpreter*> interpreterMap;
 	struct {
 		const eastl::string continueKey = "continue";
 		const eastl::string pauseKey = "pause";
@@ -193,8 +200,12 @@ struct DebugTcpServer
 		const eastl::string setBreakpointKey = "setbp";
 		const eastl::string clearBreakpointKey = "clearbp";
 		const eastl::string breakpointKey = "breakpoint";
+		const eastl::string stackTraceKey = "stacktrace";
+		const eastl::string endKey = "end";
 		const eastl::string stoppedKey = "stopped";
 		const eastl::string readyKey = "ready";
+		const eastl::string enterKey = "enter";
+		const eastl::string exitKey = "exit";
 		const eastl::string errorKey = "error";
 		const eastl::string ackKey = "ok";
 	} commandKeys;
@@ -207,10 +218,11 @@ struct DebugTcpServer
 	
 	std::atomic<bool> running = false;
 
-	void Start(Debugger* controller)
+	void Start(Debugger* controller, SpiteIR::IR* ir)
 	{
 		if (running.load(std::memory_order_acquire)) return;
 		this->controller = controller;
+		this->ir = ir;
 		running.store(true, std::memory_order_release);
 		serverThread = std::thread([this]() { Run(); });
 	}
@@ -231,31 +243,42 @@ struct DebugTcpServer
 		if (serverThread.joinable()) serverThread.join();
 	}
 
+	void PublishThreadEnter(int threadID, Interpreter* interpreter)
+	{
+		interpreterMap.emplace(threadID, interpreter);
+		eastl::string msg = commandKeys.enterKey + "|" + eastl::to_string(threadID) + "\n";
+		SendLine(msg);
+	}
+
+	eastl::string PositionToString(Position* pos)
+	{
+		return *pos->file + "|" +
+			eastl::to_string(pos->line) + "|" +
+			eastl::to_string(pos->columnOffset);
+	}
+
 	void PublishStopped(const DebugStoppedEvent& event)
 	{
 		eastl::string reason = commandKeys.pauseKey;
 		if (event.reason == DebugStopReason::Breakpoint) reason = commandKeys.breakpointKey;
 		else if (event.reason == DebugStopReason::Step) reason = commandKeys.stepKey;
 
-		eastl::string file = "";
-		size_t line = 0;
-		size_t col = 0;
-		if (event.position->file)
-		{
-			file = *event.position->file;
-			line = event.position->line;
-			col = event.position->columnOffset;
-		}
-
 		eastl::string msg = commandKeys.stoppedKey + "|" + reason + "|" +
 			eastl::to_string(event.threadID) + "|" +
-			eastl::string(file.c_str()) + "|" +
-			eastl::to_string(line) + "|" +
-			eastl::to_string(col) + +"\n";
+			PositionToString(event.position) + "\n";
 		SendLine(msg);
 	}
 
-	static eastl::vector<eastl::string> Split(const eastl::string& str, char ch)
+	void PublishThreadExit(int threadID)
+	{
+		interpreterMap.erase(threadID);
+		eastl::string msg = commandKeys.exitKey + "|" + eastl::to_string(threadID) + "\n";
+		SendLine(msg);
+	}
+
+	void PublishStacktrace(int threadID);
+
+	eastl::vector<eastl::string> Split(const eastl::string& str, char ch)
 	{
 		eastl::vector<eastl::string> parts;
 		eastl::string current;
@@ -274,6 +297,7 @@ struct DebugTcpServer
 
 	void HandleLine(const eastl::string& rawLine)
 	{
+		//Logger::Info("Received: " + rawLine);
 		eastl::string line = rawLine;
 		if (!line.empty() && line.back() == '\r') line.pop_back();
 		if (line.empty() || !controller) return;
@@ -295,7 +319,7 @@ struct DebugTcpServer
 			SendLine(ack);
 			return;
 		}
-		else if (key == commandKeys.setBreakpointKey && commandMsg.size() >= 4)
+		else if (key == commandKeys.setBreakpointKey && commandMsg.size() > 2)
 		{
 			DebugBreakpoint breakpoint = DebugBreakpoint();
 			breakpoint.file = eastl::string(commandMsg[1].c_str());
@@ -305,7 +329,7 @@ struct DebugTcpServer
 			SendLine(ack);
 			return;
 		}
-		else if (key == commandKeys.clearBreakpointKey && commandMsg.size() >= 2)
+		else if (key == commandKeys.clearBreakpointKey && commandMsg.size() > 2)
 		{
 			DebugBreakpoint breakpoint = DebugBreakpoint();
 			breakpoint.file = eastl::string(commandMsg[1].c_str());
@@ -313,6 +337,12 @@ struct DebugTcpServer
 			breakpoint.columnOffset = (size_t)std::strtoull(commandMsg[3].c_str(), nullptr, 10);
 			controller->RemoveBreakpoint(breakpoint);
 			SendLine(ack);
+			return;
+		}
+		else if (key == commandKeys.stackTraceKey && commandMsg.size() > 1)
+		{
+			int threadID = std::stoi(commandMsg[1].c_str());
+			PublishStacktrace(threadID);
 			return;
 		}
 
@@ -396,17 +426,19 @@ inline void DebugPublishStopped(const DebugStoppedEvent& event)
 	globalDebugTcpServer.PublishStopped(event);
 }
 
-inline void EnsureGlobalDebugger(int threadID)
+inline void EnsureGlobalDebugger(SpiteIR::IR* ir)
 {
 	if (!globalDebugger)
 	{
 		globalDebugger = new Debugger(&DebugPublishStopped);
-		globalDebugTcpServer.Start(globalDebugger);
+		globalDebugTcpServer.Start(globalDebugger, ir);
 	}
 }
 
+inline void DebugNoopEnter(int, Interpreter*) {}
 inline void DebugNoopSafePoint(int, SpiteIR::Instruction&) {}
 inline void DebugNoopBreakpoint(int, Position*) {}
+inline void DebugNoopExit(int) {}
 
 inline void DebugSafePoint(int threadID, SpiteIR::Instruction& inst)
 {
@@ -415,7 +447,6 @@ inline void DebugSafePoint(int threadID, SpiteIR::Instruction& inst)
 	Position* position = &inst.metadata->expressionPosition;
 	if (debugger->HasBreakpointAt(position))
 	{
-		Logger::Info("Pausing at breakpoint");
 		debugger->Pause(threadID, position, DebugStopReason::Breakpoint);
 		return;
 	}
@@ -430,18 +461,32 @@ inline void OnDebugBreakpoint(int threadID, Position* position)
 	debugger->Pause(threadID, position, DebugStopReason::Breakpoint);
 }
 
+inline void OnDebugEnter(int threadID, Interpreter* interpreter)
+{
+	globalDebugTcpServer.PublishThreadEnter(threadID, interpreter);
+}
+
+inline void OnDebugExit(int threadID)
+{
+	globalDebugTcpServer.PublishThreadExit(threadID);
+}
+
 inline DebugInterface InactiveDebugInterface()
 {
 	DebugInterface hooks;
+	hooks.Enter = &DebugNoopEnter;
 	hooks.SafePoint = &DebugNoopSafePoint;
 	hooks.Breakpoint = &DebugNoopBreakpoint;
+	hooks.Exit = &DebugNoopExit;
 	return hooks;
 }
 
 inline DebugInterface ActiveDebugInterface()
 {
 	DebugInterface hooks;
+	hooks.Enter = &OnDebugEnter;
 	hooks.SafePoint = &DebugSafePoint;
 	hooks.Breakpoint = &OnDebugBreakpoint;
+	hooks.Exit = &OnDebugExit;
 	return hooks;
 }

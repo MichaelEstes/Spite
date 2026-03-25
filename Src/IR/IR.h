@@ -494,6 +494,7 @@ namespace SpiteIR
 		{
 			ExternFunction* externFunc = nullptr;
 			size_t flags = 0;
+			Position* position;
 		} metadata;
 
 		string name;
@@ -576,14 +577,18 @@ namespace SpiteIR
 		Arena instructions;
 		size_t globalSize = 0;
 
+		#ifndef _NO_DEBUG
 		HashMap<Function*, DebugSymbolGraph*>* debugSymbolLookup = nullptr;
+		#endif
 
 		IR(size_t initialSize) : arena(initialSize * 256) 
 		{
+			#ifndef _NO_DEBUG
 			if (config.debug)
 			{
-				debugSymbolLookup = this->arena.EmplaceContainer<HashMap<Function*, DebugSymbolGraph*>>();
+			debugSymbolLookup = this->arena.EmplaceContainer<HashMap<Function*, DebugSymbolGraph*>>();
 			}
+			#endif
 		}
 
 		template<typename T>
@@ -645,10 +650,12 @@ namespace SpiteIR
 			return arena.Emplace<State>();
 		}
 
-		inline Function* AllocateFunction(Package* parent)
+		inline Function* AllocateFunction(Package* parent, const Position& position)
 		{
 			Function* func = arena.Emplace<Function>();
 			func->parent = parent;
+			func->metadata.position = AllocatePosition();
+			*func->metadata.position = position;
 			return func;
 		}
 
@@ -686,12 +693,7 @@ namespace SpiteIR
 
 		inline Type* AllocateType()
 		{
-			return arena.Emplace<Type>();
-		}
-
-		inline Operand* AllocateOperand()
-		{
-			return arena.Emplace<Operand>();
+			return instructions.Emplace<Type>();
 		}
 
 		inline Instruction* AllocateInstruction()
@@ -702,6 +704,11 @@ namespace SpiteIR
 		inline InstructionMetadata* AllocateInstructionMetadata()
 		{
 			return arena.Emplace<InstructionMetadata>();
+		}
+
+		inline Position* AllocatePosition()
+		{
+			return arena.Emplace<Position>();
 		}
 
 		inline DebugScope* AllocateDebugScope()
