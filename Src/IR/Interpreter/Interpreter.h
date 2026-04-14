@@ -30,7 +30,7 @@ struct Interpreter
 	volatile char* stack;
 	volatile char* stackFrameStart;
 	volatile char* stackFrameEnd;
-	DCCallVM* dcCallVM;
+	DynCall dynCall;
 
 #ifndef _NO_DEBUG
 	DebugInterface debug;
@@ -50,7 +50,7 @@ struct Interpreter
 		stack = new volatile char[stackSize];
 		stackFrameStart = stack;
 		stackFrameEnd = stack;
-		dcCallVM = CreateDynCallVM();
+		dynCall = CreateDynCallVM();
 		threadID = CurrentThreadID();
 
 #ifndef _NO_DEBUG
@@ -88,7 +88,7 @@ struct Interpreter
 		#endif
 
 		delete stack;
-		DestroyDynCallVM(dcCallVM);
+		DestroyDynCallVM(dynCall);
 	}
 
 	void SetGlobalBool(SpiteIR::Package* package, const eastl::string& name, bool value)
@@ -306,7 +306,7 @@ struct Interpreter
 			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
 		}
 
-		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dcCallVM, this);
+		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dynCall, this);
 
 		#ifndef _NO_DEBUG
 		PopCall(this);

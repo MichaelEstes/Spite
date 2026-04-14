@@ -269,14 +269,16 @@ int IsIRTypeAssignable(SpiteIR::Type* left, SpiteIR::Type* right)
 	}
 
 	if (left->kind == SpiteIR::TypeKind::PrimitiveType &&
-		right->kind == SpiteIR::TypeKind::PointerType)
+		(right->kind == SpiteIR::TypeKind::PointerType || 
+			right->kind == SpiteIR::TypeKind::FunctionType))
 	{
 		if (IsIntLikeType(left)) return 2;
 		return 0;
 	}
 
-	if (left->kind == SpiteIR::TypeKind::PointerType &&
-		right->kind == SpiteIR::TypeKind::PrimitiveType)
+	if ((right->kind == SpiteIR::TypeKind::PointerType ||
+		 right->kind == SpiteIR::TypeKind::FunctionType) &&
+			right->kind == SpiteIR::TypeKind::PrimitiveType)
 	{
 		if (IsIntLikeType(right)) return 2;
 		return 0;

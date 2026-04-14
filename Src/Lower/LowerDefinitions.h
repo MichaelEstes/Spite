@@ -4399,6 +4399,9 @@ struct LowerDefinitions
 		SpiteIR::Label* true_ = nullptr, SpiteIR::Label* false_ = nullptr)
 	{
 		Assert(!label->terminator);
+		Assert(test.type->kind == SpiteIR::TypeKind::PrimitiveType &&
+			   test.type->primitive.kind == SpiteIR::PrimitiveKind::Bool);
+
 		SpiteIR::Instruction* branch = CreateTerminator(label);
 		branch->kind = SpiteIR::InstructionKind::Branch;
 		branch->branch.test = test;

@@ -634,6 +634,15 @@ struct LowerDeclarations
 		context.globalVarASTMap[globalVar] = globalVarStmnt;
 	}
 
+	inline eastl::string GetLibExtForPlatform(eastl::string& platform)
+	{
+		if (platform == "windows") return ".dll";
+		else if (platform == "linux") return ".so";
+		else if (platform == "android") return ".so";
+		else if (platform == "mac") return ".dylib";
+		else if (platform == "ios") return ".dylib";
+	}
+
 	eastl::vector<SpiteIR::PlatformLib>* GetPlatformLibs(eastl::vector<Stmnt*>* links)
 	{
 		if (MapHas(linkMap, links)) return linkMap[links];
@@ -642,8 +651,13 @@ struct LowerDeclarations
 
 		for (Stmnt* link : *links)
 		{
-			platformLibs->push_back({ link->linkDecl.platform->val.ToString(),
-				link->linkDecl.lib->val.ToString() });
+			eastl::string platform = link->linkDecl.platform->val.ToString();
+			eastl::string lib = link->linkDecl.lib->val.ToString();
+
+			eastl::string libExt = GetLibExtForPlatform(platform);
+			if (lib.find(libExt) == eastl::string::npos) lib += libExt;
+
+			platformLibs->push_back({ platform, lib });
 		}
 
 		linkMap[links] = platformLibs;

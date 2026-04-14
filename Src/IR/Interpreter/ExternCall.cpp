@@ -2,54 +2,46 @@
 #include "Interpreter.h"
 #include "../../Log/Logger.h"
 
-static std::mutex libMutex;
-static eastl::hash_map<eastl::string, DLLib*> libCache = eastl::hash_map<eastl::string, DLLib*>();
-
-func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib)
+func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib, DynCall& dynCall)
 {
 	DLLib* dlLib = nullptr;
 
 	if (lib)
 	{
-		eastl::string libName = *lib;
-		if (libName.find(libExt) == eastl::string::npos) libName += libExt;
-		dlLib = dlLoadLibrary(libName.c_str());
-
-		/*libMutex.lock();
-		eastl::string libName = eastl::string(*lib);
-		if (MapHas(libCache, libName))
+		eastl::string& libName = *lib;
+		
+		eastl::hash_map<eastl::string, DLLib*>& libCache = dynCall.libCache;
+		if (MapHas(dynCall.libCache, libName))
 		{
 			dlLib = libCache.at(libName);
 		}
 		else
 		{
-			eastl::string fullName = libName;
-			if (libName.find(libExt) == eastl::string::npos) fullName += libExt;
-			dlLib = dlLoadLibrary(fullName.c_str());
+			dlLib = dlLoadLibrary(libName.c_str());
 			libCache.emplace(libName, dlLib);
 		}
-		libMutex.unlock();*/
 	}
 
 	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
-	//dlFreeLibrary(dlLib);
 	return func;
 }
 
-DCCallVM* CreateDynCallVM()
+DynCall CreateDynCallVM()
 {
+	DynCall dynCall;
 	DCCallVM* dynCallVM = dcNewCallVM(4096);
 	dcMode(dynCallVM, DC_CALL_C_DEFAULT);
-	return dynCallVM;
+	dynCall.dynCallVM = dynCallVM;
+	return dynCall;
 }
 
-void DestroyDynCallVM(DCCallVM* dynCallVM)
+void DestroyDynCallVM(DynCall& dynCall)
 {
-	//for (auto& [name, lib] : libCache)
-	//{
-	//	dlFreeLibrary(lib);
-	//}
-	dcFree(dynCallVM);
+	for (auto& [_, dlLib] : dynCall.libCache)
+	{
+		dlFreeLibrary(dlLib);
+	}
+	dcFree(dynCall.dynCallVM);
 }
 
 char TypeToDCSigChar(SpiteIR::Type* type)
@@ -347,7 +339,7 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 	return TypeToDCSigChar(returnType);
 }
 
-void BuildDCAggrArgs(SpiteIR::Type* type, eastl::vector<DCaggr*>& createdAggrs, 
+void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 					 size_t offset = 0, DCaggr* aggr = nullptr, size_t arrayLen = 1)
 {
 	switch (type->kind)
@@ -397,11 +389,11 @@ void BuildDCAggrArgs(SpiteIR::Type* type, eastl::vector<DCaggr*>& createdAggrs,
 		size_t valueSize = type->size;
 
 		DCaggr* aggr = dcNewAggr(memberCount, valueSize);
-		createdAggrs.push_back(aggr);
+		dyncall.dcaggrs.push_back(aggr);
 
 		for (SpiteIR::Member* member : *members)
 		{
-			BuildDCAggrArgs(member->value.type, createdAggrs, member->offset, aggr);
+			BuildDCAggrArgs(member->value.type, dyncall, member->offset, aggr);
 		}
 
 		dcCloseAggr(aggr);
@@ -410,7 +402,7 @@ void BuildDCAggrArgs(SpiteIR::Type* type, eastl::vector<DCaggr*>& createdAggrs,
 	}
 	case SpiteIR::TypeKind::FixedArrayType:
 	{
-		BuildDCAggrArgs(type->fixedArray.type, createdAggrs, offset, aggr, 
+		BuildDCAggrArgs(type->fixedArray.type, dyncall, offset, aggr,
 						arrayLen * type->fixedArray.count);
 		return;
 	}
@@ -423,9 +415,9 @@ void BuildDCAggrArgs(SpiteIR::Type* type, eastl::vector<DCaggr*>& createdAggrs,
 	Logger::FatalError("ExternCall:BuildDCAggrArgs Unable to create aggregate arg for type");
 }
 
-void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM, 
-				Interpreter* interpreter, eastl::vector<DCaggr*>& toFree)
+void BuildDCArg(SpiteIR::Type* type, void* value, DynCall& dyncall, Interpreter* interpreter)
 {
+	DCCallVM* dynCallVM = dyncall.dynCallVM;
 	switch (type->kind)
 	{
 	case SpiteIR::TypeKind::PrimitiveType:
@@ -482,7 +474,7 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM,
 		dcArgPointer(dynCallVM, *(void**)value);
 		return;
 	case SpiteIR::TypeKind::ReferenceType:
-		BuildDCArg(type->reference.type, *(void**)value, dynCallVM, interpreter, toFree);
+		BuildDCArg(type->reference.type, *(void**)value, dyncall, interpreter);
 		return;
 	case SpiteIR::TypeKind::FunctionType:
 	{
@@ -505,8 +497,8 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DCCallVM* dynCallVM,
 	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::StructureType:
 	{
-		BuildDCAggrArgs(type, toFree);
-		dcArgAggr(dynCallVM, toFree[0], value);
+		BuildDCAggrArgs(type, dyncall);
+		dcArgAggr(dynCallVM, dyncall.dcaggrs[0], value);
 		return;
 	}
 	case SpiteIR::TypeKind::FixedArrayType:
@@ -534,8 +526,9 @@ inline void CopyDCReturnValue(size_t size, const void* ptr, char* dst)
 	memcpy(dst, ptr, size);
 }
 
-void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DCCallVM* dynCallVM)
+void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DynCall& dyncall)
 {
+	DCCallVM* dynCallVM = dyncall.dynCallVM;
 	switch (type->kind)
 	{
 	case SpiteIR::TypeKind::PrimitiveType:
@@ -635,21 +628,21 @@ void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DCCallVM* dynCallVM)
 }
 
 void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst,
-	DCCallVM* dynCallVM, Interpreter* interpreter)
+	DynCall& dyncall, Interpreter* interpreter)
 {
+	DCCallVM* dynCallVM = dyncall.dynCallVM;
 	dcReset(dynCallVM);
 
-	eastl::vector<DCaggr*> toFree;
 	for (size_t i = 0; i < params.size(); i++)
 	{
 		SpiteIR::Type* type = function->arguments.at(i)->value.type;
 		void* value = params.at(i);
-		BuildDCArg(type, value, dynCallVM, interpreter, toFree);
+		BuildDCArg(type, value, dyncall, interpreter);
 	}
 
 	eastl::string& name = function->metadata.externFunc->externName;
 	eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
-	func_ptr func = FindDCFunction(name, lib);
+	func_ptr func = FindDCFunction(name, lib, dyncall);
 	if (!func)
 	{
 		if (lib)
@@ -660,9 +653,10 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 				name + "' for platform '" + platform + "'");
 	}
 
-	CallDCFunc(function->returnType, (void*)func, dst, dynCallVM);
-	for (DCaggr* aggr : toFree)
+	CallDCFunc(function->returnType, (void*)func, dst, dyncall);
+	for (DCaggr* aggr : dyncall.dcaggrs)
 	{
 		dcFreeAggr(aggr);
 	}
+	dyncall.dcaggrs.clear();
 }
