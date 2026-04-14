@@ -607,7 +607,7 @@ struct Interpreter
 				case SpiteIR::PrimitiveKind::Bool:
 				{
 					CastPrimitive<bool>(castInst.cast.from, castInst.cast.to);
-					break;
+					return;
 				}
 				case SpiteIR::PrimitiveKind::Byte:
 				case SpiteIR::PrimitiveKind::I16:
@@ -621,19 +621,19 @@ struct Interpreter
 						{
 						case 1:
 							CastPrimitive<char>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 2:
 							CastPrimitive<int16_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 4:
 							CastPrimitive<int32_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 8:
 							CastPrimitive<int64_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 16:
 							CastPrimitive<intmax_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						default:
 							break;
 						}
@@ -644,19 +644,19 @@ struct Interpreter
 						{
 						case 1:
 							CastPrimitive<uint8_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 2:
 							CastPrimitive<uint16_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 4:
 							CastPrimitive<uint32_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 8:
 							CastPrimitive<uint64_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						case 16:
 							CastPrimitive<uintmax_t>(castInst.cast.from, castInst.cast.to);
-							break;
+							return;
 						default:
 							break;
 						}
@@ -670,12 +670,12 @@ struct Interpreter
 					{
 					case 4:
 						CastPrimitive<float>(castInst.cast.from, castInst.cast.to);
-						break;
+						return;
 					case 8:
 						CastPrimitive<double>(castInst.cast.from, castInst.cast.to);
-						break;
+						return;
 					default:
-						break;
+						return;
 					}
 				}
 				default:
@@ -686,6 +686,7 @@ struct Interpreter
 						castInst.cast.to.type->kind == SpiteIR::TypeKind::FunctionType)
 			{
 				CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
+				return;
 			}
 			return;
 		}
