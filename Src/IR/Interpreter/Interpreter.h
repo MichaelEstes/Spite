@@ -26,6 +26,7 @@ struct Interpreter
 {
 	using PushCallStack = void(*)(SpiteIR::Function*, Interpreter*);
 	using PopCallStack = void(*)(Interpreter*);
+	using InterpretFuncPtr = volatile void* (Interpreter::*)(SpiteIR::Function*, size_t, eastl::vector<SpiteIR::Operand>*);
 
 	volatile char* stack;
 	volatile char* stackFrameStart;
@@ -42,7 +43,7 @@ struct Interpreter
 	int threadID;
 
 #ifdef _INTERPRETER_EXTS
-	bool runningExtension;
+	bool runningExtension = false;
 #endif
 
 	Interpreter(size_t stackSize)
@@ -289,7 +290,7 @@ struct Interpreter
 		InterpretExternFunction(callInst.call.function, callInst.call.result, callInst.call.params);
 	}
 
-	inline void InterpretExternFunction(SpiteIR::Function* func, size_t dst,
+	inline volatile void* InterpretExternFunction(SpiteIR::Function* func, size_t dst,
 		eastl::vector<SpiteIR::Operand>* params)
 	{
 		#ifdef _INTERPRETER_EXTS
@@ -300,17 +301,17 @@ struct Interpreter
 		PushCall(func, this);
 		#endif
 
-		eastl::vector<void*> paramPtrs;
-		for (SpiteIR::Operand& param : *params)
-		{
-			paramPtrs.push_back((void*)(stackFrameStart + param.reg));
-		}
-
-		CallExternalFunction(func, paramPtrs, (char*)(stackFrameStart + dst), dynCall, this);
+		CallExternalFunction(
+			func, params, 
+			(char*)stackFrameStart, (char*)(stackFrameStart + dst), 
+			dynCall, this
+		);
 
 		#ifndef _NO_DEBUG
 		PopCall(this);
 		#endif
+
+		return stackFrameStart;
 	}
 
 	inline void CopyValue(size_t src, SpiteIR::Type* type, volatile void* dst, volatile char* frame)
@@ -406,12 +407,10 @@ struct Interpreter
 		switch (inst.return_.operand.kind)
 		{
 		case SpiteIR::OperandKind::Register:
-			CopyValue(inst.return_.operand.reg, inst.return_.operand.type, stackFrameStart,
-				stackFrameStart);
-			break;
-		case SpiteIR::OperandKind::Literal:
-			break;
-		case SpiteIR::OperandKind::StructLiteral:
+			CopyValue(
+				inst.return_.operand.reg, inst.return_.operand.type, 
+				stackFrameStart, stackFrameStart
+			);
 			break;
 		default:
 			break;
@@ -425,10 +424,12 @@ struct Interpreter
 
 	inline void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
-		if (*(bool*)(stackFrameStart + branchInst.branch.test.reg))
-			label = branchInst.branch.true_;
-		else
-			label = branchInst.branch.false_;
+		SpiteIR::Label* labels[] = {
+			branchInst.branch.false_, branchInst.branch.true_
+		};
+
+		bool test = *(bool*)(stackFrameStart + branchInst.branch.test.reg);
+		label = labels[test];
 	}
 
 	inline void InterpretSwitch(SpiteIR::Instruction& switchInst, SpiteIR::Label*& label)
@@ -683,7 +684,7 @@ struct Interpreter
 				}
 			}
 			else if (castInst.cast.to.type->kind == SpiteIR::TypeKind::PointerType ||
-						castInst.cast.to.type->kind == SpiteIR::TypeKind::FunctionType)
+					 castInst.cast.to.type->kind == SpiteIR::TypeKind::FunctionType)
 			{
 				CopyRegValue(castInst.cast.from, castInst.cast.to, stackFrameStart);
 				return;
@@ -808,9 +809,13 @@ struct Interpreter
 	{
 		size_t reg = callPtrInst.callPtr.funcPtr.reg;
 		SpiteIR::Function* func = *(SpiteIR::Function**)(void*)(stackFrameStart + reg);
-		if (func->metadata.externFunc)
-			InterpretExternFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
-		else InterpretFunction(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
+
+		InterpretFuncPtr interpretFuncs[] = {
+			&Interpreter::InterpretFunction, &Interpreter::InterpretExternFunction
+		};
+
+		InterpretFuncPtr fn = interpretFuncs[((size_t)func->metadata.externFunc) > 0];
+		(this->*fn)(func, callPtrInst.callPtr.result, callPtrInst.callPtr.params);
 	}
 
 #define binaryBoolOpTypeMacro(left, right, result, op, lType, rType)		\

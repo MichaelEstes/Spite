@@ -571,8 +571,8 @@ namespace SpiteIR
 	struct IR
 	{
 		Array<Package*> packages;
-		Package* runtime;
-		Function* entry;
+		Package* runtime = nullptr;
+		Function* entry = nullptr;
 		Arena arena;
 		Arena instructions;
 		size_t globalSize = 0;
@@ -581,7 +581,7 @@ namespace SpiteIR
 		HashMap<Function*, DebugSymbolGraph*>* debugSymbolLookup = nullptr;
 		#endif
 
-		IR(size_t initialSize) : arena(initialSize * 256) 
+		IR(size_t initialSize) : arena(initialSize * 256), instructions(initialSize * 512)
 		{
 			#ifndef _NO_DEBUG
 			if (config.debug)

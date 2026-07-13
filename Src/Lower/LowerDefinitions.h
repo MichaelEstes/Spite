@@ -2604,8 +2604,8 @@ struct LowerDefinitions
 				to->primitive.kind != SpiteIR::PrimitiveKind::String;
 		}
 
-		return (IsIntLikeType(from) && to->kind == SpiteIR::TypeKind::PointerType) ||
-			(from->kind == SpiteIR::TypeKind::PointerType && IsIntLikeType(to));
+		return (IsIntLikeType(from) && IsPointerLikeType(to)) ||
+			(IsPointerLikeType(from) && IsIntLikeType(to));
 	}
 
 	ScopeValue CastValue(ScopeValue toCast, SpiteIR::Type* toType)
@@ -2613,12 +2613,12 @@ struct LowerDefinitions
 		if (RequiresTypeCast(toCast.type, toType))
 		{
 			toCast = BuildTypeDereference(GetCurrentLabel(), toCast);
-			if (toType->kind == SpiteIR::TypeKind::PointerType)
+			if (IsPointerLikeType(toType))
 			{
 				return IntToPointer(toCast, toType);
 			}
 
-			if (toCast.type->kind == SpiteIR::TypeKind::PointerType)
+			if (IsPointerLikeType(toCast.type))
 			{
 				toCast = PointerToInt(toCast);
 			}

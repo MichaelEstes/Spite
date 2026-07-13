@@ -4,7 +4,7 @@ state _Interop_Vector<T>
 {
 	begin: *T,
 	end: *T,
-	allocator: *void
+	allocated: *T
 }
 
 *T _Interop_Vector::operator::[](index: uint)
@@ -31,6 +31,29 @@ bool _Interop_Vector::next(it: Iterator)
 uint _Interop_Vector::Count()
 {
 	return (this.end - this.begin) as int / #sizeof T;
+}
+
+uint _Interop_Vector::Capacity()
+{
+	return (this.allocated - this.begin) as int / #sizeof T;
+}
+
+[]T _Interop_Vector::AsArray()
+{
+	arr := []T;
+	arr.count = this.Count();
+	arr.capacity = this.Capacity();
+	arr.memory = this.begin as Allocator<byte>;
+	arr.itemBytes = #sizeof T;
+
+	return arr;
+}
+
+_Interop_Vector::FromArray(arr: []T)
+{
+	this.begin = arr.memory[0];
+	this.end = this.begin + (arr.count * #sizeof T);
+	this.allocated = this.begin + (arr.capacity * #sizeof T);
 }
 
 string _Interop_Vector::log() => "Interop Vector";

@@ -184,3 +184,8 @@ bool DefaultEqual<Type>(left: Type, right: Type)
 	type := #typeof Type;
 	return _EqualType(left@ as *byte, right@ as *byte, type);
 }
+
+bool IsWhiteSpace(char: byte)
+{
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r';
+}

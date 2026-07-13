@@ -2,6 +2,7 @@ package _
 
 state StringView 
 {
+	[value]
 	count: uint,
 	view: *byte
 }
@@ -91,4 +92,18 @@ bool StringView::StartsWith(str: string)
 	}
 
 	return true;
+}
+
+StringView::RemovePrecedingWhiteSpace()
+{
+	while (IsWhiteSpace(this.view~) && this.count)
+	{
+		this.view += 1;
+		this.count -= 1;
+	}
+}
+
+string StringView::AsString()
+{
+	return this as string;
 }

@@ -42,3 +42,10 @@ string _Type::StateName() =>
 	return this.type.stateType.name.ToString();
 }
 
+string GetFunctionName(func: *void)
+{
+	//if (!interpreted) return string();
+
+	f := func as *_Function;
+	return f.name.ToString();
+}

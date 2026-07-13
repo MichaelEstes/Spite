@@ -14,6 +14,11 @@ extern
 	float64 atan2(y: float64, x: float64);
 	float64 asin(val: float64);
 
+	float64 "log"(val: float64) as _logfn;
+	float32 logf(val: float32);
+	float64 log10(val: float64);
+	float32 log10f(val: float32);
+
 	int32 abs(val: int32);
 	int64 llabs(val: int64);
 	float64 fabs(val: float64);
@@ -43,6 +48,14 @@ float Atan2(y: float, x: float) => atan2(y, x);
 float Asin(val: float) => asin(val);
 
 float Deg2Rad(deg: float) => deg * Pi / 180.0;
+
+float64 Log(val: float64) => _logfn(val);
+
+float64 Log10(val: float64) => log10(val);
+
+float32 Logf(val: float32) => logf(val);
+
+float32 Log10f(val: float32) => log10f(val);
 
 int Min(l: int, r: int) => 
 {

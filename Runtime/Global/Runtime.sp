@@ -1,4 +1,4 @@
-package _
+ package _
 
 extern
 {
@@ -123,7 +123,7 @@ string IntToString(i: int)
 
 string UIntToString(i: uint)
 {
-	if (i == 0) return "0";
+	if (i == 0) return string("0").Copy();
 	
 	maxCount := 22;
 	buf := [maxCount]byte;

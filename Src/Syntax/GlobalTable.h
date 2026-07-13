@@ -5,19 +5,15 @@ struct GlobalTable
 {
 	eastl::hash_map<StringView, SymbolTable*, StringViewHash> packageToSymbolTable;
 	eastl::hash_map<const eastl::string*, Token*> fileToPackage;
-	SymbolTable* runtimeTable;
-	SymbolTable* entryTable;
-	StateSymbol* arraySymbol;
-	StateSymbol* stringSymbol;
-	Stmnt* entryFunc;
+	eastl::hash_map<SymbolTable*, bool> checkedLookup;
+	SymbolTable* runtimeTable = nullptr;
+	SymbolTable* entryTable = nullptr;
+	StateSymbol* arraySymbol = nullptr;
+	StateSymbol* stringSymbol = nullptr;
+	Stmnt* entryFunc = nullptr;
 
 	StringView runtimePackage = StringView("_");
 	eastl::vector<SymbolTable*> merged;
-
-	GlobalTable()
-	{
-
-	}
 
 	~GlobalTable()
 	{
@@ -75,7 +71,9 @@ struct GlobalTable
 			merged.push_back(symbolTable);
 		}
 
+		SymbolTable* current = packageToSymbolTable[package];
 		fileToPackage[file] = symbolTable->package;
+		checkedLookup[current] = false;
 	}
 
 	void SetRuntimeTable()

@@ -1,8 +1,68 @@
 package OS
 
+extern
+{
+    #link windows "kernel32";
+
+    *void FindFirstFileA(lpFileName: *byte, lpFindFileData: *Win32FindData);
+    bool FindNextFileA(hFindFile: *void, lpFindFileData: *Win32FindData);
+    bool FindClose(hFindFile: *void);
+}
+
+extern
+{
+    #link linux "libc";
+
+    *void opendir(name: *byte);
+    *LinuxDirent readdir(dirp: *void);
+    int32 closedir(dirp: *void);
+}
+
+state Win32FileTime
+{
+    lowDateTime: uint32,
+    highDateTime: uint32,
+}
+
+state Win32FindData
+{
+    fileAttributes: uint32,
+    creationTime: Win32FileTime,
+    lastAccessTime: Win32FileTime,
+    lastWriteTime: Win32FileTime,
+    fileSizeHigh: uint32,
+    fileSizeLow: uint32,
+    reserved0: uint32,
+    reserved1: uint32,
+    fileName: [260]byte,
+    alternateFileName: [14]byte,
+    fileType: uint32,
+    creatorType: uint32,
+    finderFlags: uint16,
+}
+
+state LinuxDirent
+{
+    inode: uint64,
+    offset: int64,
+    recordLength: uint16,
+    fileType: byte,
+    name: [256]byte,
+}
+
 pathSeparator := #compile byte {
     if (targetOs == OS_Kind.Windows) return '\\';
     return '/';
+}
+
+win32FileAttributeDirectory := uint32(0x10);
+linuxDirentRegularFile := byte(8);
+
+bool IsCurrentOrParentDirectory(name: string)
+{
+    if (name == ".") return true;
+    if (name == "..") return true;
+    return false;
 }
 
 string NormalizePath(path: string)
@@ -114,4 +174,77 @@ string GetFileName(path: string)
     startPtr := normalized[lastSep + 1];
     count := normalized.count - (lastSep + 1);
     return string(count, startPtr);
+}
+
+[]string GetFilesInDirectoryWindows(path: string)
+{
+    files := []string;
+
+    absPath := GetAbsolutePath(path);
+    defer delete absPath;
+
+    searchPath := JoinPaths([absPath, "*"]);
+    defer delete searchPath;
+
+    findData := Win32FindData();
+    handle := FindFirstFileA(searchPath[0], findData@);
+    if ((handle as int) == -1) return files;
+    defer FindClose(handle);
+
+    hasNext := true;
+    while (hasNext)
+    {
+        name := string(fixed findData.fileName);
+        if (!IsCurrentOrParentDirectory(name))
+        {
+            if (!(findData.fileAttributes & win32FileAttributeDirectory))
+            {
+                files.Add(name.Copy());
+            }
+        }
+
+        hasNext = FindNextFileA(handle, findData@);
+    }
+
+    return files;
+}
+
+[]string GetFilesInDirectoryLinux(path: string)
+{
+    files := []string;
+
+    absPath := GetAbsolutePath(path);
+    defer delete absPath;
+
+    dir := opendir(absPath[0]);
+    if (!dir) return files;
+    defer closedir(dir);
+
+    entry := readdir(dir);
+    while (entry)
+    {
+        name := string(fixed entry.name);
+        if (!IsCurrentOrParentDirectory(name))
+        {
+            if (entry.fileType == linuxDirentRegularFile)
+            {
+                files.Add(name.Copy);
+            }
+        }
+
+        entry = readdir(dir);
+    }
+
+    return files;
+}
+
+[]string GetFilesInDirectory(path: string)
+{
+    getFiles := #compile ::[]string(string)
+    {
+        if (targetOs == OS_Kind.Windows) return GetFilesInDirectoryWindows;
+        else return GetFilesInDirectoryLinux;
+    }
+
+    return getFiles(path);
 }

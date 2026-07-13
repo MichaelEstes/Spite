@@ -339,7 +339,7 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 	return TypeToDCSigChar(returnType);
 }
 
-void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
+DCaggr* BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 					 size_t offset = 0, DCaggr* aggr = nullptr, size_t arrayLen = 1)
 {
 	switch (type->kind)
@@ -358,7 +358,7 @@ void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 		case SpiteIR::PrimitiveKind::F32:
 		case SpiteIR::PrimitiveKind::Float:
 			dcAggrField(aggr, TypeToDCSigChar(type), offset, arrayLen);
-			return;
+			return aggr;
 		case SpiteIR::PrimitiveKind::String:
 			break;
 		}
@@ -367,7 +367,7 @@ void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 	}
 	case SpiteIR::TypeKind::PointerType:
 		dcAggrField(aggr, TypeToDCSigChar(type), offset, arrayLen);
-		return;
+		return aggr;
 	case SpiteIR::TypeKind::FunctionType:
 	{
 		break;
@@ -398,13 +398,12 @@ void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 
 		dcCloseAggr(aggr);
 
-		return;
+		return aggr;
 	}
 	case SpiteIR::TypeKind::FixedArrayType:
 	{
-		BuildDCAggrArgs(type->fixedArray.type, dyncall, offset, aggr,
+		return BuildDCAggrArgs(type->fixedArray.type, dyncall, offset, aggr,
 						arrayLen * type->fixedArray.count);
-		return;
 	}
 	case SpiteIR::TypeKind::DynamicArrayType:
 		break;
@@ -413,6 +412,7 @@ void BuildDCAggrArgs(SpiteIR::Type* type, DynCall& dyncall,
 	}
 
 	Logger::FatalError("ExternCall:BuildDCAggrArgs Unable to create aggregate arg for type");
+	return nullptr;
 }
 
 void BuildDCArg(SpiteIR::Type* type, void* value, DynCall& dyncall, Interpreter* interpreter)
@@ -497,8 +497,8 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DynCall& dyncall, Interpreter*
 	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::StructureType:
 	{
-		BuildDCAggrArgs(type, dyncall);
-		dcArgAggr(dynCallVM, dyncall.dcaggrs[0], value);
+		DCaggr* aggr = BuildDCAggrArgs(type, dyncall);
+		dcArgAggr(dynCallVM, aggr, value);
 		return;
 	}
 	case SpiteIR::TypeKind::FixedArrayType:
@@ -614,9 +614,14 @@ void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DynCall& dyncall)
 		CopyDCReturnValue(type->size, &ret, dst);
 		return;
 	}
-	case SpiteIR::TypeKind::FunctionType:
 	case SpiteIR::TypeKind::StructureType:
 	case SpiteIR::TypeKind::StateType:
+	{
+		DCaggr* aggr = BuildDCAggrArgs(type, dyncall);
+		void* ret = dcCallAggr(dynCallVM, func, aggr, dst);
+		return;
+	}
+	case SpiteIR::TypeKind::FunctionType:
 	case SpiteIR::TypeKind::DynamicArrayType:
 	case SpiteIR::TypeKind::FixedArrayType:
 		break;
@@ -627,16 +632,16 @@ void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DynCall& dyncall)
 	Logger::FatalError("ExternCall:CallDCFunc Invalid argument or return type for external call");
 }
 
-void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst,
-	DynCall& dyncall, Interpreter* interpreter)
+void CallExternalFunction(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params,
+	                     char* stackFrame, char* dst, DynCall& dyncall, Interpreter* interpreter)
 {
 	DCCallVM* dynCallVM = dyncall.dynCallVM;
 	dcReset(dynCallVM);
 
-	for (size_t i = 0; i < params.size(); i++)
+	for (size_t i = 0; i < params->size(); i++)
 	{
 		SpiteIR::Type* type = function->arguments.at(i)->value.type;
-		void* value = params.at(i);
+		void* value = (void*)(stackFrame + params->at(i).reg);
 		BuildDCArg(type, value, dyncall, interpreter);
 	}
 
@@ -647,7 +652,7 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& par
 	{
 		if (lib)
 			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-				name + "' for platform '" + platform + "' in lib '" + *lib + libExt + "'");
+				name + "' for platform '" + platform + "' in lib '" + *lib + "'");
 		else
 			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
 				name + "' for platform '" + platform + "'");

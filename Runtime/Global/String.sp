@@ -1,5 +1,7 @@
 package _
 
+import Math
+
 state _string 
 {
 	[value]
@@ -21,6 +23,15 @@ _string::(count: uint, mem: *byte)
 {
 	this.count = count;
 	this.mem = mem;
+}
+
+_string::(c_str: *byte)
+{
+	this.mem = c_str;
+
+	count := 0;
+    while (this.mem[count]~) count += 1;
+	this.count = count;
 }
 
 *byte _string::operator::[](index: uint)
@@ -61,11 +72,14 @@ bool _string::operator::!()
 
 *byte _string::Last()
 {
+	if (!this.count) return null;
+
 	return this[this.count - 1];
 }
 
 string _string::Append(toAppend: string)
 {
+	if (!toAppend.count) return this;
 	totalCount := this.count + toAppend.count;
 	buffer := ZeroedAllocator<byte>().Alloc(totalCount + 1)[0];
 
@@ -80,6 +94,7 @@ string _string::Append(toAppend: string)
 
 _string::AppendIn(toAppend: string)
 {
+	if (!toAppend.count) return;
 	appended := this.Append(toAppend);
 	delete this;
 	this = appended;
@@ -107,6 +122,26 @@ bool _string::StartsWith(str: string)
 	return true;
 }
 
+[Size]byte _string::ToFixed<Size>()
+{
+	ret := [Size]byte;
+	zero_out_bytes(fixed ret, Size);
+	count := Math.Min(Size, this.count);
+	for (i .. count)
+	{
+		ret[i] = this[i]~;
+	}
+
+	return ret;
+}
+
+StringLineIterator _string::Lines()
+{
+	iter := StringLineIterator();
+	iter.str = this;
+	return iter;
+}
+
 string _string::Copy()
 {
 	buffer := ZeroedAllocator<byte>().Alloc(this.count + 1)[0];
@@ -115,4 +150,36 @@ string _string::Copy()
 		buffer[i]~ = this[i]~;
 
 	return string(this.count, buffer);
+}
+
+state StringLineIterator
+{
+	str: string
+}
+
+Iterator StringLineIterator::operator::in()
+{
+	return {this.str[0], 0};
+}
+
+bool StringLineIterator::next(it: Iterator)
+{
+	start := it.current as *byte;
+	end := this.str.Last()
+
+	curr := start;
+	while (curr~ != '\n' && curr != end)
+	{
+		curr += 1;
+	}
+	if (curr != end) curr += 1;
+
+	it.current = curr;
+	it.index = (curr - start) as int;
+	return curr != end;
+}
+
+StringView StringLineIterator::current(it: Iterator)
+{
+	return StringView(it.index as uint, (it.current - it.index) as *byte);
 }

@@ -32,5 +32,5 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 void BuildDCArg(SpiteIR::Type* type, void* value, DynCall& dyncall, Interpreter* interpreter);
 eastl::string* FindLibForPlatform(eastl::vector<SpiteIR::PlatformLib>* platformToLib);
 void CallDCFunc(SpiteIR::Type* type, void* func, char* dst, DynCall& dyncall);
-void CallExternalFunction(SpiteIR::Function* function, eastl::vector<void*>& params, char* dst,
-	DynCall& dyncall, Interpreter* interpreter);
+void CallExternalFunction(SpiteIR::Function* function, eastl::vector<SpiteIR::Operand>* params, 
+						  char* stackFrame, char* dst, DynCall& dyncall, Interpreter* interpreter);

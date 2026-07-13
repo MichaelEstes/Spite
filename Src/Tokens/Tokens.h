@@ -479,6 +479,8 @@ struct Tokens
 				return '\b';
 			case 'a':
 				return '\a';
+			case 'r':
+				return '\r';
 			case '\\':
 				return '\\';
 			case '0':
