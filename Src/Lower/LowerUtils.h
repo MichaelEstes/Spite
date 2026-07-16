@@ -36,6 +36,21 @@ SpiteIR::State* GetStateForType(SpiteIR::Type* type)
 	return nullptr;
 }
 
+eastl::vector<SpiteIR::Member*>* GetMembersForType(SpiteIR::Type* type)
+{
+	SpiteIR::State* state = GetStateForType(type);
+	if (state)
+	{
+		return &state->members;
+	}
+	else if (type->kind == SpiteIR::TypeKind::StructureType)
+	{
+		return type->structureType.members;
+	}
+
+	return nullptr;
+}
+
 eastl::vector<SpiteIR::Type*> GetStateTypes(SpiteIR::State* state)
 {
 	eastl::vector<SpiteIR::Type*> types;

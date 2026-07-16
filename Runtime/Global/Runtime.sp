@@ -2,13 +2,6 @@
 
 extern
 {
-	#link windows "kernel32";
-
-	void GetModuleFileNameW(hModule: *void, lpFilename: *int16, nSize: int32);
-}
-
-extern
-{
 	#link linux "libc";
 	#link windows "msvcrt";
 

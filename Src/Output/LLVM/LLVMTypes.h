@@ -89,7 +89,7 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 					else return llvm::Type::getVoidTy(context);
 				}
 				case SpiteIR::PrimitiveKind::Bool:
-					return llvm::Type::getInt1Ty(context);
+					return llvm::Type::getInt8Ty(context);
 				case SpiteIR::PrimitiveKind::Byte:
 				case SpiteIR::PrimitiveKind::I16:
 				case SpiteIR::PrimitiveKind::I32:
@@ -110,9 +110,10 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 			return StateToLLVMType(type->stateType.state, context);
 		case SpiteIR::TypeKind::StructureType:
 		{
-			llvm::StructType* structType = llvm::StructType::create(context);
-			CreateStructType(structType, *type->structureType.members, context);
-			return structType;
+			std::vector<llvm::Type*> memberTypes;
+			for (SpiteIR::Member* member : *type->structureType.members)
+				memberTypes.push_back(ToLLVMType(member->value.type, context));
+			return llvm::StructType::get(context, memberTypes);
 		}
 		case SpiteIR::TypeKind::PointerType:
 			return llvm::PointerType::get(ToLLVMType(type->pointer.type, context, true), 0);
@@ -127,7 +128,16 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 			return llvm::PointerType::get(FunctionTypeToLLVMType(type, context), 0);
 		}
 		case SpiteIR::TypeKind::UnionType:
+		{
+			size_t alignment = type->alignment ? type->alignment : 1;
+			if (type->size % alignment == 0)
+			{
+				return llvm::ArrayType::get(
+					llvm::IntegerType::get(context, alignment * 8),
+					type->size / alignment);
+			}
 			return llvm::ArrayType::get(llvm::Type::getInt8Ty(context), type->size);
+		}
 	default:
 		break;
 	}

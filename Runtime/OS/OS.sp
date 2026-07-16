@@ -1,17 +1,23 @@
 package OS
 
+extern
+{
+	#link windows "kernel32";
+
+	void GetModuleFileNameA(hModule: *void, lpFilename: *byte, nSize: int32);
+}
+
 string GetExecDirWindows()
 {
-	path := [260]int16;
-	GetModuleFileNameW(null, fixed path, 260);
+	path := [260]byte;
+	GetModuleFileNameA(null, fixed path, 260);
 
 	for (i .. 260)
 		if(!path[i]) break;
 
-	byteCount := i * #sizeof int16;
-	buf := alloc(byteCount);
-	copy_bytes(buf, fixed path, byteCount);
-	pathStr := string(byteCount, buf);
+	buf := alloc(i);
+	copy_bytes(buf, fixed path, i);
+	pathStr := string(i, buf);
 
 	return pathStr.PrecedingLast('\\');
 }

@@ -141,18 +141,18 @@ SpiteIR::Operand DCArgToOperand(DCArgs* args, SpiteIR::Type* type)
 				return operand;
 			case 2:
 				operand.literal.kind = SpiteIR::PrimitiveKind::I16;
-				operand.literal.byteLiteral = type->primitive.isSigned ?
+				operand.literal.i16Literal = type->primitive.isSigned ?
 					dcbArgShort(args) : dcbArgUShort(args);
 				return operand;
 			case 4:
 				operand.literal.kind = SpiteIR::PrimitiveKind::I32;
-				operand.literal.byteLiteral = type->primitive.isSigned ?
+				operand.literal.i32Literal = type->primitive.isSigned ?
 					dcbArgInt(args) : dcbArgUInt(args);
 				return operand;
 			case 8:
 			case 16:
 				operand.literal.kind = SpiteIR::PrimitiveKind::I64;
-				operand.literal.byteLiteral = type->primitive.isSigned ?
+				operand.literal.intLiteral = type->primitive.isSigned ?
 					dcbArgLongLong(args) : dcbArgULongLong(args);
 				return operand;
 			default:
@@ -165,11 +165,11 @@ SpiteIR::Operand DCArgToOperand(DCArgs* args, SpiteIR::Type* type)
 			{
 			case 4:
 				operand.literal.kind = SpiteIR::PrimitiveKind::F32;
-				operand.literal.byteLiteral = dcbArgFloat(args);
+				operand.literal.f32Literal = dcbArgFloat(args);
 				return operand;
 			case 8:
 				operand.literal.kind = SpiteIR::PrimitiveKind::Float;
-				operand.literal.byteLiteral = dcbArgDouble(args);
+				operand.literal.floatLiteral = dcbArgDouble(args);
 				return operand;
 			default:
 				break;

@@ -154,7 +154,7 @@ struct Interpreter
 	void Initialize(SpiteIR::IR* ir, SpiteIR::Package* package)
 	{
 		delete[] global;
-		global = new char[ir->globalSize];
+		global = new char[ir->globalSize] {};
 		
 		auto callInitializer = [](SpiteIR::Package* package, Interpreter& interpreter)
 		{
@@ -202,11 +202,14 @@ struct Interpreter
 		InterpretLabel(entry);
 	}
 
-	inline void InterpretAllocations(eastl::vector<SpiteIR::Allocate>& allocInsts)
+	inline void InterpretAllocations(eastl::vector<SpiteIR::Allocate>& allocInsts, SpiteIR::Function* func)
 	{
 		size_t amount = 0;
+		size_t paramsOffset = 0;
+		for (SpiteIR::Argument* arg : func->arguments) paramsOffset += arg->value.type->size;
 		for (SpiteIR::Allocate& alloc : allocInsts) amount += alloc.type->size;
 		stackFrameEnd = stackFrameStart + amount;
+		memset((void*)(stackFrameStart + paramsOffset), 0, (stackFrameEnd - stackFrameStart) - paramsOffset);
 	}
 
 	inline void MoveParams(eastl::vector<SpiteIR::Operand>* params,
@@ -235,9 +238,9 @@ struct Interpreter
 		volatile char* prevStackStart = stackFrameStart;
 		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
-		InterpretAllocations(func->block->allocations);
 
 		if (params) MoveParams(params, func->arguments, (char*)prevStackStart);
+		InterpretAllocations(func->block->allocations, func);
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;
@@ -263,7 +266,6 @@ struct Interpreter
 		volatile char* prevStackStart = stackFrameStart;
 		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameEnd;
-		InterpretAllocations(func->block->allocations);
 
 		size_t offset = 0;
 		for (size_t i = 0; i < params.size(); i++)
@@ -273,6 +275,7 @@ struct Interpreter
 			StoreOperand(param, stackFrameStart + offset);
 			offset += param.type->size;
 		}
+		InterpretAllocations(func->block->allocations, func);
 
 		InterpretBlock(func->block);
 		stackFrameStart = prevStackStart;

@@ -4,6 +4,8 @@
 
 #include "./LLVMContext.h"
 
+extern std::filesystem::path workingDir;
+
 struct LLVMCompile
 {
 	LLVMContext& llvmContext;
@@ -39,6 +41,7 @@ struct LLVMCompile
 		std::string cpu = "generic";
 		std::string features = "";
 		llvm::TargetOptions opt;
+		opt.EnableFastISel = true;
 		targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
 		module.setDataLayout(targetMachine->createDataLayout());
 		
@@ -158,7 +161,7 @@ struct LLVMCompile
 	{
 		std::string outputName(config.name.c_str());
 		std::string outputFileName = outputName + GetDestExt();
-		std::filesystem::path output = std::filesystem::current_path() / "Build" / outputFileName;
+		std::filesystem::path output = workingDir / "Build" / outputFileName;
 
 		std::string directory = output.parent_path().string();
 		if (!directory.empty()) 

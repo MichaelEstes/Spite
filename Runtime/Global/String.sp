@@ -103,10 +103,10 @@ _string::AppendIn(toAppend: string)
 string _string::PrecedingLast(char: byte)
 {
 	view := string(this);
-	while(view.count > 1 && view[view.count]~ != char)
+	while(view.count > 0 && view[view.count - 1]~ != char)
 		view.count -= 1;
-	
-	view.count -= 1;
+
+	if (view.count > 0) view.count -= 1;
 	return view;
 }
 
@@ -159,7 +159,7 @@ state StringLineIterator
 
 Iterator StringLineIterator::operator::in()
 {
-	return {this.str[0], 0};
+	return Iterator:{this.str[0], 0};
 }
 
 bool StringLineIterator::next(it: Iterator)

@@ -45,15 +45,22 @@ struct LLVMBuilder
 
 		Logger::Debug("LLVMBuilder: Built entry point");
 
+
+		/*for (const llvm::Function& function : module)
+		{
+			if (llvm::verifyFunction(function, &llvm::errs())) {
+				auto name = function.getName();
+				llvm::errs() << "Error: Function IR is invalid!\n";
+			}
+		}*/
+
 		if (llvm::verifyModule(module, &llvm::errs()))
 		{
 			llvm::errs() << "Module verification failed!\n";
 			return;
 		}
-		Logger::Debug("LLVMBuilder: Verified module");
+		Logger::Info("LLVMBuilder: Verified module");
 
-		LLVMOptimize(llvmContext).Optimize();
-		Logger::Debug("LLVMBuilder: Optimized module");
 
 		if (config.output == Ir)
 		{
@@ -64,8 +71,11 @@ struct LLVMBuilder
 			return;
 		}
 
+		Logger::Info("LLVMBuilder: Optimized module");
+		LLVMOptimize(llvmContext).Optimize();
+
 		if (compiler.Compile())
-			Logger::Debug("LLVMBuilder: Compiled module");
+			Logger::Info("LLVMBuilder: Compiled module");
 	}
 
 	void BuildPackageDeclarations(SpiteIR::Package* package)
@@ -98,6 +108,8 @@ struct LLVMBuilder
 
 	void BuildGlobalVariable(SpiteIR::GlobalVariable* globalVar)
 	{
+		if (!globalVar->type->size) return;
+
 		llvm::Type* type = ToLLVMType(globalVar->type, context);
 		llvm::GlobalVariable* llvmGlobalVar = new llvm::GlobalVariable(
 			module,
@@ -161,7 +173,7 @@ struct LLVMBuilder
 		{
 			if (!ExternFunctionIsForTarget(function->metadata.externFunc->libs)) return;
 
-			eastl::string& funcName = function->name;
+			eastl::string& funcName = function->metadata.externFunc->externName;
 			if (MapHas(llvmContext.externalFunctionMap, funcName))
 			{
 				Logger::Warning("LLVMBuilder:BuildFunctionDeclaration multiple external functions with the name \""
@@ -223,10 +235,14 @@ struct LLVMBuilder
 			llvmContext.labelMap[label] = CreateBasicBlock(llvmFunc, label);
 		}
 
+		size_t paramsOffset = 0;
+		for (SpiteIR::Argument* argument : function->arguments)
+			paramsOffset += argument->value.type->size;
+
 		for (size_t i = 0; i < block->allocations.size(); i++)
 		{
 			SpiteIR::Allocate& alloc = block->allocations.at(i);
-			BuildAllocate(alloc);
+			BuildAllocate(alloc, paramsOffset);
 		}
 
 		size_t reg = 0;
@@ -248,14 +264,27 @@ struct LLVMBuilder
 		}
 	}
 
-	void BuildAllocate(SpiteIR::Allocate& alloc)
+	void BuildAllocate(SpiteIR::Allocate& alloc, size_t paramsOffset)
 	{
+		llvm::Type* type = ToLLVMType(alloc.type, context);
 		llvm::AllocaInst* allocaInst = builder.CreateAlloca(
-			ToLLVMType(alloc.type, context),
+			type,
 			nullptr,
 			llvmContext.RegisterName(alloc.result)
 		);
 		llvmContext.localVarMap[alloc.result] = allocaInst;
+
+		if (alloc.result < paramsOffset) return;
+
+		uint64_t size = module.getDataLayout().getTypeAllocSize(type);
+		if (!size) return;
+
+		builder.CreateMemSet(
+			allocaInst,
+			builder.getInt8(0),
+			size,
+			llvm::MaybeAlign()
+		);
 	}
 
 	llvm::BasicBlock* CreateBasicBlock(llvm::Function* llvmFunc, SpiteIR::Label* label)
@@ -281,6 +310,36 @@ struct LLVMBuilder
 	llvm::Value* GetLocalValue(size_t reg)
 	{
 		return llvmContext.localVarMap[reg];
+	}
+
+	bool IsAggregateIRType(SpiteIR::Type* type)
+	{
+		switch (type->kind)
+		{
+		case SpiteIR::TypeKind::StateType:
+		case SpiteIR::TypeKind::StructureType:
+		case SpiteIR::TypeKind::UnionType:
+		case SpiteIR::TypeKind::DynamicArrayType:
+		case SpiteIR::TypeKind::FixedArrayType:
+			return true;
+		case SpiteIR::TypeKind::PrimitiveType:
+			return type->primitive.kind == SpiteIR::PrimitiveKind::String;
+		default:
+			return false;
+		}
+	}
+
+	void BuildAggregateCopy(llvm::Value* dst, llvm::Value* src, SpiteIR::Type* type)
+	{
+		llvm::Type* llvmType = ToLLVMType(type, context);
+		uint64_t size = module.getDataLayout().getTypeAllocSize(llvmType);
+		if (size != type->size)
+		{
+			Logger::Warning("LLVMBuilder:BuildAggregateCopy LLVM type size (" +
+				eastl::to_string(size) + ") does not match IR type size (" +
+				eastl::to_string(type->size) + "), layouts have diverged");
+		}
+		builder.CreateMemCpy(dst, llvm::MaybeAlign(), src, llvm::MaybeAlign(), size);
 	}
 
 	llvm::Value* GetGlobalValue(size_t reg)
@@ -378,7 +437,8 @@ struct LLVMBuilder
 	{
 		llvm::Value* test = builder.CreateLoad(ToLLVMType(inst->branch.test.type, context),
 			llvmContext.localVarMap[inst->branch.test.reg]);
-		builder.CreateCondBr(test, llvmContext.labelMap[inst->branch.true_],
+		llvm::Value* testVal = builder.CreateTrunc(test, builder.getInt1Ty());
+		builder.CreateCondBr(testVal, llvmContext.labelMap[inst->branch.true_],
 			llvmContext.labelMap[inst->branch.false_]);
 	}
 
@@ -466,21 +526,6 @@ struct LLVMBuilder
 
 		Logger::FatalError("LLVMBuilder:GetMemberIndexForOffset Unable to find member index");
 		return 0;
-	}
-
-	eastl::vector<SpiteIR::Member*>* GetMembersForType(SpiteIR::Type* type)
-	{
-		SpiteIR::State* state = GetStateForType(type);
-		if (state)
-		{
-			return &state->members;
-		}
-		else if (type->kind == SpiteIR::TypeKind::StructureType)
-		{
-			return type->structureType.members;
-		}
-
-		return nullptr;
 	}
 
 	void BuildLoad(SpiteIR::Instruction* inst)
@@ -622,9 +667,15 @@ struct LLVMBuilder
 			return;
 		case SpiteIR::OperandKind::Register:
 		{
+			if (IsAggregateIRType(src.type))
+			{
+				BuildAggregateCopy(dstPtr, GetLocalValue(src.reg), src.type);
+				return;
+			}
+
 			llvm::LoadInst* loadInst = builder.CreateLoad(
 				type,
-				GetLocalValue(src.reg)			
+				GetLocalValue(src.reg)
 			);
 			loadInst->setMetadata("store_value", llvm::MDNode::get(context, llvm::MDString::get(context, "store_value")));
 			value = loadInst;
@@ -739,14 +790,21 @@ struct LLVMBuilder
 	void BuildStorePtr(SpiteIR::Instruction* inst)
 	{
 		llvm::Value* srcPtr = GetLocalValue(inst->store.src.reg);
-		llvm::Type* srcType = ToLLVMType(inst->store.src.type, context);
-		llvm::LoadInst* srcValue = builder.CreateLoad(srcType, srcPtr);
-		srcValue->setMetadata("store_ptr_src", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr_src")));
 
 		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
 		llvm::Type* dstType = ToLLVMType(inst->store.dst.type, context);
 		llvm::LoadInst* dstValuePtr = builder.CreateLoad(dstType, dstPtr);
 		dstValuePtr->setMetadata("store_ptr_load", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr_load")));
+
+		if (IsAggregateIRType(inst->store.src.type))
+		{
+			BuildAggregateCopy(dstValuePtr, srcPtr, inst->store.src.type);
+			return;
+		}
+
+		llvm::Type* srcType = ToLLVMType(inst->store.src.type, context);
+		llvm::LoadInst* srcValue = builder.CreateLoad(srcType, srcPtr);
+		srcValue->setMetadata("store_ptr_src", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr_src")));
 
 		llvm::StoreInst* storeInst = builder.CreateStore(srcValue, dstValuePtr);
 		storeInst->setMetadata("store_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "store_ptr")));
@@ -763,19 +821,23 @@ struct LLVMBuilder
 		);
 		srcValuePtr->setMetadata("move_src_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "move_src_ptr")));
 
-		llvm::LoadInst* srcValue = builder.CreateLoad(
-			ToLLVMType(inst->store.dst.type, context),
-			srcValuePtr
-		);
-		srcValue->setMetadata("move_src_value", llvm::MDNode::get(context, llvm::MDString::get(context, "move_src_value")));
-
-
 		llvm::LoadInst* dstValuePtr = builder.CreateLoad(
 			ToLLVMType(inst->store.src.type, context),
 			dstPtr
 		);
 		dstValuePtr->setMetadata("move_dst_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "move_dst_ptr")));
 
+		if (IsAggregateIRType(inst->store.dst.type))
+		{
+			BuildAggregateCopy(dstValuePtr, srcValuePtr, inst->store.dst.type);
+			return;
+		}
+
+		llvm::LoadInst* srcValue = builder.CreateLoad(
+			ToLLVMType(inst->store.dst.type, context),
+			srcValuePtr
+		);
+		srcValue->setMetadata("move_src_value", llvm::MDNode::get(context, llvm::MDString::get(context, "move_src_value")));
 
 		llvm::StoreInst* store = builder.CreateStore(srcValue, dstValuePtr);
 		store->setMetadata("move_store", llvm::MDNode::get(context, llvm::MDString::get(context, "move_store")));
@@ -797,14 +859,21 @@ struct LLVMBuilder
 			srcPtr
 		);
 		srcValuePtr->setMetadata("dereference_load_ptr", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_load_ptr")));
-		
+
+		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
+
+		if (IsAggregateIRType(inst->store.dst.type))
+		{
+			BuildAggregateCopy(dstPtr, srcValuePtr, inst->store.dst.type);
+			return;
+		}
+
 		llvm::LoadInst* srcValue = builder.CreateLoad(
 			ToLLVMType(inst->store.dst.type, context),
 			srcValuePtr
 		);
 		srcValue->setMetadata("dereference_load_value", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_load_value")));
 
-		llvm::Value* dstPtr = GetLocalValue(inst->store.dst.reg);
 		llvm::StoreInst* store = builder.CreateStore(srcValue, dstPtr);
 		store->setMetadata("dereference_store", llvm::MDNode::get(context, llvm::MDString::get(context, "dereference_store")));
 	}
@@ -903,6 +972,7 @@ struct LLVMBuilder
 			builder.CreateStore(castedValue, toPtr);
 			return;
 		}
+		case SpiteIR::TypeKind::FunctionType:
 		case SpiteIR::TypeKind::PointerType:
 		{
 			if (IsIntLikeType(inst->cast.to.type))
@@ -925,7 +995,6 @@ struct LLVMBuilder
 		case SpiteIR::TypeKind::StructureType:
 		case SpiteIR::TypeKind::DynamicArrayType:
 		case SpiteIR::TypeKind::FixedArrayType:
-		case SpiteIR::TypeKind::FunctionType:
 			break;
 		default:
 			break;

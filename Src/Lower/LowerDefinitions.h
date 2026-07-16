@@ -1593,11 +1593,17 @@ struct LowerDefinitions
 			ret.expr->typeExpr.type->primitiveType.type == UniqueType::Void)
 		{
 			BuildVoidReturn(GetCurrentLabel());
+			return;
+		}
+		
+		ScopeValue value = BuildExpr(ret.expr, stmnt);
+		if (IsVoidType(value.type))
+		{
+			BuildVoidReturn(GetCurrentLabel());
 		}
 		else
 		{
 
-			ScopeValue value = BuildExpr(ret.expr, stmnt);
 			if (funcContext.function->returnType->kind != SpiteIR::TypeKind::ReferenceType)
 			{
 				value = BuildTypeDereference(GetCurrentLabel(), value);
@@ -2263,6 +2269,22 @@ struct LowerDefinitions
 			}
 			break;
 		}
+		case SpiteIR::TypeKind::ReferenceType:
+		{
+			if (IsAnyType(type))
+			{
+				[[fallthrough]];
+			}
+			else
+			{
+				SpiteIR::Type* deref = GetDereferencedType(type);
+				SpiteIR::Allocate alloc = BuildAllocate(deref);
+				SpiteIR::Label* label = GetCurrentLabel();
+				SpiteIR::Instruction* storePtr = BuildStorePtr(label, BuildRegisterOperand({dst, type}),
+					BuildRegisterOperand(BuildDefaultValue(alloc.type, alloc.result, label)));
+				break;
+			}
+		}
 		case SpiteIR::TypeKind::PointerType:
 		case SpiteIR::TypeKind::FunctionType:
 		{
@@ -2282,15 +2304,6 @@ struct LowerDefinitions
 			break;
 		}
 		case SpiteIR::TypeKind::FixedArrayType:
-			break;
-		case SpiteIR::TypeKind::ReferenceType:
-		{
-			SpiteIR::Type* deref = GetDereferencedType(type);
-			SpiteIR::Allocate alloc = BuildAllocate(deref);
-			SpiteIR::Label* label = GetCurrentLabel();
-			SpiteIR::Instruction* storePtr = BuildStorePtr(label, BuildRegisterOperand({dst, type}),
-				BuildRegisterOperand(BuildDefaultValue(alloc.type, alloc.result, label)));
-		}
 			break;
 		default:
 			break;
@@ -2508,14 +2521,25 @@ struct LowerDefinitions
 				type = typeValue.type;
 			}
 		}
-
-		for (Expr* val : *expr->typeLiteralExpr.values)
+		
+		eastl::vector<SpiteIR::Member*>* members = nullptr;
+		if (type)
 		{
+			members = GetMembersForType(type);
+		}
+
+		for (size_t i = 0; i < expr->typeLiteralExpr.values->size(); i++)
+		{
+			Expr* val = expr->typeLiteralExpr.values->at(i);
 			ScopeValue typeValue = BuildExpr(val, stmnt);
 			typeValue = BuildTypeDereference(GetCurrentLabel(), typeValue);
 			if (expr->typeLiteralExpr.array && type)
 			{
 				typeValue = HandleAutoCast(typeValue, type);
+			}
+			else if (type && members && i < members->size())
+			{
+				typeValue = HandleAutoCast(typeValue, members->at(i)->value.type);
 			}
 			values.push_back(typeValue);
 		}
@@ -2531,16 +2555,23 @@ struct LowerDefinitions
 		}
 		else
 		{
-			derivedType = context.ir->AllocateType();
-			derivedType->kind = SpiteIR::TypeKind::StructureType;
-			derivedType->structureType.members = context.ir->AllocateArray<SpiteIR::Member*>();
-			for (ScopeValue& value : values)
+			if (type)
 			{
-				SpiteIR::Member* member = context.ir->AllocateMember();
-				member->value.type = value.type;
-				derivedType->structureType.members->push_back(member);
+				derivedType = type;
 			}
-			SetStructuredTypeSizeAndAlign(derivedType, this);
+			else
+			{
+				derivedType = context.ir->AllocateType();
+				derivedType->kind = SpiteIR::TypeKind::StructureType;
+				derivedType->structureType.members = context.ir->AllocateArray<SpiteIR::Member*>();
+				for (ScopeValue& value : values)
+				{
+					SpiteIR::Member* member = context.ir->AllocateMember();
+					member->value.type = value.type;
+					derivedType->structureType.members->push_back(member);
+				}
+				SetStructuredTypeSizeAndAlign(derivedType, this);
+			}
 		}
 
 		SpiteIR::Allocate alloc = BuildAllocate(derivedType);
@@ -3537,7 +3568,8 @@ struct LowerDefinitions
 
 	ScopeValue BuildTypeDereference(SpiteIR::Label* label, const ScopeValue& value)
 	{
-		if (value.type->kind != SpiteIR::TypeKind::ReferenceType) return value;
+		if (value.type->kind != SpiteIR::TypeKind::ReferenceType ||
+			IsAnyType(value.type)) return value;
 		SpiteIR::Type* valType = value.type->reference.type;
 		SpiteIR::Allocate alloc = BuildAllocate(valType);
 		SpiteIR::Instruction* reference = BuildDereference(label, AllocateToOperand(alloc),
@@ -4263,6 +4295,7 @@ struct LowerDefinitions
 		case SpiteIR::TypeKind::PointerType:
 			return type->pointer.type;
 		case SpiteIR::TypeKind::ReferenceType:
+			if (IsAnyType(type)) return type;
 			return type->reference.type;
 		default:
 			break;

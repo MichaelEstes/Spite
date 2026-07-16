@@ -198,7 +198,7 @@ bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>,
 						 values: ValueAllocator<Value>, status: ZeroedAllocator<byte>,
 						 capacity: uint)
 {
-	hash: uint = Hash(key);
+	hash: int = Hash(key);
 	index := hash % capacity;
 	start := index;
 	deletedIndex := InvalidIndex;

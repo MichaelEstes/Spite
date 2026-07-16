@@ -38,14 +38,18 @@ struct LLVMEntry
 
 		BuildTypeData();
 		
-		for (SpiteIR::Package* package : llvmContext.ir->packages)
+		auto callInitializer = [](SpiteIR::Package* package, LLVMEntry& entry)
 		{
 			if (package->initializer)
 			{
-				llvm::Function* llvmFunc = llvmContext.functionMap[package->initializer];
-				llvm::Value* initCall = builder.CreateCall(llvmFunc, {});
+				llvm::Function* llvmFunc = entry.llvmContext.functionMap[package->initializer];
+				entry.builder.CreateCall(llvmFunc, {});
 			}
-		}
+		};
+
+		SpiteIR::Package* entry = llvmContext.ir->entry->parent;
+		callInitializer(llvmContext.ir->runtime, *this);
+		llvmContext.ir->IterateImports<LLVMEntry&>(entry, *this, callInitializer);
 
 		SpiteIR::Function* entryFunc = llvmContext.ir->entry;
 		llvm::Function* entryLLVMFunc = llvmContext.functionMap[entryFunc];

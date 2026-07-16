@@ -2,6 +2,12 @@
 # project specific logic here.
 #
 cmake_minimum_required (VERSION 3.11)
+
+set(INCLUDE_LLVM ON)
+if (INCLUDE_LLVM)
+	list(APPEND VCPKG_MANIFEST_FEATURES "llvm")
+endif()
+
 project ("Spite_Lang")
 include(ExternalProject)
 include(FetchContent)
@@ -10,7 +16,6 @@ set(INTERPRETER_EXTS OFF)
 if (INTERPRETER_EXTS)
 	add_compile_definitions(_INTERPRETER_EXTS)
 endif()
-set(INCLUDE_LLVM OFF)
 if (INCLUDE_LLVM)
 	add_compile_definitions(_INCLUDE_LLVM)
 endif()
@@ -25,20 +30,7 @@ set(CPACK_PACKAGE_VENDOR "Spite Lang")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Spite Lang Installer")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "Spite")
 
-set(EASTL_ROOT_DIR ${CMAKE_BINARY_DIR}/EASTL)
-set(EASTL_BUILD_DIR ${EASTL_ROOT_DIR}/build)
-set(EASTL_LIB_DIR ${EASTL_BUILD_DIR}/lib)
-set(EASTL_INCLUDE_DIR ${EASTL_BUILD_DIR}/include)
-ExternalProject_Add(
-	EASTL
-    PREFIX ${CMAKE_BINARY_DIR}/EASTL
-    GIT_REPOSITORY https://github.com/electronicarts/EASTL.git
-    GIT_TAG master
-	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/EASTL/build -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-	BUILD_BYPRODUCTS ${EASTL_LIB_DIR}/libEASTL.a ${EASTL_LIB_DIR}/EASTL.lib ${EASTL_BUILD_DIR}/doc/EASTL.natvis
-)
-include_directories(${EASTL_INCLUDE_DIR})
-link_directories(${EASTL_LIB_DIR})
+find_package(EASTL CONFIG REQUIRED)
 
 set(DYNCALL_ROOT_DIR ${CMAKE_BINARY_DIR}/dyncall)
 set(DYNCALL_BUILD_DIR ${DYNCALL_ROOT_DIR}/build)
@@ -125,8 +117,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 if(MSVC)
-	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/EASTL.lib)
-	add_custom_target(NatVis SOURCES ${EASTL_BUILD_DIR}/doc/EASTL.natvis)
+	add_custom_target(NatVis SOURCES ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/doc/EASTL.natvis)
 	set(CPACK_GENERATOR "NSIS")
 	set(CPACK_NSIS_MODIFY_PATH ON)
 	set(CPACK_NSIS_MUI_ICON  "${PROJECT_SOURCE_DIR}/spite.ico")
@@ -135,7 +126,6 @@ else()
 	set(CMAKE_CXX_FLAGS_DEBUG "-g")
 	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-	set(EASTL_LIBRARY ${EASTL_LIB_DIR}/libEASTL.a)
 	set(CPACK_GENERATOR "DEB;RPM")
 endif()
 
@@ -143,10 +133,9 @@ if (INCLUDE_LLVM)
 	llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} target support core irreader codegen mc mcparser)
 endif()
 
-target_link_libraries(Spite_Lang ${EASTL_LIBRARY} ${llvm_libs} dyncall_s dynload_s dyncallback_s)
+target_link_libraries(Spite_Lang EASTL ${llvm_libs} dyncall_s dynload_s dyncallback_s)
 set_target_properties(Spite_Lang PROPERTIES OUTPUT_NAME "spite")
 add_dependencies(Spite_Lang dyncall)
-add_dependencies(Spite_Lang EASTL)
 
 install(DIRECTORY ${RUNTIME_DST_PATH} DESTINATION ./bin/Runtime)
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/Examples" DESTINATION ./)
