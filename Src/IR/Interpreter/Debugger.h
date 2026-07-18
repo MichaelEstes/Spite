@@ -431,7 +431,16 @@ inline void EnsureGlobalDebugger(SpiteIR::IR* ir)
 	if (!globalDebugger)
 	{
 		globalDebugger = new Debugger(&DebugPublishStopped);
-		globalDebugTcpServer.Start(globalDebugger, ir);
+	}
+
+	globalDebugTcpServer.Start(globalDebugger, ir);
+}
+
+inline void StopGlobalDebugger()
+{
+	if (globalDebugger)
+	{
+		globalDebugTcpServer.Stop();
 	}
 }
 

@@ -42,7 +42,11 @@ struct LLVMCompile
 		std::string features = "";
 		llvm::TargetOptions opt;
 		opt.EnableFastISel = true;
-		targetMachine = target->createTargetMachine(targetTriple, cpu, features, opt, llvm::Reloc::PIC_);
+		llvm::CodeGenOpt::Level optLevel = config.debug ? 
+			llvm::CodeGenOpt::None : llvm::CodeGenOpt::Default;
+		targetMachine = target->createTargetMachine(
+			targetTriple, cpu, features, opt, llvm::Reloc::PIC_, std::nullopt, optLevel
+		);
 		module.setDataLayout(targetMachine->createDataLayout());
 		
 		return true;

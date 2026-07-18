@@ -106,6 +106,10 @@ int main(int argc, char** argv)
 	config = ParseConfig(argc, argv);
 	if (config.os == Os::OsInvalid) config.os = currentOS;
 
+	#ifdef _NO_DEBUG
+	config.debug = false;
+	#endif
+
 	eastl::hash_set<string> files = eastl::hash_set<string>();	
 	if (!config.dir.empty())
 	{
@@ -206,6 +210,7 @@ int main(int argc, char** argv)
 			EnsureGlobalDebugger(ir);
 		}
 		#endif
+
 		interpreter = new Interpreter(config.interpreterStackSize);
 		Lower lower = Lower(&globalTable, ir, interpreter);
 		lower.BuildIR(entryTable);
@@ -214,6 +219,13 @@ int main(int argc, char** argv)
 			Logger::PrintErrors();
 			return 1;
 		}
+
+		#ifndef _NO_DEBUG
+		if (config.debug)
+		{
+			StopGlobalDebugger();
+		}
+		#endif
 		Logger::Debug("Took " + eastl::to_string(lowerProfiler.End()) + "/s to lower syntax");
 	}
 
@@ -235,6 +247,13 @@ int main(int argc, char** argv)
 		{
 			Logger::Info("Took " + eastl::to_string(profiler.End()) + "/s to build program");
 
+			#ifndef _NO_DEBUG
+			if (config.debug)
+			{
+				EnsureGlobalDebugger(ir);
+			}
+			#endif
+
 			Profiler interpretProfiler = Profiler();
 			//Decompiler decompiler = Decompiler();
 			//decompiler.Decompile(ir);
@@ -242,6 +261,13 @@ int main(int argc, char** argv)
 			//interpretProfiler.Reset();
 			int value = *(int*)(void*)interpreter->Interpret(ir);
 			Logger::Info("Took " + eastl::to_string(interpretProfiler.End()) + "/s to interpret program");
+
+			#ifndef _NO_DEBUG
+			if (config.debug)
+			{
+				StopGlobalDebugger();
+			}
+			#endif
 			return value;
 		}
 		case C:
