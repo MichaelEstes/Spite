@@ -1320,11 +1320,19 @@ struct TypeInferer
 			eastl::vector<Expr*>* leftTemplateArgs = left->templatedType.templates->templateExpr.templateArgs;
 			eastl::vector<Expr*>* rightTemplateArgs = right->templatedType.templates->templateExpr.templateArgs;
 
-			if (leftTemplateArgs->size() != rightTemplateArgs->size()) return false;
-
 			Stmnt* state = globalTable->FindStateForType(left, symbolTable);
+			Stmnt* generics = state->state.generics;
+			size_t requiredCount = RequiredGenericsCount(generics);
 
-			for (size_t i = 0; i < leftTemplateArgs->size(); i++)
+			if (leftTemplateArgs->size() < requiredCount ||
+				rightTemplateArgs->size() < requiredCount)
+			{
+				return false;
+			}
+
+			size_t toCheck = eastl::min(leftTemplateArgs->size(), rightTemplateArgs->size());
+
+			for (size_t i = 0; i < toCheck; i++)
 			{
 				Expr* lTempl = leftTemplateArgs->at(i);
 				Expr* rTempl = rightTemplateArgs->at(i);

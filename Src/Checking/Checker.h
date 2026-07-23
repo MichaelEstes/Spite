@@ -94,11 +94,14 @@ struct Checker
 		{
 			eastl::vector<Token*>* names = from->generics.names;
 			auto toExpand = from->generics.templatesToExpand;
+
+			eastl::vector<eastl::vector<Expr*>*> toExpandCopy(toExpand->begin(), toExpand->end());
+
 			for (auto& defInst : def)
 			{
 				Stmnt* to = defInst.forwardTo;
 				eastl::vector<Expr*>* forwardedTemplates = defInst.templatesToForward;
-				for (eastl::vector<Expr*>* replaceWith : *toExpand)
+				for (eastl::vector<Expr*>* replaceWith : toExpandCopy)
 				{
 					eastl::hash_set<Stmnt*> seen;
 					ForwardTemplates(from, to, forwardedTemplates, replaceWith, seen);
@@ -244,12 +247,13 @@ struct Checker
 			copyArgs->at(i) = inferred;
 		}
 
-		if (replaced) to->generics.templatesToExpand->insert(copyArgs);
+		bool inserted = false;
+		if (replaced) inserted = to->generics.templatesToExpand->insert(copyArgs).second;
 
-		if (cycle) return;
+		if (cycle || !inserted) return;
 		if (deferred.deferredTemplates.find(to) != deferred.deferredTemplates.end())
 		{
-			eastl::vector<DeferredTemplateInstantiation> deferredTemplates = deferred.deferredTemplates.at(to);
+			auto& deferredTemplates = deferred.deferredTemplates.at(to);
 			for (auto& deferredTempl : deferredTemplates)
 			{
 				Stmnt* nestedTo = deferredTempl.forwardTo;

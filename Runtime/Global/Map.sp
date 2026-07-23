@@ -262,6 +262,20 @@ state MapValueIterator<Value, ValueAllocator>
 	capacity: uint
 }
 
+*Value MapValueIterator::First()
+{
+	i := 0;
+	while (i < this.capacity && this.status[i]~ != _Status.Full)
+	{
+		i += 1;
+	}
+	if (i >= this.capacity) 
+	{
+		return null;
+	}
+	return this.values[i];
+}
+
 Iterator MapValueIterator::operator::in()
 {
 	return {null, -1};
