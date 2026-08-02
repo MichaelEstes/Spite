@@ -1186,7 +1186,10 @@ struct LowerDefinitions
 		BuildBody(body);
 
 		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
-		SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel, forInIncLabel);
+		if (!currentBodyLabel->terminator)
+		{
+			SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel, forInIncLabel);
+		}
 
 		AddLabel(forInIncLabel);
 		SpiteIR::Operand incremented = BuildRegisterOperand(BuildIncrement(forInIncLabel, index));
@@ -1267,8 +1270,12 @@ struct LowerDefinitions
 		BuildBody(for_.body);
 
 		SpiteIR::Label* currentBodyLabel = GetCurrentLabel();
-		SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel);
-		bodyToCond->jump.label = forInIterLabel;
+		// for (i in arr) break;
+		if (!currentBodyLabel->terminator)
+		{
+			SpiteIR::Instruction* bodyToCond = BuildJump(currentBodyLabel);
+			bodyToCond->jump.label = forInIterLabel;
+		}
 
 		AddLabel(forInEndLabel);
 		branch->branch.true_ = forInBodyLabel;
@@ -1312,7 +1319,8 @@ struct LowerDefinitions
 		ScopeValue init;
 		if (def.assignment)
 		{
-			init = BuildExpr(def.assignment, defStmnt);
+			ScopeValue initValue = BuildExpr(def.assignment, defStmnt);
+			init = BuildTypeDereference(GetCurrentLabel(), initValue);
 		}
 		else
 		{
@@ -1835,7 +1843,7 @@ struct LowerDefinitions
 		Token* identTok = expr->identifierExpr.identifier;
 		StringView& ident = identTok->val;
 		ScopeValue identVal = FindScopeValue(ident);
-		if (identVal.type) return BuildTypeReference(GetCurrentLabel(), FindScopeValue(ident));
+		if (identVal.type) return BuildTypeReference(GetCurrentLabel(), identVal);
 
 		Stmnt* globalVar = context.globalTable->FindScopedGlobalVar(identTok, symbolTable);
 		if (globalVar)

@@ -277,11 +277,23 @@ ref Matrix4 Matrix4::Frustrum(left: float32, right: float32, bottom: float32, to
 ref Matrix4 Matrix4::Perspective(fov: float32, aspect: float32, near: float32, far: float32)
 {
 	f: float32 = Math.Tan(fov * 0.5);
-	
+
 	this.m[0] = float32:[1.0 / (aspect * f), 0.0, 0.0, 0.0];
 	this.m[1] = float32:[0.0, 1.0 / f, 0.0, 0.0];
 	this.m[2] = float32:[0.0, 0.0, far / (near - far), -1.0];
 	this.m[3] = float32:[0.0, 0.0, -(far * near) / (far - near), 0.0];
+
+	return this;
+}
+
+ref Matrix4 Matrix4::Orthographic(left: float32, right: float32, bottom: float32, top: float32,
+								   near: float32, far: float32)
+{
+	this.m[0] = float32:[2.0 / (right - left), 0.0, 0.0, 0.0];
+	this.m[1] = float32:[0.0, 2.0 / (top - bottom), 0.0, 0.0];
+	this.m[2] = float32:[0.0, 0.0, 1.0 / (near - far), 0.0];
+	this.m[3] = float32:[-(right + left) / (right - left), -(top + bottom) / (top - bottom),
+						 near / (near - far), 1.0];
 
 	return this;
 }
