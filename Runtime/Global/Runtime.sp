@@ -83,7 +83,7 @@ int StringToInt(str: string)
 
 string IntToString(i: int)
 {
-	if (i == 0) return "0";
+	if (i == 0) return string("0").Copy();
 	
 	maxCount := 22;
 	buf := [maxCount]byte;
@@ -147,13 +147,12 @@ PrintFloat := #compile ::int32(*byte, uint, *byte, float)
 
 floatFormatStr := "%f";
 
-string FloatToString(f: float, precision := 4)
+string FloatToString(f: float, precision := 6)
 {
 	format := floatFormatStr[0];
 	len := PrintFloat(null, 0, format, f);
 	buffer := ZeroedAllocator<byte>().Alloc(len + 1)[0];
 	PrintFloat(buffer, len + 1, format, f);
-	
 	return {len as int, buffer} as string;
 
     //integerPart: int = f as int;
@@ -171,13 +170,14 @@ string FloatToString(f: float, precision := 4)
 	//buf := alloc(precision);
 	//for (i .. precision) 
 	//{
-    //  decimals *= 10;
+    // decimals *= 10;
 	//	digit := decimals as byte;
 	//	buf[i]~ = '0' + digit;
-    //  decimals -= digit;
+    // decimals -= digit;
     //}
 	//decimalsStr := {precision, buf} as string;
 	//defer delete decimalsStr;
+	//
 	//
     //result := intStr + "." + decimalsStr;
     //return result;

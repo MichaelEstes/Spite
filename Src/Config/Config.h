@@ -60,6 +60,21 @@ inline Os StringToOs(const eastl::string& str)
 	return Os::OsInvalid;
 }
 
+enum BuildMode
+{
+	Debug,
+	Release,
+	RelWithDebInfo
+};
+
+inline BuildMode StringToBuildMode(const eastl::string& str)
+{
+	if (str == "debug") return BuildMode::Debug;
+	else if (str == "release") return BuildMode::Release;
+	else if (str == "relwithdebinfo") return BuildMode::RelWithDebInfo;
+	return BuildMode::Debug;
+}
+
 struct ArgInfo
 {
 	eastl::string name;
@@ -78,6 +93,7 @@ struct Config
 	Output output = Output::Llvm;
 	Arch arch = Arch::X64;
 	Os os = Os::OsInvalid;
+	BuildMode buildMode = BuildMode::Debug;
 	int targetArchByteWidth = 8;
 	bool comments = false;
 	bool debug = true;
@@ -129,6 +145,10 @@ inline Config ParseConfig(int argc, char** argv)
 		{
 			config.os = StringToOs(GetNextArg(i, argc, argv));
 		}
+		else if (arg == "-build")
+		{
+			config.buildMode = StringToBuildMode(GetNextArg(i, argc, argv));
+		}
 		else if (arg == "-comments")
 		{
 			config.comments = true;
@@ -149,6 +169,17 @@ inline Config ParseConfig(int argc, char** argv)
 		break;
 	default:
 		config.targetArchByteWidth = 8;
+		break;
+	}
+
+	switch (config.buildMode)
+	{
+	case Debug:
+	case RelWithDebInfo:
+		config.debug = true;
+		break;
+	default:
+		config.debug = false;
 		break;
 	}
 

@@ -14,6 +14,7 @@ extern
 
 	*void memcpy(dest: *void, src: *void, count: uint);
 	int memcmp(lhs: *void, rhs: *void, count: uint);
+	void memset(dest: *void, value: int32, count: uint);
 }
 
 *byte alloc(size: uint)
@@ -33,11 +34,7 @@ void dealloc(ptr: *void)
 
 void zero_out_bytes(dst: *void, byteCount: uint)
 {
-	dstBytes := dst as *byte;
-	for (i .. byteCount)
-	{
-		dstBytes[i]~ = byte(0);
-	}
+	memset(dst, 0, byteCount);
 }
 
 *void copy_bytes(dst: *void, src: *void, count: uint) => memcpy(dst, src, count);

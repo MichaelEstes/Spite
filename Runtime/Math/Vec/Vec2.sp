@@ -1,4 +1,4 @@
-package Vec;
+package Vec
 
 import Math
 
@@ -41,6 +41,8 @@ ref Norm<Vec2> Vec2::Normalize()
 
 	return this as Norm<Vec2>;
 }
+
+ref float32 Vec2::operator::[](index: uint32) => (this as [2]float32)[index];
 
 Vec2 Vec2::operator::-(r: Vec2) => Vec2(this.x - r.x, this.y - r.y);
 Vec2 Vec2::operator::-(r: float32) => Vec2(this.x - r, this.y - r);

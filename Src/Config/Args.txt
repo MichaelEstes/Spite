@@ -32,6 +32,11 @@ description Sets the target os to build the binary for, defaults to windows
 options windows, linux, mac, android, ios
 type enum
 
+-build
+description Sets the build mode (compiled or interpreted), defaults to debug
+options debug, release, relwithdebinfo
+type enum
+
 -comments
 description If present comments will be retained
 default false

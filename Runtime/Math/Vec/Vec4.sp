@@ -1,4 +1,4 @@
-package Vec;
+package Vec
 
 import Math
 
@@ -31,7 +31,15 @@ Vec4::(vec: [4]float32)
 	this.x = vec[0];
 	this.y = vec[1];
 	this.z = vec[2];
-	this.z = vec[3];
+	this.w = vec[3];
+}
+
+Vec4::(vec: Vec3, w: float32)
+{
+	this.x = vec.x;
+	this.y = vec.y;
+	this.z = vec.z;
+	this.w = w;
 }
 
 float32 Vec4::SqrLength() => this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w;
@@ -51,6 +59,8 @@ ref Norm<Vec4> Vec4::Normalize()
 
 	return this as Norm<Vec4>;
 }
+
+ref float32 Vec4::operator::[](index: uint32) => (this as [4]float32)[index];
 
 Vec4 Vec4::operator::-(r: Vec4) => Vec4(this.x - r.x, this.y - r.y, this.z - r.z, this.w - r.w);
 Vec4 Vec4::operator::-(r: float32) => Vec4(this.x - r, this.y - r, this.z - r, this.w - r);

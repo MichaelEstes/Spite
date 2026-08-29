@@ -133,6 +133,8 @@ struct TypeInferer
 			return globalTable->FindStateForType(expr->typeExpr.type, symbolTable);
 		case TypeOfExpr:
 			return globalTable->FindStateForType(CreateTypeOfType(), symbolTable);
+		case AsExpr:
+			return globalTable->FindStateForType(expr->asExpr.to, symbolTable);
 		case FunctionCallExpr:
 		case IndexExpr:
 		case BinaryExpr:
@@ -939,6 +941,7 @@ struct TypeInferer
 		case NamedType:
 			return GetStateOperatorType(op, op->uniqueType, type);
 		case PointerType:
+		case FunctionType:
 			if (op->uniqueType == UniqueType::Not) return symbolTable->CreatePrimitive(UniqueType::Bool);
 			return type;
 		case ValueType:

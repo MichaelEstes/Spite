@@ -286,18 +286,32 @@ struct LLVMBuilder
 		);
 		llvmContext.localVarMap[alloc.result] = allocaInst;
 		debugInfo->DeclareLocal(alloc.result, allocaInst);
-
+		
 		if (alloc.result < paramsOffset) return;
 
 		uint64_t size = module.getDataLayout().getTypeAllocSize(type);
 		if (!size) return;
+		
+		uint64_t inlineZeroMaxSize = 128;
+		if (size <= inlineZeroMaxSize)
+		{
+			llvm::Type* zeroType = llvm::IntegerType::get(context, size * llvmBitsInByte);
+			llvm::StoreInst* store = builder.CreateStore(
+				llvm::Constant::getNullValue(zeroType),
+				allocaInst
+			);
+			store->setAlignment(allocaInst->getAlign());
+		}
+		else
+		{
+			builder.CreateMemSet(
+				allocaInst,
+				builder.getInt8(0),
+				size,
+				allocaInst->getAlign()
+			);
+		}
 
-		builder.CreateMemSet(
-			allocaInst,
-			builder.getInt8(0),
-			size,
-			llvm::MaybeAlign()
-		);
 	}
 
 	llvm::BasicBlock* CreateBasicBlock(llvm::Function* llvmFunc, SpiteIR::Label* label)
@@ -933,7 +947,7 @@ struct LLVMBuilder
 				}
 			}
 			else if (IsFloatLikeType(inst->cast.from.type) &&
-				IsFloatLikeType(inst->cast.to.type))
+					 IsFloatLikeType(inst->cast.to.type))
 			{
 				if (inst->cast.to.type->size > inst->cast.from.type->size)
 				{

@@ -17,7 +17,7 @@ struct LLVMOptimize
 
 	void Optimize()
 	{
-		if (config.debug) return;
+		if (config.buildMode == BuildMode::Debug) return;
 
 		llvm::legacy::FunctionPassManager passManager(&module);
 		passManager.add(llvm::createPromoteMemoryToRegisterPass());

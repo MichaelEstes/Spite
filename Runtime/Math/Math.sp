@@ -19,6 +19,9 @@ extern
 	float64 log10(val: float64);
 	float32 log10f(val: float32);
 
+	float64 pow(x: float64, y: float64);
+	float32 powf(x: float32, y: float32);
+
 	int32 abs(val: int32);
 	int64 llabs(val: int64);
 	float64 fabs(val: float64);
@@ -56,6 +59,10 @@ float64 Log10(val: float64) => log10(val);
 float32 Logf(val: float32) => logf(val);
 
 float32 Log10f(val: float32) => log10f(val);
+
+float64 Pow(x: float64, y: float64) => pow(x, y);
+
+float32 Powf(x: float32, y: float32) => powf(x, y);
 
 int Min(l: int, r: int) => 
 {

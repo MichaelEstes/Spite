@@ -42,8 +42,8 @@ struct LLVMCompile
 		std::string features = "";
 		llvm::TargetOptions opt;
 		opt.EnableFastISel = true;
-		llvm::CodeGenOpt::Level optLevel = config.debug ? 
-			llvm::CodeGenOpt::None : llvm::CodeGenOpt::Default;
+		llvm::CodeGenOpt::Level optLevel = llvm::CodeGenOpt::Default;
+		if (config.buildMode == BuildMode::Debug) optLevel = llvm::CodeGenOpt::None;
 		targetMachine = target->createTargetMachine(
 			targetTriple, cpu, features, opt, llvm::Reloc::PIC_, std::nullopt, optLevel
 		);

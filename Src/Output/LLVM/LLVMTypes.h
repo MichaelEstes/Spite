@@ -19,6 +19,8 @@ extern SpiteIR::State* arrayState;
 
 eastl::hash_map<SpiteIR::State*, llvm::StructType*> stateTypeLookup;
 
+static const uint64_t llvmBitsInByte = 8;
+
 template<typename T>
 inline llvm::ArrayRef<T> ToArrayRef(const eastl::vector<T>& vec)
 {
@@ -95,7 +97,7 @@ llvm::Type* ToLLVMType(SpiteIR::Type* type, llvm::LLVMContext& context, bool poi
 				case SpiteIR::PrimitiveKind::I32:
 				case SpiteIR::PrimitiveKind::I64:
 				case SpiteIR::PrimitiveKind::Int:
-					return llvm::IntegerType::get(context, type->size * 8);
+					return llvm::IntegerType::get(context, type->size * llvmBitsInByte);
 				case SpiteIR::PrimitiveKind::F32:
 					return llvm::Type::getFloatTy(context);
 				case SpiteIR::PrimitiveKind::Float:

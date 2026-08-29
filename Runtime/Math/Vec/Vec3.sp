@@ -30,6 +30,13 @@ Vec3::(vec: [3]float32)
 	this.z = vec[2];
 }
 
+Vec3::(vec: Vec4)
+{
+	this.x = vec.x;
+	this.y = vec.y;
+	this.z = vec.z;
+}
+
 float32 Vec3::SqrLength() => this.x * this.x + this.y * this.y + this.z * this.z;
 
 float32 Vec3::Length() => Math.Sqrt(this.SqrLength());
@@ -51,6 +58,8 @@ ref Norm<Vec3> Vec3::Normalize()
 
 	return this as Norm<Vec3>;
 }
+
+ref float32 Vec3::operator::[](index: uint32) => (this as [3]float32)[index];
 
 Vec3 Vec3::operator::-(r: Vec3) => Vec3(this.x - r.x, this.y - r.y, this.z - r.z);
 Vec3 Vec3::operator::-(r: float32) => Vec3(this.x - r, this.y - r, this.z - r);

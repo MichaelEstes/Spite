@@ -262,8 +262,8 @@ ref Matrix4 Matrix4::LookAt(camera: Vec3, center: Vec3, up: Vec3)
 	return this;
 }
 
-ref Matrix4 Matrix4::Frustrum(left: float32, right: float32, bottom: float32, top: float32, 
-							  near: float32, far: float32)
+ref Matrix4 Matrix4::Frustum(left: float32, right: float32, bottom: float32, top: float32, 
+							 near: float32, far: float32)
 {
 	this.m[0] = float32:[(2.0 * near) / (right - left), 0.0, 0.0, 0.0];
 	this.m[1] = float32:[0.0, (2.0 * near) / (top - bottom), 0.0, 0.0];
