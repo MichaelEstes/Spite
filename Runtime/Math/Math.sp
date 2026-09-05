@@ -30,6 +30,14 @@ extern
 	void srand(seed: int32);
 }
 
+extern
+{
+	#link linux "libm";
+	#link windows "ucrtbase";
+
+	float64 round(val: float64);
+}
+
 E: float = 2.718281828459045;
 
 Pi: float = 3.14159265359;
@@ -131,6 +139,8 @@ float FClamp(value: float, min: float, max: float) => FMin(FMax(value, min), max
 int Abs(val: int) => abs(val);
 
 float FAbs(val: float) => fabs(val);
+
+float Round(val: float) => round(val);
 
 uint NextPowerOfTwo(value: uint)
 {

@@ -346,7 +346,7 @@ Matrix4 Matrix4::operator::*(r: Matrix4)
 	return result;
 }
 
-Vec4 Matrix3::operator::*(v: Vec4)
+Vec4 Matrix4::operator::*(v: Vec4)
 {
 	result := Vec4();
 	

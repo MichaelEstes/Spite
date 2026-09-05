@@ -144,6 +144,7 @@ struct Interpreter
 
 		#ifdef _INTERPRETER_EXTS
 		SetGlobalPtr(runtime, "___funcExts", &funcExts);
+		SetGlobalPtr(runtime, "___funcExitExts", &funcExitExts);
 		SetGlobalPtr(runtime, "___blockExts", &blockExts);
 		SetGlobalPtr(runtime, "___labelExts", &labelExts);
 		SetGlobalPtr(runtime, "___instExts", &instExts);
@@ -160,7 +161,8 @@ struct Interpreter
 		{
 			if (package->initializer)
 			{
-				interpreter.InterpretFunction(package->initializer, 0);
+				eastl::vector<SpiteIR::Operand> params = eastl::vector<SpiteIR::Operand>();
+				interpreter.InterpretFunction(package->initializer, 0, &params);
 			}
 		};
 		
@@ -173,7 +175,8 @@ struct Interpreter
 	{
 		SpiteIR::Function* entry = ir->entry;
 		Initialize(ir, entry->parent);
-		return InterpretFunction(entry, 0);
+		eastl::vector<SpiteIR::Operand> params = eastl::vector<SpiteIR::Operand>();
+		return InterpretFunction(entry, 0, &params);
 	}
 
 	inline void InterpretLabel(SpiteIR::Label* label)
@@ -225,7 +228,7 @@ struct Interpreter
 		}
 	}
 
-	volatile void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params = nullptr)
+	volatile void* InterpretFunction(SpiteIR::Function* func, size_t start, eastl::vector<SpiteIR::Operand>* params)
 	{
 		#ifdef _INTERPRETER_EXTS
 		RunFunctionExtensions(func, params, this);
@@ -239,7 +242,8 @@ struct Interpreter
 		volatile char* prevStackEnd = stackFrameEnd;
 		stackFrameStart = stackFrameStart + start;
 
-		if (params) MoveParams(params, func->arguments, (char*)prevStackStart);
+		//if (params) 
+		MoveParams(params, func->arguments, (char*)prevStackStart);
 		InterpretAllocations(func->block->allocations, func);
 
 		InterpretBlock(func->block);
@@ -248,6 +252,10 @@ struct Interpreter
 
 		#ifndef _NO_DEBUG
 		PopCall(this);
+		#endif
+
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExitExtensions(func, params, this);
 		#endif
 
 		return stackFrameStart;
@@ -285,6 +293,10 @@ struct Interpreter
 		PopCall(this);
 		#endif
 
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExitExtensions(func, &params, this);
+		#endif
+
 		return (void*)stackFrameStart;
 	}
 
@@ -312,6 +324,10 @@ struct Interpreter
 
 		#ifndef _NO_DEBUG
 		PopCall(this);
+		#endif
+
+		#ifdef _INTERPRETER_EXTS
+		RunFunctionExitExtensions(func, params, this);
 		#endif
 
 		return stackFrameStart;

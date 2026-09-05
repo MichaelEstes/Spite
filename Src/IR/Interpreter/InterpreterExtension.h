@@ -14,6 +14,7 @@ typedef void (*ExitCallback)(Interpreter*);
 typedef void (*RenderCallback)(Interpreter*);
 
 inline InteropArray funcExts = CreateInteropArray<SpiteIR::Function*>();
+inline InteropArray funcExitExts = CreateInteropArray<SpiteIR::Function*>();
 inline InteropArray blockExts = CreateInteropArray<SpiteIR::Function*>();
 inline InteropArray labelExts = CreateInteropArray<SpiteIR::Function*>();
 inline InteropArray instExts = CreateInteropArray<SpiteIR::Function*>();
@@ -21,6 +22,7 @@ inline InteropArray initExts = CreateInteropArray<SpiteIR::Function*>();
 
 void RunInstructionExtensions(SpiteIR::Instruction& inst, SpiteIR::Label*& label, Interpreter* interpreter);
 void RunFunctionExtensions(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params, Interpreter* interpreter);
+void RunFunctionExitExtensions(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params, Interpreter* interpreter);
 void RunBlockExtensions(SpiteIR::Block* block, Interpreter* interpreter);
 void RunLabelExtensions(SpiteIR::Label* label, Interpreter* interpreter);
 void RunInitExtensions(Interpreter* interpreter);

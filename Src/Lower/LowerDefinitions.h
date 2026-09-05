@@ -326,7 +326,8 @@ struct LowerDefinitions
 				SpiteIR::Function* func = comp.compileFunc;
 				SpiteIR::Instruction* store = comp.storeInst;
 
-				volatile void* ret = context.interpreter->InterpretFunction(func, 0);
+				eastl::vector<SpiteIR::Operand> params = eastl::vector<SpiteIR::Operand>();
+				volatile void* ret = context.interpreter->InterpretFunction(func, 0, &params);
 				if (store)
 				{
 					SpiteIR::Operand src = CreateValueOperand((void*)ret, func->returnType);

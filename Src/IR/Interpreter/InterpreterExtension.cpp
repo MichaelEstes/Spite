@@ -60,6 +60,25 @@ void RunFunctionExtensions(SpiteIR::Function* func, eastl::vector<SpiteIR::Opera
 	}
 }
 
+void RunFunctionExitExtensions(SpiteIR::Function* func, eastl::vector<SpiteIR::Operand>* params, Interpreter* interpreter)
+{
+	size_t count = funcExitExts.count;
+	if (!count || interpreter->runningExtension) return;
+
+	SpiteIR::Function** funcArray = (SpiteIR::Function**)funcExitExts.memory;
+	eastl::vector<SpiteIR::Operand> _params = eastl::vector<SpiteIR::Operand>();
+	BuildParamsFromFunction(funcArray[0], _params);
+
+	for (size_t i = 0; i < count; i++)
+	{
+		SpiteIR::Function* _func = funcArray[i];
+		_params[0].literal.pointerLiteral = func;
+		_params[1].literal.pointerLiteral = params;
+		_params[2].literal.i32Literal = interpreter->threadID;
+		CallExtensionFunction(_func, _params, interpreter);
+	}
+}
+
 void RunBlockExtensions(SpiteIR::Block* block, Interpreter* interpreter)
 {
 	size_t count = blockExts.count;

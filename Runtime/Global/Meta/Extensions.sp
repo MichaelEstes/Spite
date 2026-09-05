@@ -1,6 +1,7 @@
 package _
 
 _funcExts: *[]::(*_Function, *_Interop_Vector<_Operand>, int32) = 0 as *void;
+_funcExitExts: *[]::(*_Function, *_Interop_Vector<_Operand>, int32) = 0 as *void;
 _blockExts: *[]::(*_Block, int32) = 0 as *void;
 _labelExts: *[]::(*_Label, int32) = 0 as *void;
 _instExts: *[]::(*_Instruction, *_Label, int32) = 0 as *void;
@@ -8,6 +9,7 @@ _initExts: *[]::(int32) = 0 as *void;
 
 bool RegisterInterpreterExtension(
 	onFunctionEnter: ::(*_Function, *_Interop_Vector<_Operand>, int32),
+	onFunctionExit: ::(*_Function, *_Interop_Vector<_Operand>, int32) = 0 as *void,
 	onBlockEnter: ::(*_Block, int32) = 0 as *void,
 	onLabelEnter: ::(*_Label, int32) = 0 as *void,
 	onInstruction: ::(*_Instruction, *_Label, int32) = 0 as *void,
@@ -19,6 +21,12 @@ bool RegisterInterpreterExtension(
 	if (_funcExts && onFunctionEnter)
 	{
 		_funcExts.Add(onFunctionEnter);
+		ret = true;
+	}
+
+	if (_funcExitExts && onFunctionExit)
+	{
+		_funcExitExts.Add(onFunctionExit);
 		ret = true;
 	}
 
