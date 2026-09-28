@@ -15,11 +15,7 @@ size_array(arr: array, count: uint)
 array make_array_from(itemBytes: uint, count: uint, start: *byte)
 {
 	arr: array = array();
-	alloc := Allocator<byte>();
-	alloc.Alloc(itemBytes * count);
-	copy_bytes(alloc[0], start, count * itemBytes);
-
-	arr.memory = alloc;
+	arr.memory.ptr = start;
 	arr.itemBytes = itemBytes;
 	arr.capacity = count;
 	arr.count = count;

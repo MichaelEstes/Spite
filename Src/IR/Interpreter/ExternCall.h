@@ -15,6 +15,7 @@ struct DynCall
 {
 	DCCallVM* dynCallVM;
 	eastl::hash_map<eastl::string, DLLib*> libCache;
+	eastl::hash_map<SpiteIR::Function*, DCCallback*> callbackCache;
 	eastl::vector<DCaggr*> dcaggrs;
 };
 

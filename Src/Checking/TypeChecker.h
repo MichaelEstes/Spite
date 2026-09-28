@@ -42,6 +42,7 @@ struct TypeChecker
 
 	bool CheckNamedType(Type* type, Expr* templates, bool error = true)
 	{
+		if (IsGenericOfCurrentContext(type)) return true;
 		Token* name = type->namedType.typeName;
 		Stmnt* state = context.globalTable->FindScopedState(name, context.symbolTable);
 		if (state)
@@ -61,7 +62,7 @@ struct TypeChecker
 				type->importedType.packageName = enumStmnt->package;
 				type->importedType.typeName = name;
 			}
-			else if (!IsGenericOfCurrentContext(type))
+			else
 			{
 				if (error)
 					AddError(type->namedType.typeName, "TypeChecker:CheckNamedType Could not find named type");

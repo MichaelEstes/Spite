@@ -73,7 +73,7 @@ namespace SpiteIR
 		Member,
 		State,
 		Package,
-		IR,
+		IR
 	};
 
 	struct Parent
@@ -130,14 +130,14 @@ namespace SpiteIR
 		Less,
 		Greater,
 		LessEqual,
-		GreaterEqual,
+		GreaterEqual
 	};
 
 	enum class UnaryOpKind
 	{
 		Subtract,
 		Not,
-		XOr,
+		XOr
 	};
 
 	enum class PrimitiveKind
@@ -162,7 +162,7 @@ namespace SpiteIR
 		Literal,
 		StructLiteral,
 		Function,
-		TypeData,
+		TypeData
 	};
 
 	enum class InstructionKind
@@ -197,7 +197,7 @@ namespace SpiteIR
 		LessThan,
 		GreaterThan,
 		LessThanEqual,
-		GreaterThanEqual,
+		GreaterThanEqual
 	};
 
 	enum class TypeKind
@@ -472,6 +472,7 @@ namespace SpiteIR
 		Inline = ToBit(1),
 		IsMethod = ToBit(2),
 		IsConstructor = ToBit(3),
+		IsExternFuncPtr = ToBit(4),
 	};
 
 	struct PlatformLib
@@ -515,6 +516,11 @@ namespace SpiteIR
 		inline bool IsConstructor()
 		{
 			return metadata.flags & FunctionFlags::IsConstructor;
+		}
+
+		inline bool IsExternalFuncPtr()
+		{
+			return metadata.flags & FunctionFlags::IsExternFuncPtr;
 		}
 	};
 

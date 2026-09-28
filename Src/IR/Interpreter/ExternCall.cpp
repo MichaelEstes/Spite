@@ -35,6 +35,27 @@ DynCall CreateDynCallVM()
 	return dynCall;
 }
 
+SpiteIR::Function* CreateFunctionForExternFuncPtr(
+	SpiteIR::Type* funcType, void* externFuncPtr
+)
+{
+	//TODO allocate this better
+	SpiteIR::Function* func = new SpiteIR::Function();
+	func->metadata.externFunc = (SpiteIR::ExternFunction*)externFuncPtr;
+	func->metadata.flags |= SpiteIR::FunctionFlags::IsExternFuncPtr;
+	func->name = "CFunc";
+	func->returnType = funcType->function.returnType;
+	
+	for (SpiteIR::Type* argType : *funcType->function.params)
+	{
+		SpiteIR::Argument* funcArg = new SpiteIR::Argument();
+		funcArg->value.type = argType;
+		func->arguments.push_back(funcArg);
+	}
+
+	return func;
+}
+
 void DestroyDynCallVM(DynCall& dynCall)
 {
 	for (auto& [_, dlLib] : dynCall.libCache)
@@ -96,6 +117,7 @@ char TypeToDCSigChar(SpiteIR::Type* type)
 	case SpiteIR::TypeKind::PointerType:
 		return 'p';
 	case SpiteIR::TypeKind::FunctionType:
+		return 'p';
 	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::StructureType:
 	case SpiteIR::TypeKind::DynamicArrayType:
@@ -187,6 +209,9 @@ SpiteIR::Operand DCArgToOperand(DCArgs* args, SpiteIR::Type* type)
 		operand.literal.pointerLiteral = dcbArgPointer(args);
 		return operand;
 	case SpiteIR::TypeKind::FunctionType:
+		operand.kind = SpiteIR::OperandKind::Function;
+		operand.function = CreateFunctionForExternFuncPtr(type, dcbArgPointer(args));
+		return operand;
 	case SpiteIR::TypeKind::StateType:
 	case SpiteIR::TypeKind::StructureType:
 	case SpiteIR::TypeKind::DynamicArrayType:
@@ -334,8 +359,8 @@ char DCCallbackFunc(DCCallback* callback, DCArgs* args, DCValue* result, void* u
 		SetResultValue(returnType, returnValue, result);
 	}
 	
-	dcbFreeCallback(callback);
-	delete callbackData;
+	//dcbFreeCallback(callback);
+	//delete callbackData;
 	return TypeToDCSigChar(returnType);
 }
 
@@ -478,19 +503,31 @@ void BuildDCArg(SpiteIR::Type* type, void* value, DynCall& dyncall, Interpreter*
 		return;
 	case SpiteIR::TypeKind::FunctionType:
 	{
-		eastl::string sig = "";
-		for (SpiteIR::Type* param : *type->function.params)
+		SpiteIR::Function* func = *(SpiteIR::Function**)value;
+		DCCallback* callback;
+
+		if (MapHas(dyncall.callbackCache, func))
 		{
-			sig += TypeToDCSigChar(param);
+			callback = dyncall.callbackCache.at(func);
 		}
-		sig += ')';
-		sig += TypeToDCSigChar(type->function.returnType);
+		else
+		{
+			eastl::string sig = "";
+			for (SpiteIR::Type* param : *type->function.params)
+			{
+				sig += TypeToDCSigChar(param);
+			}
+			sig += ')';
+			sig += TypeToDCSigChar(type->function.returnType);
 
-		DCCallbackData* data = new DCCallbackData();
-		data->interpreter = interpreter;
-		data->func = *(SpiteIR::Function**)value;
+			DCCallbackData* data = new DCCallbackData();
+			data->interpreter = interpreter;
+			data->func = *(SpiteIR::Function**)value;
 
-		DCCallback* callback = dcbNewCallback(sig.c_str(), &DCCallbackFunc, (void*)data);
+			callback = dcbNewCallback(sig.c_str(), &DCCallbackFunc, (void*)data);
+			dyncall.callbackCache.emplace(func, callback);
+		}
+
 		dcArgPointer(dynCallVM, callback);
 		return;
 	}
@@ -645,17 +682,25 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<SpiteIR::Op
 		BuildDCArg(type, value, dyncall, interpreter);
 	}
 
-	eastl::string& name = function->metadata.externFunc->externName;
-	eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
-	func_ptr func = FindDCFunction(name, lib, dyncall);
-	if (!func)
+	func_ptr func;
+	if (function->IsExternalFuncPtr())
 	{
-		if (lib)
-			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-				name + "' for platform '" + platform + "' in lib '" + *lib + "'");
-		else
-			Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-				name + "' for platform '" + platform + "'");
+		func = (func_ptr)function->metadata.externFunc;
+	}
+	else
+	{
+		eastl::string& name = function->metadata.externFunc->externName;
+		eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
+		func = FindDCFunction(name, lib, dyncall);
+		if (!func)
+		{
+			if (lib)
+				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+					name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+			else
+				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
+					name + "' for platform '" + platform + "'");
+		}
 	}
 
 	CallDCFunc(function->returnType, (void*)func, dst, dyncall);

@@ -443,12 +443,16 @@ struct Interpreter
 
 	inline void InterpretBranch(SpiteIR::Instruction& branchInst, SpiteIR::Label*& label)
 	{
-		SpiteIR::Label* labels[] = {
-			branchInst.branch.false_, branchInst.branch.true_
-		};
-
 		bool test = *(bool*)(stackFrameStart + branchInst.branch.test.reg);
-		label = labels[test];
+		switch (test)
+		{
+		case false:
+			label = branchInst.branch.false_;
+			return;
+		default:
+			label = branchInst.branch.true_;
+			return;
+		}
 	}
 
 	inline void InterpretSwitch(SpiteIR::Instruction& switchInst, SpiteIR::Label*& label)

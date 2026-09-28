@@ -140,15 +140,21 @@ bool Map::Insert(key: Key, value: Value)
 		this.ResizeTo((this.capacity + 1) * 2);
 	}
 
-	this.count += 1;
-	return this.InsertInternal(
+	if (!this.InsertInternal(
 			key, 
 			value,
 			this.keys, 
 			this.values, 
 			this.status,
 			this.capacity
-	);
+		)
+	)
+	{
+		return false;
+	}
+
+	this.count += 1;
+	return true;
 }
 
 *Value Map::Emplace(key: Key)

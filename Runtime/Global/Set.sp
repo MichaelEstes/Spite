@@ -104,13 +104,19 @@ bool Set::Insert(key: Key)
 		this.ResizeTo((this.capacity + 1) * 2);
 	}
 
-	this.count += 1;
-	return this.InsertInternal(
+	if (!this.InsertInternal(
 			key, 
 			this.keys, 
 			this.status,
 			this.capacity
-	);
+		)
+	)
+	{
+		return false;
+	}
+
+	this.count += 1;
+	return true;
 }
 
 bool Set::Remove(key: Key)
