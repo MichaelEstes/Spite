@@ -520,6 +520,10 @@ struct TypeInferer
 		{
 			return type;
 		}
+		else if (type->typeID == TypeID::PointerType && IsAny(type->pointerType.type))
+		{
+			return type->pointerType.type;
+		}
 
 		Stmnt* state = globalTable->FindStateForType(type, symbolTable);
 		if (!state)
@@ -1343,7 +1347,7 @@ struct TypeInferer
 					IsExprGenericOf(stmntContext, lTempl) || IsExprGenericOf(stmntContext, rTempl))
 					continue;
 
-				if (!IsAssignable(InferType(lTempl), InferType(rTempl))) return false;
+				if (!IsAssignable(InferType(lTempl), InferType(rTempl), stmntContext)) return false;
 			}
 
 			return true;
