@@ -168,9 +168,9 @@ struct Decompiler
 		{
 			seenLabels.insert(label);
 			Write("\n" + label->name + ":");
-			for (SpiteIR::Instruction* inst : label->values)
+			for (SpiteIR::Instruction& inst : label->values)
 			{
-				DecompileInstruction(*inst);
+				DecompileInstruction(inst);
 			}
 			if (label->terminator) DecompileInstruction(*label->terminator);
 			else Write("NON TERMINATED LABEL");

@@ -22,6 +22,8 @@ array make_array_from(itemBytes: uint, count: uint, start: *byte)
 	return arr;
 }
 
+uint array_count(arr: []any) => arr.count;
+
 state Iterator
 {
 	current: *void,

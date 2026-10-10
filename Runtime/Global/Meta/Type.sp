@@ -25,6 +25,11 @@ bool _Type::IsInteger() => this.IsPrimitive() && (
 
 bool _Type::IsState() => this.kind == _TypeKind.StateType;
 
+bool _Type::IsDynamicArray() => this.kind == _TypeKind.DynamicArrayType;
+
+bool _Type::HasDestructor() => this.IsString() || this.IsDynamicArray() ||
+							  (this.IsState() && this.type.stateType.destructor != null);
+
 bool _Type::IsStructure() => this.kind == _TypeKind.StructureType;
 
 bool _Type::IsPointer() => this.kind == _TypeKind.PointerType;

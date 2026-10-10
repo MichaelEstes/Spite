@@ -68,6 +68,8 @@ Iterator Map::operator::in()
 
 bool Map::next(it: Iterator)
 {
+	if (!this.capacity) return false;
+
 	it.index += 1;
 	while(it.index < this.capacity && this.status[it.index]~ != _Status.Full)
 	{
@@ -167,6 +169,19 @@ bool Map::Remove(key: Key)
 {
 	index := this.FindIndex(key);
 	if(index == InvalidIndex) return false;
+
+	this.status[index]~ = _Status.Deleted;
+	this.count -= 1;
+	return true;
+}
+
+bool Map::RemoveAndDelete(key: Key)
+{
+	index := this.FindIndex(key);
+	if(index == InvalidIndex) return false;
+
+	delete this.keys[index]~;
+	delete this.values[index]~;
 	this.status[index]~ = _Status.Deleted;
 	this.count -= 1;
 	return true;
@@ -198,6 +213,64 @@ Map::Clear()
 {
 	this.count = 0;
 	zero_out_bytes(this.status[0], this.capacity);
+}
+
+Map::DeleteKeys()
+{
+	keyHasDestructor := #compile bool {
+		return (#typeof Key).HasDestructor();
+	}
+
+	if (keyHasDestructor)
+	{
+		for (i .. this.capacity)
+		{
+			if (this.status[i]~ == _Status.Full)
+			{
+				delete this.keys[i]~;
+			}
+		}
+	}
+}
+
+Map::DeleteValues()
+{
+	valueHasDestructor := #compile bool {
+		return (#typeof Value).HasDestructor();
+	}
+
+	if (valueHasDestructor)
+	{
+		for (i .. this.capacity)
+		{
+			if (this.status[i]~ == _Status.Full)
+			{
+				delete this.values[i]~;
+			}
+		}
+	}
+}
+
+Map::DeleteAll()
+{
+	keyHasDestructor := #compile bool {
+		return (#typeof Key).HasDestructor();
+	}
+	valueHasDestructor := #compile bool {
+		return (#typeof Value).HasDestructor();
+	}
+
+	if (keyHasDestructor || valueHasDestructor)
+	{
+		for (i .. this.capacity)
+		{
+			if (this.status[i]~ == _Status.Full)
+			{
+				if (keyHasDestructor) delete this.keys[i]~;
+				if (valueHasDestructor) delete this.values[i]~;
+			}
+		}
+	}
 }
 
 bool Map::InsertInternal(key: Key, value: Value, keys: KeyAllocator<Key>, 

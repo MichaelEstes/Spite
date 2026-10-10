@@ -50,6 +50,8 @@ Iterator Set::operator::in()
 
 bool Set::next(it: Iterator)
 {
+	if (!this.capacity) return false;
+
 	it.index += 1;
 	while(it.index < this.capacity && this.status[it.index]~ != _Status.Full)
 	{
@@ -123,6 +125,18 @@ bool Set::Remove(key: Key)
 {
 	index := this.FindIndex(key);
 	if(index == InvalidIndex) return false;
+
+	this.status[index]~ = _Status.Deleted;
+	this.count -= 1;
+	return true;
+}
+
+bool Set::RemoveAndDelete(key: Key)
+{
+	index := this.FindIndex(key);
+	if(index == InvalidIndex) return false;
+
+	delete this.keys[index]~;
 	this.status[index]~ = _Status.Deleted;
 	this.count -= 1;
 	return true;
@@ -150,6 +164,24 @@ Set::Clear()
 {
 	this.count = 0;
 	zero_out_bytes(this.status[0], this.capacity);
+}
+
+Set::DeleteAll()
+{
+	keyHasDestructor := #compile bool {
+		return (#typeof Key).HasDestructor();
+	}
+
+	if (keyHasDestructor)
+	{
+		for (i .. this.capacity)
+		{
+			if (this.status[i]~ == _Status.Full)
+			{
+				delete this.keys[i]~;
+			}
+		}
+	}
 }
 
 bool Set::InsertInternal(key: Key, keys: KeyAllocator<Key>, 

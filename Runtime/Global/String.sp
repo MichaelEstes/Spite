@@ -1,7 +1,5 @@
 package _
 
-import Math
-
 state _string 
 {
 	[value]

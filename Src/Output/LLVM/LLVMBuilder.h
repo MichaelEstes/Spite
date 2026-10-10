@@ -322,8 +322,7 @@ struct LLVMBuilder
 
 	void BuildInstructions(SpiteIR::Label* label)
 	{
-		for (SpiteIR::Instruction* inst : label->values)
-			BuildInstruction(inst);
+		for (SpiteIR::Instruction& inst : label->values) BuildInstruction(&inst);
 
 		BuildInstruction(label->terminator);
 	}

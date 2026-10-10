@@ -276,7 +276,9 @@ state _Instruction
 		unOp: _UnaryOp,
 		log_: _Log,
 		assert_: _Assert
-	}
+	},
+	
+	thread: ::()
 }
 
 enum _TypeKind: int32

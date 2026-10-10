@@ -14,7 +14,8 @@ struct Interpreter;
 struct DynCall
 {
 	DCCallVM* dynCallVM;
-	eastl::hash_map<eastl::string, DLLib*> libCache;
+	eastl::hash_map<eastl::string*, DLLib*> libCache;
+	eastl::hash_map<DLLib*, eastl::hash_map<eastl::string*, void*>> symbolCache;
 	eastl::hash_map<SpiteIR::Function*, DCCallback*> callbackCache;
 	eastl::vector<DCaggr*> dcaggrs;
 };
@@ -25,7 +26,7 @@ struct DCCallbackData
 	SpiteIR::Function* func;
 };
 
-func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib);
+func_ptr FindDCFunction(eastl::string* name, eastl::string* lib, DynCall& dynCall);
 DynCall CreateDynCallVM();
 void DestroyDynCallVM(DynCall& dynCall);
 char TypeToDCSigChar(SpiteIR::Type* type);

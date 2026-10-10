@@ -608,10 +608,10 @@ struct LowerDeclarations
 	}
 
 	void BuildArgumentForFunction(SpiteIR::Function* function, Stmnt* param, size_t index,
-		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr)
+		eastl::vector<Token*>* generics = nullptr, eastl::vector<Expr*>* templates = nullptr, bool allowReferenceTypes = true)
 	{
 		SpiteIR::Type* argType = TypeToIRType(context.ir, param->definition.type, this, generics, templates);
-		if (!argType->byValue) argType = MakeReferenceType(argType, context.ir);
+		if (allowReferenceTypes && !argType->byValue) argType = MakeReferenceType(argType, context.ir);
 
 		SpiteIR::Argument* arg = context.ir->AllocateArgument();
 		arg->value.type = argType;
@@ -673,7 +673,7 @@ struct LowerDeclarations
 		for (size_t i = 0; i < externFunc->externFunction.parameters->size(); i++)
 		{
 			Stmnt* param = externFunc->externFunction.parameters->at(i);
-			BuildArgumentForFunction(function, param, i);
+			BuildArgumentForFunction(function, param, i, nullptr, nullptr, false);
 		}
 
 		function->metadata.externFunc = context.ir->AllocateExternFunction();

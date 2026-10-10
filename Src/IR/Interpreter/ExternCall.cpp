@@ -2,27 +2,34 @@
 #include "Interpreter.h"
 #include "../../Log/Logger.h"
 
-func_ptr FindDCFunction(const eastl::string& name, eastl::string* lib, DynCall& dynCall)
+func_ptr FindDCFunction(eastl::string* name, eastl::string* lib, DynCall& dynCall)
 {
 	DLLib* dlLib = nullptr;
 
 	if (lib)
 	{
-		eastl::string& libName = *lib;
 		
-		eastl::hash_map<eastl::string, DLLib*>& libCache = dynCall.libCache;
-		if (MapHas(dynCall.libCache, libName))
+		eastl::hash_map<eastl::string*, DLLib*>& libCache = dynCall.libCache;
+		if (MapHas(dynCall.libCache, lib))
 		{
-			dlLib = libCache.at(libName);
+			dlLib = libCache.at(lib);
 		}
 		else
 		{
-			dlLib = dlLoadLibrary(libName.c_str());
-			libCache.emplace(libName, dlLib);
+			dlLib = dlLoadLibrary(lib->c_str());
+			libCache.emplace(lib, dlLib);
+			dynCall.symbolCache.emplace(dlLib, eastl::hash_map<eastl::string*, void*>());
 		}
 	}
 
-	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name.c_str());
+	eastl::hash_map<eastl::string*, void*>& symbolCache = dynCall.symbolCache.at(dlLib);
+	if (MapHas(symbolCache, name))
+	{
+		return (func_ptr)symbolCache.at(name);
+	}
+
+	func_ptr func = (func_ptr)dlFindSymbol(dlLib, name->c_str());
+	symbolCache.emplace(name, func);
 	return func;
 }
 
@@ -689,17 +696,17 @@ void CallExternalFunction(SpiteIR::Function* function, eastl::vector<SpiteIR::Op
 	}
 	else
 	{
-		eastl::string& name = function->metadata.externFunc->externName;
+		eastl::string* name = &function->metadata.externFunc->externName;
 		eastl::string* lib = FindLibForPlatform(function->metadata.externFunc->libs);
 		func = FindDCFunction(name, lib, dyncall);
 		if (!func)
 		{
 			if (lib)
 				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-					name + "' for platform '" + platform + "' in lib '" + *lib + "'");
+					*name + "' for platform '" + platform + "' in lib '" + *lib + "'");
 			else
 				Logger::FatalError("ExternalCall:CallExternalFunction Could not find function named '" +
-					name + "' for platform '" + platform + "'");
+					*name + "' for platform '" + platform + "'");
 		}
 	}
 

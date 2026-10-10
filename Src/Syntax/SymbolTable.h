@@ -558,6 +558,13 @@ struct SymbolTable
 			eastl::vector<Stmnt*>* params = op->stateOperator.decl->functionDecl.parameters;
 			params->at(0)->definition.type = templated;
 		}
+
+		Stmnt* destructor = stateSymbol.destructor;
+		if (destructor)
+		{
+			eastl::vector<Stmnt*>* params = destructor->destructor.decl->functionDecl.parameters;
+			params->at(0)->definition.type = templated;
+		}
 	}
 
 	void Finalize()

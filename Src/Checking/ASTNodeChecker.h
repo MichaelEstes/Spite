@@ -11,11 +11,14 @@ struct ASTNodeChecker
 	TypeChecker typeChecker;
 	ExprChecker exprChecker;
 
+	bool declarationsOnly = false;
+
 	ASTNodeChecker(CheckerContext& context, DeferredContainer& deferred)
 		: context(context), typeChecker(context), exprChecker(context, deferred) {}
 
 	inline void CheckFunctionDecl(Stmnt* functionDecl, Stmnt* of)
 	{
+		if (declarationsOnly) return;
 		auto& params = functionDecl->functionDecl.parameters;
 		auto& body = functionDecl->functionDecl.body;
 		CheckFuncBody(body, params);

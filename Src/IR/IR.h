@@ -13,6 +13,12 @@
 
 extern Config config;
 
+#if defined(_MSC_VER)
+struct __single_inheritance Interpreter;
+#else
+struct Interpreter;
+#endif
+
 // Any changes to this namespace need to be reflected in Runtime/Compile/Meta.sp
 namespace SpiteIR
 {
@@ -22,6 +28,7 @@ namespace SpiteIR
 	struct Type;
 	struct Argument;
 	struct Function;
+	struct Label;
 	struct Member;
 	struct State;
 	struct Package;
@@ -32,6 +39,8 @@ namespace SpiteIR
 	using HashMap = eastl::hash_map<Key, Value>;
 	template <typename Value>
 	using Array = eastl::vector<Value>;
+
+	using InstructionThread = void (Interpreter::*)(Instruction&, Label*&);
 
 	static constexpr size_t InvalidDebugIndex = (size_t)-1;
 
@@ -216,8 +225,8 @@ namespace SpiteIR
 	struct Label
 	{
 		string name;
-		Array<Instruction*> values;
-		Instruction* terminator = nullptr;
+		Array<Instruction> values;
+		Instruction* terminator;
 	};
 
 	struct Allocate
@@ -316,11 +325,6 @@ namespace SpiteIR
 		Operand dst;
 	};
 
-	struct Free
-	{
-		Operand operand;
-	};
-
 	struct Cast
 	{
 		Operand from;
@@ -336,17 +340,17 @@ namespace SpiteIR
 
 	struct BinaryOp
 	{
-		BinaryOpKind kind;
 		Operand left;
 		Operand right;
 		size_t result;
+		BinaryOpKind kind;
 	};
 
 	struct UnaryOp
 	{
-		UnaryOpKind kind;
 		Operand operand;
 		size_t result;
+		UnaryOpKind kind;
 	};
 
 	struct Log
@@ -383,7 +387,6 @@ namespace SpiteIR
 			Load load;
 			LoadGlobal loadGlobal;
 			Store store;
-			Free free;
 			Cast cast;
 			Switch switch_;
 			BinaryOp binOp;
@@ -391,6 +394,8 @@ namespace SpiteIR
 			Log log;
 			Assert assert;
 		};
+		
+		InstructionThread thread = nullptr;
 	};
 
 	struct Type

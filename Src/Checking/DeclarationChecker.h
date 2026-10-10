@@ -17,6 +17,7 @@ struct DeclarationChecker
 
 	void Check()
 	{
+		nodeChecker.declarationsOnly = true;
 		nodeChecker.AddScope();
 		for (Stmnt* value : context.symbolTable->globalVals)
 		{
