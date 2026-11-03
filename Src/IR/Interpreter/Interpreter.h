@@ -1135,4 +1135,16 @@ struct Interpreter
 		debug.Breakpoint(threadID, &pos);
 #endif
 	}
+
+	inline void InterpretCountLeadingZeros(SpiteIR::Instruction& clzInst, SpiteIR::Label*& label)
+	{
+		SpiteIR::Intrinsic& intrinsic = clzInst.intrinsic;
+		SpiteIR::Operand& valueOp = intrinsic.params->at(0);
+		size_t valReg = valueOp.reg;
+		size_t value = *(size_t*)(void*)(stackFrameStart + valReg);
+
+		int32_t leadingZeros = eastl::countl_zero(value);
+		int32_t* dst = (int32_t*)(void*)(stackFrameStart + intrinsic.result);
+		*dst = leadingZeros;
+	}
 };

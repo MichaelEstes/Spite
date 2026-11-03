@@ -436,9 +436,14 @@ struct LLVMBuilder
 		case SpiteIR::InstructionKind::Assert:
 			BuildAssert(inst);
 			break;
+		case SpiteIR::InstructionKind::CLZ:
+			BuildCountLeadingZeros(inst);
+			break;
 		default:
 			break;
 		}
+
+		assert(false);
 	}
 
 	void BuildReturn(SpiteIR::Instruction* inst)
@@ -1277,5 +1282,20 @@ struct LLVMBuilder
 
 	void BuildAssert(SpiteIR::Instruction* inst)
 	{
+	}
+
+	void BuildCountLeadingZeros(SpiteIR::Instruction* inst)
+	{
+		SpiteIR::Operand& valueOp = inst->intrinsic.params->at(0);
+		llvm::Type* valueType = ToLLVMType(valueOp.type, context);
+		llvm::Value* valuePtr = GetLocalValue(valueOp.reg);
+		llvm::Value* value = builder.CreateLoad(valueType, valuePtr);
+
+		llvm::Value* isZeroPoison = builder.getInt1(false);
+		llvm::Value* leadingZeros = builder.CreateBinaryIntrinsic(llvm::Intrinsic::ctlz, value, isZeroPoison);
+		llvm::Value* resultValue = builder.CreateIntCast(leadingZeros, llvmContext.int32Type, false);
+
+		llvm::Value* dstPtr = GetLocalValue(inst->intrinsic.result);
+		builder.CreateStore(resultValue, dstPtr);
 	}
 };

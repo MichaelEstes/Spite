@@ -196,7 +196,10 @@ namespace SpiteIR
 		BinOp,
 		UnOp,
 		Assert,
-		Breakpoint
+		Breakpoint,
+
+		//Intrinsics
+		CLZ
 	};
 
 	enum class CompareKind
@@ -364,6 +367,12 @@ namespace SpiteIR
 		Operand message;
 	};
 
+	struct Intrinsic
+	{
+		Array<Operand>* params;
+		size_t result;
+	};
+
 	struct InstructionMetadata
 	{
 		Label* label;
@@ -393,6 +402,7 @@ namespace SpiteIR
 			UnaryOp unOp;
 			Log log;
 			Assert assert;
+			Intrinsic intrinsic;
 		};
 		
 		InstructionThread thread = nullptr;

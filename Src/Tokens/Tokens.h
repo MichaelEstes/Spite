@@ -41,9 +41,6 @@ static TokenTree tokenTypeLookup = {
 	{ "as", TokenType::Keyword, UniqueType::As },
 	{ "ref", TokenType::Keyword, UniqueType::Ref },
 
-	//{ "public", TokenType::AccessModifier, UniqueType::Public },
-	//{ "private", TokenType::AccessModifier, UniqueType::Private },
-
 	{ "any", TokenType::Keyword, UniqueType::Any },
 
 	{ "void", TokenType::Primitive, UniqueType::Void },

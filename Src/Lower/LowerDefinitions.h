@@ -147,6 +147,8 @@ struct LowerDefinitions
 
 	eastl::hash_map<SpiteIR::Type*, SpiteIR::Type*, IRTypeHash, IRTypeEqual> typeUniqueMap;
 
+	eastl::hash_map<SpiteIR::Function*, SpiteIR::InstructionKind> intrinsicFunctionToInstruction;
+
 	Stmnt* currentStmnt = nullptr;
 	eastl::vector<Expr*>* currTemplates = nullptr;
 	eastl::vector<Token*> currGenerics;
@@ -164,12 +166,15 @@ struct LowerDefinitions
 	SpiteIR::Type* castInt;
 	SpiteIR::Type* indexByte;
 
+	const eastl::string intrinsics[1] = { "__clz" };
+
 	LowerDefinitions(LowerContext& context) : context(context)
 	{
 		castBool = CreateBoolType(context.ir);
 		castInt = CreateIntType(context.ir);
 		indexByte = CreateByteType(context.ir);
 		AssignRuntimeDeclarations(context.ir);
+		RegisterIntrinsics(context.ir);
 	}
 
 	void AssignRuntimeDeclarations(SpiteIR::IR* ir)
@@ -187,6 +192,15 @@ struct LowerDefinitions
 		stringState = FindPackageState(runtime, "___string");
 
 		typeMetaState = FindPackageState(runtime, "___Type");
+	}
+
+	void RegisterIntrinsics(SpiteIR::IR* ir)
+	{
+		SpiteIR::Package* runtime = ir->runtime;
+
+		SpiteIR::Function* clzFunc = FindPackageFunction(runtime, "__clz");
+
+		intrinsicFunctionToInstruction[clzFunc] = SpiteIR::InstructionKind::CLZ;
 	}
 
 	ScopeUtils& GetScopeUtils()
@@ -3870,6 +3884,13 @@ struct LowerDefinitions
 		return { alloc.result, alloc.type };
 	}
 
+	bool IsIntrinsic(SpiteIR::Function* function)
+	{
+		if (function->parent != context.ir->runtime) return false;
+
+		return MapHas(intrinsicFunctionToInstruction, function);
+	}
+
 	ScopeValue BuildFunctionCall(Expr* expr, Stmnt* stmnt)
 	{
 		Assert(expr->functionCallExpr.callKind != FunctionCallKind::UnknownCall);
@@ -3970,6 +3991,17 @@ struct LowerDefinitions
 		}
 
 		SpiteIR::Label* label = GetCurrentLabel();
+
+		bool isIntrinsic = IsIntrinsic(irFunction);
+		if (isIntrinsic)
+		{
+			SpiteIR::Allocate alloc = BuildAllocate(irFunction->returnType);
+			ret = { alloc.result, alloc.type };
+			SpiteIR::InstructionKind intrinsicKind = intrinsicFunctionToInstruction[irFunction];
+			BuildIntrinsic(intrinsicKind, ret.reg, params, label);
+			return ret;
+		}
+
 		if (!ret.type)
 		{
 			SpiteIR::Allocate alloc = BuildAllocate(irFunction->returnType);
@@ -4290,6 +4322,9 @@ struct LowerDefinitions
 			return &Interpreter::InterpretAssert;
 		case SpiteIR::InstructionKind::Breakpoint:
 			return &Interpreter::InterpretBreakpoint;
+
+		case SpiteIR::InstructionKind::CLZ:
+			return &Interpreter::InterpretCountLeadingZeros;
 		default:
 			break;
 		}
@@ -4552,5 +4587,16 @@ struct LowerDefinitions
 		breakpoint.kind = SpiteIR::InstructionKind::Breakpoint;
 		breakpoint.thread = InstructionKindToThread(SpiteIR::InstructionKind::Breakpoint);
 		return breakpoint;
+	}
+
+	SpiteIR::Instruction& BuildIntrinsic(SpiteIR::InstructionKind kind, size_t returnReg,
+		eastl::vector<SpiteIR::Operand>* params, SpiteIR::Label* label)
+	{
+		SpiteIR::Instruction& intrinsic = CreateInstruction(label);
+		intrinsic.kind = kind;
+		intrinsic.thread = InstructionKindToThread(kind);
+		intrinsic.intrinsic.params = params;
+		intrinsic.intrinsic.result = returnReg;
+		return intrinsic;
 	}
 };
